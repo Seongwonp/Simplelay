@@ -13,6 +13,9 @@ const kResyncLabel = '본체 화면에 반영하기';
 /// 들어간 상태 카드에서 한다(줄 끝 >가 말한다).
 const kThinqSubtitleLines = ['등록은 LG 앱에서 해요'];
 
+/// 연습 LG 가전 줄 부제(보호자 과업 평가 10/18).
+const kPracticeSubtitle = '연습용이라 등록할 필요 없어요';
+
 /// 안부 알림을 며칠 쉬는 설정의 이름 — 하는 일 그대로(평가 3차 10/18, 예전 '안부 확인 쉬기').
 const kAwayTitle = '집 비우는 날';
 
@@ -35,7 +38,10 @@ class _ApplianceSection extends ConsumerWidget {
           if (i > 0) Divider(height: 1, color: context.appBorderFaint),
           ListTile(
             leading: Icon(appliance.icon),
-            title: Text(appliance.displayName),
+            // 연습 가전은 이름의 '(연습)'을 빼고 부제가 연습이라고 말한다(휴리스틱 평가 10/18 — 홈 타일과 같은 표기).
+            title: Text(isPracticeAppliance(appliance)
+                ? appliance.displayName.replaceAll('(연습)', '').trim()
+                : appliance.displayName),
             // 버튼 자리를 맞추지 않은 가전은 할 일만 짧게 한 줄(평가 7차 10/18: 주황 두 줄 + ⋮라 눌러도 되는지 헷갈렸다).
             subtitle: appliance.isCustom && !appliance.isThinq
                 ? (needsPanelMapping(appliance)
@@ -46,6 +52,12 @@ class _ApplianceSection extends ConsumerWidget {
                 // 평가 4차 10/18: '처음부터 들어 있는 가전이에요'·'빼기는 LG 가전 연결에서 해요'는 앱이 어떻게 만들어졌는지를
                 // 말했다. 사용자가 할 일이 있을 때만 적는다 — LG 가전은 어디서 무엇을 하는지, 그 밖은 비운다.
                 // 평가 11차(10/18): 'LG 앱에서 관리해요'는 여기서 못 다룬다는 오해 — 켜기·끄기는 줄을 눌러 들어간 상태 카드에서 한다.
+                : appliance.isThinq && isPracticeAppliance(appliance)
+                    // 연습 LG 가전(서버가 세운 모의 기기)은 LG 앱에서 등록할 것이 없다(보호자 과업 평가 10/18 —
+                    // '등록은 LG 앱에서 해요'가 상세·홈과 어긋났다).
+                    ? Text(kPracticeSubtitle,
+                        key: const Key('settings-practice-subtitle'),
+                        style: TextStyle(fontSize: AppFont.caption, color: context.appPractice))
                 : appliance.isThinq
                     // 평가 12차(10/18): 한 줄로 이어 쓰니 'LG / 앱에서'로 끊겼다 → 두 문장을 두 줄로, 'LG 앱에서'는
                     // 붙여 둔다(줄바꿈 없는 빈칸). 낭독은 원문.

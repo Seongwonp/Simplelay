@@ -248,7 +248,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       // 단정하고 BLE로 다시 보내면 같은 명령이 두 번 실행된다 -- 채널 간
       // 중복을 걸러낼 요청 ID가 아직 없으므로 자동 재전송하지 않는다.
       if (mounted) {
-        _notice('본체가 받았는지 몰라요. 다시 보내기 전에 가전을 봐 주세요.');
+        _notice('본체가 받았는지 몰라요. 다시 보내기 전에 집에서 가전을 확인해야 해요.');
       }
     } catch (_) {
       // 연결 자체가 성립하지 않은 실패(서버에 닿지도 못함). 서버가 살아서

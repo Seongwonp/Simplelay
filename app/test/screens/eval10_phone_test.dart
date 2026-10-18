@@ -6,7 +6,7 @@
 // 2. 자동으로 하기 탭: 머리 안내는 낱말 단위 줄바꿈('자 / 동' 방지). 사용자가 끈 규칙은 짧은 '꺼 둠' 표시
 //    (예전 긴 '자동으로 하기를 꺼 두셨어요' 배지는 두지 않는다).
 // 3. 기록: '루틴 · 허락하고 실행' → '루틴 · 물어보고'. '직접' → '사람이 직접'(폰·본체 화면·말을 가를 자료가
-//    기록에 없다 — 사람이 시작했다는 것까지만). '봐 주세요' 배지 줄에는 까닭 한 줄(결과 문장 그대로).
+//    기록에 없다 — 사람이 시작했다는 것까지만). '확인 필요' 배지 줄에는 까닭 한 줄(결과 문장 그대로).
 // 4. 홈 가전 칸: 자리 확인 보조 줄과 '준비됐어요'가 엇갈리지 않게 — 보조 줄이 있으면 띠가 그 한 문장.
 // 5. 설정: 못 읽은 값은 까닭(본체 연결이 끊김처럼 근거가 있을 때만), '새로 보기'는 따로 단추.
 // 6. 루틴 편집: 기다리기 단계 '동작이 끝날 때까지 기다리기' → '[전자레인지] 끝나면' 한 줄.
@@ -290,9 +290,9 @@ void main() {
       }
     });
 
-    testWidgets("'지금 하기'는 모든 줄에서 이름 줄 같은 높이", (tester) async {
+    testWidgets("'지금 하기'는 모든 줄에서 이름 아래 같은 자리(따로 작은 단추, 휴리스틱 평가 10/18)", (tester) async {
       await _pump(tester, const RoutinesScreen());
-      final offsets = <double>[];
+      final lefts = <double>[];
       for (final (id, name) in [
         ('r-morn', '아침 공기청정기 끄기'),
         ('r-eve', '저녁 공기청정기 켜기'),
@@ -300,14 +300,14 @@ void main() {
       ]) {
         final row = find.byKey(Key('routine-row-$id'));
         final run = find.byKey(Key('routine-run-$id'));
-        // 평가 16·17차: '지금 하기'는 아이콘과 같은 세로 가운데(이름·설명 묶음 가운데).
         expect(_in(row, findPlainText(name)), findsOneWidget, reason: id);
-        final icon = find.byKey(Key('routine-icon-box-$id'));
-        expect((tester.getCenter(run).dy - tester.getCenter(icon).dy).abs(), lessThan(2), reason: id);
-        offsets.add(tester.getTopLeft(run).dy - tester.getTopLeft(row).dy);
+        final line = find.byKey(Key('routine-line-$id'));
+        // 이름·설명 아래 따로(줄 이동 '>'처럼 보이지 않게).
+        expect(tester.getTopLeft(run).dy, greaterThanOrEqualTo(tester.getBottomLeft(line).dy), reason: id);
+        lefts.add(tester.getTopLeft(run).dx);
       }
-      // 평가 17차(10/18): 줄 높이는 이름·설명 묶음을 따른다 — 같은 기준은 아이콘 가운데(위).
-      expect(offsets, hasLength(3));
+      // 모든 줄이 같은 왼쪽 세로줄.
+      expect(lefts.toSet(), hasLength(1));
     });
 
     testWidgets("'다음' 배지는 이름 아래 그 한 줄 끝", (tester) async {
@@ -363,7 +363,7 @@ void main() {
   });
 
   group('3. 기록', () {
-    testWidgets("'루틴 · 물어보고'·'사람이 직접', '봐 주세요'에는 까닭 한 줄", (tester) async {
+    testWidgets("'루틴 · 물어보고'·'사람이 직접', '확인 필요'에는 까닭 한 줄", (tester) async {
       await _pump(tester, const HistoryScreen());
       expect(findPlainText('허락하고 실행', contains: true), findsNothing);
       expect(_in(find.byKey(const ValueKey('history-j-ask')), findPlainText('루틴 · 물어보고', contains: true)),
@@ -374,7 +374,7 @@ void main() {
       expect(_in(find.byKey(const ValueKey('history-j-me')), findPlainText('LG 가전', contains: true)),
           findsOneWidget);
       final unk = find.byKey(const ValueKey('history-j-unk'));
-      expect(_in(unk, findPlainText('봐 주세요')), findsOneWidget);
+      expect(_in(unk, findPlainText('확인 필요')), findsOneWidget);
       final reason = find.byKey(const Key('history-reason-j-unk'));
       expect(_in(unk, reason), findsOneWidget);
       expect(find.descendant(of: reason, matching: findPlainText('눌렸는지 몰라요'), matchRoot: true), findsOneWidget);
@@ -399,9 +399,12 @@ void main() {
     testWidgets("본체 연결이 끊겨 못 읽은 값은 까닭과 함께 — '새로 보기'는 따로 단추", (tester) async {
       await _pump(tester, const SettingsScreen(), hub: RpiConnectionState.unreachable, down: true);
       expect(findPlainText('연결됐는지 몰라요'), findsNothing);
-      expect(findPlainText('본체와 연결이 끊겨 못 불러왔어요'), findsWidgets);
+      // 휴리스틱 평가(10/18): 까닭은 위 배너 한 번, 줄은 '못 불러왔어요'만.
+      expect(_in(find.byKey(const Key('settings-hub-banner')), findPlainText('본체와 연결이 끊겨', contains: true)),
+          findsOneWidget);
+      expect(findPlainText('본체와 연결이 끊겨 못 불러왔어요'), findsNothing);
       final quiet = find.byKey(const Key('settings-row-quiet'));
-      expect(_in(quiet, findPlainText('본체와 연결이 끊겨', contains: true)), findsOneWidget);
+      expect(_in(quiet, findPlainText('못 불러왔어요', contains: true)), findsOneWidget);
       expect(_in(quiet, findPlainText('새로 보기', contains: true)), findsNothing);
       final refresh = find.byKey(const Key('settings-quiet-refresh'));
       expect(refresh, findsOneWidget);

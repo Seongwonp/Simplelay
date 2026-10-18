@@ -526,7 +526,7 @@ String? operationSentence(ExecutionStatus s) => switch (s.operationConfirmed) {
         '연습이라 실제 가전은 보지 않았어요',
       true when s.operationSource == 'real' => '가전이 전기를 쓰기 시작한 것도 확인했어요',
       true when s.operationSource == 'mock' => '가전 동작은 연습 값으로 봤어요. 실제로 확인한 건 아니에요',
-      true => '가전이 움직였는지 몰라요. 가전을 봐 주세요',
+      true => '가전이 움직였는지 몰라요. 집에서 가전을 확인해야 해요',
       false => '가전이 움직였는지 몰라요',
       null => null,
     };
@@ -695,7 +695,7 @@ class _NowState {
         );
       case ExecutionPhase.unknown:
         return _NowState(
-          headline: s.message ?? '지금 상태를 몰라요. 가전을 봐 주세요.',
+          headline: s.message ?? '지금 상태를 몰라요. 집에서 가전을 확인해야 해요.',
           tone: _Tone.caution,
         );
       case ExecutionPhase.unconfirmed:

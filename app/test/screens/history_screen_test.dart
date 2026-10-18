@@ -247,7 +247,7 @@ void main() {
     expect(findPlainText('오늘'), findsOneWidget);
     expect(findPlainText('어제'), findsOneWidget);
     expect(findPlainText('9월 6일'), findsOneWidget);
-    // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄. '봐 주세요' 줄은 그 까닭 한 줄로(평가 10차 10/18).
+    // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄. '확인 필요' 줄은 그 까닭 한 줄로(평가 10차 10/18).
     expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), findsNWidgets(3));
     // 동작을 확인하지 못한 물리 기록은 성공 체크가 아니라 중립 아이콘(UI 평가 5차 10/17 — 체크 바로 아래
     // '확인하지 못했어요'가 와서 신호가 섞였다).
@@ -257,8 +257,8 @@ void main() {
     expect(findPlainText('실행 환경 미확인', contains: true), findsNothing);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
-    // 보고만 받은 버튼 기록은 '봐 주세요' — 초록 '됐어요'가 아니다(확인 수준을 높여 보이지 않는다, 평가 5차 10/18 배지 넷).
-    expect(findPlainText('봐 주세요'), findsNWidgets(3));
+    // 보고만 받은 버튼 기록은 '확인 필요' — 초록 '됐어요'가 아니다(확인 수준을 높여 보이지 않는다, 평가 5차 10/18 배지 넷).
+    expect(findPlainText('확인 필요'), findsNWidgets(3));
     expect(findPlainText('됐어요'), findsNothing);
   });
 
@@ -293,8 +293,8 @@ void main() {
     await tester.pump();
     await _expandAll(tester);
 
-    expect(findPlainText('직접 멈췄어요', contains: true), findsOneWidget);
-    expect(findPlainText('다시 눌러도 눌렸는지 몰라요', contains: true), findsOneWidget);
+    expect(findPlainText('멈춰 달라는 요청으로 멈췄어요', contains: true), findsOneWidget);
+    expect(findPlainText('한 번 더 눌렀지만 눌렸는지 몰라요', contains: true), findsOneWidget);
   });
 
   testWidgets('어느 가전이었는지 알 때만 말한다', (tester) async {
@@ -467,7 +467,7 @@ void main() {
       findPlainText('오늘'),
       findPlainText('아침 데우기'),
       findPlainText('오전 8:10 · 바로 실행 · 전자레인지'),
-      findPlainText('다시 눌러도 눌렸는지 몰라요'),
+      findPlainText('한 번 더 눌렀지만 눌렸는지 몰라요'),
       findPlainText('연습이라 실제로 누르지 않았어요'),
       findPlainText('버튼판에서 직접 누르기'),
     ];
@@ -510,7 +510,7 @@ void main() {
     expect(findPlainText('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다. 목적 없는 실행은 수동 조작 화면에서 고른 것(평가 13차).
     expect(findPlainText('오전 8:10 · 화면에서 골라 누름'), findsOneWidget);
-    expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), findsNWidgets(2)); // 평가 17차: '봐 주세요'는 칩이 말한다
+    expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), findsNWidgets(2)); // 평가 17차: '확인 필요'는 칩이 말한다
     expect(findPlainText('버튼 누르기'), findsOneWidget);
   });
 
@@ -528,7 +528,7 @@ void main() {
     expect(findPlainText('즉석밥 데우기'), findsOneWidget);
     expect(find.byKey(const ValueKey('history-job-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('history-job-2')), findsNothing);
-    expect(findPlainText('2번 봐 주세요'), findsOneWidget);
+    expect(findPlainText('2번 확인 필요'), findsOneWidget);
     expect(find.byKey(const Key('history-sub-job-1')), findsOneWidget);
     expect(find.byKey(const Key('history-sub-job-2')), findsOneWidget);
   });
@@ -627,7 +627,7 @@ void main() {
     // 상태를 다시 읽어 확인한 것만 초록 '됐어요' — 무엇을 확인했는지 짧게('켜짐 확인', 평가 14차 10/18).
     expect(findPlainText('켜짐 확인'), findsOneWidget);
     expect(findPlainText('못 했어요'), findsOneWidget);
-    expect(findPlainText('봐 주세요'), findsOneWidget);
+    expect(findPlainText('확인 필요'), findsOneWidget);
     // 배지는 행 오른쪽.
     expect(tester.getCenter(findPlainText('켜짐 확인')).dx,
         greaterThan(tester.getCenter(findPlainText('공기청정기 켜기')).dx));
@@ -635,7 +635,9 @@ void main() {
     expect(findPlainText('버튼판에서 직접 누르기'), findsNothing);
     await tester.tap(find.byKey(const Key('history-tap-j-routine')));
     await tester.pump();
-    expect(findPlainText('버튼판에서 직접 누르기'), findsOneWidget);
+    // 한 번 더 눌렀지만 눌렸는지 모르는 실제 실패에는 다시 누르는 길을 두지 않는다(R1, 휴리스틱 평가 10/18).
+    expect(findPlainText('버튼판에서 직접 누르기'), findsNothing);
+    expect(findPlainText('다시 누르기 전에 집에서', contains: true), findsOneWidget);
   });
 
   testWidgets('연습·실제 모를 기록은 됐어요가 아니다 — 확인 수준을 높여 보이지 않는다', (tester) async {
@@ -687,15 +689,15 @@ void main() {
       unknown('u2', '2026-09-09T08:20:00+09:00'),
       unknown('u3', '2026-09-08T08:20:00+09:00'),
     ], expand: false);
-    expect(findPlainText('눌렸는지 모르는 일 2건. 가전을 봐 주세요'), findsOneWidget);
-    expect(findPlainText('눌렸는지 모르는 일 1건. 가전을 봐 주세요'), findsOneWidget);
-    // 같은 날 연달아 같은 일·같은 결과(u1·u2)는 한 줄 '2번 봐 주세요'(평가 14차 10/18).
-    expect(findPlainText('2번 봐 주세요'), findsOneWidget);
-    expect(findPlainText('봐 주세요'), findsOneWidget);
+    expect(findPlainText('눌렸는지 모르는 일 2건. 집에서 확인이 필요해요'), findsOneWidget);
+    expect(findPlainText('눌렸는지 모르는 일 1건. 집에서 확인이 필요해요'), findsOneWidget);
+    // 같은 날 연달아 같은 일·같은 결과(u1·u2)는 한 줄 '2번 확인 필요'(평가 14차 10/18).
+    expect(findPlainText('2번 확인 필요'), findsOneWidget);
+    expect(findPlainText('확인 필요'), findsOneWidget);
     // 머리는 그 날짜 제목 바로 아래.
-    expect(tester.getTopLeft(findPlainText('눌렸는지 모르는 일 2건. 가전을 봐 주세요')).dy,
+    expect(tester.getTopLeft(findPlainText('눌렸는지 모르는 일 2건. 집에서 확인이 필요해요')).dy,
         greaterThan(tester.getTopLeft(findPlainText('오늘')).dy));
-    expect(tester.getTopLeft(findPlainText('눌렸는지 모르는 일 2건. 가전을 봐 주세요')).dy,
+    expect(tester.getTopLeft(findPlainText('눌렸는지 모르는 일 2건. 집에서 확인이 필요해요')).dy,
         lessThan(tester.getTopLeft(find.byKey(const Key('history-tap-u1'))).dy));
   });
 }

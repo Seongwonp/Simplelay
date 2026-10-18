@@ -138,7 +138,7 @@ void main() {
       final on = _tile(appliance: thinq, source: thinq, thinqOn: true);
       expect(on.text, '켜져 있어요'); // 띠는 문장(평가 7차 10/18)
       expect(on.tone, TileTone.on);
-      expect(_tile(appliance: thinq, source: thinq).text, '', reason: '모르면 말하지 않는다');
+      expect(_tile(appliance: thinq, source: thinq).text, kThinqUncheckedText, reason: '모르면 "확인 전이에요" — 손 아이콘 준비됐어요가 아니다(휴리스틱 평가 10/18)');
       // 물리 가전에는 붙이지 않는다(전원 기억은 ThinQ 클라우드 상태다).
       final physical = _server(const {'can_execute': true, 'readiness': 'operable'});
       expect(_tile(source: physical, thinqOn: true).text, '');
@@ -160,7 +160,7 @@ void main() {
       final off = _tile(appliance: thinq, source: thinq, thinqOff: true);
       expect(off.text, '꺼져 있어요');
       expect(off.tone, TileTone.off);
-      expect(_tile(appliance: thinq, source: thinq).text, '');
+      expect(_tile(appliance: thinq, source: thinq).text, kThinqUncheckedText);
       final physical = _server(const {'can_execute': true, 'readiness': 'operable'});
       expect(_tile(source: physical, thinqOff: true).text, '', reason: '버튼식 가전에는 붙이지 않는다');
       expect(_tile(appliance: thinq, source: thinq, thinqOff: true,
@@ -185,7 +185,7 @@ void main() {
         'readiness': 'needs_setup',
         'readiness_reasons': ['비상정지가 걸려 있어요'],
       }));
-      expect(s.text, '준비가 필요해요');
+      expect(s.text, '설정이 필요해요');
       expect(s.detail, '비상정지가 걸려 있어요');
     });
 
@@ -350,10 +350,10 @@ void main() {
           }),
           applianceName: '세탁기');
       expect(r.sentence, '버튼을 눌렀어요');
-      expect(r.next, '세탁기 동작을 봐 주세요');
+      expect(r.next, '세탁기 동작은 집에서 확인이 필요해요');
     });
 
-    // 평가 12차(10/18): 볼 것은 결과 한 줄이 함께 말한다('버튼은 다 눌렀어요, 움직이는지 봐 주세요') — 가전 이름은 시각 줄에.
+    // 평가 12차(10/18): 볼 것은 결과 한 줄이 함께 말한다('버튼은 다 눌렀어요. 움직였는지는 집에서 확인이 필요해요') — 가전 이름은 시각 줄에.
     test('응답만 받은 성공은 가전을 직접 보라고 한 줄로 말한다', () {
       final e = _entry(const {
         'outcome': 'success',
@@ -362,7 +362,7 @@ void main() {
       });
       for (final name in ['인터폰', '세탁기', null]) {
         final r = historyResult(e, applianceName: name);
-        expect(r.sentence, '버튼은 다 눌렀어요, 움직이는지 봐 주세요');
+        expect(r.sentence, '버튼은 다 눌렀어요. 움직였는지는 집에서 확인이 필요해요');
         expect(r.next, isNull);
       }
     });
@@ -374,8 +374,8 @@ void main() {
         'execution_mode': 'real',
         'termination': 'retries_exhausted',
       }));
-      expect(r.sentence, '다시 눌러도 눌렸는지 몰라요');
-      expect(r.next, '가전을 봐 주세요');
+      expect(r.sentence, '한 번 더 눌렀지만 눌렸는지 몰라요');
+      expect(r.next, '다시 누르기 전에 집에서 가전을 확인해야 해요');
     });
 
     test('ThinQ 미전송은 눌림 실패로 말하지 않는다', () {
@@ -401,20 +401,20 @@ void main() {
             'execution_mode': 'real',
           }),
           applianceName: '세탁기');
-      expect(r.next, '다시 보내기 전에 세탁기를 봐 주세요');
+      expect(r.next, '다시 보내기 전에 집에서 세탁기를 확인해야 해요');
     });
 
     test('원인 불명 실패는 원인을 추정하지 않는다', () {
       final r = historyResult(_entry(const {'status': 'failed'}));
       expect(r.sentence, '끝까지 하지 못했어요');
-      expect(r.next, '가전 상태를 봐 주세요');
+      expect(r.next, '가전 상태는 집에서 확인이 필요해요');
     });
 
     test('정지 문구는 기존 그대로', () {
       expect(
           historyResult(_entry(const {'status': 'safety_stopped', 'termination': 'stopped_by_user'}))
               .sentence,
-          '직접 멈췄어요');
+          '멈춰 달라는 요청으로 멈췄어요');
       expect(historyResult(_entry(const {'status': 'safety_stopped'})).sentence, '스스로 멈췄어요');
       expect(historyResult(_entry(const {'outcome': 'stopped', 'status': 'stopped'})).sentence,
           '멈췄어요');

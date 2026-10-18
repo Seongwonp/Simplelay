@@ -272,19 +272,19 @@ void main() {
       expect(find.byKey(const Key('routine-next-badge-r-eve')), findsNothing);
     });
 
-    testWidgets("'지금 하기'는 줄 오른쪽 단추 — 홈과 같은 '지금 하기 >' 모양, 이름과 같은 줄", (tester) async {
+    // 휴리스틱·보호자 과업 평가(10/18): 오른쪽 '지금 하기 >'는 줄 이동처럼 보여 줄 누르기가 겁났다 → '지금 하기'는 이름
+    // 아래 따로 작은 단추(▶, 화살표 없음), 줄 오른쪽 >는 고치기.
+    testWidgets("'지금 하기'는 이름 아래 따로 작은 단추 — 줄 오른쪽 >는 고치기", (tester) async {
       await _pump(tester, const RoutinesScreen());
       final run = find.byKey(const Key('routine-run-r-heat'));
       expect(run, findsOneWidget);
-      expect(find.descendant(of: run, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
-      expect(find.descendant(of: run, matching: find.byIcon(Icons.play_arrow_rounded)), findsNothing);
+      expect(find.descendant(of: run, matching: find.byIcon(Icons.chevron_right)), findsNothing);
+      expect(find.descendant(of: run, matching: find.byIcon(Icons.play_arrow_rounded)), findsOneWidget);
       final name = findPlainText('30초 데우기');
-      // 오른쪽 — 이름보다 오른쪽, 화면 오른쪽 절반.
-      expect(tester.getTopLeft(run).dx, greaterThanOrEqualTo(tester.getTopRight(name).dx));
-      expect(tester.getCenter(run).dx, greaterThan(200));
-      // 같은 줄 — 이름 아래로 들여 쓴 줄이 아니다.
-      expect(tester.getTopLeft(run).dy, lessThan(tester.getBottomLeft(name).dy));
+      expect(tester.getTopLeft(run).dy, greaterThanOrEqualTo(tester.getBottomLeft(name).dy));
       expect(tester.getSize(run).height, greaterThanOrEqualTo(48));
+      expect(find.descendant(of: find.byKey(const Key('routine-row-r-heat')), matching: findPlainText('고치기')),
+          findsOneWidget);
     });
 
     testWidgets('정해진 시각 줄에도 가전 아이콘 — 왼쪽 열이 맞는다', (tester) async {
@@ -406,7 +406,7 @@ void main() {
       // 흔한 폰(412×915) — 상태 표시줄 24·아래 탭 80을 뺀 811 안.
       await _pump(tester, const HomeScreen(), size: const Size(412, 3000), unread: 4, korean: true);
       expect(find.byKey(const Key('home-now')), findsOneWidget);
-      expect(find.byKey(const Key('home-attention')), findsOneWidget);
+      expect(find.byKey(const Key('home-failure')), findsOneWidget);
       final second = [
         for (final id in ['washer', 'door'])
           tester.getBottomLeft(find.byKey(Key('appliance-card-$id'))).dy,

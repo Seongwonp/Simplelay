@@ -54,6 +54,11 @@ class AppColors {
   static const confirmed      = Color(0xFF7FD1A0); // 다크 바탕 위
   static const confirmedLight = Color(0xFF1E6B3C); // 라이트 바탕 7.0:1 언저리
 
+  // '연습' 전용 청록(2026-10-18 휴리스틱 평가 — 연습 가전 띠가 실제 가전과 같은 회색이었다). 키오스크 연습 색과 같은 계열.
+  // 확인(초록)·주의(앰버)·위험(빨강)·중립(회색)과 겹치지 않는다. 글자·아이콘으로 쓸 때 대비 7:1 이상.
+  static const practice      = Color(0xFF4FD1C5); // 다크 카드 위 9:1 언저리
+  static const practiceLight = Color(0xFF0B5F58); // 라이트 흰 카드 위 7.5:1 언저리
+
   // 채도 있는 색을 **면으로** 쓸 때 얹는 글자색.
   //
   // 흰 글자는 골드 위 1.9:1, 초록 위 2.25:1, 빨강 위 3.63:1로 전부 무너진다.
@@ -102,6 +107,9 @@ extension AppColorsX on BuildContext {
 
   /// 실제로 확인한 결과(됐어요) 배지 색 — 확인이 아닐 때 쓰지 않는다.
   Color get appConfirmed     => _isDark ? AppColors.confirmed : AppColors.confirmedLight;
+
+  /// '연습'(실제 가전을 움직이지 않는 것) 표시 색 — 연습 표지·연습 가전 띠에만.
+  Color get appPractice      => _isDark ? AppColors.practice : AppColors.practiceLight;
 
   /// 강조가 아닌 **정보**를 또렷하게 칠할 때 쓰는 무채색(본문 글자와 같은 계열).
   ///

@@ -258,7 +258,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (_missingPolls >= 10) {
         // 실패가 아니라 '모름'이다. 가전은 계속 움직이고 있을 수 있으므로
         // 정지·재확인 수단을 남긴 채 사용자에게 직접 확인을 청한다.
-        const notice = '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.';
+        const notice = '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.';
         state = state.copyWith(
           phase: ExecutionPhase.unknown,
           message: notice,
@@ -272,7 +272,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (since != null &&
           DateTime.now().difference(since) > _unreachableAfter) {
         if (mounted) {
-          const notice = '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.';
+          const notice = '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.';
           state = state.copyWith(
             phase: ExecutionPhase.unknown,
             message: notice,

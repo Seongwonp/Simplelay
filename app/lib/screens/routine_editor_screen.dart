@@ -210,7 +210,12 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('루틴 켜기'),
-            subtitle: const Text('끄면 때가 되어도 묻지 않아요'),
+            // 루틴 종류에 맞는 말(보호자 과업 평가 10/18: 묻지 않고 하는 자동 루틴에도 '묻지 않아요'라고 했다).
+            subtitle: Text(routineEnableNote(
+              _draft,
+              auto: _draft.id != null &&
+                  (ref.watch(autoRoutineIdsProvider).valueOrNull ?? const <String>{}).contains(_draft.id),
+            )),
             value: _draft.enabled,
             onChanged: (v) => _update(_draft.copyWith(enabled: v)),
           ),
@@ -592,7 +597,8 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
     if (id == null || ref.read(rpiApiServiceProvider) == null) return;
     setState(() => _busy = true);
     try {
-      final error = await runRoutineNow(context, ref, id);
+      // 먼저 무엇을 하는지 묻는다(휴리스틱 평가 10/18) — 고르면 루틴 탭과 같은 승인 카드 경로.
+      final error = await confirmAndRunRoutine(context, ref, _draft);
       if (mounted && error != null) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -601,6 +607,14 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
 
   void _snack(String text) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(text)));
+}
+
+/// '루틴 켜기' 스위치 설명 — 끄면 무엇이 안 되는지 루틴 종류대로. 자동(묻지 않고 하는) 루틴은 '하지 않아요',
+/// 알림만 루틴은 '알리지 않아요', 물어보는 루틴은 '묻지 않아요'.
+String routineEnableNote(Routine r, {required bool auto}) {
+  if (auto) return '끄면 때가 되어도 하지 않아요';
+  if (r.mode == RoutineMode.notify) return '끄면 때가 되어도 알리지 않아요';
+  return '끄면 때가 되어도 묻지 않아요';
 }
 
 // ── 문장 조각 ─────────────────────────────────────────────────────────────

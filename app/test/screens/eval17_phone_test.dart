@@ -3,7 +3,7 @@
 // 1. 루틴 목록: 설명은 이름 바로 아래(홈 '내 루틴'과 같은 촘촘한 틀), '자동' 48dp 손가락 칸은 줄 높이를 늘리지 않는다.
 // 2. '다음'·'자동'은 이름 옆 작은 표지 — 설명 줄은 '매일 오후 10:00 · 공기청정기'처럼 짧게, 가운뎃점 머리 줄 없음.
 //    큰 글씨 '지금 하기'는 이름 첫 글자와 같은 세로줄.
-// 3. 기록: 큰 글씨 '바로 실행' 한 덩어리, 본문과 칩 '봐 주세요' 중복 없음, 볼 것 칩이 제목을 꺾으면 칩을 제목 아래로.
+// 3. 기록: 큰 글씨 '바로 실행' 한 덩어리, 본문과 칩 '확인 필요' 중복 없음, 볼 것 칩이 제목을 꺾으면 칩을 제목 아래로.
 // 4. 홈: ! 아이콘은 머리에만, '(3번)' 대신 '· 3번 못 했어요', 가전은 바로 쓸 수 있는 것 먼저.
 // 5. 설정: 본체 아이콘, 개발자 줄 숨김(앱 정보 이름 7번), LG 가전 부제 한 문장.
 // 6. 말: 자동 규칙 안내 한 문장, 알려 주기만 하는 창은 '닫기'.
@@ -336,10 +336,11 @@ void main() {
       expect(next, closeTo(tester.getCenter(_named('저녁 공기청정기 켜기')).dy, 2));
     });
 
-    testWidgets("큰 글씨 '지금 하기'는 이름 첫 글자와 같은 세로줄", (tester) async {
+    testWidgets("큰 글씨 '지금 하기' 단추는 이름 첫 글자와 같은 세로줄", (tester) async {
       await _pump(tester, const RoutinesScreen(), scale: 2.0);
       final row = find.byKey(const Key('routine-row-rt-eve'));
-      final run = _in(row, _named('지금 하기'));
+      // 휴리스틱 평가(10/18): '지금 하기'는 이름 아래 따로 작은 단추 — 단추 왼쪽 끝이 이름 첫 글자와 같은 세로줄.
+      final run = _in(row, find.byKey(const Key('routine-run-rt-eve')));
       expect(run, findsOneWidget);
       expect(tester.getTopLeft(run).dx, closeTo(tester.getTopLeft(_named('저녁 공기청정기 켜기')).dx, 1));
     });
@@ -353,14 +354,14 @@ void main() {
       expect(_rawText(tester, time).replaceAll('⁠', ''), contains('바로$_nbsp실행'));
       final reason = tester.widget<Text>(find.byKey(const Key('history-reason-press-1')));
       expect(reason.semanticsLabel, '버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요');
-      expect(reason.semanticsLabel, isNot(contains('봐 주세요')));
-      expect(_in(find.byKey(const Key('history-result-press-1')), findPlainText('봐 주세요', contains: true)),
+      expect(reason.semanticsLabel, isNot(contains('확인 필요')));
+      expect(_in(find.byKey(const Key('history-result-press-1')), findPlainText('확인 필요', contains: true)),
           findsOneWidget);
     });
 
     test("'바로 실행'과 '화면에서 골라 누름'은 뜻이 다르다(목적 문장 유무)", () {
-      expect(historyLookReason('보냈지만 가전이 받았는지 몰라요. 다시 보내기 전에 가전을 봐 주세요.'),
-          '보냈지만 가전이 받았는지 몰라요. 다시 보내기 전에 가전을 봐 주세요.');
+      expect(historyLookReason('보냈지만 가전이 받았는지 몰라요. 다시 보내기 전에 집에서 가전을 확인해야 해요.'),
+          '보냈지만 가전이 받았는지 몰라요. 다시 보내기 전에 집에서 가전을 확인해야 해요.');
     });
 
     testWidgets('볼 것 칩이 제목을 꺾으면 칩은 제목 아래로', (tester) async {
@@ -384,15 +385,15 @@ void main() {
       expect(l.look, isNot(contains('(')));
     });
 
-    testWidgets('확인 상자 ! 아이콘은 머리에만', (tester) async {
+    testWidgets('실패 경고 아이콘은 한 번(휴리스틱 평가 10/18 — 맨 위 실패 경고)', (tester) async {
       _care = [
         _careEv(2, 'execution_failed', message: "'공기청정기 바람 세기 중' 하지 못했어요."),
         _careEv(1, 'execution_failed', message: "'공기청정기 바람 세기 중' 하지 못했어요."),
       ];
       await _pump(tester, const HomeScreen());
-      final box = find.byKey(const Key('home-attention'));
-      expect(_in(box, find.byIcon(Icons.error_outline)), findsOneWidget);
-      expect(_in(find.byKey(const Key('home-attention-care-look')), find.byIcon(Icons.error_outline)), findsNothing);
+      final box = find.byKey(const Key('home-failure'));
+      expect(_in(box, find.byIcon(Icons.cancel_outlined)), findsOneWidget);
+      expect(_in(box, find.byIcon(Icons.error_outline)), findsNothing);
     });
 
     testWidgets('바로 쓸 수 있는 가전이 앞, 설정이 남은 가전이 뒤(본체 화면과 같은 규칙)', (tester) async {

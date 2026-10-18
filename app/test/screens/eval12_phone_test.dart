@@ -1,7 +1,7 @@
 // 평가 12차(2026-10-18, 폰 91).
 //
 // 1. 기록: 누름 장치가 다 눌렀지만 가전 동작을 확인 못 한 기록 — '다 눌렀다고 알려 왔어요'(기계 보고 말투) 대신
-//    '버튼은 다 눌렀어요, 움직이는지 봐 주세요'. 배지는 그대로 '봐 주세요'(초록 아님).
+//    '버튼은 다 눌렀어요. 움직였는지는 집에서 확인이 필요해요'. 배지는 그대로 '확인 필요'(초록 아님).
 // 2. 기록: 사람이 시작한 LG 가전(클라우드) 기록은 손 아이콘·'사람이 직접' 대신 가전 아이콘과 'LG 가전'.
 //    (폰·본체 화면 어디서 보냈는지는 /history에 가를 필드가 없어 'LG 가전'까지만.) 누름 장치 기록은 그대로.
 // 3. 홈 가전 칸: 자리 확인을 모르면 '버튼 자리를 다시 맞춰 주세요'(설정 '버튼 자리를 맞춰 주세요'와 같은 말 계열).
@@ -173,7 +173,7 @@ void main() {
   });
 
   group('1·2. 기록', () {
-    testWidgets("다 눌렀지만 확인 못 한 기록은 사람 말 — '버튼은 다 눌렀어요, 움직이는지 봐 주세요'", (tester) async {
+    testWidgets("다 눌렀지만 확인 못 한 기록은 사람 말 — '버튼은 다 눌렀어요. 움직였는지는 집에서 확인이 필요해요'", (tester) async {
       await _pump(tester, const HistoryScreen());
       expect(findPlainText('알려 왔어요', contains: true), findsNothing);
       final row = find.byKey(const ValueKey('history-j-rep'));
@@ -181,9 +181,9 @@ void main() {
       expect(_in(row, reason), findsOneWidget);
       expect(find.descendant(of: reason, matching: findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), matchRoot: true),
           findsOneWidget);
-      // 확인 수준은 그대로 — 초록 '됐어요'가 아니라 '봐 주세요'.
+      // 확인 수준은 그대로 — 초록 '됐어요'가 아니라 '확인 필요'.
       final badge = tester.widget<StatusBadge>(_in(row, find.byType(StatusBadge)));
-      expect(badge.label, '봐 주세요');
+      expect(badge.label, '확인 필요');
       // 누름 장치 기록은 손 아이콘 그대로(출처 말은 평가 13차에 '바로 실행' — eval13_phone_test 3).
       expect(_in(row, findPlainText('바로 실행', contains: true)), findsOneWidget);
       expect(tester.widget<Icon>(find.byKey(const Key('history-icon-j-rep'))).icon, AppIcons.manual);
@@ -266,10 +266,10 @@ void main() {
           '안 본 알림 4건');
       // 평가 15차(10/18): 볼 것은 그 갈래·건수, 나머지는 따로(eval15_phone_test 5).
       expect(careAttentionText([_ev(2, 'routine_stopped'), _ev(1, 'appliance_done_undelivered')]),
-          '못 한 일 1번, 그 밖에 안 본 알림 1건');
+          '못 한 일 1번, 안 본 알림 2건');
       expect(careAttentionText([_ev(2, 'routine_announce'), _ev(1, 'routine_notice')]), '안 본 알림 2건');
       expect(careAttentionText([_ev(2, 'execution_failed'), _ev(1, 'appliance_done_undelivered')]),
-          '못 한 일 2번');
+          '못 한 일 2번, 안 본 알림 2건');
       expect(careAttentionText([_ev(1, 'something_new')]), '안 본 알림 1건');
     });
   });

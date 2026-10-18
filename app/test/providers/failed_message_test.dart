@@ -23,7 +23,7 @@ class _QuietTts extends AppTtsService {
 }
 
 const _notSent = '누름 장치에 보내지 못했어요. 연결을 보고 다시 해 주세요.';
-const _partial = '끝까지 하지 못했어요. 가전을 봐 주세요.';
+const _partial = '끝까지 하지 못했어요. 집에서 가전을 확인해야 해요.';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -54,7 +54,7 @@ void main() {
           '가전에 보내지 못했어요. 연결을 보고 다시 해 주세요.');
       final accepted = finishedMessage(
           kind: ResultKind.failed, route: 'thinq', receipt: 'accepted');
-      expect(accepted, '가전이 하지 않았어요. 가전을 봐 주세요.');
+      expect(accepted, '가전이 하지 않았어요. 가전 상세에서 지금 상태를 볼 수 있어요.');
       expect(accepted, isNot(matches('다시 (해|시도|하기)')));
     });
   });

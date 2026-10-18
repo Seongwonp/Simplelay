@@ -24,7 +24,7 @@ void main() {
       expect(m, isNot(contains('실행을 멈췄어요')));
       expect(m, contains('멈추라고 보냈어요'));
       expect(m, contains('멈췄는지는 아직 몰라요'));
-      expect(m, contains('가전을 직접 봐 주세요'));
+      expect(m, contains('가전은 집에서 확인해야 해요'));
     });
 
     test('모션 보드 받음(mcu_ack)은 멈췄다고 하지 않는다', () {
@@ -36,20 +36,20 @@ void main() {
     test('멈춤 확인(verified)은 누름 장치가 멈췄다고 — 가전은 직접', () {
       final m = finishedMessage(kind: ResultKind.stopped, stopLevel: 'verified');
       expect(m, startsWith('누름 장치가 멈췄어요'));
-      expect(m, contains('가전의 정지 버튼을 직접 눌러 주세요'));
+      expect(m, contains('집에서 가전의 정지 버튼을 눌러야 해요'));
     });
 
     test('단계를 모르면 정지 요청으로 실행이 끝났다고까지만', () {
       final m = finishedMessage(kind: ResultKind.stopped);
       expect(m, isNot(contains('실행을 멈췄어요')));
-      expect(m, contains('멈췄는지 봐 주세요'));
+      expect(m, contains('멈췄는지는 집에서 확인이 필요해요'));
     });
   });
 
   group('성공·안전 정지 문장', () {
     test('실제 실행 성공은 버튼을 다 눌렀다고, 가전은 직접', () {
       final m = finishedMessage(kind: ResultKind.success, executionMode: 'real');
-      expect(m, '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.');
+      expect(m, '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.');
     });
 
     test('연습 성공은 연습이라고 — 모의라고 섞어 쓰지 않는다', () {
@@ -63,7 +63,7 @@ void main() {
 
     test('안전 정지는 가전을 먼저 보고, 이미 켜졌다면 다시 시도하지 말라고 한다', () {
       final m = finishedMessage(kind: ResultKind.safetyStop);
-      expect(m, contains('가전을 먼저 봐 주세요'));
+      expect(m, contains('다시 하기 전에 집에서 가전을 확인해야 해요'));
       expect(m, contains('이미 움직이고 있으면 다시 시도하지 마세요'));
       expect(m, isNot(contains('두 번 누르지 않')));
     });

@@ -3,7 +3,7 @@
 // A. 루틴 목록: '지금 하기 >'는 모든 줄에서 이름 줄 오른쪽 같은 자리. 시각은 이름 위 작은 칩('매일 오전 7:00') —
 //    큰 07:00이 이름보다 커서 위계가 뒤집혀 보였다. 오전/오후 표기는 홈(다음 예정·루틴 줄)과 같다.
 // B. 홈 가전 타일 상태 띠는 문장 하나로: '켜져 있어요'·'꺼져 있어요'·'설정이 필요해요'·'준비됐어요'.
-// C. 기록: 멈춘 기록은 '봐 주세요'와 다른 글자('멈췄어요'·'스스로 멈췄어요'). 루틴 기록은 출처를 밝힌다 —
+// C. 기록: 멈춘 기록은 '확인 필요'와 다른 글자('멈췄어요'·'스스로 멈췄어요'). 루틴 기록은 출처를 밝힌다 —
 //    서버 기록에는 '지금 하기'와 '정해진 시각에 물어본 카드'를 가르는 필드가 없다. 가를 수 있는 것은 자동 실행
 //    ('자동 실행 · ' 머리)뿐이라, 그 밖의 루틴 기록은 사람이 허락하고 실행한 것이라고만 말한다.
 // D. 아이콘: 기능 하나 = 아이콘 하나. 조용한 시간 = 달, 잠시 쉬기 = 일시정지 — AppIcons 한 곳에서.
@@ -218,19 +218,16 @@ void main() {
       expect(ampmClock('7:5'), '7:5', reason: '모르는 꼴은 그대로');
     });
 
-    testWidgets("'지금 하기 >'는 시각 줄·필요할 때 줄 모두 이름 줄 오른쪽 같은 자리", (tester) async {
+    // 휴리스틱 평가(10/18): '지금 하기'는 이름 아래 따로 작은 단추 — 시각 줄·필요할 때 줄 모두 같은 왼쪽 자리.
+    testWidgets("'지금 하기'는 시각 줄·필요할 때 줄 모두 이름 아래 같은 자리", (tester) async {
       await _pump(tester, const RoutinesScreen());
       final morn = find.byKey(const Key('routine-run-r-morn'));
       final heat = find.byKey(const Key('routine-run-r-heat'));
       expect(morn, findsOneWidget);
       expect(heat, findsOneWidget);
-      expect(tester.getTopRight(morn).dx, moreOrLessEquals(tester.getTopRight(heat).dx, epsilon: 0.5));
-      // 이름과 같은 줄(세로 가운데가 이름 글줄 안).
+      expect(tester.getTopLeft(morn).dx, moreOrLessEquals(tester.getTopLeft(heat).dx, epsilon: 0.5));
       for (final (run, name) in [(morn, '아침 공기청정기 끄기'), (heat, '30초 데우기')]) {
-        final n = findPlainText(name);
-        final c = tester.getCenter(run).dy;
-        expect(c, greaterThanOrEqualTo(tester.getTopLeft(n).dy - 16), reason: name);
-        expect(c, lessThanOrEqualTo(tester.getBottomLeft(n).dy + 16), reason: name);
+        expect(tester.getTopLeft(run).dy, greaterThanOrEqualTo(tester.getBottomLeft(findPlainText(name)).dy), reason: name);
       }
     });
 
@@ -306,11 +303,11 @@ void main() {
           ...extra,
         });
 
-    test("멈춘 기록은 '봐 주세요'와 다른 글자 — 색은 그대로", () {
+    test("멈춘 기록은 '확인 필요'와 다른 글자 — 색은 그대로", () {
       final unknown = historyBadgeOf(e({'outcome': 'unconfirmed'}));
       final stopped = historyBadgeOf(e({'outcome': 'stopped', 'status': 'stopped'}));
       final safety = historyBadgeOf(e({'outcome': 'safety_stop', 'status': 'safety_stopped'}));
-      expect(unknown.label, '봐 주세요');
+      expect(unknown.label, '확인 필요');
       expect(stopped.label, '멈췄어요');
       expect(safety.label, '스스로 멈췄어요');
       expect(stopped.tone, unknown.tone);

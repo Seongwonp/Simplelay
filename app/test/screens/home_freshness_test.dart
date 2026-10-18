@@ -245,7 +245,7 @@ void main() {
           reason: '다시 받는 동안 예전 긍정을 쓰지 않는다');
       await tester.pump(const Duration(seconds: 3));
       await _settle(tester);
-      expect(_inTile('준비가 필요해요'), findsOneWidget);
+      expect(_inTile('설정이 필요해요'), findsOneWidget);
       expect(_inTile(_estopReason), findsOneWidget, reason: '서버가 준 사유 그대로');
       expect(_statusLine(), findsOneWidget);
       // 걸림의 범위는 서버가 정한다 — 모의 실행기 가전까지 폰이 일괄로 막지 않는다.
@@ -257,7 +257,7 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
       await _settle(tester);
       expect(_statusLine(), findsNothing);
-      expect(_inTile('준비가 필요해요'), findsNothing);
+      expect(_inTile('설정이 필요해요'), findsNothing);
     });
   });
 }

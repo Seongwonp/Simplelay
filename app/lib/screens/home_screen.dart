@@ -15,6 +15,7 @@ import '../providers/routine_provider.dart';
 import '../widgets/routine_icon.dart';
 import '../widgets/routine_run.dart';
 import 'routines_screen.dart' show ampmClock, kSetupActionLabel, routineSubtitle, withAmPm;
+import 'history_screen.dart' show historyFailedOnlyProvider;
 import '../providers/ble_provider.dart';
 import '../providers/care_events_provider.dart';
 import '../providers/estop_provider.dart';
@@ -42,8 +43,8 @@ export '../widgets/panel_photo_view.dart' show applianceImageOverride;
 
 /// 홈 — "우리 집"(UI 개편안 §4 폰 홈, 2026-10-18).
 ///
-/// 읽는 순서: **지금 우리 집(공기·켜진 가전·다음 예정) → 지금 할 일(제안, 있을 때) →
-/// 확인이 필요해요(있을 때만) → 가전(상태 한 줄) → 내 루틴 타일.**
+/// 읽는 순서: **실패 경고(있을 때만) → 지금 우리 집(공기·다음 예정) → 지금 할 일(제안, 있을 때) →
+/// 해야 할 일·안 본 알림(있을 때만) → 가전(상태 한 줄) → 내 루틴 타일.**
 /// 채운 주 버튼은 제안의 '지금 하기' 하나다. 큰 '바로 실행할 수 있는 루틴' 카드는 없다
 /// — 같은 루틴이 큰 카드·줄·다음 실행으로 세 번 나왔다(2차 평가 10/18).
 ///
@@ -149,6 +150,9 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpace.lg),
             ],
 
+            // ── 실패 경고(있을 때만, 맨 위 따로 — 휴리스틱 평가 10/18) ─────────────────
+            _FailureAlert(execution: execution),
+
             // ── 지금 우리 집 ─────────────────────────────────────────────
             const _HomeNow(),
 
@@ -167,8 +171,8 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpace.xxl),
             ],
 
-            // ── ② 확인이 필요해요(있을 때만) ───────────────────────────────
-            _Attention(setupCandidates: setupCandidates, execution: execution),
+            // ── ② 해야 할 일(설정 남음)·안 본 알림(설정과 같은 수) ─────────────────────
+            _TodoAndUnread(setupCandidates: setupCandidates),
 
             // ── ③ 가전 ────────────────────────────────────────────────────
             _SectionTitle('가전', key: const Key('home-appliances')),
@@ -326,7 +330,6 @@ CareAttentionLines careAttentionLines(List<RpiCareEvent> unread) {
   final hits = [for (final e in unread) if (kinds.contains(e.kind)) e]
     ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
   final what = careEventWhat(hits.first);
-  final rest = unread.length - hits.length;
   // 평가 16차(10/18): '못 한 일 3건: 공기청정기 바람 세기 중'은 끝 '중'이 '진행 중'처럼 읽혔고 기록('바람 중간으로 하기 ·
   // 3번 못 했어요')과 이름·단위가 달랐다 → 기록과 같은 행동 이름, 횟수는 '번'으로 끝 괄호에. 이름이 서로 다른 일이
   // 섞였으면 가장 최근 것의 이름과 '외 N번'(한 이름에 다른 일의 횟수를 붙이지 않는다).
@@ -347,8 +350,9 @@ CareAttentionLines careAttentionLines(List<RpiCareEvent> unread) {
   }
   return (
     look: look,
-    // 평가 16차(10/18): 홈 '안 본 알림 4건'과 설정 '안 본 알림 7건'이 달랐다 — 위 줄을 뺀 나머지라는 것이 드러나게.
-    rest: rest > 0 ? '그 밖에 안 본 알림 $rest건' : null,
+    // 휴리스틱 평가(10/18): '그 밖에 안 본 알림 4건'(홈)과 '안 본 알림 7건'(설정)이 달라 헷갈렸다 → 홈·설정 같은 수 하나
+    // (전체 안 본 수). 위 실패 경고로 따로 보인 것도 이 수에 들어 있다.
+    rest: '안 본 알림 ${unread.length}건',
   );
 }
 
@@ -583,102 +587,157 @@ class _NextUp extends StatelessWidget {
   }
 }
 
-// ── 확인이 필요해요 ──────────────────────────────────────────────────────────
+// ── 실패 경고 · 해야 할 일 · 안 본 알림 ─────────────────────────────────────────
 
-/// 설정이 남은 가전·확인하지 못한 지난 일 — **있을 때만** 한 장으로.
+/// 홈 맨 위 **실패 경고**(휴리스틱 평가 10/18 — 실패 경고·일반 알림·설정 남음이 '확인이 필요해요' 한 상자에 같은 무게로
+/// 섞였다). 가장 무거운 것 하나와 할 일 단추 하나만 — 있을 때만.
 ///
-/// 지난 일이 됐는지 모르면(unconfirmed) '몰라요', 못 했으면(failed) '못 했어요'.
-/// 됐다고 말하지 않는다 — 상태 화면에서 무엇이 확인됐는지 본다.
-class _Attention extends ConsumerWidget {
-  const _Attention({required this.setupCandidates, required this.execution});
+/// - 지난 일을 못 했으면(failed) '지난 일을 못 했어요 · 결과 보기', 됐는지 모르면(unconfirmed) '지난 일이 됐는지 몰라요 · 결과 보기'.
+///   됐다고 말하지 않는다 — 상태 화면에서 무엇이 확인됐는지 본다.
+/// - 안 본 알림에 못 한 일이 있으면 '공기청정기 바람 중간으로 하기 · 3번 못 했어요 · 기록 보기'(못 한 일만 거른 기록으로).
+///   위험 소리·멈춘 일 같은 다른 볼 것은 '알림 보기'(보호자 알림함).
+class _FailureAlert extends ConsumerWidget {
+  const _FailureAlert({required this.execution});
 
-  final List<ApplianceMap> setupCandidates;
   final ExecutionStatus execution;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pending = pendingSetupAppliances(ref, setupCandidates);
-    // 읽지 않은 보호자 알림 — 설정 안에만 묻히지 않게 홈에도 한 줄(평가 5차 10/18).
     final unreadCare = ref.watch(careEventsProvider.select((s) => s.unreadEvents));
-    final result = switch (execution.phase) {
-      ExecutionPhase.unconfirmed => (
-          Icons.help_outline,
-          '지난 일이 됐는지 몰라요. 봐 주세요',
-          context.appWarning
-        ),
-      ExecutionPhase.failed => (Icons.cancel_outlined, '지난 일을 못 했어요', context.appDanger),
-      _ => null,
+    final look = careAttentionLines(unreadCare).look;
+    final failed = look != null && careLookIsFailure(unreadCare);
+    final (String text, Color color, IconData icon, String actionLabel, VoidCallback onAction)? alert =
+        switch (execution.phase) {
+      ExecutionPhase.failed => ('지난 일을 못 했어요', context.appDanger, Icons.cancel_outlined, '결과 보기',
+          () => context.push('/status')),
+      ExecutionPhase.unconfirmed => ('지난 일이 됐는지 몰라요', context.appWarning, Icons.help_outline, '결과 보기',
+          () => context.push('/status')),
+      _ => look == null
+          ? null
+          : (
+              look,
+              failed ? context.appDanger : context.appWarning,
+              failed ? Icons.cancel_outlined : Icons.error_outline,
+              failed ? '기록 보기' : '알림 보기',
+              failed
+                  ? () {
+                      // 못 한 일만 거른 기록으로(보호자 과업 평가 10/18 — 어제 실패를 찾기 쉽게).
+                      ref.read(historyFailedOnlyProvider.notifier).state = true;
+                      context.go('/history');
+                    }
+                  : () => context.push('/care'),
+            ),
     };
-    if (pending.isEmpty && result == null && unreadCare.isEmpty) return const SizedBox.shrink();
-    // 평가 13차(10/18): 자동으로 한 일·루틴 안내만 안 봤으면 문제가 아니다 — 주황 대신 중립색. 경고색은 설정이 남았거나
-    // 지난 일을 못 했거나, 실패·정지 같은 알림이 섞였을 때만.
-    // 평가 14차(10/18): 할 일이 없을 때도 옅은 회색 면이라 '지금 우리 집'과 같은 무게였다 → 면 색은 할 일이 있을 때만
-    // (주황 면 + 주황 테두리), 없으면 면 없이 옅은 테두리.
-    final careLook = careNeedsLook(unreadCare);
-    final careLines = careAttentionLines(unreadCare);
-    final warn = pending.isNotEmpty || result != null || careLook;
-    final tone = warn ? context.appWarning : context.appMuted;
+    if (alert == null) return const SizedBox.shrink();
+    final (text, color, icon, actionLabel, onAction) = alert;
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpace.lg),
+      padding: const EdgeInsets.only(bottom: AppSpace.sm),
       child: Container(
-        key: const Key('home-attention'),
-        // 평가 16차(10/18): 베이지 둥근 면이 아래 가전 카드와 같은 문법이라 경고가 카드 하나처럼 읽혔다 → 면·둥근
-        // 모서리 없이 왼쪽 굵은 색 선과 글자만(카드와 다른 문법). 볼 것이 없으면 선도 옅은 색.
+        key: const Key('home-failure'),
         decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: warn ? tone : context.appBorderFaint, width: 4)),
+          color: color.withValues(alpha: 0.08),
+          border: Border(left: BorderSide(color: color, width: 4)),
         ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.sm, AppSpace.sm),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Icon(warn ? Icons.error_outline : Icons.notifications_none,
-                    key: const Key('home-attention-icon'), size: 20, color: tone),
-                const SizedBox(width: AppSpace.sm),
-                Expanded(
-                  child: Semantics(
-                    header: true,
-                    child: Text('확인이 필요해요',
-                        style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700, color: tone)),
-                  ),
-                ),
-              ]),
-              if (result case (final icon, final text, final color))
-                _AttentionRow(
-                  key: const Key('home-attention-result'),
-                  icon: icon,
-                  text: text,
-                  color: color,
-                  onTap: () => context.push('/status'),
-                ),
-              // 평가 15차(10/18): 봐야 할 것(무엇을 못 했는지)과 나머지 안 본 알림은 따로 한 줄씩.
-              if (careLines.look case final look?)
-                // 머리('확인이 필요해요')가 이미 ! 아이콘이라 첫 줄은 아이콘 없이(평가 17차 10/18: 같은 ! 두 번).
-                _AttentionRow(
-                  key: const Key('home-attention-care-look'),
-                  icon: null,
-                  text: look,
-                  color: context.appWarning,
-                  onTap: () => context.push('/care'),
-                ),
-              if (careLines.rest case final rest?)
-                _AttentionRow(
-                  key: const Key('home-attention-care'),
-                  // 알림 줄이라 알림 아이콘(평가 16차 10/18 — 가족 그림은 내용과 안 맞았다).
-                  icon: Icons.notifications_none,
-                  text: rest,
-                  color: Theme.of(context).colorScheme.onSurface,
-                  onTap: () => context.push('/care'),
-                ),
-              // 한 대면 그 가전의 설정 카드를 그대로(연습 자리 확인이면 '실제 자리는 몰라요'까지), 둘 이상은 한 줄.
-              if (pending.length == 1)
-                ApplianceSetupCard(appliance: pending.single, flat: true)
-              else if (pending.length > 1)
-                SetupSummaryRow(appliances: pending),
-            ],
+        padding: const EdgeInsets.only(left: AppSpace.md, right: AppSpace.xs),
+        // 한 줄 — 무엇을 못 했는지 + 오른쪽 할 일 단추(첫 화면에 가전 두 줄이 남게, 평가 6차 10/18).
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Icon(icon, size: AppSpace.xl, color: color),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            // '알림 / 4건'처럼 숫자가 앞 낱말과 갈리지 않게. 말줄임 없이.
+            child: Text(keepPhrasesTogether(text),
+                semanticsLabel: text,
+                style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: color)),
           ),
-        ),
+          TextButton(
+            key: const Key('home-failure-action'),
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+              foregroundColor: color,
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(keepWordsTogether(actionLabel),
+                  semanticsLabel: actionLabel,
+                  style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
+              const Icon(Icons.chevron_right, size: AppSpace.xl),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// 안 본 알림 가운데 가장 무거운 볼 것이 '못 한 일'(실행 실패)인가 — 실패 경고의 색·할 일 단추가 갈린다.
+bool careLookIsFailure(List<RpiCareEvent> unread) => _careLookGroup(unread)?.$1 == '못 한 일';
+
+/// '해야 할 일'(설정이 남은 가전)과 안 본 알림 한 줄 — 실패 경고 아래, 가전 위.
+///
+/// 설정 남음은 사람이 할 일이라 제목 '해야 할 일' 아래 그 가전 카드(둘 이상은 한 줄). 안 본 알림은 **설정과 같은 수 하나**
+/// ('안 본 알림 7건' — 위 실패 경고로 보인 것도 센다)를 중립색 한 줄로.
+class _TodoAndUnread extends ConsumerWidget {
+  const _TodoAndUnread({required this.setupCandidates});
+
+  final List<ApplianceMap> setupCandidates;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = pendingSetupAppliances(ref, setupCandidates);
+    final unreadCare = ref.watch(careEventsProvider.select((s) => s.unreadEvents));
+    final rest = careAttentionLines(unreadCare).rest;
+    if (pending.isEmpty && rest == null) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(bottom: pending.isEmpty ? AppSpace.sm : AppSpace.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (pending.isNotEmpty)
+            Container(
+              key: const Key('home-todo'),
+              // 평가 16차(10/18): 면 없이 왼쪽 굵은 색 선과 글자만(가전 카드와 다른 문법).
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: context.appWarning, width: 4)),
+              ),
+              padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.sm, AppSpace.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.checklist_rounded,
+                        key: const Key('home-attention-icon'), size: AppSpace.xl, color: context.appWarning),
+                    const SizedBox(width: AppSpace.sm),
+                    Expanded(
+                      child: Semantics(
+                        header: true,
+                        child: Text('해야 할 일',
+                            style: TextStyle(
+                                fontSize: AppFont.body, fontWeight: FontWeight.w700, color: context.appWarning)),
+                      ),
+                    ),
+                  ]),
+                  // 한 대면 그 가전의 설정 카드를 그대로(연습 자리 확인이면 '실제 자리는 몰라요'까지), 둘 이상은 한 줄.
+                  if (pending.length == 1)
+                    ApplianceSetupCard(appliance: pending.single, flat: true)
+                  else
+                    SetupSummaryRow(appliances: pending),
+                ],
+              ),
+            ),
+          if (rest != null)
+            Padding(
+              padding: EdgeInsets.only(top: pending.isNotEmpty ? AppSpace.sm : 0),
+              child: _AttentionRow(
+                key: const Key('home-unread'),
+                // 알림 줄이라 알림 아이콘, 중립색 — 볼 것은 위 실패 경고가 말한다.
+                icon: Icons.notifications_none,
+                text: rest,
+                color: Theme.of(context).colorScheme.onSurface,
+                onTap: () => context.push('/care'),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -761,14 +820,18 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
 
   static const _maxTiles = 4;
 
-  Future<void> _run(String id) async {
+  Future<void> _run(Routine r) async {
+    final id = r.id!;
     if (_runningId != null) return;
-    setState(() {
-      _runningId = id;
-      _error = null;
-    });
     try {
-      final error = await runRoutineNow(context, ref, id);
+      // 먼저 무엇을 하는지 묻는다(휴리스틱 평가 10/18) — 고르면 루틴 탭과 같은 승인 카드 경로.
+      final error = await confirmAndRunRoutine(context, ref, r, onConfirmed: () {
+        if (!mounted) return;
+        setState(() {
+          _runningId = id;
+          _error = null;
+        });
+      });
       if (mounted && error != null) {
         setState(() {
           _error = error;
@@ -842,7 +905,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
                   // 설정이 필요한 가전으로 바로 간다(UI 평가 10/17).
                   ? () => context.push('/appliance/detail/'
                       '${r.applianceIds.firstWhere(widget.needsSetupIds.contains, orElse: () => r.applianceIds.first)}')
-                  : () => _run(r.id!),
+                  : () => _run(r),
             ),
         ];
         final errorRoutine = shown.where((r) => r.id == _errorFor).firstOrNull;
@@ -1033,7 +1096,7 @@ class _Header extends StatelessWidget {
         (backupOnly ? '블루투스로만 연결돼요' : '본체와 연결이 끊겼어요', context.appWarning),
     };
     final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.sm),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: context.appBorderSubtle),
@@ -1053,37 +1116,73 @@ class _Header extends StatelessWidget {
       ),
     );
     // 말로 하는 길 -- 누르기 어려운 사용자에게 길이 하나뿐이면 안 된다.
-    final voice = IconButton(
-      onPressed: onVoice,
-      tooltip: '말로 하기',
-      icon: Icon(Icons.mic_none_rounded, color: context.appPrimary),
+    // 휴리스틱 평가(10/18): 마이크 아이콘만 있어 무엇인지 몰랐다 → 짧은 글자 '말로 하기'를 함께.
+    // 아이콘 아래 작은 글자(탭 막대와 같은 꼴) — 옆으로 붙이면 칩 문구가 두 줄로 꺾였다.
+    final voice = Semantics(
+      label: '말로 하기',
+      button: true,
+      excludeSemantics: true,
+      child: InkWell(
+        key: const Key('home-voice'),
+        onTap: onVoice,
+        borderRadius: BorderRadius.circular(12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.mic_none_rounded, color: context.appPrimary),
+              Text('말로 하기',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                      fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appPrimary, height: 1.1)),
+            ]),
+          ),
+        ),
+      ),
     );
-    // 큰 글씨에서는 칩을 제목 아래 줄로 내린다. 한 줄에 두면 제목과 칩이 서로
-    // 폭을 뺏어 "우리 / 집"처럼 한 글자씩 꺾인다.
-    if (MediaQuery.textScalerOf(context).scale(1) > 1.3) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    // 글씨를 키웠거나(120% 넘음) 칩 문구가 한 줄에 다 들어가지 않으면 칩을 제목 아래 줄로 내린다 — 한 줄에 두면 제목과
+    // 칩이 서로 폭을 뺏어 "우리 / 집"·"본체와 / 연결됐어요"처럼 꺾인다('말로 하기' 글자가 붙은 뒤, 휴리스틱 평가 10/18).
+    Widget stacked() => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(child: Text('우리 집', style: AppText.heading)),
+              voice,
+            ]),
+            const SizedBox(height: AppSpace.sm),
+            chip,
+          ],
+        );
+    final scaler = MediaQuery.textScalerOf(context);
+    if (scaler.scale(1) > 1.2) return stacked();
+    return LayoutBuilder(builder: (context, c) {
+      double widthOf(String t, TextStyle s) =>
+          (TextPainter(text: TextSpan(text: t, style: s), textDirection: TextDirection.ltr, textScaler: scaler)..layout())
+              .width;
+      // 제목 + 간격 + 칩(점 8 · 사이 8 · 좌우 여백 8×2 · 테두리) + 간격 + 말로 하기(글자 + 좌우 여백).
+      final need = widthOf('우리 집', AppText.heading) +
+          AppSpace.sm +
+          widthOf(text, const TextStyle(fontSize: AppFont.caption)) +
+          AppSpace.sm * 2 + AppSpace.sm * 2 + 2 +
+          AppSpace.xs +
+          widthOf('말로 하기', const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)) +
+          AppSpace.sm;
+      if (need > c.maxWidth) return stacked();
+      // 제목은 제 폭만 쓰고 남는 자리를 칩에 준다.
+      return Row(
         children: [
-          Row(children: [
-            Expanded(child: Text('우리 집', style: AppText.heading)),
-            voice,
-          ]),
-          const SizedBox(height: AppSpace.sm),
-          chip,
+          Text('우리 집', style: AppText.heading),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Align(alignment: Alignment.centerRight, child: chip),
+          ),
+          const SizedBox(width: AppSpace.xs),
+          voice,
         ],
       );
-    }
-    // 제목은 제 폭만 쓰고 남는 자리를 칩에 준다 -- 칩 문구가 두 줄로 꺾이지 않게.
-    return Row(
-      children: [
-        Text('우리 집', style: AppText.heading),
-        const SizedBox(width: AppSpace.md),
-        Expanded(
-          child: Align(alignment: Alignment.centerRight, child: chip),
-        ),
-        voice,
-      ],
-    );
+    });
   }
 }
 
@@ -1300,8 +1399,15 @@ class _ApplianceCard extends ConsumerWidget {
         : s.text.isEmpty
             ? (noteInBand ? verifyNote! : '준비됐어요')
             : s.text;
+    // 연습 가전(휴리스틱 평가 10/18): 이름의 '(연습)'은 빼고 오른쪽 위 '연습' 표지, 띠는 연습 색(청록). 할 일이 있는 띠
+    // (설정·연결)와 버튼 조작 중은 그 색 그대로 — 연습이어도 사람이 할 일은 주황이다.
+    final practice = isPracticeAppliance(a);
+    final shownName = practice ? name.replaceAll('(연습)', '').trim() : name;
+    final practiceBand = practice && !setup && s.tone != TileTone.attention && s.tone != TileTone.active;
     final (Color color, IconData icon) = setup
         ? (context.appWarning, Icons.priority_high_rounded)
+        : practiceBand
+            ? (context.appPractice, Icons.science_outlined)
         : noteInBand
             ? (context.appMuted, Icons.help_outline)
             : switch (s.tone) {
@@ -1314,14 +1420,14 @@ class _ApplianceCard extends ConsumerWidget {
             TileTone.on => (context.appConfirmed, Icons.power_settings_new),
             TileTone.off => (context.appMuted, Icons.power_settings_new),
           };
-    final tinted = setup || s.tone == TileTone.attention || s.tone == TileTone.on;
+    final tinted = setup || practiceBand || s.tone == TileTone.attention || s.tone == TileTone.on;
     return Semantics(
       button: true,
       // excludeSemantics라 아래 글자가 따로 읽히지 않는다 — 상태를 이름에 함께 넣는다.
       label: [
-        if ((a.location ?? '').isNotEmpty) '${a.location} $name' else name,
+        if ((a.location ?? '').isNotEmpty) '${a.location} $shownName' else shownName,
         if (a.isThinq) 'LG 가전',
-        if (a.isDemo) '연습',
+        if (practice) '연습',
         if (s.text.isNotEmpty) s.text else line,
         if (s.detail case final d?) d,
         if (verifyNote case final v? when !noteInBand) v,
@@ -1348,11 +1454,9 @@ class _ApplianceCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 가전 그림 + 'LG 가전'·'연습' 표시. 좁으면 표시가 그림 아래로 내려간다(넘치지 않게).
-                    Wrap(
-                      spacing: AppSpace.sm,
-                      runSpacing: AppSpace.sm,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                    // 가전 그림 + 오른쪽 위 '연습' 표지(키오스크 타일과 같은 자리).
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // 가전 그림 — 늘 면 없이 그림만(평가 15차 10/18: 공기청정기·세탁기에만 바탕 칸이 있어 카드마다
                         // 모양이 달랐다). 상태는 아래 띠의 글·색이 말한다.
@@ -1363,12 +1467,20 @@ class _ApplianceCard extends ConsumerWidget {
                           alignment: Alignment.centerLeft,
                           child: Icon(a.icon, size: 28, color: context.appInk),
                         ),
-                        if (a.isDemo) const DemoBadge(),
+                        const Spacer(),
+                        if (practice)
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.topRight,
+                              child: DemoBadge(key: Key('appliance-practice-${a.id}')),
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: AppSpace.sm),
                     Text(
-                      name,
+                      shownName,
                       style: const TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700),
                     ),
                     if ((a.location ?? '').isNotEmpty)
@@ -1379,11 +1491,13 @@ class _ApplianceCard extends ConsumerWidget {
                       Text('LG 가전',
                           key: Key('appliance-lg-${a.id}'),
                           style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+                    // 짧은 원인 한 줄([tileReasonText]) — 말줄임 없이(휴리스틱 평가 10/18: '…누를 수 없…'처럼 원인이
+                    // 잘렸다). 자세한 사정은 가전 상세에서.
                     if (s.detail case final d?)
                       Text(
-                        d,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        keepWordsTogether(d),
+                        key: Key('appliance-reason-${a.id}'),
+                        semanticsLabel: d,
                         style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                       ),
                     if (verifyNote case final v? when !noteInBand)

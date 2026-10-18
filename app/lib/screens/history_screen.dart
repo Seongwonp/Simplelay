@@ -7,7 +7,10 @@ import '../models/appliance.dart';
 import '../models/command_result.dart';
 import '../models/display_status.dart';
 import '../models/line_break.dart';
+import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/routine_provider.dart';
+import '../widgets/routine_run.dart';
 import '../providers/clock_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
@@ -27,6 +30,21 @@ final historyProvider =
   return api.history();
 });
 
+/// 기록 위 '못 한 일만' 거르기(보호자 과업 평가 10/18 — 어제 실패를 찾기 쉽게). 홈 실패 경고의 '기록 보기'가 켠다.
+final historyFailedOnlyProvider = StateProvider<bool>((ref) => false);
+
+/// '못 한 일만'에 남는 기록 — 못 했어요·스스로 멈췄어요·됐는지 모름(연습·됐어요·사람이 멈춘 것은 뺀다).
+bool historyIsNotDone(RpiHistoryEntry e) {
+  if (e.executionMode == 'mock') return false;
+  return switch (resultKindOf(outcome: e.outcome, status: e.status)) {
+    ResultKind.failed || ResultKind.safetyStop || ResultKind.unconfirmed => true,
+    _ => false,
+  };
+}
+
+/// 됐는지 확인하지 못한 기록의 배지 말(보호자 과업 평가 10/18: '봐 주세요'는 멀리 있는 보호자가 할 수 없는 부탁이었다).
+const kCheckBadgeLabel = '확인 필요';
+
 /// 기록 묶음은 바로 앞 회차와 이 간격 안일 때만(평가 15차 10/18).
 const kHistoryRunGap = Duration(minutes: 10);
 
@@ -45,6 +63,20 @@ class HistoryScreen extends ConsumerWidget {
     final historyAsync = ref.watch(historyProvider);
     final now = ref.watch(nowProvider)();
     final installed = ref.watch(installedAppliancesProvider);
+    final failedOnly = ref.watch(historyFailedOnlyProvider);
+    final filter = Padding(
+      padding: const EdgeInsets.only(top: AppSpace.sm),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: FilterChip(
+          key: const Key('history-filter-failed'),
+          label: const Text('못 한 일만', style: TextStyle(fontSize: AppFont.caption)),
+          selected: failedOnly,
+          materialTapTargetSize: MaterialTapTargetSize.padded,
+          onSelected: (v) => ref.read(historyFailedOnlyProvider.notifier).state = v,
+        ),
+      ),
+    );
 
     return Scaffold(
       // 탭 제목은 홈('우리 집')과 같은 굵은 큰 제목(UI 평가 10/17).
@@ -66,7 +98,16 @@ class HistoryScreen extends ConsumerWidget {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.xxxl),
                   children: [
-                    for (final section in _groupByDay(entries, now)) ...[
+                    filter,
+                    if (failedOnly && !entries.any(historyIsNotDone))
+                      Padding(
+                        key: const Key('history-filter-empty'),
+                        padding: const EdgeInsets.symmetric(vertical: AppSpace.xxl),
+                        child: Text('못 한 일이 없어요.',
+                            style: TextStyle(fontSize: AppFont.body, color: context.appMuted)),
+                      ),
+                    for (final section in _groupByDay(
+                        failedOnly ? entries.where(historyIsNotDone).toList() : entries, now)) ...[
                       const SizedBox(height: AppSpace.lg),
                       Text(section.label, style: AppText.title),
                       // 눌렸는지 모르는 일은 행마다가 아니라 날짜 머리에 한 번(2차 평가 10/18).
@@ -77,7 +118,7 @@ class HistoryScreen extends ConsumerWidget {
                             Icon(Icons.help_outline, size: 20, color: context.appWarning),
                             const SizedBox(width: AppSpace.sm),
                             Expanded(
-                              child: Text('눌렸는지 모르는 일 $n건. 가전을 봐 주세요',
+                              child: Text('눌렸는지 모르는 일 $n건. 집에서 확인이 필요해요',
                                   style: TextStyle(
                                       fontSize: AppFont.caption,
                                       fontWeight: FontWeight.w600,
@@ -305,7 +346,7 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
 /// 자세한 사정은 펼친 결과 문장이 말한다.
 /// 이미 그 설정이라 보내지 않은 것(already_at_target)은 본체가 **상태를 읽어** 본 것이라 실제 실행에서만 '됐어요'.
 ({String label, IconData icon, BadgeTone tone}) historyBadgeOf(RpiHistoryEntry e) {
-  const check = (label: '봐 주세요', icon: Icons.help_outline, tone: BadgeTone.attention);
+  const check = (label: kCheckBadgeLabel, icon: Icons.help_outline, tone: BadgeTone.attention);
   final kind = resultKindOf(outcome: e.outcome, status: e.status);
   if (e.executionMode == 'mock') {
     return (label: '연습', icon: Icons.science_outlined, tone: BadgeTone.neutral);
@@ -459,7 +500,7 @@ String _runTime(List<RpiHistoryEntry> entries) {
   return '$oldest~$newest';
 }
 
-class _HistoryRow extends StatefulWidget {
+class _HistoryRow extends ConsumerStatefulWidget {
   const _HistoryRow({
     super.key,
     required this.entries,
@@ -477,7 +518,7 @@ class _HistoryRow extends StatefulWidget {
   final String? applianceName;
 
   @override
-  State<_HistoryRow> createState() => _HistoryRowState();
+  ConsumerState<_HistoryRow> createState() => _HistoryRowState();
 }
 
 /// 기록 한 줄 — 두 줄(무엇을 · 언제·누가) + 왼쪽 출처 아이콘 + 오른쪽 결과.
@@ -485,7 +526,7 @@ class _HistoryRow extends StatefulWidget {
 ///
 /// 평가 14차(10/18): 모든 줄이 같은 짜임(회색 원 + 배지 칩)이라 위계가 없었다 — 회색 원을 빼고, 됐어요·연습은 칩 없이
 /// 작은 기호·글자로 조용히. 볼 것(못 했어요·봐 주세요·멈췄어요)만 칩으로 눈에 띄게.
-class _HistoryRowState extends State<_HistoryRow> {
+class _HistoryRowState extends ConsumerState<_HistoryRow> {
   bool _open = false;
 
   @override
@@ -515,8 +556,16 @@ class _HistoryRowState extends State<_HistoryRow> {
     ].join(' · ');
     final muted = context.appCaption;
     // 이유 한 줄 — '봐 주세요'는 결과 문장(평가 10차 10/18), '못 했어요'는 기록에 있는 이유(평가 14차 10/18).
-    final look = badge.label == '봐 주세요';
-    final reason = look ? historyLookReason(result.sentence) : historyFailReason(entry, applianceName: applianceName);
+    final look = badge.label == kCheckBadgeLabel;
+    // 멈춘 기록은 누가·왜 멈췄는지 한 줄(보호자 과업 평가 10/18) — 기록이 아는 만큼(정지 요청·연결 끊김·누름 장치 이상).
+    // 연습 기록은 연습 한 줄이 말한다 — 멈춘 까닭 줄을 따로 두지 않는다.
+    final stoppedKind = (result.kind == ResultKind.stopped || result.kind == ResultKind.safetyStop) &&
+        entry.executionMode != 'mock';
+    final reason = look
+        ? historyLookReason(result.sentence)
+        : stoppedKind
+            ? (result.sentence == badge.label ? null : result.sentence)
+            : historyFailReason(entry, applianceName: applianceName);
     final reasonColor = look ? context.appWarning : context.appInk;
 
     final label = count > 1 ? '$count번 ${badge.label}' : badge.label;
@@ -604,7 +653,11 @@ class _HistoryRowState extends State<_HistoryRow> {
 
     // '버튼판에서 직접 누르기'는 물리 경로의 끝이 안 좋았던 실행만, 묶음이어도 한 번.
     final kind = result.kind;
-    final breakdown = kind != ResultKind.success && kind != ResultKind.unconfirmed && entry.route != 'thinq';
+    // 눌렸는지 모르는 실패(한 번 더 눌렀지만 모름)에는 두지 않는다 — 다시 누르기를 쉬운 길로 만들지 않는다(R1).
+    final breakdown = kind != ResultKind.success &&
+        kind != ResultKind.unconfirmed &&
+        entry.route != 'thinq' &&
+        !(entry.termination == 'retries_exhausted' && entry.executionMode != 'mock');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
@@ -656,12 +709,65 @@ class _HistoryRowState extends State<_HistoryRow> {
                         label: const Text('버튼판에서 직접 누르기'),
                       ),
                     ),
+                  ..._nextActions(context, entry),
                 ],
               ),
             ),
         ],
       ),
     );
+  }
+
+  /// 펼친 실패 줄의 다음 행동(휴리스틱 평가 10/18 — 실패 기록에 할 일이 없었다). 원인대로 하나만:
+  /// - LG 가전이 거절했으면 '○○ 상태 보기'(가전 상세 — 폰에서 지금 상태를 보고 바꿀 수 있다).
+  /// - 누름 장치에 **보내지 못한**(누르지 않은) 루틴은 '다시 해 보기' — 루틴 '지금 하기'와 같은 확인 시트를 거친다.
+  /// - 눌렸는지 모르면 다시 하는 단추를 두지 않는다(R1) — 다음 행동 줄('다시 누르기 전에 집에서 … 확인해야 해요')이 말한다.
+  List<Widget> _nextActions(BuildContext context, RpiHistoryEntry entry) {
+    if (entry.executionMode == 'mock') return const [];
+    final kind = resultKindOf(outcome: entry.outcome, status: entry.status);
+    if (kind != ResultKind.failed) return const [];
+    final id = entry.applianceId;
+    if (entry.route == 'thinq' && entry.receipt != 'not_dispatched' && id != null) {
+      final name = widget.applianceName == null ? '가전' : withoutMockMark(widget.applianceName!);
+      return [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            key: Key('history-action-detail-${entry.jobId}'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+            onPressed: () => context.push('/appliance/detail/$id'),
+            icon: const Icon(Icons.visibility_outlined, size: AppSpace.xl),
+            label: Text(keepWordsTogether('$name 상태 보기'), semanticsLabel: '$name 상태 보기'),
+          ),
+        ),
+      ];
+    }
+    if (entry.route != 'thinq' && entry.receipt == 'not_dispatched') {
+      final routineName = historyRoutineName(entry);
+      final routines = ref.watch(routinesProvider).valueOrNull ?? const <Routine>[];
+      final routine = routineName == null
+          ? null
+          : routines.where((r) => r.name.trim() == routineName.trim() && r.isRunCandidate).firstOrNull;
+      if (routine == null) return const [];
+      return [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            key: Key('history-action-retry-${entry.jobId}'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+            onPressed: () async {
+              final error = await confirmAndRunRoutine(context, ref, routine);
+              if (error != null && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+              }
+            },
+            icon: const Icon(Icons.replay_rounded, size: AppSpace.xl),
+            label: const Text('다시 해 보기'),
+          ),
+        ),
+      ];
+    }
+    return const [];
   }
 
   /// 펼친 칸 — 결과 문장·연습 줄·접수 줄·다음 할 일·본체 문장·재시도·버튼별 결과. [reasonShown]이면 위 이유 줄이
@@ -679,9 +785,11 @@ class _HistoryRowState extends State<_HistoryRow> {
     final muted = context.appCaption;
     final failReason = historyFailReason(entry, applianceName: applianceName);
     final (detailFirst, detailRest) = _detailParts(entry.detail);
-    final look = historyBadgeOf(entry).label == '봐 주세요';
+    final look = historyBadgeOf(entry).label == kCheckBadgeLabel;
     // 이유 줄이 결과 문장이면 결과 문장을, 본체 문장의 첫 문장이면 그 첫 문장을 빼고 나머지만.
-    final sentenceShown = reasonShown && (look || failReason == result.sentence);
+    final stoppedKind =
+        (kind == ResultKind.stopped || kind == ResultKind.safetyStop) && entry.executionMode != 'mock';
+    final sentenceShown = reasonShown && (look || stoppedKind || failReason == result.sentence);
     final detailFirstShown = detailFirst == null
         ? null
         : plainFailReason(detailFirst, historyTitle(entry, applianceName: applianceName),

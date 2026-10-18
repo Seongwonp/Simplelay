@@ -80,7 +80,7 @@ void main() {
     });
     expect(s.phase, ExecutionPhase.failed);
     expect(s.abortReason, 'motion_alarm: stall');
-    expect(s.message, '누름 장치가 움직이지 못해 멈췄어요. 다시 누르지 않았어요. 가전과 누름 장치를 봐 주세요.');
+    expect(s.message, '누름 장치가 움직이지 못해 멈췄어요. 다시 누르지 않았어요. 가전과 누름 장치는 집에서 확인이 필요해요.');
     expect(s.message, isNot(contains('눌림을 확인하지 못해')));
     expect(spoken.single, s.message);
   });
@@ -92,7 +92,7 @@ void main() {
       'last_route': 'physical',
       'last_execution_mode': 'real',
     });
-    expect(s.message, '눌렸는지 몰라서 멈췄어요. 가전을 먼저 봐 주세요. 가전이 이미 움직이고 있으면 다시 시도하지 마세요. 같은 버튼을 또 누르게 돼요.');
+    expect(s.message, '눌렸는지 몰라서 멈췄어요. 다시 하기 전에 집에서 가전을 확인해야 해요. 가전이 이미 움직이고 있으면 다시 시도하지 마세요. 같은 버튼을 또 누르게 돼요.');
   });
 
   test('기록: 걸림 원인이 있으면 "다시 눌러도 확인하지 못해"라고 하지 않는다', () {
@@ -102,9 +102,9 @@ void main() {
       'abort_reason': 'motion_alarm: stall',
     }));
     expect(r.sentence, '누름 장치가 움직이지 못해 멈췄어요');
-    expect(r.next, '다시 누르지 않았어요. 누름 장치를 봐 주세요');
+    expect(r.next, '다시 누르지 않았어요. 누름 장치는 집에서 확인이 필요해요');
     final old = historyResult(_entry(const {'outcome': 'safety_stop', 'termination': 'retries_exhausted'}));
-    expect(old.sentence, '다시 눌러도 몰라서 스스로 멈췄어요');
+    expect(old.sentence, '한 번 더 눌렀지만 몰라서 스스로 멈췄어요');
   });
 
   testWidgets('결과 화면: 걸림이면 다시 시도를 권하지 않는다(자동 재누름·재시도 버튼 없음)', (tester) async {

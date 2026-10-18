@@ -220,7 +220,7 @@ void main() {
     double y(Finder f) => tester.getTopLeft(f).dy;
     final now = find.byKey(const Key('home-now'));
     final todo = find.byKey(const Key('home-suggestion'));
-    final attention = find.byKey(const Key('home-attention'));
+    final attention = find.byKey(const Key('home-todo'));
     final appliances = find.byKey(const Key('home-appliances'));
     final routines = find.byKey(const Key('home-routines'));
     for (final f in [now, todo, attention, appliances, routines]) {
@@ -297,6 +297,10 @@ void main() {
     await _settle(tester);
     expect(tester.getSize(_tile('r-b')).height, greaterThanOrEqualTo(48));
     await tester.tap(_tile('r-b'));
+    await _settle(tester);
+    // 먼저 묻는다(휴리스틱 평가 10/18) — 묻는 동안은 카드를 만들지 않는다.
+    expect(hub.requests.where((r) => r.endsWith('/trigger')), isEmpty);
+    await tester.tap(find.byKey(const Key('routine-confirm-run')));
     await _settle(tester);
     expect(hub.requests.where((r) => r.endsWith('/trigger')).length, 1);
     expect(find.text('승인 화면 card-1'), findsOneWidget);
@@ -375,7 +379,7 @@ void main() {
     expect(find.textContaining('공기 '), findsNothing);
   });
 
-  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 "꺼져 있어요", 모르면 전원을 말하지 않고 할 일만', (tester) async {
+  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 "꺼져 있어요", 모르면 "확인 전이에요"(손 아이콘 준비됐어요 아님)', (tester) async {
     final hub = _Hub(appliances: [_thinq('air', '공기청정기'), _thinq('dh', '제습기')], routines: const [])
       ..power = [
         {'appliance_id': 'air', 'power': 'off', 'age_s': 3},
@@ -385,7 +389,7 @@ void main() {
     await _settle(tester);
     expect(find.descendant(of: find.byKey(const Key('appliance-status-air')), matching: findPlainText('꺼져 있어요')),
         findsOneWidget);
-    expect(find.descendant(of: find.byKey(const Key('appliance-status-dh')), matching: findPlainText('준비됐어요')),
+    expect(find.descendant(of: find.byKey(const Key('appliance-status-dh')), matching: findPlainText('확인 전이에요')),
         findsOneWidget);
     expect(find.descendant(of: find.byKey(const Key('appliance-card-dh')), matching: findPlainText('꺼져 있어요')),
         findsNothing);
@@ -401,9 +405,9 @@ void main() {
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
 
-    final attention = find.byKey(const Key('home-attention'));
+    final attention = find.byKey(const Key('home-todo'));
     expect(attention, findsOneWidget);
-    expect(find.descendant(of: attention, matching: find.text('확인이 필요해요')), findsOneWidget);
+    expect(find.descendant(of: attention, matching: find.text('해야 할 일')), findsOneWidget);
     expect(find.descendant(of: attention, matching: find.byKey(const Key('setup-summary-card'))), findsOneWidget);
     final lastTile = find.byKey(const Key('appliance-card-w2'));
     expect(tester.getTopLeft(attention).dy, lessThan(tester.getTopLeft(lastTile).dy));
@@ -422,8 +426,9 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
-    expect(find.byKey(const Key('home-attention')), findsNothing);
-    expect(find.text('확인이 필요해요'), findsNothing);
+    expect(find.byKey(const Key('home-todo')), findsNothing);
+    expect(find.byKey(const Key('home-failure')), findsNothing);
+    expect(find.text('해야 할 일'), findsNothing);
   });
 
   testWidgets('루틴 조회 실패는 "루틴이 없다"로 말하지 않는다', (tester) async {

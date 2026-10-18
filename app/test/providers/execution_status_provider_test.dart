@@ -92,7 +92,7 @@ void main() {
       expect(status.completedSteps, 3);
       // BLE 경로는 실행 환경(real/mock)을 말해주지 않는다 -- 모르는 것을
       // 아는 척하지 않고 HTTP 경로와 같은 규칙(finishedMessage)으로 말한다.
-      expect(status.message, contains('가전이 움직이는지 봐 주세요'));
+      expect(status.message, contains('움직이는지는 집에서 확인이 필요해요'));
       expect(status.message, isNot(contains('마쳤어요')));
       expect(status.message, isNot(contains('켜졌는지')));
     });
@@ -153,7 +153,7 @@ void main() {
 
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
       // BLE 결과는 접수·전송 여부를 말하지 않는다 — 시작 못 함으로 단정하지 않는다(평가 M4).
-      expect(c.read(executionStatusProvider).message, '끝까지 하지 못했어요. 가전을 봐 주세요.');
+      expect(c.read(executionStatusProvider).message, '끝까지 하지 못했어요. 집에서 가전을 확인해야 해요.');
     });
 
     test('result for different sequenceId is ignored', () async {

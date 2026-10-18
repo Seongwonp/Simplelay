@@ -457,11 +457,12 @@ void main() {
 
     final row = find.byKey(const Key('routine-row-rt-1'));
     expect(row, findsOneWidget);
-    // 행 안의 실행은 오른쪽 '지금 하기 >' 하나(평가 6차 10/18) — 편집 버튼·테두리 버튼은 행에 늘어놓지 않는다.
+    // 휴리스틱 평가(10/18): 행 안 단추는 '지금 하기'(작은 테두리 단추)와 '고치기' 둘 — 채운 버튼·⋮ 메뉴는 없다.
     expect(find.descendant(of: row, matching: runButton('rt-1')), findsOneWidget);
-    expect(find.descendant(of: row, matching: find.byWidgetPredicate((w) => w is TextButton || w is OutlinedButton)), findsNothing);
+    expect(find.descendant(of: row, matching: find.byType(OutlinedButton)), findsOneWidget);
+    expect(find.descendant(of: row, matching: find.byType(TextButton)), findsOneWidget);
     expect(find.descendant(of: row, matching: find.byType(FilledButton)), findsNothing);
-    expect(editButton('rt-1'), findsNothing);
+    expect(editButton('rt-1'), findsOneWidget);
     expect(menuButton('rt-1'), findsNothing);
     expect(find.descendant(of: row, matching: find.byIcon(Icons.more_vert)), findsNothing);
 
@@ -540,14 +541,18 @@ void main() {
     await _settle(tester);
 
     expect(runButton('rt-1'), findsOneWidget);
-    // 글자 + > — 홈 '내 루틴' 줄과 같은 모양. 줄마다 채운 버튼·테두리 버튼이면 위계가 흐려졌다(UI 평가 3차 10/17, 평가 6차 10/18).
-    expect(tester.widget(runButton('rt-1')), isA<InkWell>());
-    expect(find.descendant(of: runButton('rt-1'), matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
+    // 휴리스틱 평가(10/18): '지금 하기 >'가 줄 이동처럼 보였다 → ▶ 작은 테두리 단추(화살표 없음), 줄 오른쪽 >는 고치기.
+    expect(tester.widget(runButton('rt-1')), isA<OutlinedButton>());
+    expect(find.descendant(of: runButton('rt-1'), matching: find.byIcon(Icons.chevron_right)), findsNothing);
     expect(find.descendant(of: runButton('rt-1'), matching: findPlainText('지금 하기')), findsOneWidget);
     // 48 이상 터치 영역.
     expect(tester.getSize(runButton('rt-1')).height, greaterThanOrEqualTo(48));
 
     await tester.tap(runButton('rt-1'));
+    await _settle(tester);
+    // 먼저 묻는다 — 묻는 동안 카드를 만들지 않는다.
+    expect(server.triggerCount, 0);
+    await tester.tap(find.byKey(const Key('routine-confirm-run')));
     await _settle(tester);
     expect(server.triggerCount, 1);
     expect(find.text('승인 화면 card-1'), findsOneWidget);
@@ -563,7 +568,10 @@ void main() {
     await _settle(tester);
 
     await tester.tap(runButton('rt-1'));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('routine-confirm-run')));
     await tester.pump();
+    // 카드 요청 중에는 단추가 잠긴다.
     await tester.tap(runButton('rt-1'), warnIfMissed: false);
     await tester.pump();
     gate.complete();
@@ -578,15 +586,20 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_build(server));
     await _settle(tester);
-    await tester.tap(runButton('rt-1'));
-    await _settle(tester);
+    Future<void> runAndConfirm() async {
+      await tester.tap(runButton('rt-1'));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('routine-confirm-run')));
+      await _settle(tester);
+    }
+
+    await runAndConfirm();
     expect(findPlainText('지금은 루틴 카드를 만들 수 없어요: 이미 떠 있는 카드가 있어요'),
         findsOneWidget);
     expect(find.textContaining('승인 화면'), findsNothing);
 
     server.triggerReply = (404, {'detail': '루틴을 찾을 수 없어요'});
-    await tester.tap(runButton('rt-1'));
-    await _settle(tester);
+    await runAndConfirm();
     expect(findPlainText('이 루틴을 찾지 못했어요. 목록을 새로 고쳐 주세요.'), findsOneWidget);
   });
 
@@ -607,7 +620,10 @@ void main() {
     expect(find.descendant(of: find.byKey(const Key('routine-line-rt-n')),
         matching: findPlainText('전자레인지 · 누를 버튼 3개', contains: true), matchRoot: true), findsOneWidget);
     expect(findPlainText('알려 드려요'), findsOneWidget);
-    expect(findPlainText('전자레인지 · 누를 버튼 3개 · 꺼짐', contains: true), findsOneWidget);
+    // 꺼 둔 루틴은 이름 옆 '꺼 둠' 표지(보호자 과업 평가 10/18) — 설명 줄 끝 '꺼짐'은 두지 않는다.
+    expect(find.descendant(of: find.byKey(const Key('routine-off-badge-rt-off')), matching: findPlainText('꺼 둠')),
+        findsOneWidget);
+    expect(findPlainText('전자레인지 · 누를 버튼 3개 · 꺼짐', contains: true), findsNothing);
   });
 
   testWidgets('알려진 가전 알림은 "세탁이 끝나면"으로, 이름은 사용자 것 그대로', (tester) async {
@@ -663,7 +679,9 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_build(server));
     await _settle(tester);
-    expect(find.bySemanticsLabel('아침 데우기 실행하기'), findsOneWidget);
+    expect(find.bySemanticsLabel('아침 데우기 지금 하기'), findsOneWidget);
+    // 줄 누르기는 고치기라고 읽는다(휴리스틱 평가 10/18 — 줄을 누르면 실행되는 줄 알고 겁냈다).
+    expect(find.bySemanticsLabel(RegExp('^아침 데우기 고치기')), findsWidgets);
     expect(find.bySemanticsLabel('아침 데우기 더 보기'), findsNothing);
     handle.dispose();
   });

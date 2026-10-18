@@ -274,7 +274,8 @@ void main() {
       ]);
       // 평가 17차(10/18): 끝 괄호 대신 '· 3번 못 했어요'(eval17_phone_test 4).
       expect(l.look, '공기청정기 바람 중간으로 하기 · 3번 못 했어요');
-      expect(l.rest, '그 밖에 안 본 알림 4건');
+      // 휴리스틱 평가(10/18): 홈·설정 같은 전체 수.
+      expect(l.rest, '안 본 알림 7건');
       // 한 번이면 횟수 없이, 다른 일이 섞이면 '외 N번'.
       expect(careAttentionLines([ev(1, 'execution_failed', purpose: '공기청정기 꺼줘')]).look, '못 한 일: 공기청정기 끄기');
       expect(
@@ -302,13 +303,13 @@ void main() {
         _careEv(1, 'auto_rule'),
       ];
       await _pump(tester, const HomeScreen(), size: const Size(360, 3000));
-      final look = _in(find.byKey(const Key('home-attention-care-look')), find.byType(Text));
+      final look = _in(find.byKey(const Key('home-failure')), find.byType(Text));
       final t = tester.widget<Text>(look.first);
       expect(_rawText(tester, look.first).replaceAll('⁠', '').replaceAll(' ', ' '),
           '공기청정기 바람 중간으로 하기 · 2번 못 했어요');
       expect(t.maxLines, isNull);
       expect(t.overflow, anyOf(isNull, TextOverflow.clip));
-      expect(_in(find.byKey(const Key('home-attention-care')), findPlainText('그 밖에 안 본 알림 2건')), findsOneWidget);
+      expect(_in(find.byKey(const Key('home-unread')), findPlainText('안 본 알림 4건')), findsOneWidget);
       await _pump(tester, const SettingsScreen());
       expect(findPlainText('안 본 알림 4건'), findsOneWidget);
     });
@@ -376,12 +377,13 @@ void main() {
       double lineH(String key) => tester.getSize(find.byKey(Key('routine-line-box-$key'))).height;
       expect(lineH('rt-eve'), closeTo(lineH('rt-wash'), 0.5));
       expect(gap('rt-eve', '저녁 공기청정기 켜기'), closeTo(gap('rt-wash', '빨래 시작'), 0.5));
+      // 휴리스틱 평가(10/18): 단추는 이름·설명 아래 같은 왼쪽 세로줄(따로 작은 단추), 줄 오른쪽(스위치·>)은 아이콘 가운데.
+      final runEve = tester.getTopLeft(find.byKey(const Key('routine-run-rt-eve')));
+      final setupWash = tester.getTopLeft(find.byKey(const Key('routine-setup-rt-wash')));
+      expect(runEve.dx, closeTo(setupWash.dx, 1));
+      expect(runEve.dy, greaterThanOrEqualTo(tester.getBottomLeft(find.byKey(const Key('routine-line-box-rt-eve'))).dy));
       final iconEve = tester.getCenter(find.byKey(const Key('routine-icon-box-rt-eve'))).dy;
-      final runEve = tester.getCenter(find.byKey(const Key('routine-run-rt-eve'))).dy;
-      expect(runEve, closeTo(iconEve, 1));
-      final iconWash = tester.getCenter(find.byKey(const Key('routine-icon-box-rt-wash'))).dy;
-      final setupWash = tester.getCenter(find.byKey(const Key('routine-setup-rt-wash'))).dy;
-      expect(setupWash, closeTo(iconWash, 1));
+      expect(tester.getCenter(find.byKey(const Key('routine-switch-rt-eve'))).dy, closeTo(iconEve, 1));
     });
   });
 
@@ -389,14 +391,15 @@ void main() {
     testWidgets('면·둥근 모서리 없이 왼쪽 굵은 선, 알림 줄은 알림 아이콘', (tester) async {
       _care = [_careEv(2, 'execution_failed', purpose: '공기청정기 꺼줘'), _careEv(1, 'auto_rule')];
       await _pump(tester, const HomeScreen());
-      final box = tester.widget<Container>(find.byKey(const Key('home-attention')));
+      // 휴리스틱 평가(10/18): 실패 경고는 맨 위 따로 — 왼쪽 굵은 선은 그대로, 옅은 실패 색 면을 깐다(가장 무겁다).
+      final box = tester.widget<Container>(find.byKey(const Key('home-failure')));
       final d = box.decoration! as BoxDecoration;
-      expect(d.color, isNull);
+      expect(d.color, isNotNull);
       expect(d.borderRadius, isNull);
       final border = d.border! as Border;
       expect(border.left.width, greaterThanOrEqualTo(3));
       expect(border.top, BorderSide.none);
-      final rest = find.byKey(const Key('home-attention-care'));
+      final rest = find.byKey(const Key('home-unread'));
       expect(_in(rest, find.byIcon(Icons.notifications_none)), findsOneWidget);
       expect(_in(rest, find.byIcon(Icons.family_restroom)), findsNothing);
     });

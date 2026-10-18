@@ -33,7 +33,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.',
+        message: '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -59,7 +59,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.',
+        message: '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -80,7 +80,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.',
+        message: '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -104,9 +104,9 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.'), findsNothing);
+    expect(find.text('버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.'), findsNothing);
     // 실행 환경을 모르면 실제로 눌렀는지 사람에게 확인을 맡긴다.
-    expect(findPlainText('가전이 움직이는지 봐 주세요', contains: true), findsOneWidget);
+    expect(findPlainText('움직이는지는 집에서 확인이 필요해요', contains: true), findsOneWidget);
     expect(find.textContaining('마쳤어요'), findsNothing);
   });
 
@@ -134,7 +134,7 @@ void main() {
     const realSentence = '가전이 전기를 쓰기 시작한 것도 확인했어요';
     const mockMotion = '연습이라 실제 가전은 보지 않았어요';
     const mockL3 = '가전 동작은 연습 값으로 봤어요. 실제로 확인한 건 아니에요';
-    const unknownL3 = '가전이 움직였는지 몰라요. 가전을 봐 주세요';
+    const unknownL3 = '가전이 움직였는지 몰라요. 집에서 가전을 확인해야 해요';
     final cases = <(String, String?, String)>[
       ('real', 'real', realSentence),
       ('real', 'mock', mockL3),

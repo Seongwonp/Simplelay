@@ -199,7 +199,7 @@ void main() {
       await tester.pumpWidget(_app(_hub(), const HomeScreen(), installed: _installed));
       await _settle(tester);
 
-      expect(find.byKey(const Key('home-attention')), findsOneWidget);
+      expect(find.byKey(const Key('home-todo')), findsOneWidget);
       // 가전 타일 띠 한 곳에만(평가 7차 10/18: 띠는 문장 '설정이 필요해요') — 무엇이 남았는지는 확인 카드가 한 번 말한다.
       expect(findPlainText('설정이 필요해요', contains: true), findsOneWidget);
       expect(find.descendant(of: find.byKey(const Key('appliance-band-washer')), matching: findPlainText('설정이 필요해요')),

@@ -101,17 +101,17 @@ void main() {
         const ExecutionStatus(
           phase: ExecutionPhase.unknown,
           label: '즉석밥 데워줘',
-          message: '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.',
+          message: '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.',
         ),
       );
 
       expect(find.text('정지'), findsOneWidget);
       expect(find.text('새로 보기'), findsOneWidget);
-      expect(findPlainText('가전을 봐 주세요', contains: true), findsOneWidget);
+      expect(findPlainText('집에서 가전을 확인해야 해요', contains: true), findsOneWidget);
       // 큰 문장은 어절 단위로 줄을 바꾼다('동/작을' 방지, UI 평가 10/17).
-      final headline = tester.widget<Text>(findPlainText('가전을 봐 주세요', contains: true));
+      final headline = tester.widget<Text>(findPlainText('집에서 가전을 확인해야 해요', contains: true));
       expect(headline.data, contains(kWordJoiner));
-      expect(headline.semanticsLabel, '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.');
+      expect(headline.semanticsLabel, '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.');
     });
 
     // 10/18 §3-5: 판정이 없으면(지금 실물 구성) 보고 있다고 하지 않는다 — 다음에 무엇이 오는지만.

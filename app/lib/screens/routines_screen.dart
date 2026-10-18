@@ -33,7 +33,8 @@ export '../models/clock_text.dart' show ampmClock, withAmPm;
 
 /// 루틴 탭 — 세그먼트 [내 루틴 | 자동 규칙](UI 개편안 §4, 2026-10-18).
 ///
-/// 내 루틴: 사용 기록으로 만든 초안 · 루틴 줄(가전 아이콘 · 이름 · 오른쪽 '지금 하기 >', 줄을 누르면 편집·지우기). 다음에 할 줄에는 '다음' 배지.
+/// 내 루틴: 사용 기록으로 만든 초안 · 루틴 줄(가전 아이콘 · 이름 · 오른쪽 스위치(정해진 시각) 또는 >, 이름 아래
+/// '지금 하기'(먼저 묻는다)·'고치기' 작은 단추, 줄을 누르면 고치기·지우기). 다음에 할 줄에는 '다음' 배지.
 /// 시각 루틴에 붙은 자동 규칙은 그 루틴 줄의 '자동'(꺼져 있으면 '자동 꺼짐')을 누르면 스위치가 나온다.
 /// 자동 규칙: 루틴이 아닌 규칙 카드(가전 알림으로 하는 일 — 예: 전자레인지가 멈추면 공기청정기 세게), 스위치·최근 결과.
 ///
@@ -196,8 +197,21 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                             onEdit: () => _open(context, r),
                             // 버튼 자리를 맞추지 않은 가전의 루틴은 실행 대신 이유(외부 평가 10/16 3차).
                             onRun: r.isRunCandidate && !r.applianceIds.any(needsSetup.contains)
-                                ? () => _run(context, r.id!)
+                                ? () => _run(context, r)
                                 : null,
+                            // 정해진 시각 루틴은 줄에서 바로 끄고 켠다(보호자 과업 평가 10/18) — 자동 규칙이 붙었으면 그
+                            // 규칙(켤 때는 확인 시트), 아니면 루틴 자체(서버 /routines/{id}/enable).
+                            onToggle: routineClock(r) == null || r.id == null
+                                ? null
+                                : switch (routineAutoRule(r, rules)) {
+                                    final rule? => (on) => _toggleRule(context, r, rule, on),
+                                    null => (on) => _toggleRoutine(context, r, on),
+                                  },
+                            switchOn: routineAutoRule(r, rules)?.enabled ?? r.enabled,
+                            switchLabel: routineAutoRule(r, rules) != null
+                                ? '${r.name} 자동으로 하기'
+                                : '${r.name} 루틴 켜기',
+                            toggling: r.id != null && _togglingId == r.id,
                             running: r.id != null && _runningId == r.id,
                             next: next != null && r.id != null && next.routineId == r.id ? next : null,
                             auto: r.id != null && autoIds.contains(r.id),
@@ -278,17 +292,71 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     await _open(context, picked.template);
   }
 
-  Future<void> _run(BuildContext context, String id) async {
-    if (_runningId != null) return; // 누르는 중 — 두 번째 탭은 버린다
-    setState(() {
-      _runningId = id;
-      _errors.remove(id);
-    });
+  Future<void> _run(BuildContext context, Routine r) async {
+    final id = r.id;
+    if (id == null || _runningId != null) return; // 누르는 중 — 두 번째 탭은 버린다
     try {
-      final error = await runRoutineNow(context, ref, id);
+      // 먼저 무엇을 하는지 묻는다(휴리스틱 평가 10/18) — 고르면 예전과 같은 승인 카드 경로.
+      final error = await confirmAndRunRoutine(context, ref, r, onConfirmed: () {
+        if (!mounted) return;
+        setState(() {
+          _runningId = id;
+          _errors.remove(id);
+        });
+      });
       if (mounted && error != null) setState(() => _errors[id] = error);
     } finally {
       if (mounted) setState(() => _runningId = null);
+    }
+  }
+
+  /// 스위치를 바꾸는 중인 루틴(한 번에 하나).
+  String? _togglingId;
+
+  void _say(BuildContext context, String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  /// 규칙이 붙은 시각 루틴의 스위치 — 끄면 바로, 켜면 확인 시트([setAutoRuleSwitch]). 끈 뒤에는 때가 되면 물어본다
+  /// (자동 실행을 못 하면 본체는 카드로 묻는다 — 루틴 엔진 `_auto_time`).
+  Future<void> _toggleRule(BuildContext context, Routine r, AutoRule rule, bool on) async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (api == null || _togglingId != null) return;
+    setState(() => _togglingId = r.id);
+    try {
+      final done = await setAutoRuleSwitch(context, api, rule, on);
+      if (done && context.mounted) {
+        _say(context, on ? "'${r.name}' 자동으로 하기를 켰어요" : "'${r.name}' 자동으로 하기를 껐어요. 때가 되면 물어볼게요");
+      }
+    } on RpiApiException catch (e) {
+      if (context.mounted) _say(context, e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 봐 주세요.');
+    } catch (_) {
+      if (context.mounted) _say(context, '바꾸지 못했어요. 연결을 봐 주세요.');
+    } finally {
+      if (mounted) setState(() => _togglingId = null);
+      _ruleChanged();
+    }
+  }
+
+  /// 규칙이 없는 시각 루틴의 스위치 — 루틴 자체를 끄고 켠다(편집기 '루틴 켜기'와 같은 값, 서버 /routines/{id}/enable).
+  Future<void> _toggleRoutine(BuildContext context, Routine r, bool on) async {
+    final api = ref.read(rpiApiServiceProvider);
+    final id = r.id;
+    if (api == null || id == null || _togglingId != null) return;
+    setState(() => _togglingId = id);
+    try {
+      await api.setRoutineEnabled(id, on);
+      if (context.mounted) {
+        _say(context, on ? "'${r.name}' 루틴을 켰어요" : "'${r.name}' 루틴을 껐어요. 때가 되어도 하지 않아요");
+      }
+    } on RpiApiException catch (e) {
+      if (context.mounted) _say(context, e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 봐 주세요.');
+    } catch (_) {
+      if (context.mounted) _say(context, '바꾸지 못했어요. 연결을 봐 주세요.');
+    } finally {
+      if (mounted) setState(() => _togglingId = null);
+      ref.invalidate(routinesProvider);
+      ref.invalidate(nextRoutineProvider);
+      ref.invalidate(autoRoutineIdsProvider);
     }
   }
 
@@ -450,7 +518,7 @@ String routineListLine(Routine r, Map<String, String> applianceNames) {
     if (targets.isNotEmpty) targets.join(', '),
     if (presses > 0) '누를 버튼 $presses개',
     ...results,
-    if (!r.enabled) '꺼짐',
+    // 꺼 둔 루틴은 이름 옆 '꺼 둠' 표지가 말한다(보호자 과업 평가 10/18) — 설명 줄에 되풀이하지 않는다.
   ].join(' · ');
 }
 
@@ -728,7 +796,23 @@ class _RoutineRow extends StatelessWidget {
     this.auto = false,
     this.autoRule,
     this.onAuto,
+    this.onToggle,
+    this.switchOn = false,
+    this.switchLabel = '',
+    this.toggling = false,
   });
+
+  /// 정해진 시각 루틴의 켜기·끄기(보호자 과업 평가 10/18). null이면 스위치를 두지 않는다.
+  final ValueChanged<bool>? onToggle;
+
+  /// 스위치의 지금 값 — 자동 규칙이 붙었으면 그 규칙의 켜짐, 아니면 루틴 켜짐.
+  final bool switchOn;
+
+  /// 스위치를 읽는 이름('○○ 자동으로 하기' / '○○ 루틴 켜기').
+  final String switchLabel;
+
+  /// 바꾸는 중 — 두 번 누르지 않게 잠근다.
+  final bool toggling;
 
   /// 묻지 않고 하는 시각 루틴(본체 /routines/next의 auto) — 홈 '다음' 카드와 같은 '자동' 표시.
   final bool auto;
@@ -810,6 +894,8 @@ class _RoutineRow extends StatelessWidget {
         ),
       // 알림만 루틴(평가 4차 10/18) — 가전을 움직이지 않는 줄이라는 뜻.
       if (notify) const _LineMark(label: '알려 드려요'),
+      // 꺼 둔 루틴(보호자 과업 평가 10/18) — 스위치를 끈 뒤 줄에서도 보인다(설명 줄 끝 '꺼짐' 대신).
+      if (!r.isTemplate && !r.enabled) _LineMark(key: Key('routine-off-badge-$key'), label: '꺼 둠', muted: true),
     ];
     final lineStyle = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
     // '누를 버튼 2개'·'매일 오전 7:00' 같은 묶음 안에서 줄이 갈리지 않게(평가 4차 10/18). 낭독은 원문.
@@ -899,9 +985,10 @@ class _RoutineRow extends StatelessWidget {
       );
     }
 
-    // 행의 표시는 하나 — 준비된 루틴은 오른쪽 '지금 하기 >'(홈 '내 루틴' 줄과 같은 모양), 설정이 남은 루틴은 같은 꼴의
-    // '설정하기 >'(누르면 그 가전 설정, 평가 11차 10/18). 평가 6차(10/18): 이름 아래 들여 쓴 '▶ 지금 하기'가 줄마다 되풀이됐다.
-    // 편집·지우기는 줄을 눌러 들어가는 편집 화면 안. 누르면 승인 카드만 만든다 — 가전은 승인 화면에서 허락해야 움직인다.
+    // 휴리스틱·보호자 과업 평가(10/18): 오른쪽 '지금 하기 >'가 줄 이동처럼 보여 줄을 누르기 겁났고, 정해진 시각 루틴을
+    // 끄는 길이 없었다. 그래서 — 줄 누르기는 **고치기**(오른쪽 > 와 '고치기' 단추가 말한다), '지금 하기'는 이름 아래 따로
+    // 작은 단추(누르면 먼저 묻는다), 정해진 시각 루틴은 오른쪽에 켜기·끄기 스위치(자동 규칙이 붙었으면 그 규칙, 아니면 루틴).
+    // 설정이 남은 루틴은 '지금 하기' 자리에 '설정 열기'. 가전은 여전히 승인 화면에서 허락해야 움직인다.
     final run = onRun;
     final setup = onSetup;
     final Widget? action = setup != null
@@ -912,54 +999,111 @@ class _RoutineRow extends StatelessWidget {
             onTap: setup,
           )
         : run != null
-            ? RowTextAction(
-                actionKey: Key('routine-run-$key'),
-                label: '지금 하기',
-                semanticLabel: '${r.name} 실행하기',
+            ? Semantics(
+                label: '${r.name} 지금 하기',
+                button: true,
                 enabled: !busy,
-                running: running,
-                onTap: run,
+                excludeSemantics: true,
+                child: OutlinedButton.icon(
+                  key: Key('routine-run-$key'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(kMinTouch, kMinTouch),
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                  ),
+                  onPressed: busy ? null : run,
+                  icon: running
+                      ? const SizedBox(
+                          width: AppSpace.lg, height: AppSpace.lg, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(Icons.play_arrow_rounded, size: AppSpace.xl, color: context.appInk),
+                  label: Text(keepWordsTogether('지금 하기'),
+                      style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appInk)),
+                ),
               )
             : null;
+    final edit = Semantics(
+      label: '${r.name} 고치기',
+      button: true,
+      excludeSemantics: true,
+      child: TextButton.icon(
+        key: Key('routine-edit-$key'),
+        style: TextButton.styleFrom(
+          minimumSize: const Size(kMinTouch, kMinTouch),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+        ),
+        onPressed: onEdit,
+        icon: Icon(Icons.edit_outlined, size: AppSpace.xl, color: context.appMuted),
+        label: Text('고치기', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+      ),
+    );
+    // 정해진 시각 루틴의 켜기·끄기 — 줄 오른쪽(큰 글씨에서는 단추 줄 끝).
+    final toggle = onToggle;
+    final Widget? switchWidget = toggle == null
+        ? null
+        : Semantics(
+            label: switchLabel,
+            toggled: switchOn,
+            excludeSemantics: true,
+            child: SizedBox(
+              height: kMinTouch,
+              child: Switch(
+                key: Key('routine-switch-$key'),
+                value: switchOn,
+                onChanged: toggling ? null : toggle,
+              ),
+            ),
+          );
     // 왼쪽 열은 모든 줄이 같은 폭의 가전 아이콘(평가 6차 10/18).
     final leadWidth = circle + AppSpace.md;
-    // 아이콘 · 이름과 설명 · 오른쪽 단추가 같은 세로 가운데(평가 16차) — 홈 '내 루틴' 줄과 같은 틀.
+    // 아이콘 · 이름과 설명 · 오른쪽(스위치, 없으면 고치기 >)이 같은 세로 가운데 — 홈 '내 루틴' 줄과 같은 틀.
     final head = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(width: leadWidth, child: Align(alignment: Alignment.centerLeft, child: icon)),
         Expanded(child: Semantics(container: true, child: text)),
-        if (inline && action != null) ...[const SizedBox(width: AppSpace.xs), action],
+        if (inline && switchWidget != null) ...[const SizedBox(width: AppSpace.xs), switchWidget]
+        else if (switchWidget == null) Icon(Icons.chevron_right, color: context.appMuted),
       ],
     );
+    final actions = [
+      if (action != null) action,
+      edit,
+      if (!inline && switchWidget != null) switchWidget,
+    ];
     return Padding(
       key: Key('routine-row-$key'),
       padding: const EdgeInsets.only(bottom: AppSpace.xs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            // 행 전체를 누르면 편집(상세). 실행 단추는 제 몫을 먼저 받는다.
-            key: Key('routine-$key'),
-            borderRadius: BorderRadius.circular(12),
-            onTap: onEdit,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 56),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
-                // '자동' 표지의 48dp 손가락 칸 — 줄 높이를 늘리지 않는 투명 확장 영역.
-                child: TapSlop(target: autoKey, child: head),
+          Semantics(
+            label: '${r.name} 고치기',
+            button: true,
+            child: InkWell(
+              // 행 전체를 누르면 고치기(편집). '지금 하기'·스위치는 제 몫을 먼저 받는다.
+              key: Key('routine-$key'),
+              borderRadius: BorderRadius.circular(12),
+              onTap: onEdit,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 56),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+                  // '자동' 표지의 48dp 손가락 칸 — 줄 높이를 늘리지 않는 투명 확장 영역.
+                  child: TapSlop(target: autoKey, child: head),
+                ),
               ),
             ),
           ),
-          // 글씨를 키우면 행 표시를 이름 아래로 — 한 줄에 두면 이름 칸이 좁아져 낱말 중간에서 꺾인다(130%에서 "1|개").
-          if (!inline && action != null)
-            Padding(
-              // 단추 안 왼쪽 여백(sm)만큼 당겨 글자가 이름 첫 글자와 같은 세로줄(평가 17차 10/18: '지금 하기'가 들여 쓰였다).
-              key: Key('routine-action-box-$key'),
-              padding: EdgeInsets.only(left: leadWidth - AppSpace.sm, bottom: AppSpace.xs),
-              child: action,
+          // 단추 줄 — 이름 첫 글자와 같은 세로줄.
+          Padding(
+            key: Key('routine-action-box-$key'),
+            padding: EdgeInsets.only(left: leadWidth, bottom: AppSpace.xs),
+            child: Wrap(
+              spacing: AppSpace.sm,
+              runSpacing: AppSpace.xs,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: actions,
             ),
+          ),
           // '다음' 줄에만 '오늘은 건너뛰기' / '되돌리기'(2026-10-18) — 그 회차 한 번만. 줄 누름(편집)과 따로 받는다.
           if (n != null && n.canSkip && !r.isTemplate)
             Padding(
@@ -977,6 +1121,32 @@ class _RoutineRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 자동 규칙 스위치 한 번 — 끄기는 바로, 켜기는 늘 확인 시트(서버가 준 조건·동작을 보여 주고 그 지문으로만 켠다).
+/// 실제로 바꿨으면 true, 취소했거나 켤 수 없으면 false(까닭은 알림으로 말한다). 루틴 줄 스위치와 '자동 규칙' 탭이 함께 쓴다.
+Future<bool> setAutoRuleSwitch(BuildContext context, RpiApiService api, AutoRule rule, bool on) async {
+  if (!on) {
+    await api.setAutoRuleEnabled(rule.id, false);
+    return true;
+  }
+  final fp = rule.fingerprint;
+  if (fp == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('어느 가전인지 몰라서 켤 수 없어요. 가전 연결을 봐 주세요')));
+    return false;
+  }
+  final ok = await showAutoRuleConfirmSheet(
+    context,
+    conditionText: withAmPmSpoken(rule.conditionText, rule.conditionTime),
+    actionText: rule.actionText,
+    caveat: rule.caveat,
+    title: '다음부터 자동으로 할까요?',
+    confirmLabel: '허락',
+  );
+  if (!ok) return false;
+  await api.setAutoRuleEnabled(rule.id, true, fingerprint: fp);
+  return true;
 }
 
 /// 자동 실행 허용 규칙 한 줄 — '자동 실행 켜짐/꺼짐', 끄기·다시 허용·설정값 바꾸기·삭제.
@@ -1018,21 +1188,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
   }
 
   Future<void> _reallow(RpiApiService api, AutoRule rule) async {
-    final fp = rule.fingerprint;
-    if (fp == null) {
-      _say('어느 가전인지 몰라서 켤 수 없어요. 가전 연결을 봐 주세요');
-      return;
-    }
-    final ok = await showAutoRuleConfirmSheet(
-      context,
-      conditionText: withAmPmSpoken(rule.conditionText, rule.conditionTime),
-      actionText: rule.actionText,
-      caveat: rule.caveat,
-      title: '다음부터 자동으로 할까요?',
-      confirmLabel: '허락',
-    );
-    if (!ok) return;
-    await api.setAutoRuleEnabled(rule.id, true, fingerprint: fp);
+    await setAutoRuleSwitch(context, api, rule, true);
   }
 
   Future<void> _changeValue(RpiApiService api) async {

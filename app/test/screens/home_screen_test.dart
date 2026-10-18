@@ -277,7 +277,9 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.byTooltip('말로 하기'), findsOneWidget);
+      expect(find.byTooltip('말로 하기'), findsNothing);
+      // 아이콘만 두지 않고 글자도(휴리스틱 평가 10/18).
+      expect(findPlainText('말로 하기'), findsOneWidget);
     });
   });
 

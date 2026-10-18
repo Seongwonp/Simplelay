@@ -41,15 +41,19 @@ class RowMenu extends StatelessWidget {
   final String semanticLabel;
   final List<RowMenuItem> items;
 
+  /// 읽는 이름 + 안의 항목(휴리스틱 평가 10/18: ⋮만으로는 무엇이 들었는지 몰랐다) — '○○ 더 보기: 바람 세기 바꾸기, 지우기'.
+  String get _fullLabel => items.isEmpty ? semanticLabel : '$semanticLabel: ${items.map((i) => i.label).join(', ')}';
+
   @override
   Widget build(BuildContext context) => Semantics(
-        label: semanticLabel,
+        label: _fullLabel,
         button: true,
         container: true,
         excludeSemantics: true,
         child: PopupMenuButton<int>(
           key: menuKey,
-          tooltip: '더 보기',
+          // 길게 누르면 안의 항목을 말해 준다.
+          tooltip: items.isEmpty ? '더 보기' : '더 보기: ${items.map((i) => i.label).join(', ')}',
           constraints: const BoxConstraints(minWidth: 160),
           icon: Icon(Icons.more_vert, color: context.appMuted),
           style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(48, 48))),

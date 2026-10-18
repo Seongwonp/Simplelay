@@ -73,6 +73,29 @@ class TileStatus {
 /// 화면 글자로는 '확인이 필요해요' 카드 한 곳에서만 말한다(평가 3차 10/18).
 const kSetupNeededText = '설정이 필요해요';
 
+/// 전원을 아직 읽지 않은 LG 가전 타일의 말(키오스크 모름 띠와 같은 말).
+const kThinqUncheckedText = '확인 전이에요';
+
+/// 본체가 누름 장치 위치 때문에 거절한 이유(서버 `GANTRY_ABSENT_REASON`과 같은 문장).
+const kGantryAbsentReason = '누름 장치가 이 가전 위에 없어서 누를 수 없어요';
+
+/// 가전 타일에 적을 **짧은** 원인 한 줄(휴리스틱 평가 10/18: '누름 장치가 이 가전 위에 없어서 누를 수 없…'처럼 말줄임에
+/// 원인이 잘렸다). 아는 서버 문장은 짧은 말로, 모르는 문장은 첫 문장만(지어내지 않는다). 자세한 건 가전 상세에서.
+String tileReasonText(String reason) {
+  final t = reason.trim();
+  if (t.startsWith(kGantryAbsentReason)) return '누름 장치가 다른 가전 위에 있어요';
+  final m = RegExp(r'^(.+?)[.。](?:\s|$)').firstMatch(t);
+  return m == null ? t : m.group(1)!.trim();
+}
+
+/// 연습 가전인가 — 데모 표본이거나, 서버가 이름에 '(연습)'을 붙인 연습 기기(실제 모드 안의 'LG 세탁기(연습)',
+/// 2026-10-18). 키오스크 `isPractice`와 같은 판정.
+bool isPracticeAppliance(ApplianceMap a) => a.isDemo || a.name.contains('(연습)');
+
+/// 타일·목록에 적을 이름 — '(연습)' 표기는 이름에서 빼고 '연습' 표지가 말한다(키오스크 `tileName`과 같다).
+String applianceTileName(ApplianceMap a) =>
+    a.name.contains('(연습)') ? a.name.replaceAll('(연습)', '').trim() : a.name;
+
 /// 위치(사진 위 버튼 자리)를 맞춰야 하는 가전인가 — 홈 설정 안내와 같은 조건.
 bool needsPanelMapping(ApplianceMap a) =>
     a.isCustom && !a.isDemo && !a.isThinq && a.panelMapping == null;
@@ -168,17 +191,22 @@ TileStatus applianceTileStatus({
       // 켜진 ThinQ 가전만 말한다(서버가 최근 10분 안에 읽은 전원). 모르면 비운다 — 꺼짐이라 단정하지 않는다.
       if (appliance.isThinq && thinqOn) return const TileStatus('켜져 있어요', TileTone.on);
       if (appliance.isThinq && thinqOff) return const TileStatus('꺼져 있어요', TileTone.off);
+      // 전원을 모르는 LG 가전은 '확인 전이에요'(휴리스틱 평가 10/18: 누름 장치용 손 아이콘 '준비됐어요'가 붙어 누르는
+      // 가전처럼 보였다). LG 가전은 누를 버튼이 없다 — 상태는 본체가 읽은 전원으로만 말한다.
+      if (appliance.isThinq) return const TileStatus(kThinqUncheckedText, TileTone.unknown);
       return const TileStatus('', TileTone.ready);
     case 'needs_setup':
       // 서버는 비상정지 걸림·링크 확인 대기도 needs_setup으로 보낸다 —
       // '설정'이라 단정하지 않고 서버의 이유를 그대로 붙인다.
+      // 띠 말은 키오스크와 같은 '설정이 필요해요'(휴리스틱 평가 10/18: 폰만 '준비가 필요해요'였다). 무엇 때문인지는
+      // 서버 이유를 짧게 줄인 한 줄([tileReasonText])이 말한다.
       return r.canExecute
           ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown)
-          : TileStatus('준비가 필요해요', TileTone.attention, detail: reason);
+          : TileStatus(kSetupNeededText, TileTone.attention, detail: reason == null ? null : tileReasonText(reason));
     case 'disconnected':
       return r.canExecute
           ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown)
-          : TileStatus('연결이 필요해요', TileTone.attention, detail: reason);
+          : TileStatus('연결이 필요해요', TileTone.attention, detail: reason == null ? null : tileReasonText(reason));
     default:
       return const TileStatus('준비됐는지 몰라요', TileTone.unknown);
   }
@@ -376,6 +404,13 @@ String historyTitle(RpiHistoryEntry e, {String? applianceName}) {
   return hasName ? '$name 버튼 누르기' : '버튼 누르기';
 }
 
+/// 이 기록을 만든 루틴의 이름(목적 문장 `'이름' 루틴`, 자동 실행 머리는 뗀다). 루틴이 아니면 null.
+String? historyRoutineName(RpiHistoryEntry e) {
+  final purpose = e.purpose?.trim();
+  if (purpose == null || purpose.isEmpty) return null;
+  return _purposeParts(purpose).routine;
+}
+
 /// 부제에 붙일 루틴 이름 — 제목이 루틴 이름이 아닐 때만(같은 말을 두 번 쓰지 않는다). 루틴이 아니면 null.
 /// 자동 규칙의 이름은 서버가 목적 문장에 루틴 이름으로만 적는다(시각 규칙) — 그 밖의 규칙은 '자동'까지만.
 String? historyOrigin(RpiHistoryEntry e, {String? applianceName}) {
@@ -487,7 +522,14 @@ class HistoryResult {
 }
 
 /// 누름 장치가 버튼을 다 눌렀지만 가전 동작은 확인하지 못한 기록의 한 줄(평가 12차 10/18).
-const kPressedAllSentence = '버튼은 다 눌렀어요, 움직이는지 봐 주세요';
+const kPressedAllSentence = '버튼은 다 눌렀어요. 움직였는지는 집에서 확인이 필요해요';
+
+/// 폰을 보는 사람은 집 밖의 보호자일 수 있다(보호자 과업 평가 10/18) — 가전을 직접 '봐 주세요'라고 하지 않고, 집에서
+/// 확인해야 한다는 사실만 말한다('공기청정기를 집에서 확인해야 해요'). 집 안 사람용 말은 본체 화면(키오스크)이 한다.
+String homeCheckText(String target) => '집에서 $target${objectParticle(target)} 확인해야 해요';
+
+/// 멈춰 달라는 요청(폰·본체 화면·말·비상 버튼)으로 멈춘 기록. 기록에는 어디서 멈췄는지 가를 필드가 없어 거기까지만 말한다.
+const kStoppedByRequestSentence = '멈춰 달라는 요청으로 멈췄어요';
 
 /// 기록 줄의 '봐 주세요' 칩 옆 이유 — 칩이 이미 '봐 주세요'를 말하므로 문장 끝의 같은 부탁은 빼고, 무엇을 모르는지만
 /// 남긴다(평가 17차 10/18: 본문 '움직이는지 봐 주세요'와 칩 '봐 주세요'가 겹쳤다). 확인한 것처럼 바꾸지 않는다.
@@ -506,7 +548,7 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
   final rawName = applianceName?.trim();
   final name = rawName != null && mock ? withoutMockMark(rawName) : rawName;
   final target = (name == null || name.isEmpty) ? '가전' : name;
-  final checkTarget = '$target${objectParticle(target)} 봐 주세요';
+  final checkTarget = homeCheckText(target);
   // 모의는 한 번만 말한다(2026-10-14 UX) — 이름의 "(모의)"·연습 줄·다음 행동에 세 번 나오던 것을 이 한 줄로.
   // 실제·연습을 모르는 기록(옛 RPi4·보고 없음)은 성공 문장만 두면 실제 성공처럼 보인다(F4 경계) —
   // 일반 화면 띠는 생략해도 기록에는 한 줄 남긴다(2026-10-14).
@@ -523,7 +565,7 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
     final safety = e.outcome == null && e.status == 'safety_stopped' && !byUser;
     return HistoryResult(
       kind: kind,
-      sentence: byUser ? '직접 멈췄어요' : safety ? '스스로 멈췄어요' : '멈췄어요',
+      sentence: byUser ? kStoppedByRequestSentence : safety ? '스스로 멈췄어요' : '멈췄어요',
       mockNote: mockNote,
     );
   }
@@ -534,14 +576,14 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
       return HistoryResult(
         kind: kind,
         sentence: motion,
-        next: '다시 누르지 않았어요. 누름 장치를 봐 주세요',
+        next: '다시 누르지 않았어요. 누름 장치는 집에서 확인이 필요해요',
         mockNote: mockNote,
       );
     }
     return HistoryResult(
       kind: kind,
       sentence: e.termination == 'retries_exhausted'
-          ? '다시 눌러도 몰라서 스스로 멈췄어요'
+          ? '한 번 더 눌렀지만 몰라서 스스로 멈췄어요'
           : '스스로 멈췄어요',
       mockNote: mockNote,
     );
@@ -620,7 +662,8 @@ HistoryResult _liveResult(
           next: '다시 보내기 전에 $checkTarget',
         ),
       _ => HistoryResult(
-          kind: kind, sentence: '가전이 하지 않았어요', next: checkTarget),
+          // 다음 행동은 기록 줄을 펼친 '○○ 상태 보기' 단추가 말한다(폰에서 LG 가전 상태를 볼 수 있다).
+          kind: kind, sentence: '가전이 하지 않았어요'),
     };
   }
 
@@ -634,14 +677,14 @@ HistoryResult _liveResult(
         return HistoryResult(
             kind: kind,
             sentence: '버튼을 눌렀어요',
-            next: '$target 동작을 봐 주세요');
+            next: '$target 동작은 집에서 확인이 필요해요');
       }
       // 평가 12차(10/18): '다 눌렀다고 알려 왔어요'는 기계 보고 말투였다 → 사람 말. 뜻은 그대로 — 누름 장치는 다
       // 눌렀지만 가전이 움직였는지는 확인하지 못했다(배지 '봐 주세요'·초록 아님). 볼 것은 이 한 줄이 함께 말한다.
       return HistoryResult(kind: kind, sentence: kPressedAllSentence);
     case ResultKind.unconfirmed:
       return HistoryResult(
-          kind: kind, sentence: '눌렸는지 몰라요', next: checkTarget);
+          kind: kind, sentence: '눌렸는지 몰라요', next: '다시 누르기 전에 $checkTarget');
     case ResultKind.failed:
       if (e.receipt == 'not_dispatched') {
         return HistoryResult(
@@ -649,12 +692,12 @@ HistoryResult _liveResult(
       }
       if (e.termination == 'retries_exhausted') {
         return HistoryResult(
-            kind: kind, sentence: '다시 눌러도 눌렸는지 몰라요', next: checkTarget);
+            kind: kind, sentence: '한 번 더 눌렀지만 눌렸는지 몰라요', next: '다시 누르기 전에 $checkTarget');
       }
       return HistoryResult(
           kind: kind,
           sentence: '끝까지 하지 못했어요',
-          next: '$target 상태를 봐 주세요');
+          next: '$target 상태는 집에서 확인이 필요해요');
     case ResultKind.stopped:
     case ResultKind.safetyStop:
       throw StateError('handled above');

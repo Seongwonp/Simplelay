@@ -403,7 +403,8 @@ void main() {
       ]);
       // 평가 16차(10/18): '번' 하나, 나머지는 '그 밖에' — eval16_phone_test 1.
       expect(l.look, '못 한 일: 공기청정기 바람 중간으로 하기');
-      expect(l.rest, '그 밖에 안 본 알림 2건');
+      // 휴리스틱 평가(10/18): 알림 수는 설정과 같은 전체 수.
+      expect(l.rest, '안 본 알림 3건');
       // 볼 것이 없으면 중립 한 줄.
       final n = careAttentionLines([ev(2, 'auto_rule'), ev(1, 'routine_notice')]);
       expect(n.look, isNull);
@@ -428,10 +429,10 @@ void main() {
         _careEv(1, 'auto_rule'),
       ];
       await _pump(tester, const HomeScreen());
-      expect(_in(find.byKey(const Key('home-attention-care-look')),
+      expect(_in(find.byKey(const Key('home-failure')),
               findPlainText('못 한 일: 공기청정기 바람 중간으로 하기', contains: true)),
           findsOneWidget);
-      expect(_in(find.byKey(const Key('home-attention-care')), findPlainText('그 밖에 안 본 알림 2건')), findsOneWidget);
+      expect(_in(find.byKey(const Key('home-unread')), findPlainText('안 본 알림 3건')), findsOneWidget);
       expect(findPlainText('못 한 일이 있어요', contains: true), findsNothing);
     });
   });

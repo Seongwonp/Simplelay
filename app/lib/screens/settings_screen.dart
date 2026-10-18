@@ -31,6 +31,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import '../theme/app_text.dart';
 
+import 'help_screen.dart';
 import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/learning_status_dialog.dart';
 import '../widgets/sync_status_line.dart';
@@ -110,6 +111,31 @@ class SettingsScreen extends ConsumerWidget {
             ListTile(title: const Text('연습으로 쓰는 중이에요'),
               trailing: TextButton(onPressed: () => ref.read(demoModeProvider.notifier).set(false),
                 child: const Text('연습 끝내기'))),
+          // 본체에 닿지 않으면 까닭을 위에 한 번(휴리스틱 평가 10/18: '본체와 연결이 끊겨 못 불러왔어요'가 줄마다 되풀이됐다).
+          // 줄에는 '못 불러왔어요'만.
+          if (hubReadFailReason(rpi) case final why?)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpace.md),
+              child: Container(
+                key: const Key('settings-hub-banner'),
+                padding: const EdgeInsets.all(AppSpace.md),
+                decoration: BoxDecoration(
+                  color: context.appWarning.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: context.appWarning.withValues(alpha: 0.35)),
+                ),
+                child: Row(children: [
+                  Icon(Icons.wifi_off, size: AppSpace.xl, color: context.appWarning),
+                  const SizedBox(width: AppSpace.sm),
+                  Expanded(
+                    child: Text(keepWordsTogether('$why 일부 값을 못 불러왔어요'),
+                        semanticsLabel: '$why 일부 값을 못 불러왔어요',
+                        style: TextStyle(
+                            fontSize: AppFont.caption, fontWeight: FontWeight.w600, color: context.appWarning)),
+                  ),
+                ]),
+              ),
+            ),
           // 위 두 묶음이 UI 확정 §2의 설정 탭이다: 가전 추가 · 허브 · LG ThinQ
           // 연결 / 음성으로 멈추기 · 보호자 알림 · 글자 크기. 그 아래는 예전
           // 설정의 세부(가전 관리·알림·제안·화면)를 그대로 둔다 -- 기능을 잃지
@@ -133,7 +159,7 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: thinqApi == null
                   ? '본체를 연결하면 볼 수 있어요'
                   : thinqAsync.hasError
-                  ? readFailText(rpi)
+                  ? readFailText(null)
                   : !thinqAsync.hasValue
                       ? '알아보고 있어요'
                       : thinq == null
@@ -157,7 +183,7 @@ class SettingsScreen extends ConsumerWidget {
                   : care.status == CareInboxStatus.failed ||
                           care.status == CareInboxStatus.unconfigured ||
                           hubReadFailReason(rpi) != null
-                      ? readFailText(rpi)
+                      ? readFailText(null)
                       : care.status == CareInboxStatus.loading
                           ? '알아보고 있어요'
                           : '새 알림이 없어요',
@@ -172,6 +198,15 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: '휴대폰 설정',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => const _TextSizeScreen())),
+            ),
+            // 도움말 입구(휴리스틱 평가 10/18 — 처음 쓰는 사람이 볼 곳이 없었다).
+            _NavRow(
+              key: const Key('settings-help'),
+              icon: Icons.help_outline,
+              title: '사용 방법',
+              subtitle: '멈추는 법 · 연습',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const HelpScreen())),
             ),
           ]),
 
@@ -296,7 +331,7 @@ class SettingsScreen extends ConsumerWidget {
     final q = ref.watch(quietHoursProvider);
     return quietRowValue(q.valueOrNull,
         hasApi: ref.watch(rpiApiServiceProvider) != null,
-        hub: ref.watch(rpiConnectionProvider),
+        // 까닭(본체와 끊김)은 설정 맨 위 배너가 한 번 말한다(휴리스틱 평가 10/18) — 줄마다 되풀이하지 않는다.
         loading: q.isLoading && !q.hasValue);
   }
 

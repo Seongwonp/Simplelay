@@ -91,7 +91,7 @@ void main() {
     expect(seen, isNot(contains('바꿨')));
     expect(
         finishedMessage(kind: ResultKind.unconfirmed, route: 'thinq', receipt: 'accepted'),
-        '보냈지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.');
+        '보냈지만 설정이 바뀌었는지 몰라요. 집에서 가전을 확인해야 해요.');
     // 서버 문장이 없으면(옛 서버) 일반 문장 — 바꿨다고 지어내지 않는다.
     expect(_finished('already_at_target', 'real', receipt: 'not_dispatched'),
         '이미 그 설정이라 보내지 않았어요.');

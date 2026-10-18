@@ -95,13 +95,13 @@ void main() {
     });
     expect(s.phase, ExecutionPhase.failed);
     // 접수 여부를 모르는 실패는 시작 못 함으로 단정하지 않는다(평가 M4).
-    expect(s.message, '끝까지 하지 못했어요. 가전을 봐 주세요.');
+    expect(s.message, '끝까지 하지 못했어요. 집에서 가전을 확인해야 해요.');
   });
 
   test('옛 서버(last_outcome 없음)의 safety_stopped는 종전 문구', () async {
     final s = await _finish({'last_status': 'safety_stopped'});
     expect(s.phase, ExecutionPhase.failed);
-    expect(s.message, '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 봐 주세요.');
+    expect(s.message, '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지는 집에서 확인이 필요해요.');
     expect(s.outcome, isNull);
   });
 

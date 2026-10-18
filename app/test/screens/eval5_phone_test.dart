@@ -324,10 +324,10 @@ void main() {
           ...extra,
         });
 
-    test("보고만 받은 것은 '봐 주세요' — '받았어요' 없음", () {
+    test("보고만 받은 것은 '확인 필요' — '받았어요' 없음", () {
       expect(historyBadgeOf(e({'execution_mode': 'real', 'route': 'physical', 'confirmation': 'mcu_ack'})).label,
-          '봐 주세요');
-      expect(historyBadgeOf(e({'execution_mode': 'real', 'route': 'thinq', 'confirmation': 'sent'})).label, '봐 주세요');
+          '확인 필요');
+      expect(historyBadgeOf(e({'execution_mode': 'real', 'route': 'thinq', 'confirmation': 'sent'})).label, '확인 필요');
     });
 
     test('배지는 됐어요·봐 주세요·못 했어요·연습 넷만', () {
@@ -346,8 +346,8 @@ void main() {
           }
         }
       }
-      // 평가 7차(10/18): 멈춘 기록은 '봐 주세요'와 글자를 가른다 — 멈췄어요·스스로 멈췄어요.
-      expect(labels, {'됐어요', '봐 주세요', '멈췄어요', '스스로 멈췄어요', '못 했어요', '연습'});
+      // 평가 7차(10/18): 멈춘 기록은 '확인 필요'와 글자를 가른다 — 멈췄어요·스스로 멈췄어요.
+      expect(labels, {'됐어요', '확인 필요', '멈췄어요', '스스로 멈췄어요', '못 했어요', '연습'});
     });
 
     for (final dev in [false, true]) {
@@ -374,12 +374,14 @@ void main() {
   });
 
   group('D. 보호자 알림을 홈에도', () {
-    testWidgets("읽지 않은 알림이 있으면 '확인이 필요해요'에 한 줄, 누르면 알림함", (tester) async {
+    testWidgets('읽지 않은 알림이 있으면 홈에 한 줄(설정과 같은 수), 누르면 알림함', (tester) async {
       await _pump(tester, const HomeScreen(), unread: 4);
-      // 평가 15차(10/18): 이 시험의 알림은 모두 실행 실패 — '못 한 일 4건' 한 줄(나머지 알림 줄은 없다).
-      final row = find.byKey(const Key('home-attention-care-look'));
-      expect(find.descendant(of: find.byKey(const Key('home-attention')), matching: row), findsOneWidget);
-      expect(find.descendant(of: row, matching: findPlainText('못 한 일', contains: true)), findsOneWidget);
+      // 휴리스틱 평가(10/18): 실행 실패는 맨 위 실패 경고, 알림 수는 설정과 같은 전체 수 한 줄.
+      final row = find.byKey(const Key('home-unread'));
+      expect(row, findsOneWidget);
+      expect(find.descendant(of: row, matching: findPlainText('안 본 알림 4건')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('home-failure')), matching: findPlainText('못 한 일', contains: true)),
+          findsOneWidget);
       await tester.tap(row);
       await tester.pumpAndSettle();
       expect(_visited, ['/care']);
@@ -387,7 +389,7 @@ void main() {
 
     testWidgets('읽지 않은 알림이 없으면 그 줄도 없다', (tester) async {
       await _pump(tester, const HomeScreen());
-      expect(find.byKey(const Key('home-attention-care')), findsNothing);
+      expect(find.byKey(const Key('home-unread')), findsNothing);
     });
   });
 

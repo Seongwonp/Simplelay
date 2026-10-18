@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/routine.dart';
+import '../providers/appliance_provider.dart';
 import '../providers/rpi_api_provider.dart';
+import 'routine_confirm_sheet.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/rpi_api_service.dart';
 
@@ -37,6 +40,28 @@ Future<String?> runRoutineNow(
   } catch (_) {
     return '카드를 만들지 못했어요. 연결을 봐 주세요.';
   }
+}
+
+/// '지금 하기'의 공통 입구(휴리스틱 평가 10/18) — 무엇을 하는지 한 번 묻고([showRoutineRunConfirm]), 고르면
+/// [runRoutineNow](승인 카드 → 승인 화면, 경로 그대로). 취소하면 아무것도 보내지 않고 null.
+/// 홈 루틴 줄·루틴 탭·루틴 편집기·기록 '다시 해 보기'가 모두 이 길을 탄다.
+Future<String?> confirmAndRunRoutine(
+  BuildContext context,
+  WidgetRef ref,
+  Routine routine, {
+  VoidCallback? onConfirmed,
+}) async {
+  final id = routine.id;
+  if (id == null) return null;
+  final ok = await showRoutineRunConfirm(
+    context,
+    routine: routine,
+    appliances: ref.read(installedAppliancesProvider),
+  );
+  if (!ok || !context.mounted) return null;
+  // 고른 뒤부터 '요청 중'(부르는 쪽이 단추를 잠그고 진행 표시) — 묻는 동안에는 돌지 않는다.
+  onConfirmed?.call();
+  return runRoutineNow(context, ref, id);
 }
 
 /// 실행 요청 실패를 사람 말로. 서버 문장(409 '지금은 루틴 카드를 만들 수 없어요: …',

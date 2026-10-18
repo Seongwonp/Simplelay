@@ -181,7 +181,7 @@ void main() {
     });
     expect(find.byIcon(Icons.check), findsOneWidget);
     // 셀 색만이 아니라 문장으로도 말한다. 확인 근거가 없으면(실행 환경·확인 수준 모름) 눌림을 확인했다고 하지 않는다(2026-10-15).
-    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 직접 봐 주세요"), findsOneWidget);
+    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 집에서 확인해야 해요"), findsOneWidget);
 
     // 2초 뒤 결과 표시가 사라진다.
     await tester.pump(const Duration(seconds: 3));
@@ -229,7 +229,7 @@ void main() {
   for (final (mode, confirmation, sentence) in [
     ('real', 'press_confirmed', "'켜기' 눌린 것을 확인했어요"),
     ('mock', 'press_confirmed', "'켜기' 연습으로 눌렀어요. 실제 가전은 누르지 않았어요"),
-    ('real', 'reported', "'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 직접 봐 주세요"),
+    ('real', 'reported', "'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 집에서 확인해야 해요"),
   ]) {
     testWidgets('결과 한 줄은 확인한 만큼 — $mode · $confirmation', (tester) async {
       final client = MockClient((request) async {

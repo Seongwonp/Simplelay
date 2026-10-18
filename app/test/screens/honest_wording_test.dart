@@ -92,11 +92,12 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('본체와 끊김(예전에 0건을 받았어도) → 본체와 연결이 끊겨 못 불러왔어요', (tester) async {
+    testWidgets('본체와 끊김(예전에 0건을 받았어도) → 못 불러왔어요(까닭은 설정 위 배너 한 번)', (tester) async {
       await pump(tester, const CareEventsState(events: [], status: CareInboxStatus.ready),
           RpiConnectionState.unreachable);
       expect(_careRow('새 알림이 없어요', contains: true), findsNothing);
-      expect(_careRow('본체와 연결이 끊겨 못 불러왔어요'), findsWidgets);
+      expect(_careRow('못 불러왔어요'), findsWidgets);
+      expect(find.byKey(const Key('settings-hub-banner')), findsOneWidget);
     });
 
     testWidgets('조회 실패 → 못 불러왔어요', (tester) async {
