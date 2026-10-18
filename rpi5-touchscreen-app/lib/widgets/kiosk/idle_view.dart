@@ -176,19 +176,26 @@ class KioskIdleView extends StatelessWidget {
     final badAir = airIfBad(air);
     // 공기가 나쁘면 할 일 한 줄(평가 14차 10/18) — 그 공기청정기가 가전 줄에 있을 때만(없으면 지어내지 않는다).
     final airTarget = badAir == null ? null : list?.where((a) => a.id == badAir.applianceId).firstOrNull;
-    final airAction = airTarget == null ? null : airActionLabel(badAir!, airTarget.name);
+    final airAction = airTarget == null ? null : airActionLabel(badAir!, airTarget.displayName);
     final next = nextRun;
-    final tip =(amb?.tip != null && amb!.tip!.text.isNotEmpty) ? amb.tip : null;
+    final rawTip = (amb?.tip != null && amb!.tip!.text.isNotEmpty) ? amb.tip : null;
+    // 연결 문제 띠와 확인 필요 안내(노란 테 카드)가 함께면 한 띠로 묶는다(접근성 감사 10/18 — 큰 글씨에서 경고 띠가 둘 동시에
+    // 보였다). 안내 글은 연결 문제 띠 둘째 줄([KioskIdleProblemBar.also])이 말하고, 따로 선 카드는 두지 않는다. 확인 필요 가전은
+    // 가전 줄 타일이 그대로 말한다. 조용한 시간 화면은 안내를 접으므로 묶지 않는다.
+    final problemNow = connectionSummary(connectionsForDisplay(this.connections, connected: connected)).$2;
+    final mergedTip = !quietDim && problemNow && rawTip != null && rawTip.icon == 'attention' ? rawTip : null;
+    final tip = mergedTip == null ? rawTip : null;
     // 안내는 한 번에 하나다(UI 확정 §3-1: 확인 필요 가전 → 날씨 → 인사말) —
     // 안내 카드가 있으면 인사말은 접는다. 그 자리에 예보 4칸이 들어간다.
     // 큰 글씨에서는 안내(지금 할 일)가 예보보다 먼저다 — 둘 다 넣으면 아래가 잘린다.
     // 예보 칸 — 맨 앞은 '지금'(사용자 요청 10/18: 날짜 옆 날씨를 예보 줄 첫 칸으로), 그 뒤 서버 3시간 칸. 모두 4칸까지.
     final slots = forecastSlots(amb, now);
-    final showHours = slots.isNotEmpty && !(large && tip != null);
+    // 안내를 연결 문제 띠에 묶었어도 안내는 화면에 있다 — 큰 글씨면 예보는 그대로 접는다.
+    final showHours = slots.isNotEmpty && !(large && rawTip != null);
     // 비가 오거나 올 것 같으면(서버 비 안내 기준과 같은 60%) 인사말을 뺀다(평가 14차 10/18 — '좋은 아침이에요' 바로 아래
     // '비 80%'가 엇갈렸다). 날씨 안내가 있으면 이미 안내가 인사말 자리를 쓴다.
     final rainy = showHours && slots.any((s) => s.hour.precip || (s.hour.pop ?? 0) >= 60);
-    final showGreeting = tip == null && !rainy;
+    final showGreeting = rawTip == null && !rainy;
     final dnd = dndUntil != null && dndUntil!.isAfter(now) ? dndUntil : null;
     // 본체에 닿지 않으면 지난 연결 목록을 믿지 않는다(평가 7차 10/18 — 끊겼는데 칩이 '모두 정상').
     final connections = connectionsForDisplay(this.connections, connected: connected);
@@ -210,11 +217,20 @@ class KioskIdleView extends StatelessWidget {
     // 위쪽(화면 구조 개편 10/18): 날짜 · (쉬는 중이면 쉬는 중 칩) · 상태 칩 · 메뉴. 상태 칩·메뉴는 오른쪽에 붙여
     // 재므로 쉬는 중 칩이 켜져도 자리가 바뀌지 않는다(UI 평가 4차 10/17 — 늘 누르던 자리가 밀렸다).
     // 연결 문제는 위 줄 칩이 아니라 그 아래 한 줄 전체(결선 모의 평가 10/18 — 알약 안 두 줄 글자가 꽉 끼었다): 한 줄 제목 +
-    // 따로 선 '해결 방법 보기' 단추. 그 줄 높이만큼 가운데 칸이 줄어든다([problemExtra]).
+    // 따로 선 '해결 방법 보기' 단추. 그 줄 높이만큼 가운데 칸이 줄어든다([problemExtraFor]).
     final (_, connProblem, _) = connectionSummary(connections);
-    final problemExtra = connProblem ? KioskIdleProblemBar.height + KioskSpace.xs : 0.0;
-    Widget statusChip(_IdleSheets sheets) => KioskIdleStatusChip(
+    final alsoText = mergedTip == null ? null : kioskLine(mergedTip.text);
+    // 큰 글씨면 묶은 띠를 위 줄 아래가 아니라 오른쪽 칸(예보를 접어 비어 있는 자리)에 세로 카드로 둔다 — 위에 두면 시계 아래
+    // '오늘은 건너뛰기'가 칸 밖으로 밀렸다(접근성 감사 10/18). 경고는 그래도 하나다.
+    final barInRight = large && alsoText != null;
+    // 띠 높이는 폭에 따라 다르다(둘째 줄이 한 줄 또는 두 줄) — 바깥 칸의 폭으로 잰다.
+    double problemExtraFor(double width) =>
+        connProblem && !barInRight ? KioskIdleProblemBar.heightFor(context, also: alsoText, width: width) + KioskSpace.xs : 0.0;
+    Widget statusChip(_IdleSheets sheets, {bool vertical = false}) => KioskIdleStatusChip(
+          vertical: vertical,
           items: connections,
+          // 확인 필요 안내를 이 띠 둘째 줄로 묶는다(접근성 감사 10/18). 없으면 null.
+          also: alsoText,
           // 누름 장치가 끊겨 '지금 못 써요'인 가전 수(아래 타일과 같은 규칙 — 누름 장치가 누르는 가전).
           pressImpact: pressDown && list != null ? list.where((a) => !a.isThinq).length : null,
           onTap: () {
@@ -255,7 +271,7 @@ class KioskIdleView extends StatelessWidget {
         KioskIdleMenuButton(onTap: sheets.openMenu),
       ]);
       })),
-      if (connProblem) ...[
+      if (connProblem && !barInRight) ...[
         const SizedBox(height: KioskSpace.xs),
         statusChip(sheets),
       ],
@@ -276,7 +292,7 @@ class KioskIdleView extends StatelessWidget {
         child: LayoutBuilder(builder: (context, outer) {
           // 가운데(시계·안내) 칸이 실제로 필요한 높이만 두고 남는 높이는 가전 타일을 키우는 데 쓴다(평가 4차 10/18 —
           // 시계·안내와 타일 사이에 빈 띠가 남았다). 화면과 같은 글꼴·배율로 재므로 실패널의 넓은 글꼴에서도 맞다.
-          final middleAndStrip = outer.maxHeight - _Idle.topRow - problemExtra - 8 - 8;
+          final middleAndStrip = outer.maxHeight - _Idle.topRow - problemExtraFor(outer.maxWidth) - 8 - 8;
           final columns = outer.maxWidth - _Idle.columnGap;
           // 큰 글씨에서는 시계 칸을 넓힌다(6:5, 2026-10-18) — 나쁜 공기·다음 루틴 줄이 덜 꺾인다. 오른쪽은 큰 글씨에서 안내가 있으면
           // 예보를 접으므로 좁아져도 된다. 보통 글씨는 5:6(예보 4칸이 넉넉히).
@@ -427,6 +443,8 @@ class KioskIdleView extends StatelessWidget {
                 final top = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 큰 글씨에서 묶은 경고(연결 문제 + 확인 필요 안내)는 이 칸 맨 위 세로 카드 하나(접근성 감사 10/18).
+                    if (barInRight && connProblem) statusChip(sheets, vertical: true),
                     if (showGreeting)
                       KioskText(greeting, style: const TextStyle(
                           fontSize: _Idle.greeting, height: 1.25, color: Colors.white)),
@@ -1703,12 +1721,17 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
   }
 }
 
-/// 조용한 시간 어둡게의 막 짙기(사용자 결정 10/18) — 흰 시계가 검은 바탕 위 약 5:1로 남는 정도. 앱 안에서만 어둡게 한다
-/// (패널 밝기 장치는 건드리지 않는다). 값은 추측이다 — 실패널에서 밤에 1~2 m로 보고 고친다(실패널에서 측정 필요).
+/// 조용한 시간 바탕 짙기(사용자 결정 10/18) — 평소 바탕에 섞는 검정의 양([KioskCanvas.quietBg]). 접근성 감사(10/18)부터 막을 글자
+/// 위에 얹지 않고 바탕만 어둡게 한다. 앱 안에서만 어둡게 한다(패널 밝기 장치는 건드리지 않는다). 값은 추측이다(실패널에서 측정 필요).
 const double kQuietDimAlpha = KioskCanvas.dimAlpha;
 
+/// 조용한 시간 글자 밝기(접근성 감사 10/18) — 밤에 덜 눈부시게 글자를 이만큼만 낮춘다. 가장 흐린 글자(회색 보조 글자)도 어두운
+/// 바탕 위 대비 4.5:1 이상이 남는 값(약 5.5:1, `test/kiosk_a11y_1018_test.dart`가 고정). 값은 추측이다(실패널에서 측정 필요).
+const double kQuietTextOpacity = 0.75;
+
 /// 조용한 시간의 처음 화면 — 위 줄(날짜·조용한 시간·문제 칩·메뉴) · 큰 시계 · (나쁘면) 공기 · 다음 루틴만. 예보·인사말·온습도·
-/// 가전 줄은 접는다. 전체에 어두운 막을 얹고, 막을 누르면 그 아래 단추는 눌리지 않는다(깨우는 손길 — 다시 밝아지면 고른다).
+/// 가전 줄은 접는다. 바탕만 어둡고(글자 위 막 없음) 글자는 [kQuietTextOpacity]만큼 낮춘다. 화면을 누르면 그 아래 단추는 눌리지
+/// 않는다(깨우는 손길 — 다시 밝아지면 고른다).
 class _QuietIdle extends StatelessWidget {
   const _QuietIdle({
     required this.view,
@@ -1732,9 +1755,11 @@ class _QuietIdle extends StatelessWidget {
     final next = view.nextRun;
     return ColoredBox(
       key: const ValueKey('idle-quiet'),
-      color: KioskColors.bg,
+      color: KioskCanvas.quietBg,
       child: Stack(children: [
-        Padding(
+        Opacity(
+          opacity: kQuietTextOpacity,
+          child: Padding(
           padding: const EdgeInsets.fromLTRB(_Idle.side, 14, _Idle.side, 10),
           // 시계는 평소 화면과 같은 왼쪽 선에서(가운데로 옮기지 않는다).
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1768,18 +1793,15 @@ class _QuietIdle extends StatelessWidget {
               }),
             ),
           ]),
+          ),
         ),
-        // 막은 패널 전체에(평가 15차 10/18 — KioskCanvas가 가장자리 여백까지 덮는다). 캔버스가 막을 얹지 않을 때만(시험·옛 틀)
-        // 여기서 얹는다. 누름을 받는 자리는 늘 여기다 — 그 아래 단추는 눌리지 않는다(깨우는 손길).
+        // 누름을 받는 자리(색 없음) — 그 아래 단추는 눌리지 않는다(깨우는 손길). 어둡게는 바탕이 한다(글자 위 막 없음).
         Positioned.fill(
           child: GestureDetector(
             key: const ValueKey('idle-quiet-dim'),
             behavior: HitTestBehavior.opaque,
             onTap: () {},
-            child: ColoredBox(
-                color: KioskCanvas.dimsPanelOf(context)
-                    ? Colors.transparent
-                    : Colors.black.withValues(alpha: kQuietDimAlpha)),
+            child: const ColoredBox(color: Colors.transparent),
           ),
         ),
       ]),

@@ -271,7 +271,7 @@ void main() {
           ));
       expect(find.byKey(const ValueKey('done-check-yes')), findsOneWidget);
       expect(find.byKey(const ValueKey('done-auto-return')), findsNothing);
-      expect(find.text(kAutoReturnLine), findsNothing);
+      expect(find.textContaining('뒤 처음 화면으로 돌아가요'), findsNothing);
     });
 
     test('확인한 성공·연습·사용자 정지에는 사람 확인 흐름이 없다', () {

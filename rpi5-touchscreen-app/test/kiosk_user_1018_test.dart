@@ -20,6 +20,7 @@ import 'package:simplelay_touchscreen/services/kiosk_settings_store.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/past_result_line.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
@@ -180,9 +181,11 @@ void main() {
       expect(find.byKey(const ValueKey('idle-next-run')), findsOneWidget);
       expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
       expect(find.byKey(const ValueKey('strip-microwave')), findsNothing);
-      // 막은 앱 안의 어두운 면이다(패널 밝기 장치는 건드리지 않는다). 평가 15차(10/18) — 패널 전체(가장자리 여백까지)에 얹는다.
+      // 어둡게는 앱 안의 바탕이다(패널 밝기 장치는 건드리지 않는다). 평가 15차(10/18) — 패널 전체(가장자리 여백까지).
+      // 접근성 감사(10/18) — 글자 위에 막을 덮지 않고 바탕만 어둡게(불투명).
       final dim = tester.widget<ColoredBox>(find.byKey(const ValueKey('kiosk-panel-dim')));
-      expect(dim.color.a, closeTo(kQuietDimAlpha, 0.01));
+      expect(dim.color, KioskCanvas.quietBg);
+      expect(dim.color.a, 1.0);
 
       // 만지면 평소 밝기·평소 화면(가전 줄)으로.
       await tester.tap(find.byKey(const ValueKey('idle-quiet-dim')));

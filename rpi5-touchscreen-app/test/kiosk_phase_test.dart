@@ -672,7 +672,9 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.byType(KioskDoneView), findsOneWidget);
-    expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsOneWidget);
+    // 실제 남은 초(접근성 감사 10/18) — 큰 글씨는 20초에서 센다.
+    expect(find.byWidgetPredicate((w) => w is Text && RegExp(r'^(1[7-9]|20)초 뒤 처음 화면으로 돌아가요$').hasMatch(w.data ?? '')),
+        findsOneWidget);
 
     await tester.pump(KioskTimings.doneReturn + const Duration(seconds: 1));
     expect(find.byType(KioskDoneView), findsOneWidget, reason: '큰 글씨는 10초에 닫히지 않는다');

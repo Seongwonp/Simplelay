@@ -60,6 +60,9 @@ const _statusLostTimeout = Duration(seconds: 30);
 /// 조용한 시간에 화면을 만지면 이만큼 평소 밝기로 둔다(사용자 결정 10/18 — 예: 30초).
 const kQuietWakeDuration = Duration(seconds: 30);
 
+/// 제안 화면 '시간 더 주기'가 늘리는 초(접근성 감사 10/18).
+const kSuggestionExtendSeconds = 60;
+
 class KioskScreen extends StatefulWidget {
   const KioskScreen({
     super.key,
@@ -144,6 +147,8 @@ class _KioskScreenState extends State<KioskScreen> {
   final Set<String> _shownSuggestionIds = {};
   bool _dismissingSuggestion = false;
   int _cdRemaining = KioskTimings.countdownSeconds;
+  // 이번 제안 카드의 카운트다운 전체 길이 — 설정 값에서 시작해 '시간 더 주기'로 늘어난다(진행 막대가 1을 넘지 않게).
+  int _cdTotal = KioskTimings.countdownSeconds;
   int _countdownSeconds = KioskTimings.countdownSeconds;
   Timer? _countdownTimer;
 
@@ -291,6 +296,8 @@ class _KioskScreenState extends State<KioskScreen> {
   // 짧게 보여 주고 평소 화면으로 돌아가는 타이머(보관 완료).
   Timer? _doneReturnTimer;
   bool _doneHeld = false;
+  // 성공 결과 화면이 처음 화면으로 돌아가기까지 남은 초(접근성 감사 10/18 — 화면에 숫자로 보인다).
+  int? _doneRemaining;
   Timer? _holdReturnTimer;
   // 사람이 확인해야 하는 결과(미확인·이상)를 한 번만 말하기 위한 기록.
   String? _holdSpokenKey;
@@ -1147,7 +1154,7 @@ class _KioskScreenState extends State<KioskScreen> {
     final headline = view.pastHeadline;
     if (headline == null) return;
     final name = actionName(_doneLabel);
-    final label = name.isNotEmpty ? name : (view.target?.name ?? '');
+    final label = name.isNotEmpty ? name : (view.target?.displayName ?? '');
     _pastResult = KioskPastResult(at: _doneAt, label: label, headline: headline);
   }
 
@@ -1191,6 +1198,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _rememberPastResult();
     _holdReturnTimer?.cancel();
     _holdReturnTimer = null;
+    _doneReturnTimer?.cancel();
+    _doneReturnTimer = null;
     _countdownTimer?.cancel();
     setState(() {
       _phase = KioskPhase.idle;
@@ -1210,7 +1219,7 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 이어받은 실행의 이름 — 가전 이름, 모르면 빈 문자열(2026-10-14). 예전에는 '실행'으로 메워
   /// "실행 — 다시 누르지 않았어요"가 됐다. 빈 이름이면 완료 화면·음성이 이름 머리를 붙이지 않는다.
   String _nameOf(String? applianceId) =>
-      applianceId == null ? '' : (_findIn(_appliances, applianceId)?.name ?? '');
+      applianceId == null ? '' : (_findIn(_appliances, applianceId)?.displayName ?? '');
 
   Future<void> _fetchAppliances() async {
     final list = await _api.listAppliances();
@@ -1348,6 +1357,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _phase = KioskPhase.suggestion;
       _currentSuggestion = suggestion;
       _cdRemaining = _countdownSeconds;
+      _cdTotal = _countdownSeconds;
       _scenarioBlockedWhy = null;
     });
     if (suggestion.isScenario) _loadScenarioContext(suggestion);
@@ -1359,6 +1369,21 @@ class _KioskScreenState extends State<KioskScreen> {
         timer.cancel();
         _toIdle();
       }
+    });
+  }
+
+  /// 제안 화면을 만졌다(접근성 감사 10/18 — 시간 제한 조절) — 남은 시간을 처음 길이로 되돌린다. 이미 더 남았으면 그대로.
+  void _touchSuggestion() {
+    if (_phase != KioskPhase.suggestion || _cdRemaining >= _countdownSeconds) return;
+    setState(() => _cdRemaining = _countdownSeconds);
+  }
+
+  /// '시간 더 주기' — 60초 더. 이 시간은 화면 타이머다(서버 제안 카드는 따로 만료된다 — 거절·실행을 보내지 않는다).
+  void _extendSuggestion() {
+    if (_phase != KioskPhase.suggestion) return;
+    setState(() {
+      _cdRemaining += kSuggestionExtendSeconds;
+      if (_cdRemaining > _cdTotal) _cdTotal = _cdRemaining;
     });
   }
 
@@ -1501,6 +1526,7 @@ class _KioskScreenState extends State<KioskScreen> {
     );
     _doneReturnTimer?.cancel();
     _doneReturnTimer = null;
+    _doneRemaining = null;
     _doneAt = DateTime.now();
     _doneAnswered = false;
     setState(() {
@@ -1517,9 +1543,22 @@ class _KioskScreenState extends State<KioskScreen> {
     if (_doneView().personCheck != null) return;
     // 취소할 수 있는 타이머 — 화면을 만지면 멈춘다(UI 평가 10/17). 예전 Future.delayed는 다음 결과 화면까지 닫을 수 있었다.
     // 큰 글씨는 두 배 — 스크롤해서 읽는 동안 닫히지 않게(UI 평가 4차 10/17).
-    _doneReturnTimer = Timer(_largeText ? KioskTimings.doneReturnLarge : _doneReturnDuration, () {
-      _doneReturnTimer = null;
-      if (mounted && _phase == KioskPhase.done) _toIdle();
+    // 1초씩 세어 남은 초를 화면에 숫자로 말한다(접근성 감사 10/18 — '잠시 뒤'는 얼마나 남았는지 몰랐다). 전체 길이는 종전과 같다.
+    final total = _largeText ? KioskTimings.doneReturnLarge : _doneReturnDuration;
+    _doneRemaining = total.inSeconds;
+    _doneReturnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _phase != KioskPhase.done) {
+        timer.cancel();
+        if (identical(_doneReturnTimer, timer)) _doneReturnTimer = null;
+        return;
+      }
+      final left = (_doneRemaining ?? 0) - 1;
+      setState(() => _doneRemaining = left);
+      if (left <= 0) {
+        timer.cancel();
+        _doneReturnTimer = null;
+        _toIdle();
+      }
     });
   }
 
@@ -1729,7 +1768,8 @@ class _KioskScreenState extends State<KioskScreen> {
               )),
               label: const Text('여러 가전 연습'), icon: const Icon(Icons.science_outlined),
             ) : null,
-      backgroundColor: KioskColors.bg,
+      // 조용한 시간이면 바탕만 어둡게(접근성 감사 10/18) — 캔버스 바탕과 같은 색이라 안쪽 사각형 테두리가 드러나지 않는다.
+      backgroundColor: _quietDim ? KioskCanvas.quietBg : KioskColors.bg,
       body: Stack(
         children: [
           Positioned(
@@ -1857,6 +1897,7 @@ class _KioskScreenState extends State<KioskScreen> {
         success: _doneSuccess,
         label: _doneLabel,
         autoReturnHeld: _doneHeld,
+        autoReturnSeconds: _doneRemaining,
         onHold: _holdDone,
         // 이 실행에서 누름 장치가 누른 버튼(실행 화면이 끝날 때 받은 기록) — 버튼판에 누른 칸을 표시한다(10/18).
         pressed: _lastButtons,
@@ -1922,7 +1963,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _personChecks.add(KioskPersonCheck(
       at: DateTime.now(),
       jobId: _activeJobId,
-      label: name.isNotEmpty ? name : (view.target?.name ?? ''),
+      label: name.isNotEmpty ? name : (view.target?.displayName ?? ''),
       worked: worked,
     ));
     if (_personChecks.length > kPersonCheckKeep) _personChecks.removeAt(0);
@@ -2046,7 +2087,7 @@ class _KioskScreenState extends State<KioskScreen> {
               ?.where((r) => r.involves(manualAppliance.id))
               .toList(),
           onRoutine: _onRoutine,
-          applianceNames: {for (final a in _appliances) a.id: a.name},
+          applianceNames: {for (final a in _appliances) a.id: a.displayName},
           thinqRead: () => _api.thinqStatus(manualAppliance.id),
           thinqSend: (action, args) => _api.thinqCommand(manualAppliance.id, action, args),
           onThinqAccepted: _onThinqAccepted,
@@ -2061,7 +2102,9 @@ class _KioskScreenState extends State<KioskScreen> {
           // 화면과 실제로 눌릴 가전이 어긋난다.
           target: targetId == null ? null : _findIn(_appliances, targetId),
           cdRemaining: _cdRemaining,
-          cdTotal: _countdownSeconds,
+          cdTotal: _cdTotal,
+          onTouch: _touchSuggestion,
+          onExtend: _extendSuggestion,
           scenarioName: _scenarioNames[suggestion.scenarioId],
           blockedWhy: suggestion.isScenario ? _scenarioBlockedWhy : null,
           onApprove: _onApprove,

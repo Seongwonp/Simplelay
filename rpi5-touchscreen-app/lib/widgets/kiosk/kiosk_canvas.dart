@@ -31,21 +31,20 @@ import '../../theme/kiosk_colors.dart';
 /// 구조적으로 가장자리를 피한다(1920x1080에서 배율 2.05, 좌우 140·위아래 48px).
 /// 800x480 그대로인 화면(옛 7인치·골든)은 여백 둘 자리가 없어 종전과 같다.
 ///
-/// **조용한 시간 어둡게(평가 15차 10/18).** [dim]이면 어두운 막을 캔버스 안이 아니라 **패널 전체**(가장자리 여백까지)에
-/// 얹는다 — 캔버스 안에만 얹으면 여백의 밝은 바탕과 막 사이에 안쪽 사각형 테두리가 드러났다. 막은 누름을 막지 않는다
-/// (깨우는 손길은 처음 화면이 받는다). 처음 화면은 [dimsPanelOf]로 막이 이미 있는지 보고 제 막을 겹쳐 얹지 않는다.
+/// **조용한 시간 어둡게(평가 15차 10/18, 접근성 감사 10/18).** [dim]이면 **바탕만** 어둡게 한다 — 패널 전체(가장자리 여백까지)의
+/// 바탕을 [quietBg]로 칠하고, 글자 위에 반투명 막을 얹지 않는다(막을 덮으면 날짜·'메뉴'·건너뛰기 글자 대비가 2.5~3:1로
+/// 떨어졌다). 글자 밝기는 처음 화면이 대비 4.5:1 하한을 지키며 낮춘다([kQuietTextOpacity]).
 class KioskCanvas extends StatelessWidget {
   const KioskCanvas({super.key, required this.child, this.dim = false});
 
   /// 조용한 시간이라 패널 전체를 어둡게 하나(kiosk_screen의 판정 — 처음 화면에서만).
   final bool dim;
 
-  /// 막 짙기 — 흰 시계가 검은 바탕 위 약 5:1로 남는 정도. 값은 추측이다(실패널에서 밤에 1~2 m로 보고 고친다).
+  /// 바탕을 어둡게 하는 짙기 — 평소 바탕 위에 이만큼 검정을 섞는다. 값은 추측이다(실패널에서 밤에 1~2 m로 보고 고친다).
   static const double dimAlpha = 0.5;
 
-  /// 이 캔버스가 패널 전체에 막을 얹고 있나.
-  static bool dimsPanelOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<_CanvasDim>()?.dim ?? false;
+  /// 조용한 시간의 바탕(불투명) — 평소 바탕에 검정을 [dimAlpha]만큼 섞은 색. 고대비(검정 바탕)면 그대로 검정.
+  static Color get quietBg => Color.alphaBlend(Colors.black.withValues(alpha: dimAlpha), KioskColors.bg);
 
   /// 모든 키오스크 화면이 전제하는 설계 해상도.
   static const Size design = Size(800, 480);
@@ -65,50 +64,42 @@ class KioskCanvas extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final inset = insetsFor(media.size) ? edgeInset : 0.0;
-    final canvas = ColoredBox(
-      color: KioskColors.bg,
-      // SizedBox.expand로 **꽉 찬 제약**을 줘야 FittedBox가 확대한다.
-      // Center처럼 느슨한 제약을 주면 FittedBox가 자식 크기(800x480)로
-      // 쪼그라들어 배율이 1.0이 된다 -- 화면만 커지고 UI는 그대로인 함정.
-      child: Padding(
-        padding: EdgeInsets.all(inset),
-        child: SizedBox.expand(
-          child: FittedBox(
-            fit: BoxFit.contain,
-            child: MediaQuery(
-              // 캔버스 안은 언제나 800x480 세계. 실제 화면이 정확히 그 크기면
-              // 배율 1.0이라 렌더 결과가 픽셀 단위로 동일하다(기존 골든 유지).
-              data: media.copyWith(
-                size: design,
-                padding: EdgeInsets.zero,
-                viewPadding: EdgeInsets.zero,
-                viewInsets: EdgeInsets.zero,
-              ),
-              child: SizedBox(
-                width: design.width,
-                height: design.height,
-                child: _CanvasDim(dim: dim, child: child),
+    // 바탕은 따로 선 칸(뒤) — 조용한 시간이 켜지고 꺼져도 앞의 화면 나무는 그대로 남는다(바탕 칸만 바뀐다).
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 조용한 시간이면 패널 전체 바탕(가장자리 여백까지)을 어둡게 — 글자 위 막이 아니다.
+        ColoredBox(
+          key: dim ? const ValueKey('kiosk-panel-dim') : null,
+          color: dim ? quietBg : KioskColors.bg,
+        ),
+        // SizedBox.expand로 **꽉 찬 제약**을 줘야 FittedBox가 확대한다.
+        // Center처럼 느슨한 제약을 주면 FittedBox가 자식 크기(800x480)로
+        // 쪼그라들어 배율이 1.0이 된다 -- 화면만 커지고 UI는 그대로인 함정.
+        Padding(
+          padding: EdgeInsets.all(inset),
+          child: SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: MediaQuery(
+                // 캔버스 안은 언제나 800x480 세계. 실제 화면이 정확히 그 크기면
+                // 배율 1.0이라 렌더 결과가 픽셀 단위로 동일하다(기존 골든 유지).
+                data: media.copyWith(
+                  size: design,
+                  padding: EdgeInsets.zero,
+                  viewPadding: EdgeInsets.zero,
+                  viewInsets: EdgeInsets.zero,
+                ),
+                child: SizedBox(
+                  width: design.width,
+                  height: design.height,
+                  child: child,
+                ),
               ),
             ),
           ),
         ),
-      ),
+      ],
     );
-    if (!dim) return canvas;
-    return Stack(fit: StackFit.expand, children: [
-      canvas,
-      IgnorePointer(
-        child: ColoredBox(
-            key: const ValueKey('kiosk-panel-dim'), color: Colors.black.withValues(alpha: dimAlpha)),
-      ),
-    ]);
   }
-}
-
-class _CanvasDim extends InheritedWidget {
-  const _CanvasDim({required this.dim, required super.child});
-  final bool dim;
-
-  @override
-  bool updateShouldNotify(_CanvasDim old) => old.dim != dim;
 }

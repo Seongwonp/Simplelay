@@ -19,6 +19,7 @@ import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_tokens.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_timings.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/estop_banner.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
@@ -206,7 +207,8 @@ void main() {
     });
   });
 
-  testWidgets('5. 자동 복귀 말은 큰 글씨에서도 같다', (t) async {
+  // 접근성 감사(10/18): 말은 같은 꼴('N초 뒤 처음 화면으로 돌아가요'), 숫자는 실제 남은 초 — 큰 글씨는 실제 전환이 두 배라 20초.
+  testWidgets('5. 자동 복귀 말은 큰 글씨에서도 같은 꼴, 숫자는 실제 시간', (t) async {
     String backLine() => _texts(t).firstWhere((s) => s.contains('처음 화면으로 돌아가요'));
     // 자동 복귀는 확인한 성공만(2차 독립 평가 C, 10/18) — 실측 동작 확인 결과로 본다.
     final done = KioskDoneView(
@@ -221,7 +223,8 @@ void main() {
     final normal = backLine();
     await t.pumpWidget(const SizedBox());
     await _pump(t, done, textScale: 1.22);
-    expect(backLine(), normal);
+    expect(normal, '${KioskTimings.doneReturn.inSeconds}초 뒤 처음 화면으로 돌아가요');
+    expect(backLine(), '${KioskTimings.doneReturnLarge.inSeconds}초 뒤 처음 화면으로 돌아가요');
   });
 
   testWidgets('6. 결과 띠는 짧은 명사', (t) async {

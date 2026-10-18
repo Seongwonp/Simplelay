@@ -129,7 +129,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                           ),
                           if (!appliance.isThinq && appliance.canExecute)
                             KioskText(
-                              '화면 버튼을 누르면 누름 장치가 ${appliance.name} 버튼을 대신 눌러요',
+                              '화면 버튼을 누르면 누름 장치가 ${appliance.displayName} 버튼을 대신 눌러요',
                               textKey: const ValueKey('manual-explain'),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -155,7 +155,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                           width: 220,
                           child: _RoutinePanel(
                             routines: routines,
-                            names: {...widget.applianceNames, appliance.id: appliance.name},
+                            names: {...widget.applianceNames, appliance.id: appliance.displayName},
                             onRoutine: widget.onRoutine,
                           ),
                         ),
@@ -169,7 +169,7 @@ class _KioskManualViewState extends State<KioskManualView> {
             Positioned.fill(
               child: _PressConfirm(
                 button: pending,
-                applianceName: appliance.name,
+                applianceName: appliance.displayName,
                 onConfirm: () {
                   setState(() => _pending = null);
                   widget.onExecute(pending);
@@ -202,7 +202,7 @@ class _KioskManualViewState extends State<KioskManualView> {
         // 이 판이 무엇인지 한 줄(휴리스틱 평가 10/18) — 칸 자리가 실제 가전 버튼 자리와 같다. 빈 칸은 점선(버튼이 없는 자리).
         Padding(
           padding: const EdgeInsets.fromLTRB(_manualLeft, 2, 24, 0),
-          child: KioskText(manualLayoutNote(appliance.name),
+          child: KioskText(manualLayoutNote(appliance.displayName),
               textKey: const ValueKey('manual-layout-note'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

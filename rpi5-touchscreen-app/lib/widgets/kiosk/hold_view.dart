@@ -109,7 +109,7 @@ class KioskHoldView extends StatelessWidget {
       !_fault &&
       estopTitle == null;
 
-  String get _name => appliance?.name ?? '가전';
+  String get _name => appliance?.displayName ?? '가전';
 
   /// 가전 동작을 실제 전력으로 확인했나(출처 real, 연습 아님).
   bool get _operationReal =>

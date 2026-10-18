@@ -125,12 +125,13 @@ void main() {
       expect(tester.getTopLeft(band).dy, greaterThan(tester.getBottomLeft(find.text('전자레인지')).dy - 1));
     });
 
-    testWidgets("폰에서 '설정이 필요해요'인 가전(사용자 가전, 사진 위치 없음)은 키오스크도 주황 '설정이 필요해요'",
+    // 접근성 감사(10/18): 설정은 어르신 할 일이 아니다 — 본체는 중립 회색 '가족이 설정해요'(경고는 폰 '해야 할 일'에만).
+    testWidgets("폰에서 '설정이 필요해요'인 가전(사용자 가전, 사진 위치 없음)은 키오스크에서 회색 '가족이 설정해요'",
         (tester) async {
       await _pump(tester, _idle([_washer, _intercom, _microwave]));
-      expect(_status(tester, 'washer'), '설정이 필요해요');
-      expect(_status(tester, 'intercom'), '설정이 필요해요');
-      expect(_bandFill(tester, 'washer'), _tint(KioskColors.warning));
+      expect(_status(tester, 'washer'), '가족이 설정해요');
+      expect(_status(tester, 'intercom'), '가족이 설정해요');
+      expect(_bandFill(tester, 'washer'), kTileBandGrey);
       expect(_status(tester, 'microwave'), '준비됐어요');
     });
 

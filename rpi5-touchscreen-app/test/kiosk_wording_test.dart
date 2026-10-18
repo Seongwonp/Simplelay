@@ -704,7 +704,8 @@ void main() {
       );
       expect(find.text('이번엔 안 할게요'), findsOneWidget);
       expect(find.text('다음에'), findsNothing);
-      expect(find.text('누름 장치가 누를 순서'), findsOneWidget);
+      // 버튼판 안내는 실행 화면과 같이 '화면은 누르지 않아도 돼요'까지(접근성 감사 10/18).
+      expect(find.text('누름 장치가 누를 순서예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
       expect(find.text('누르지 않으면 하지 않아요'), findsOneWidget);
       expect(find.text('20초 뒤 닫혀요'), findsOneWidget); // 남은 시간은 따로 크게(결선 모의 평가 10/18)
       // 서버 문장이 없을 때의 대체문 — 기간을 모르니 '최근'은 없다.

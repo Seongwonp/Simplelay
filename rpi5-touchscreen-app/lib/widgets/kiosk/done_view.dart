@@ -49,6 +49,7 @@ class KioskDoneView extends StatelessWidget {
     this.stopAckMs,
     this.abortReason,
     this.autoReturnHeld = false,
+    this.autoReturnSeconds,
     this.onHold,
     this.pressed,
     this.stopPending = false,
@@ -91,6 +92,9 @@ class KioskDoneView extends StatelessWidget {
   /// 사용자가 화면을 만져 자동 복귀를 멈췄다(UI 평가 10/17) — 남은 초 대신 '자동으로 닫지 않아요'.
   final bool autoReturnHeld;
 
+  /// 처음 화면으로 돌아가기까지 남은 초(kiosk_screen이 1초마다 센다, 접근성 감사 10/18). null이면(시험·옛 호출) 전체 길이.
+  final int? autoReturnSeconds;
+
   /// 화면을 만지면 부른다(성공 화면의 자동 복귀 멈춤). 단추를 누를 때도 불리지만 단추 동작은 그대로다.
   final VoidCallback? onHold;
 
@@ -107,7 +111,18 @@ class KioskDoneView extends StatelessWidget {
   final int? stopAckMs;
 
   Future<void> _confirmRetry(BuildContext context, bool mock) =>
-      confirmKioskRetry(context, mock: mock, thinq: route == 'thinq', onRetry: onRetry);
+      confirmKioskRetry(context, mock: mock, thinq: route == 'thinq', toggle: retryMayToggle, onRetry: onRetry);
+
+  /// '한 번 더 하기'가 켜고 끄는 한 버튼(서버 버튼 데이터 behavior=toggle)을 다시 누를 수 있나(접근성 감사 10/18) — 그러면
+  /// 확인 창에 '이미 켜졌다면 다시 누르면 꺼질 수 있어요'. 누른 버튼 기록이 있으면 그 버튼들로, 없으면(어느 버튼인지 모름)
+  /// 이 가전 버튼판에 토글 버튼이 하나라도 있으면 그렇다고 본다(안전한 쪽). 버튼 데이터에 성질이 없으면 false — 일반 경고.
+  bool get retryMayToggle {
+    final a = target;
+    if (a == null || route == 'thinq') return false;
+    final pressed = this.pressed;
+    if (pressed == null || pressed.isEmpty) return a.buttons.any((b) => b.isToggle);
+    return pressed.any((p) => a.buttons.any((b) => b.label == p.button && b.isToggle));
+  }
 
   /// 사람 확인 흐름(휴리스틱 평가 10/18) — 사람이 가전을 보고 답할 결과면 그 말. 아니면 null.
   ///
@@ -117,7 +132,7 @@ class KioskDoneView extends StatelessWidget {
   /// 연습·확인한 성공·사용자 정지(정지가 주인공)·원인을 아는 걸림에는 없다.
   KioskCheckWords? get personCheck {
     if (executionMode == 'mock') return null;
-    final name = target?.name;
+    final name = target?.displayName;
     if (thinqCopy case final copy?) {
       return copy.tone == ThinqResultTone.attention ? _thinqCheckWords(name) : null;
     }
@@ -199,13 +214,13 @@ class KioskDoneView extends StatelessWidget {
             : null;
     if (kind == null) return null;
     return thinqResultCopy(
-      applianceName: target?.name ?? '가전',
+      applianceName: target?.displayName ?? '가전',
       kind: kind,
       receipt: r == KioskFailureReason.receiptUnknown ? 'unknown' : 'accepted',
       confirmation: resultConfirmation,
       detail: detail,
       executionMode: executionMode,
-      action: thinqActionOf(target?.name ?? '가전', [thinqActionText, label]),
+      action: thinqActionOf(target?.displayName ?? '가전', [thinqActionText, label]),
     );
   }
 
@@ -282,6 +297,7 @@ class KioskDoneView extends StatelessWidget {
           target: this.target,
           success: success,
           held: autoReturnHeld,
+          autoReturnSeconds: autoReturnSeconds,
           onHold: onHold,
           onClose: onDismiss,
           steps: recoverySteps,
@@ -341,7 +357,9 @@ class KioskDoneView extends StatelessWidget {
     final color = verifiedSuccess
         ? KioskColors.confirmed
         : pressCompleted
-            ? Colors.white // 누름 보고만은 중립색 — 진행색(파랑)은 확인처럼 읽혔다(평가 3차 10/18)
+            // 누름 보고만도 '확인 필요' 결과 — 띠('확인해 주세요', 앰버)와 같은 앰버 제목(접근성 감사 10/18: 같은 확인 필요 상태가
+            // 흰 제목·노란 제목 둘이었다). 진행색(파랑)·초록은 쓰지 않는다(확인처럼 읽혔다, 평가 3차 10/18).
+            ? KioskColors.warning
             : success
                 ? (mock ? Colors.white : KioskColors.warning)
                 : userStop
@@ -388,7 +406,7 @@ class KioskDoneView extends StatelessWidget {
                     // 10/18 §3-5 — 어느 가전인지 이름으로). 누름 보고·누름 센서(L1)·엔코더만이면 '다 눌렀어요', 원하는 동작인지는
                     // 사람이 본다(아래 한 줄).
                     ? (operationVerified
-                        ? '${withSubject(target?.name ?? '가전')} 켜졌어요'
+                        ? '${withSubject(target?.displayName ?? '가전')} 켜졌어요'
                         : pressCompleted
                             // 누름 보고만 — 버튼까지만 말한다. 가전은 사람이 본다(평가 3차 10/18).
                             ? '버튼은 다 눌렀어요'
@@ -448,7 +466,7 @@ class KioskDoneView extends StatelessWidget {
                 ? stopLevelNextStep(stopLevel)
                 : r.detail(label, canRetry: onRetry != null);
     // 이름이 대상 가전 이름과 같으면(이어받은 실행 등) 같은 말을 두 번 쓰지 않는다.
-    final showLabel = label.isNotEmpty && label != target?.name;
+    final showLabel = label.isNotEmpty && label != target?.displayName;
     // LG 가전 성공 아래 한 줄(확인한 사실만큼).
     final String thinqLine = outcome != null && (!mock || already)
         ? outcome
@@ -463,7 +481,7 @@ class KioskDoneView extends StatelessWidget {
     // 같은 말 두 번 금지는 제목을 바꿔 지킨다(띠 '확인해 주세요' / 제목 '눌렸는지 몰라요'). 확인 수준은 높이지 않는다.
     // 결과 띠는 늘 무엇이었는지(가전 · 할 일)를 오른쪽에 함께 말한다(평가 17차 10/18) — 본문의 가전·이름 줄은 두지 않는다.
     final bandWhat = [
-      if (target != null) target.name,
+      if (target != null) target.displayName,
       if (showLabel) label,
     ].join(' · ');
     final String? bandDetail = bandWhat.isEmpty ? null : bandWhat;
@@ -472,7 +490,7 @@ class KioskDoneView extends StatelessWidget {
       // 아직 끝나지 않았다 — 결과 띠('확인해 주세요')가 아니라 진행 띠(평가 8차 10/18).
       // 띠는 무엇을 멈추는지(가전·할 일)만 — '멈추는 중'은 아래 큰 제목이 모래시계와 함께 한 번만 말한다(평가 10차 10/18).
       final what = [
-        if (target != null) target.name,
+        if (target != null) target.displayName,
         if (showLabel) label,
       ].join(' · ');
       // 띠는 '멈추는 중' + 무엇을(평가 17차 10/18) — 아래 왼쪽의 돌아가는 원은 두지 않는다(같은 뜻 두 번).
@@ -710,6 +728,7 @@ class KioskDoneView extends StatelessWidget {
             shortPrompt: success && successSub != null,
             mock: mock,
             thinq: thinq,
+            retryToggle: retryMayToggle,
             onChecked: onChecked,
             onRetry: onRetryAfterCheck ?? retry,
             onHome: onDismiss,
@@ -733,10 +752,7 @@ class KioskDoneView extends StatelessWidget {
                 ? KioskRetryPrimary(onTap: () => _confirmRetry(context, mock))
                 : null,
             note: success
-                ? (autoReturnHeld
-                    ? Text('자동으로 닫지 않아요',
-                        style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted))
-                    : const _AutoReturn())
+                ? (autoReturnHeld ? const _AutoReturnHeld() : _AutoReturn(seconds: autoReturnSeconds))
                 : null,
             secondaries: success
                 ? const []
@@ -1063,14 +1079,15 @@ KioskFailureReason failureReasonOf(
 /// LG 가전 결과(사용자 요청 10/18) — 다른 결과 화면과 같은 틀(평가 14차 10/18): 위 상태 띠 아래 왼쪽 선에서 큰 글자 ·
 /// 한 줄 · (이름이 큰 글자에 없으면) 가전 줄, 아래 '처음 화면으로'. 테두리 상자·큰 결과 원은 없다 — 확인한 결과만 초록인
 /// 것은 띠('됐어요'·초록 체크)와 큰 글자 색이 말한다. 띠 말은 다른 결과 화면과 같은 두 말('됐어요'·'확인해 주세요', 연습은 청록 띠).
-/// 확인한 성공은 몇 초 뒤 처음 화면(화면을 만지면 멈춘다), 확인 못 함은 '처음 화면으로'를 누를 때까지 남는다
-/// (사용자 결정 — 카운트다운 문구도 없다).
+/// 확인한 성공은 몇 초 뒤 처음 화면(남은 초를 숫자로 — 접근성 감사 10/18, 화면을 만지면 멈춘다), 확인 못 함은 '처음 화면으로'를
+/// 누를 때까지 남는다(사용자 결정 — 확인 못 함에는 카운트다운이 없다).
 class _ThinqResult extends StatelessWidget {
   const _ThinqResult({
     required this.copy,
     required this.target,
     required this.success,
     required this.held,
+    this.autoReturnSeconds,
     required this.onHold,
     required this.onClose,
     this.steps,
@@ -1093,10 +1110,11 @@ class _ThinqResult extends StatelessWidget {
   final ApplianceMap? target;
   final bool success;
   final bool held;
+  final int? autoReturnSeconds;
   final VoidCallback? onHold;
   final VoidCallback? onClose;
 
-  String? get _name => (target?.name.isNotEmpty ?? false) ? target!.name : null;
+  String? get _name => (target?.displayName.isNotEmpty ?? false) ? target!.displayName : null;
 
   @override
   Widget build(BuildContext context) {
@@ -1113,7 +1131,7 @@ class _ThinqResult extends StatelessWidget {
         ),
       ThinqResultTone.practice => (Colors.white, KioskStatusBand.practice(detail: _name, detailIcon: target?.icon)),
     };
-    final name = target?.name;
+    final name = target?.displayName;
     // 큰 글자에 가전 이름이 없으면(바람 세기 결과 등) 아래 작게 무엇의 결과인지 — 다른 결과 화면과 같은 가전 줄(아이콘 + 이름).
     // 무엇의 결과인지는 다른 결과 화면과 같이 위 띠 오른쪽이 늘 말한다(평가 17차 10/18). 본문에는 가전 줄을 두지 않는다.
     final showName = name != null && name.isNotEmpty && !copy.headline.contains(name) && !copy.sub.contains(name);
@@ -1189,12 +1207,7 @@ class _ThinqResult extends StatelessWidget {
                   : KioskResultActions(
                 onHome: onClose,
                 homeKey: const ValueKey('thinq-result-close'),
-                note: success
-                    ? (held
-                        ? Text('자동으로 닫지 않아요',
-                            style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted))
-                        : const _AutoReturn())
-                    : null,
+                note: success ? (held ? const _AutoReturnHeld() : _AutoReturn(seconds: autoReturnSeconds)) : null,
               ),
             ),
           ],
@@ -1204,44 +1217,52 @@ class _ThinqResult extends StatelessWidget {
   }
 }
 
-/// 성공 뒤 자동 복귀 말 — 보통·큰 글씨 같은 말(평가 16차 10/18).
-const kAutoReturnLine = '잠시 뒤 처음 화면으로 돌아가요';
+/// 성공 뒤 자동 복귀 말 — 실제 남은 초(접근성 감사 10/18: '잠시 뒤'는 얼마나 남았는지 몰라 서두르게 했다).
+String autoReturnLine(int seconds) => '$seconds초 뒤 처음 화면으로 돌아가요';
 
-/// 성공 후 자동 복귀를 **글자로도** 말한다. 기다리기 싫은 사람의 길은 옆의 '처음 화면으로'.
+/// 화면을 만져 자동 복귀를 멈춘 뒤의 말.
+const kAutoReturnHeldLine = '자동으로 닫지 않아요';
+
+/// 성공 후 자동 복귀를 **글자로도** 말한다 — 남은 초를 숫자로, 본문 크기(접근성 감사 10/18 — 작은 글씨 한 단계 위).
+/// 화면을 만지면 멈춘다(종전, 시간 제한 조절). 기다리기 싫은 사람의 길은 옆의 '처음 화면으로'.
 class _AutoReturn extends StatelessWidget {
-  const _AutoReturn();
+  const _AutoReturn({this.seconds});
+
+  /// 남은 초(kiosk_screen이 센다). null이면 전체 길이.
+  final int? seconds;
 
   @override
   Widget build(BuildContext context) {
     // 큰 글씨면 두 배(kiosk_screen의 실제 전환과 같은 값, UI 평가 4차 10/17).
-    final total = KioskLayout.isLarge(context) ? KioskTimings.doneReturnLarge : KioskTimings.doneReturn;
+    final total = (KioskLayout.isLarge(context) ? KioskTimings.doneReturnLarge : KioskTimings.doneReturn).inSeconds;
+    final left = (seconds ?? total).clamp(0, total);
     return Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 초 수 대신 한 말(평가 16차 10/18 — 보통 '10초 뒤'·큰 글씨 '20초 뒤'로 말이 달랐다). 남은 시간은 아래 막대가 보인다.
-          Text(
-            kAutoReturnLine,
-            key: const ValueKey('done-auto-return'),
-            maxLines: 1,
-            softWrap: false,
-            style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              autoReturnLine(left),
+              key: const ValueKey('done-auto-return'),
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted),
+            ),
           ),
           const SizedBox(height: 8),
           SizedBox(
             width: 220,
             height: 4,
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 1.0, end: 0.0),
-              duration: total,
-              builder: (context, value, _) => ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
-                  value: value,
-                  minHeight: 4,
-                  backgroundColor: KioskColors.border,
-                  valueColor: AlwaysStoppedAnimation(
-                    Colors.white.withValues(alpha: 0.3),
-                  ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: total > 0 ? left / total : 0,
+                minHeight: 4,
+                backgroundColor: KioskColors.border,
+                valueColor: AlwaysStoppedAnimation(
+                  Colors.white.withValues(alpha: 0.3),
                 ),
               ),
             ),
@@ -1249,6 +1270,16 @@ class _AutoReturn extends StatelessWidget {
         ],
     );
   }
+}
+
+/// 만져서 자동 복귀를 멈춘 뒤 — 남은 초 대신 한 말(같은 크기).
+class _AutoReturnHeld extends StatelessWidget {
+  const _AutoReturnHeld();
+
+  @override
+  Widget build(BuildContext context) => Text(kAutoReturnHeldLine,
+      key: const ValueKey('done-auto-return-held'),
+      style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted));
 }
 
 /// 결과 화면 아래 줄 여백 — 왼쪽은 내용 왼쪽 선(실행 화면과 같은 [KioskSizes.runLeft]), 오른쪽은 정지 자리와 같은 끝.
@@ -1592,9 +1623,13 @@ class KioskCheckWords {
       noSaid: '설정이 안 바뀌었다고');
 }
 
+/// 켜고 끄는 한 버튼을 다시 누르게 될 때 확인 창의 경고(접근성 감사 10/18). 버튼 데이터에 토글 성질이 있을 때만 쓴다.
+const kRetryToggleWarning = '가전이 이미 켜졌다면 다시 누르면 꺼질 수 있어요';
+
 /// '한 번 더 하기' 확인 창 — 결과 화면 어디서 눌러도 같은 창(열린 문제 R1: 다시 누르기 전에 한 번 더 묻는다).
+/// [toggle]: 다시 누를 버튼이 켜고 끄는 한 버튼(behavior=toggle)이면 [kRetryToggleWarning]을 먼저 말한다.
 Future<void> confirmKioskRetry(BuildContext context,
-    {required bool mock, bool thinq = false, required VoidCallback? onRetry}) async {
+    {required bool mock, bool thinq = false, bool toggle = false, required VoidCallback? onRetry}) async {
   final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1606,7 +1641,9 @@ Future<void> confirmKioskRetry(BuildContext context,
                     // LG 가전은 버튼을 다시 누르는 것이 아니라 같은 설정을 다시 보낸다 — 이미 그 설정이면 바꾸지 않는다.
                     : thinq
                         ? '같은 부탁을 가전에 한 번 더 보내요. 이미 그렇게 돼 있으면 그대로 둬요.'
-                        : '$kDontRetryIfOn.',
+                        : toggle
+                            ? '$kRetryToggleWarning. 같은 버튼을 또 누르게 돼요.'
+                            : '$kDontRetryIfOn.',
                 key: const ValueKey('done-retry-dialog-text'),
                 style: const TextStyle(fontSize: KioskType.body)),
             actions: [
@@ -1654,6 +1691,7 @@ class KioskCheckActions extends StatefulWidget {
     this.shortPrompt = false,
     required this.mock,
     required this.thinq,
+    this.retryToggle = false,
     required this.onChecked,
     required this.onRetry,
     required this.onHome,
@@ -1661,6 +1699,9 @@ class KioskCheckActions extends StatefulWidget {
   });
 
   final KioskCheckWords words;
+
+  /// '한 번 더 하기'가 켜고 끄는 한 버튼을 다시 누르나 — 확인 창 경고([confirmKioskRetry]의 toggle).
+  final bool retryToggle;
 
   /// 물음만('전자레인지가 움직였나요?') — 위에 할 일 줄이 이미 '봐 주세요'라고 말할 때.
   final bool shortPrompt;
@@ -1747,7 +1788,8 @@ class _KioskCheckActionsState extends State<KioskCheckActions> {
               key: const ValueKey('done-retry'),
               icon: Icons.refresh,
               label: '한 번 더 하기',
-              onTap: () => confirmKioskRetry(context, mock: widget.mock, thinq: widget.thinq, onRetry: retry)),
+              onTap: () => confirmKioskRetry(context,
+                  mock: widget.mock, thinq: widget.thinq, toggle: widget.retryToggle, onRetry: retry)),
       ];
     }
     // 1단계에서만 '처음 화면으로'(보조) — 2단계의 '손으로 할게요'가 처음 화면으로 간다.

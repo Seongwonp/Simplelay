@@ -504,6 +504,8 @@ void main() {
         cdTotal: 40,
         onApprove: () {},
         onReject: () {},
+        // 화면 타이머 '시간 더 주기'(접근성 감사 10/18) — kiosk_screen이 늘 넘긴다.
+        onExtend: () {},
       ),
     );
   });
@@ -519,6 +521,8 @@ void main() {
         cdTotal: 40,
         onApprove: () {},
         onReject: () {},
+        // 화면 타이머 '시간 더 주기'(접근성 감사 10/18) — kiosk_screen이 늘 넘긴다.
+        onExtend: () {},
       ),
       textScale: 1.22,
     );
@@ -549,6 +553,8 @@ void main() {
         cdTotal: 40,
         onApprove: () {},
         onReject: () {},
+        // 화면 타이머 '시간 더 주기'(접근성 감사 10/18) — kiosk_screen이 늘 넘긴다.
+        onExtend: () {},
       ),
       textScale: 1.22,
     );
@@ -858,6 +864,8 @@ void main() {
         cdTotal: 40,
         onApprove: () {},
         onReject: () {},
+        // 화면 타이머 '시간 더 주기'(접근성 감사 10/18) — kiosk_screen이 늘 넘긴다.
+        onExtend: () {},
       ),
     );
   });

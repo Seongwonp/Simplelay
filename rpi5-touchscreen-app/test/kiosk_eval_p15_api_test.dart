@@ -140,7 +140,7 @@ void main() {
   });
 
   group('10. 조용한 시간 — 패널 전체 어둡게', () {
-    testWidgets('막은 가장자리 여백까지 덮고, 처음 화면 안쪽에 막을 겹쳐 얹지 않는다', (tester) async {
+    testWidgets('어두운 바탕은 가장자리 여백까지, 처음 화면 안쪽에 막을 겹쳐 얹지 않는다', (tester) async {
       await _pump15(
           tester,
           KioskIdleView(
@@ -158,14 +158,16 @@ void main() {
       final panel = find.byKey(const ValueKey('kiosk-panel-dim'));
       expect(panel, findsOneWidget);
       expect(tester.getRect(panel), const Rect.fromLTWH(0, 0, 1920, 1080));
-      expect(tester.widget<ColoredBox>(panel).color.a, closeTo(kQuietDimAlpha, 0.01));
+      // 접근성 감사(10/18): 막을 글자 위에 덮지 않고 바탕만 어둡게 — 패널 바탕(불투명)이 평소 바탕에 검정을 섞은 색.
+      expect(tester.widget<ColoredBox>(panel).color, KioskCanvas.quietBg);
+      expect(tester.widget<ColoredBox>(panel).color.a, 1.0);
       // 안쪽 깨우는 자리는 그대로(누름을 받는다) — 색은 겹치지 않는다.
       final inner = tester.widget<ColoredBox>(find.descendant(
           of: find.byKey(const ValueKey('idle-quiet-dim')), matching: find.byType(ColoredBox)));
       expect(inner.color.a, 0);
     });
 
-    testWidgets('어둡지 않으면 막이 없다', (tester) async {
+    testWidgets('어둡지 않으면 어두운 바탕이 없다', (tester) async {
       await _pump15(tester, const SizedBox.expand());
       expect(find.byKey(const ValueKey('kiosk-panel-dim')), findsNothing);
     });

@@ -447,7 +447,6 @@ void main() {
     for (final (name, view, strong) in cases) {
       testWidgets('$name → ${strong ? '가전 확인 초록' : '누름 완료 또는 미확인 구분'}', (tester) async {
         await _pump(tester, view);
-        final press = view.executionMode == 'real' && view.route != 'thinq';
         // 누름 보고만은 체크가 아니라 누른 손 아이콘(확인 수준을 높여 보이지 않는다, 평가 3차 10/18).
         expect(find.byIcon(Icons.check), strong ? findsWidgets : findsNothing);
         // 큰 결과 원은 없다(평가 17차 10/18) — 확인 수준은 띠의 아이콘·색과 제목이 말한다.
@@ -459,7 +458,8 @@ void main() {
         final headline = tester
             .widgetList<Text>(find.byType(Text))
             .firstWhere((t) => t.style?.fontSize == KioskType.key);
-        expect(headline.style!.color, strong ? KioskColors.confirmed : press ? Colors.white : view.executionMode == 'mock' ? Colors.white : KioskColors.warning);
+        // 누름 보고만도 확인 필요 결과 — 다른 확인 필요 제목과 같은 앰버(접근성 감사 10/18). 초록은 확인한 성공만.
+        expect(headline.style!.color, strong ? KioskColors.confirmed : view.executionMode == 'mock' ? Colors.white : KioskColors.warning);
       });
     }
   });

@@ -39,7 +39,15 @@ class KioskSuggestionView extends StatelessWidget {
     required this.onReject,
     this.scenarioName,
     this.blockedWhy,
+    this.onTouch,
+    this.onExtend,
   });
+
+  /// 화면을 만졌다(접근성 감사 10/18 — 시간 제한 조절) — 화면이 남은 시간을 처음으로 되돌린다. 단추 동작은 그대로 지나간다.
+  final VoidCallback? onTouch;
+
+  /// '시간 더 주기'(+60초). null이면 단추를 두지 않는다.
+  final VoidCallback? onExtend;
 
   final KioskSuggestion suggestion;
 
@@ -73,17 +81,22 @@ class KioskSuggestionView extends StatelessWidget {
     final scenario = suggestion.isScenario;
     final canExecute = scenario ? blockedWhy == null : target != null;
     // 위 상태 띠(2026-10-16 디자인 규격 §4) — 제안 → 실행 → 정지 대기 → 결과가 같은 자리·같은 높이의 띠로 이어진다.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 시연 데이터로 만든 제안이면 위 띠가 말한다 — 가장 큰 글자(질문)에 표식을 넣지 않는다(외부 평가 10/16 2차).
-        KioskStatusBand(
-          tone: KioskBandTone.neutral,
-          icon: Icons.lightbulb_outline,
-          label: suggestion.isDemo ? '제안 연습' : '제안',
-        ),
-        Expanded(child: _body(context, target, scenario, canExecute)),
-      ],
+    // 화면 어디든 만지면 남은 시간이 처음으로(접근성 감사 10/18 — 읽는 중에 닫히지 않게). 단추 동작은 그대로(translucent).
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => onTouch?.call(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 시연 데이터로 만든 제안이면 위 띠가 말한다 — 가장 큰 글자(질문)에 표식을 넣지 않는다(외부 평가 10/16 2차).
+          KioskStatusBand(
+            tone: KioskBandTone.neutral,
+            icon: Icons.lightbulb_outline,
+            label: suggestion.isDemo ? '제안 연습' : '제안',
+          ),
+          Expanded(child: _body(context, target, scenario, canExecute)),
+        ],
+      ),
     );
   }
 
@@ -269,13 +282,14 @@ class KioskSuggestionView extends StatelessWidget {
                         SizedBox(
                           width: KioskPanelPicture.width,
                           child: Semantics(
-                            label: '누름 장치가 누를 순서. ${[
+                            label: '누름 장치가 누를 순서. $kScreenNoPress. ${[
                               for (var i = 0; i < suggestion.steps.length; i++)
                                 '${i + 1} ${suggestion.steps[i]}'
                             ].join(', ')}',
                             child: KioskPanelPicture(
                               appliance: target,
-                              caption: '누름 장치가 누를 순서',
+                              // 실행 화면과 같은 안내(접근성 감사 10/18) — 그림 칸을 눌러야 하는 줄 알지 않게.
+                              caption: '누름 장치가 누를 순서예요. $kScreenNoPress',
                               captionKey: const ValueKey('suggestion-panel-caption'),
                               order: order,
                             ),
@@ -442,6 +456,26 @@ class KioskSuggestionView extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: KioskType.body, height: 1.1, color: Colors.white),
               ),
+              // 시간이 더 필요하면 60초 더(접근성 감사 10/18 — 시간 제한 늘리기). 작은 보조 단추(테두리), 누르는 자리 48 이상.
+              if (onExtend != null) ...[
+                const SizedBox(width: KioskSpace.sm),
+                Semantics(
+                  button: true,
+                  label: '시간 더 주기. 1분 더 기다려요',
+                  excludeSemantics: true,
+                  child: OutlinedButton.icon(
+                    key: const ValueKey('suggestion-more-time'),
+                    onPressed: onExtend,
+                    icon: const Icon(Icons.more_time, size: KioskType.body),
+                    label: const Text('시간 더 주기',
+                        maxLines: 1, softWrap: false, style: TextStyle(fontSize: KioskType.caption)),
+                    style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border).copyWith(
+                      minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
+                      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.sm)),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 8),

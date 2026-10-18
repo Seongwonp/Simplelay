@@ -114,13 +114,20 @@ const kProblemHelp = '눌러서 해결 방법 보기';
 /// 상태 칩 — 높이 48 이상, 아이콘 + 짧은 말. 연결 문제가 있으면 [KioskIdleProblemBar](한 줄 제목 + 해결 방법 단추)로 그린다 —
 /// 평소 화면은 그 줄을 위 줄 아래 한 줄 전체에 둔다.
 class KioskIdleStatusChip extends StatelessWidget {
-  const KioskIdleStatusChip({super.key, required this.items, required this.onTap, this.pressImpact});
+  const KioskIdleStatusChip(
+      {super.key, required this.items, required this.onTap, this.pressImpact, this.also, this.vertical = false});
 
   final List<ConnectionItem> items;
   final VoidCallback onTap;
 
   /// 누름 장치가 끊겨 지금 못 쓰는 가전 수(평가 15차 10/18) — 원인이 하나면 칩 첫 줄이 원인과 영향을 말한다. 모르면 null.
   final int? pressImpact;
+
+  /// 연결 문제 띠 둘째 줄에 묶어 말할 확인 필요 안내(접근성 감사 10/18 — 경고 띠 둘을 하나로). 없으면 null.
+  final String? also;
+
+  /// 큰 글씨 평소 화면의 오른쪽 칸 세로 카드 꼴([KioskIdleProblemBar.vertical]).
+  final bool vertical;
 
   @override
   Widget build(BuildContext context) {
@@ -147,8 +154,10 @@ class KioskIdleStatusChip extends StatelessWidget {
       return KioskIdleProblemBar(
         title: cause ?? text,
         titleIsCause: cause != null,
+        also: also,
+        vertical: vertical,
         // 화면 읽기는 무엇이 문제인지까지 읽는다('누름 장치가 끊겨 가전 5대를 못 써요. 연결 확인 필요 1').
-        semanticsLabel: [if (cause != null) cause, text, if (cause == null) ...what].join('. '),
+        semanticsLabel: [if (cause != null) cause, text, if (cause == null) ...what, if (also != null) also!].join('. '),
         onTap: onTap,
       );
     }
@@ -197,6 +206,8 @@ class KioskIdleStatusChip extends StatelessWidget {
 ///   '본체와 연결이 끊겼어요'·'연결 확인 필요 2'. 누르면 연결 창(아래 단추와 같다).
 /// - 오른쪽: 따로 선 **'해결 방법 보기 ›'** 단추(테두리, 누르는 자리 48 이상).
 /// 줄 높이는 [height]로 고정 — 평소 화면이 이 높이만큼 가운데 칸을 줄인다. 글이 길거나 큰 글씨면 제목이 통째로 조금 줄어든다.
+/// 확인 필요 안내가 함께면([also], 접근성 감사 10/18) 같은 띠의 둘째 줄(본문 크기, 흰 글자)로 묶는다 — 경고 띠가 둘 서지 않게.
+/// 그때 줄 높이는 [heightFor].
 class KioskIdleProblemBar extends StatelessWidget {
   const KioskIdleProblemBar({
     super.key,
@@ -204,21 +215,68 @@ class KioskIdleProblemBar extends StatelessWidget {
     required this.semanticsLabel,
     required this.onTap,
     this.titleIsCause = false,
+    this.also,
+    this.vertical = false,
   });
 
   /// 줄 높이(캔버스) — 1920x1080에서 약 107px.
   static const double height = 52;
 
+  /// 둘째 줄([also]) 글자 — 본문 크기, 두 줄까지(접근성 감사 10/18 — 한 줄로 줄이면 글자가 너무 작아졌다).
+  static const _alsoStyle = TextStyle(fontSize: KioskType.body, height: 1.2, color: Colors.white);
+  static const int _alsoMaxLines = 2;
+
+  /// 오른쪽 '해결 방법 보기' 단추 폭(글자 + 화살표 + 여백 + 테두리) — 둘째 줄이 쓸 수 있는 폭을 잰다.
+  static double _helpWidth(BuildContext context) {
+    final tp = TextPainter(
+      text: const TextSpan(text: kProblemHelpShort, style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w800)),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final w = tp.width;
+    tp.dispose();
+    return w + MediaQuery.textScalerOf(context).scale(KioskType.body + 4) + 2 * KioskSpace.md + 4;
+  }
+
+  /// 띠 전체 폭 [width]에서 둘째 줄 글이 쓰는 높이(두 줄까지).
+  static double _alsoHeightFor(BuildContext context, String also, double width) {
+    final textWidth = width - KioskSpace.sm - _helpWidth(context) - 2 * KioskSpace.md - KioskType.status - KioskSpace.sm - 4;
+    final tp = TextPainter(
+      text: TextSpan(text: keepWords(also), style: _alsoStyle),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: _alsoMaxLines,
+    )..layout(maxWidth: textWidth > 40 ? textWidth : 40);
+    final h = tp.height;
+    tp.dispose();
+    return h + 4;
+  }
+
+  /// 이 띠의 높이 — 둘째 줄([also])이 있으면 띠 폭 [width]에서 그 글이 쓰는 만큼 더(두 줄까지).
+  static double heightFor(BuildContext context, {String? also, required double width}) =>
+      also == null ? height : height + _alsoHeightFor(context, also, width);
+
   final String title;
   final bool titleIsCause;
+
+  /// 둘째 줄 — 함께 묶어 말할 확인 필요 안내. 없으면 한 줄 띠.
+  final String? also;
+
+  /// 세로 카드 꼴(큰 글씨 평소 화면 오른쪽 칸, 접근성 감사 10/18) — 제목 · 둘째 줄(여러 줄) · '해결 방법 보기'가 위아래로.
+  /// 높이는 글만큼(고정 높이 없음).
+  final bool vertical;
   final String semanticsLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final tone = KioskColors.warning;
+    if (vertical) return _verticalCard(tone);
+    return LayoutBuilder(builder: (context, box) {
+    final barHeight = heightFor(context, also: also, width: box.maxWidth);
     return SizedBox(
-      height: height,
+      height: barHeight,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -244,18 +302,30 @@ class KioskIdleProblemBar extends StatelessWidget {
                       Icon(Icons.error_outline, size: KioskType.status, color: tone),
                       const SizedBox(width: KioskSpace.sm),
                       Expanded(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(title,
-                              key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
-                              maxLines: 1,
-                              softWrap: false,
-                              style: const TextStyle(
-                                  fontSize: KioskType.status,
-                                  height: 1.15,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white)),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(title,
+                                  key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  style: const TextStyle(
+                                      fontSize: KioskType.status,
+                                      height: 1.15,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white)),
+                            ),
+                            if (also case final a?)
+                              Text.rich(TextSpan(text: keepWords(a), semanticsLabel: a),
+                                  key: const ValueKey('idle-problem-also'),
+                                  maxLines: _alsoMaxLines,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: _alsoStyle),
+                          ],
                         ),
                       ),
                     ]),
@@ -289,7 +359,83 @@ class KioskIdleProblemBar extends StatelessWidget {
         ],
       ),
     );
+    });
   }
+
+  /// 세로 카드 — 앰버 면·테 하나 안에 제목, 묶은 안내(여러 줄), '해결 방법 보기'. 카드 전체를 누르면 연결 창(띠와 같다).
+  Widget _verticalCard(Color tone) => Semantics(
+        button: true,
+        label: semanticsLabel,
+        excludeSemantics: true,
+        child: Material(
+          key: const ValueKey('idle-status-chip'),
+          color: tone.withValues(alpha: KioskSizes.bandTint),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(KioskSizes.buttonRadius),
+            side: BorderSide(color: tone, width: 2),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(KioskSpace.sm, KioskSpace.xs, KioskSpace.sm, KioskSpace.xs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(children: [
+                    Icon(Icons.error_outline, size: KioskType.status, color: tone),
+                    const SizedBox(width: KioskSpace.xs),
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(title,
+                            key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: const TextStyle(
+                                fontSize: KioskType.status, height: 1.15, fontWeight: FontWeight.w800, color: Colors.white)),
+                      ),
+                    ),
+                  ]),
+                  if (also case final a?) ...[
+                    const SizedBox(height: 4),
+                    Text.rich(TextSpan(text: keepWords(a), semanticsLabel: a),
+                        key: const ValueKey('idle-problem-also'), style: _alsoStyle),
+                  ],
+                  const SizedBox(height: KioskSpace.xs),
+                  // 할 일은 따로 선 단추 모양(띠 꼴과 같은 말·같은 키). 누르는 자리 48 이상.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Semantics(
+                      button: true,
+                      label: kProblemHelp,
+                      excludeSemantics: true,
+                      child: OutlinedButton(
+                        key: const ValueKey('idle-problem-help'),
+                        onPressed: onTap,
+                        style: KioskButtons.secondary(foreground: Colors.white, border: tone).copyWith(
+                          minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
+                          padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text(kProblemHelpShort,
+                              key: const ValueKey('idle-problem-help-text'),
+                              maxLines: 1,
+                              softWrap: false,
+                              style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w800)),
+                          Icon(Icons.chevron_right, size: KioskType.body + 4, color: tone),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 /// 메뉴 단추 — 아이콘 아래 이름 '메뉴'. 누르는 자리 64x64(48 이상).

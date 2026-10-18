@@ -131,7 +131,8 @@ void main() {
       expect(kioskTileBand(_appliance('mw', '전자레인지', readiness: 'operable', canExecute: false)).text,
           '확인 전이에요');
       expect(kioskTileBand(_appliance('mw', '전자레인지', readiness: 'disconnected')).text, '연결이 안 돼요');
-      expect(kioskTileBand(_appliance('mw', '전자레인지', readiness: 'needs_setup')).text, '설정이 필요해요');
+      // 접근성 감사(10/18) — 본체는 중립 '가족이 설정해요'(준비됐다고도 하지 않는다).
+      expect(kioskTileBand(_appliance('mw', '전자레인지', readiness: 'needs_setup')).text, '가족이 설정해요');
     });
   });
 }

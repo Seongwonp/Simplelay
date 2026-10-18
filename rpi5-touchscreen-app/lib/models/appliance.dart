@@ -6,12 +6,20 @@ class ApplianceButton {
     required this.label,
     required this.x,
     required this.y,
+    this.behavior = 'unknown',
   });
 
   final String id;
   final String label;
   final int x;
   final int y;
+
+  /// 서버 버튼 데이터의 누름 성질(`/appliances` buttons[].behavior) — toggle(한 번 더 누르면 되돌아감: 켜고 끄는 한 버튼) |
+  /// idempotent | unknown. 옛 서버·하드코딩 폴백이면 unknown — 모르는 것을 토글이라 단정하지 않는다.
+  final String behavior;
+
+  /// 켜고 끄는 한 버튼인가 — 다시 누르면 꺼질 수 있다(접근성 감사 10/18 — '한 번 더 하기' 확인 창 경고).
+  bool get isToggle => behavior == 'toggle';
 }
 
 class ApplianceMap {
@@ -58,8 +66,12 @@ class ApplianceMap {
   /// 서버 구성 가전의 이름 표기가 근거다. 모의 모드 이름의 '(모의)'는 종전 그대로 둔다(타일 배지 'LG 가전').
   bool get isPractice => name.contains('(연습)');
 
-  /// 타일에 쓰는 짧은 이름 — 연습 표기를 뺀다. 연습은 타일의 '연습' 배지가 말한다(이름이 길어 '(연…'으로 잘렸다).
-  String get tileName => isPractice ? name.replaceAll('(연습)', '').trim() : name;
+  /// 화면에 쓰는 이름(접근성 감사 10/18) — 연습 가전은 '연습 세탁기'([practiceDisplayName], 폰과 같은 규칙). 서버 이름
+  /// 데이터('LG 세탁기(연습)')는 그대로 두고 화면 표시만 바꾼다. 예전 'LG 세탁기'는 실제 '세탁기'와 헷갈렸다.
+  String get displayName => practiceDisplayName(name);
+
+  /// 타일·버튼판 제목에 쓰는 이름 — [displayName]과 같다.
+  String get tileName => displayName;
 
   /// 이 기기의 **종류**. 서버가 준 값을 그대로 보관한다.
   ///
@@ -101,6 +113,15 @@ class ApplianceMap {
       return null;
     }
   }
+}
+
+/// 연습 가전 화면 이름 규칙(접근성 감사 10/18, 폰 `practiceDisplayName`과 같은 규칙) — 이름에 '(연습)'이 붙은 서버 연습
+/// 기기면 '(연습)'과 앞의 'LG '를 떼고 '연습 '을 앞에: 'LG 세탁기(연습)' → '연습 세탁기'. 그 밖의 이름은 그대로.
+String practiceDisplayName(String name) {
+  if (!name.contains('(연습)')) return name;
+  var base = name.replaceAll('(연습)', '').trim();
+  if (base.startsWith('LG ')) base = base.substring(3).trim();
+  return base.isEmpty ? '연습 가전' : '연습 $base';
 }
 
 // 폰 앱(app/lib/models/appliance.dart)과 동일한 버튼 배치를 유지한다.
@@ -239,6 +260,7 @@ ApplianceMap applianceFromServerJson(Map<String, dynamic> json) => ApplianceMap(
             label: b['label'] as String,
             x: b['x'] as int,
             y: b['y'] as int,
+            behavior: b['behavior'] is String ? b['behavior'] as String : 'unknown',
           ),
       ],
     );

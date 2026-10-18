@@ -149,7 +149,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
         color: const Color(0xCC0C0E12),
         child: LearningStatusDialog(
           load: widget.api.learningStatus,
-          applianceNames: {for (final a in widget.appliances) a.id: a.name},
+          applianceNames: {for (final a in widget.appliances) a.id: a.displayName},
           onClose: () => setState(() => _showLearning = false),
         ),
       );
@@ -430,7 +430,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
               ),
               const SizedBox(width: 7),
               Text(
-                a.name,
+                a.displayName,
                 style: TextStyle(
                   fontSize: KioskType.caption,
                   color: isSelected
@@ -453,7 +453,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
       children: [
         Row(
           children: [
-            _SectionLabel('${_selected.name} 전기 플러그'),
+            _SectionLabel('${_selected.displayName} 전기 플러그'),
             const Spacer(),
             if (registered != null)
               Container(

@@ -51,9 +51,11 @@ void main() {
     expect(_practiceWasher.name, contains('연습'));
   });
 
-  test('타일 이름은 연습 표기를 빼고(배지가 말한다), 실제 가전 이름은 그대로', () {
+  // 접근성 감사(10/18): 연습 가전 화면 이름은 '연습 세탁기'(폰과 같은 규칙) — 실제 '세탁기'와 헷갈리지 않게. 서버 이름은 그대로.
+  test('타일 이름은 연습 가전이면 연습 세탁기, 실제 가전 이름은 그대로', () {
     expect(_practiceWasher.isPractice, isTrue);
-    expect(_practiceWasher.tileName, 'LG 세탁기');
+    expect(_practiceWasher.tileName, '연습 세탁기');
+    expect(_practiceWasher.name, 'LG 세탁기(연습)');
     final real = applianceFromServerJson({
       'id': 'air_purifier',
       'name': '공기청정기',
@@ -109,7 +111,8 @@ void main() {
     expect(find.byKey(const ValueKey('thinq-controls-phone')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('thinq-set-set_operation-STOP')));
     await tester.pump();
-    expect(find.text('LG 세탁기(연습) 빨래를 잠시 멈출까요?'), findsOneWidget);
+    // 화면 이름은 '연습 세탁기'(접근성 감사 10/18 — 서버 이름 'LG 세탁기(연습)'은 데이터로만).
+    expect(find.text('연습 세탁기 빨래를 잠시 멈출까요?'), findsOneWidget);
     expect(sent, isEmpty);
     await tester.tap(find.byKey(const ValueKey('thinq-confirm-ok')));
     await tester.pump();

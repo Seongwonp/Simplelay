@@ -125,7 +125,7 @@ class _ApplianceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '${appliance.name} 조작하기'
+      label: '${appliance.displayName} 조작하기'
           '${appliance.isThinq ? '. LG 가전' : ''}'
           '${isLastUsed ? '. 지난번에 썼어요' : ''}',
       child: Material(
@@ -155,7 +155,7 @@ class _ApplianceCard extends StatelessWidget {
                 Icon(appliance.icon, size: 44, color: KioskColors.muted),
                 const SizedBox(height: 12),
                 Text(
-                  appliance.name,
+                  appliance.displayName,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: KioskType.body,

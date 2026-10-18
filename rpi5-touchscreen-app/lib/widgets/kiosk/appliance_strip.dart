@@ -38,7 +38,7 @@ List<ApplianceMap> orderForStrip(
   return [for (final e in indexed) e.$2];
 }
 
-/// 바로 쓸 수 없는 가전 — 띠가 '설정이 필요해요'·'연결이 안 돼요'인 것([kioskTileBand]와 같은 판정). 줄 맨 뒤에 선다
+/// 바로 쓸 수 없는 가전 — 띠가 '가족이 설정해요'·'연결이 안 돼요'인 것([kioskTileBand]와 같은 판정). 줄 맨 뒤에 선다
 /// (평가 13차 10/18: 실패널 첫 장에 '설정이 필요해요'가 둘이고 실제로 쓰는 LG 공기청정기는 둘째 장으로 밀렸다).
 bool _notReadyYet(ApplianceMap a) =>
     a.needsPanelMapping || a.readiness == 'needs_setup' || a.readiness == 'disconnected';
@@ -456,7 +456,7 @@ class _StripItemState extends State<_StripItem>
             : KioskColors.border;
     return Semantics(
       button: true,
-      label: '${a.name}${a.isThinq ? '. LG 가전' : ''}, $status. 자세히 보기',
+      label: '${a.displayName}${a.isThinq ? '. LG 가전' : ''}, $status. 자세히 보기',
       child: ExcludeSemantics(
         child: Padding(
           // 간격은 오른쪽에만 — 첫 타일 왼쪽 선이 시계·날짜 왼쪽 선과 같다(평가 3차 10/18).
@@ -590,11 +590,14 @@ class KioskTileBand {
   Color get face => fill ?? tone.withValues(alpha: KioskSizes.bandTint);
 }
 
-/// 회색 띠 면 — 준비됨·모름·누름 장치 끊김. 색 있는 띠보다 옅다.
+/// 회색 띠 면 — 준비됨·모름·누름 장치 끊김·가족이 설정. 색 있는 띠보다 옅다.
 const Color kTileBandGrey = Color(0x1FAEB3C0);
 
+/// 설정이 남은 가전 타일의 띠 말(접근성 감사 10/18) — 어르신이 할 일이 아니라 가족이 폰에서 한다.
+const kFamilySetupText = '가족이 설정해요';
+
 /// 가전 타일의 상태 띠(평가 6차 10/18). 우선순위: 확인 필요 → 지금 못 씀(비상 버튼 빨강 · 누름 장치 끊김 회색) →
-/// 작동 중 → 켜짐(LG 가전 조회로 본 것만 초록) → 설정이 필요해요(사진 위치를 맞추지 않은 사용자 가전, 폰과 같은 판정) →
+/// 작동 중 → 켜짐(LG 가전 조회로 본 것만 초록) → 가족이 설정해요(회색, 사진 위치를 맞추지 않은 사용자 가전, 폰과 같은 판정) →
 /// 서버 준비 판정(연결·설정) → 준비됐어요(서버가 실행을 받아 준다고 말한 때만) → 모르면 '확인 전이에요'.
 KioskTileBand kioskTileBand(
   ApplianceMap a, {
@@ -634,12 +637,14 @@ KioskTileBand kioskTileBand(
   if (off && a.isThinq) {
     return KioskTileBand('꺼져 있어요', Icons.power_settings_new, KioskColors.muted, fill: kTileBandGrey);
   }
+  // 설정은 어르신이 할 일이 아니다(접근성 감사 10/18) — 앰버·느낌표 '설정이 필요해요' 대신 중립 회색 '가족이 설정해요'(톱니).
+  // 할 일 경고는 폰 '해야 할 일'에만 둔다. 확인 필요·문제 칩에 넣지 않는다(그 판정은 마지막 실행·연결만 본다).
   if (a.needsPanelMapping) {
-    return KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning);
+    return KioskTileBand(kFamilySetupText, Icons.settings_outlined, KioskColors.muted, fill: kTileBandGrey);
   }
   return switch (a.readiness) {
     'disconnected' => KioskTileBand('연결이 안 돼요', Icons.link_off, KioskColors.warning),
-    'needs_setup' => KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning),
+    'needs_setup' => KioskTileBand(kFamilySetupText, Icons.settings_outlined, KioskColors.muted, fill: kTileBandGrey),
     // 체크는 '됐어요'로 읽힌다 — 준비는 누를 수 있다는 손가락(폰과 같은 그림). 눌림을 확인했다는 뜻이 아니라 회색.
     // 누름 장치 가전에만 — LG 가전은 누름 장치가 누르지 않는다(휴리스틱 평가 10/18: LG 가전 타일에 손가락 '준비됐어요'가
     // 보였다). LG 가전은 읽은 전원(위)이 없으면 '확인 전이에요'.

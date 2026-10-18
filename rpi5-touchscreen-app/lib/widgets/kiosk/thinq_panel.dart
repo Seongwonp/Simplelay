@@ -61,6 +61,18 @@ String? thinqAirHint(String? grade, Map<String, dynamic> state) {
 /// 조작 단추가 ✓로 이미 말하는 상태 줄(평가 11차 10/18) — 왼쪽 '지금 상태'에 두 번 두지 않는다.
 const _shownByControls = {'전원', '바람 세기'};
 
+/// 큰 글씨 상세의 짧은 상태 한 줄(접근성 감사 10/18) — '지금 상태' 칸과 같은 줄들(조작 단추가 말하는 줄·먼지 숫자는 뺀다)을
+/// '이름 값'으로 이어 쓴다. 보여 줄 줄이 없으면 null. 공기 등급·먼지는 아래 칸의 '미세먼지 보기'가 말한다.
+String? thinqStateBrief(Map<String, dynamic> map, {bool hideControlled = true}) {
+  const dust = {'초미세먼지', '미세먼지'};
+  final rows = thinqStateRows(map)
+      .where((r) => !dust.contains(r.label))
+      .where((r) => !(hideControlled && _shownByControls.contains(r.label)))
+      .toList();
+  if (rows.isEmpty) return null;
+  return rows.map((r) => '${r.label} ${r.value}').join(' · ');
+}
+
 /// 연습(모의) ThinQ 표시.
 const kThinqPracticeText = '연습이에요. 실제 가전은 그대로예요';
 
@@ -149,7 +161,7 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
       return;
     }
     setState(() => _sending = true);
-    final label = change.control.doneLabel(widget.appliance.name, change.word);
+    final label = change.control.doneLabel(widget.appliance.displayName, change.word);
     try {
       final accepted = await send(change.control.action, {change.control.arg: change.value});
       if (!mounted) return;
@@ -189,7 +201,7 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
       hideControlled: hasControls,
     );
     // 큰 상태 한 줄(평가 11차 10/18) — 지금 상태를 문장 하나로. 아래 3분의 1이 비어 있던 자리를 위로 끌어 쓴다.
-    final headlineText = map == null ? null : thinqStateHeadline(widget.appliance.name, map);
+    final headlineText = map == null ? null : thinqStateHeadline(widget.appliance.displayName, map);
     final Widget? headline = headlineText == null
         ? null
         : Padding(
@@ -209,6 +221,7 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
           setState(() => _pending = _PendingChange(control, value, word)),
     );
     final pending = _pending;
+    final brief = large && map != null ? thinqStateBrief(map, hideControlled: hasControls) : null;
     return Stack(
       children: [
         Positioned.fill(
@@ -221,7 +234,21 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     // 큰 상태 한 줄이 맨 위(평가 12차 10/18 — 큰 글씨에서만 조작 아래로 내려가 지금 상태를 먼저 못 봤다), 그다음
                     // 조작 — 큰 글씨에서 켜기·끄기가 스크롤 아래로 밀렸다(UI 평가 10/17). 상태 칸은 그 아래.
-                    children: [if (headline != null) headline, right, const SizedBox(height: 16), left],
+                    // 큰 글씨에서는 상태 칸이 조작 아래로 밀려 첫 화면에서 잘렸다(접근성 감사 10/18) — 큰 상태 한 줄 바로 아래에
+                    // 나머지 상태를 짧게 한 줄(예: '운전 공기 깨끗하게 · 필터 87%'). 자세한 칸은 그대로 아래에 둔다.
+                    children: [
+                      if (headline != null) headline,
+                      if (brief != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: KioskSpace.sm),
+                          child: KioskText(brief,
+                              textKey: const ValueKey('thinq-state-brief'),
+                              style: const TextStyle(fontSize: KioskType.body, color: Colors.white, height: 1.25)),
+                        ),
+                      right,
+                      const SizedBox(height: 16),
+                      left,
+                    ],
                   ),
                 )
               : Padding(
@@ -254,7 +281,7 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
         if (pending != null)
           Positioned.fill(
             child: _ChangeConfirm(
-              question: pending.control.question(widget.appliance.name, pending.value, pending.word),
+              question: pending.control.question(widget.appliance.displayName, pending.value, pending.word),
               // 비상 멈춤이 걸리면 묻던 것도 보내지 않는다.
               onConfirm: estop ? null : () => _send(pending),
               onCancel: () => setState(() => _pending = null),

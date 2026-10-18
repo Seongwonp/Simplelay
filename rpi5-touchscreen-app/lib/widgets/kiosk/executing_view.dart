@@ -82,8 +82,8 @@ class KioskExecutingView extends StatelessWidget {
   String get _context {
     final what = actionName(title);
     return [
-      if (target != null) target!.name,
-      if (what.isNotEmpty && title != currentButton && what != target?.name) what,
+      if (target != null) target!.displayName,
+      if (what.isNotEmpty && title != currentButton && what != target?.displayName) what,
     ].join(' · ');
   }
 
@@ -177,7 +177,7 @@ class KioskExecutingView extends StatelessWidget {
   /// LG 가전 보내는 중 — 위 띠(실행 중 · 하려는 일) + 가운데 기다림 + 하려는 일 한 줄 + 정지(평가 10차 10/18).
   /// 버튼판이 없으니 2열 틀의 오른쪽 위가 비지 않게 한 열로 가운데 — 정지 단추는 같은 자리·같은 크기다.
   Widget _thinqSending(BuildContext context) {
-    final name = target?.name ?? '가전';
+    final name = target?.displayName ?? '가전';
     final action = thinqActionOf(name, [thinqActionText, title]);
     final line = thinqSendingLine(action, practice: _mock);
     final sub = thinqSendingSub(practice: _mock);
