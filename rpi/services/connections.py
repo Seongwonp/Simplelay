@@ -163,8 +163,9 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
         return ConnectionItem(
             "press",
             "ok",
-            "작은 팔이 준비됐어요",
-            "연습 중이에요. 실제 가전은 누르지 않아요.",
+            # 연습 구성에는 실제 작은 팔이 없을 수 있다 — '준비됐어요'는 실물이 준비된 것처럼 읽혔다(10/18 §3-5).
+            "작은 팔은 연습 중이에요",
+            "실제 가전은 누르지 않아요.",
             (),
             "mock",
         )
@@ -245,8 +246,9 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
         return ConnectionItem(
             "plug",
             "ok",
-            "전기 플러그가 연결돼 있어요",
-            "가전이 끝나면 알려 드릴게요. 지금은 연습이라 실제로 재지 않아요.",
+            # 연습 구성에는 실제 전기 플러그가 없다 — '연결돼 있어요'라고 하지 않는다(10/18 §3-5).
+            "전기 플러그는 연습 중이에요",
+            "실제로 재지 않아요. 가전이 끝났다는 알림도 연습 값이에요.",
             (),
             "mock",
         )

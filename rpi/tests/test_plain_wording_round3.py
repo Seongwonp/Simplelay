@@ -130,7 +130,7 @@ def test_approvals_saved_with_the_old_question_are_still_counted():
 
 def test_rule_name_comes_from_the_scenario_id_not_a_stored_name():
     scenario_name = catalog.scenario_name
-    assert scenario_name("cook_done_air") == "데우기가 끝나면 공기청정기 세게"
+    assert scenario_name("cook_done_air") == "전자레인지가 멈추면 공기청정기 세게"
     assert scenario_name("cook_then_air") == "조리 뒤 공기청정기"
     assert scenario_name("wash_then_dry") == "세탁 끝나면 제습기"
     assert scenario_name("unknown") == "자동 실행"
@@ -146,7 +146,7 @@ def test_rule_payload_name_without_the_scenario_engine_is_still_the_new_name():
                             scenarios=lambda: None)
     rule = AutoRule("ar-1", "cook_done_air", "microwave", "heat_complete", "air_purifier", "k",
                     "DEVICE_AIR_PURIFIER", "set_wind_strength", "wind_strength", "HIGH")
-    assert engine.payload(rule)["name"] == "데우기가 끝나면 공기청정기 세게"
+    assert engine.payload(rule)["name"] == "전자레인지가 멈추면 공기청정기 세게"
 
 
 # ── 4. 기록 제목 문체 ─────────────────────────────────────────────────────────────────────
