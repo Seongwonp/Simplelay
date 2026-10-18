@@ -479,7 +479,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('help-next')));
       await tester.pump();
       expect(title(), contains('정지'));
-      expect(_plain(tester, find.byKey(const ValueKey('help-body'))), contains('멈춰'));
+      expect(_plain(tester, find.byKey(const ValueKey('help-body'))), allOf(contains('정지'), isNot(contains('말해도'))));
       await tester.tap(find.byKey(const ValueKey('help-done')));
       await tester.pump();
       expect(find.byKey(const ValueKey('help-guide')), findsNothing);
