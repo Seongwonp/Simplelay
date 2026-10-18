@@ -11,6 +11,7 @@ import '../theme/app_icons.dart';
 import '../widgets/estop_banner.dart';
 import '../widgets/voice_stop_indicator.dart';
 import 'history_screen.dart' show historyProvider;
+import 'home_screen.dart' show careNeedsLook;
 import '../theme/app_tokens.dart';
 
 /// 하단 탭 shell — **홈 · 루틴 · 기록 · 설정**(UI 확정 §2).
@@ -183,7 +184,7 @@ class _BottomBar extends ConsumerWidget {
     final care = ref.watch(careEventsProvider);
     final unread = care.unreadCount;
     final settingsLabel = unread > 0
-        ? '설정, 읽지 않은 알림 $unread건'
+        ? '설정, 안 본 알림 $unread건'
         : care.status == CareInboxStatus.failed
             ? '설정, 알림을 불러오지 못했어요'
             : '설정';
@@ -229,6 +230,8 @@ class _BottomBar extends ConsumerWidget {
                 label: '설정',
                 selected: index == settingsTabIndex,
                 dot: unread > 0,
+                // 볼 것(실패·정지 등)이 섞였을 때만 빨간 점, 자동으로 한 일·루틴 안내뿐이면 중립 점(평가 13차 10/18).
+                dotAlert: careNeedsLook(care.unreadEvents),
                 semanticsLabel: settingsLabel,
                 onTap: () => onTab(settingsTabIndex),
               ),
@@ -248,6 +251,7 @@ class _Tab extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.dot = false,
+    this.dotAlert = true,
     this.semanticsLabel,
   });
 
@@ -259,6 +263,9 @@ class _Tab extends StatelessWidget {
 
   /// 읽지 않은 것이 있다는 점 하나. 뜻은 [semanticsLabel]이 말한다.
   final bool dot;
+
+  /// 점을 경고(빨강)로 칠하는가.
+  final bool dotAlert;
 
   /// 읽을 이름. 없으면 [label].
   final String? semanticsLabel;
@@ -289,8 +296,8 @@ class _Tab extends StatelessWidget {
                         key: const Key('settings-unread-dot'),
                         width: 10,
                         height: 10,
-                        decoration: const BoxDecoration(
-                          color: AppColors.danger,
+                        decoration: BoxDecoration(
+                          color: dotAlert ? AppColors.danger : context.appPrimary,
                           shape: BoxShape.circle,
                         ),
                       ),

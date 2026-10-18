@@ -318,11 +318,12 @@ void main() {
       expect(stopped.icon, Icons.front_hand_outlined);
     });
 
-    // 평가 10차(10/18): '허락하고 실행' → '물어보고', '직접' → '사람이 직접'(eval10_phone_test 3).
+    // 평가 10차(10/18): '허락하고 실행' → '물어보고'(eval10_phone_test 3). 평가 13차: 목적 문장이 있는 직접 실행은
+    // '바로 실행'(eval13_phone_test 3).
     test("루틴 기록은 출처를 밝힌다 — 자동으로와 물어보고", () {
       expect(historySourceLabel(e({'purpose': "'아침 공기청정기 끄기' 루틴"})), '루틴 · 물어보고');
       expect(historySourceLabel(e({'purpose': "자동 실행 · '아침 공기청정기 끄기' 루틴"})), '루틴 · 자동으로');
-      expect(historySourceLabel(e({'purpose': '공기청정기 켜줘'})), '사람이 직접');
+      expect(historySourceLabel(e({'purpose': '공기청정기 켜줘'})), '바로 실행');
       expect(historySourceLabel(e({'purpose': '자동 실행 · 공기청정기 바람을 세게 해요'})), '자동');
     });
   });

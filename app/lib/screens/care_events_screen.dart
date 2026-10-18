@@ -277,7 +277,7 @@ class _CareEventCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final (icon, color, label) = _style(context);
     return Semantics(
-      label: '$label. ${event.message}. ${_formatTime(event.occurredAt)}',
+      label: '$label. ${withAmPmInSentence(event.message)}. ${_formatTime(event.occurredAt)}',
       child: Container(
         padding: const EdgeInsets.all(AppSpace.lg),
         decoration: BoxDecoration(
@@ -313,8 +313,9 @@ class _CareEventCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: AppSpace.sm),
+                  // 본체 문장의 '밤 10시'도 폰 시각 꼴 '오후 10:00'으로(평가 13차 10/18).
                   Text(
-                    event.message,
+                    withAmPmInSentence(event.message),
                     style: const TextStyle(fontSize: AppFont.caption, height: 1.45),
                   ),
                 ],

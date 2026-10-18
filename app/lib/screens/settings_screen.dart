@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../models/auto_rule.dart';
 import '../models/display_status.dart';
 import '../models/line_break.dart';
+import 'home_screen.dart' show careNeedsLook;
 import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
 import '../models/execution_status.dart';
@@ -144,12 +145,15 @@ class SettingsScreen extends ConsumerWidget {
               icon: Icons.family_restroom,
               title: '보호자 알림',
               // 조회 실패를 '아무 일 없음'(0건)처럼 말하지 않는다(2026-10-13).
+              // 평가 13차(10/18): 홈 줄과 같은 이름 '안 본 알림 N건'. 빨간 배지는 실패·정지 같은 볼 것이 섞였을 때만.
               subtitle: unread > 0
-                  ? '읽지 않은 알림 $unread건'
+                  ? '안 본 알림 $unread건'
                   : care.status == CareInboxStatus.failed
                       ? '알림을 불러오지 못했어요'
                       : '새 알림이 없어요',
               badge: unread,
+              badgeAlert: careNeedsLook(care.unreadEvents),
+              badgeKey: const Key('settings-care-badge'),
               onTap: () => context.push('/care'),
             ),
             _NavRow(

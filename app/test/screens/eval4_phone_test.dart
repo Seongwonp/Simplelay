@@ -217,11 +217,11 @@ void main() {
         await _pump(tester, const SettingsScreen(), width: width, scale: scale, hub: false);
         expect(
             brokenLines(tester,
-                keepTogether: big ? ['4건'] : ['읽지 않은 알림 4건', '못 불러왔어요', '휴대폰 설정', '알아 둔 습관']),
+                keepTogether: big ? ['4건'] : ['안 본 알림 4건', '못 불러왔어요', '휴대폰 설정', '알아 둔 습관']),
             isEmpty);
         // 값은 한 줄 — 이름 옆에 다 안 들어가면 이름 아래로 내린다(값이 두 줄로 갈리지 않게).
         if (!big) {
-          for (final v in ['읽지 않은 알림 4건', '못 불러왔어요']) {
+          for (final v in ['안 본 알림 4건', '못 불러왔어요']) {
             expect(lineCountOf(tester, findPlainText(v)), 1, reason: v);
           }
         }

@@ -68,7 +68,7 @@ void main() {
         tester, CareEventsState(events: _events(13), status: CareInboxStatus.ready));
     expect(find.text('13'), findsNothing, reason: '무엇이 13개인지 모르는 숫자를 띄우지 않는다');
     expect(find.byKey(const Key('settings-unread-dot')), findsOneWidget);
-    expect(find.bySemanticsLabel('설정, 읽지 않은 알림 13건'), findsOneWidget);
+    expect(find.bySemanticsLabel('설정, 안 본 알림 13건'), findsOneWidget);
     handle.dispose();
   });
 
@@ -102,7 +102,7 @@ void main() {
   testWidgets('설정 안 보호자 알림은 건수를 그대로 말한다', (tester) async {
     await pumpSettings(
         tester, CareEventsState(events: _events(3), status: CareInboxStatus.ready));
-    expect(findPlainText('읽지 않은 알림 3건'), findsOneWidget);
+    expect(findPlainText('안 본 알림 3건'), findsOneWidget);
   });
 
   testWidgets('설정 안에서도 조회 실패를 "아무 일 없음"처럼 말하지 않는다', (tester) async {

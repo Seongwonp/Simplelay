@@ -39,15 +39,28 @@ String keepPhrasesTogether(String text, {bool wholeParts = false}) {
   final glued = parts.map((part) {
     final tokens = part.split(' ');
     final whole = wholeParts && part.length <= 12;
+    final glue = <bool>[
+      for (var i = 1; i < tokens.length; i++)
+        (whole && !tokens[i - 1].endsWith(',')) ||
+            _short(tokens[i - 1]) ||
+            (tokens[i].isNotEmpty && _isDigit(tokens[i].codeUnitAt(0))),
+    ];
+    // 세 낱말 넘는 묶음이 짧은 말 이음만으로 통째로 붙으면(평가 13차 10/18: '안 본 알림 4건') 큰 글씨에서 한 줄을
+    // 넘쳐 글자 중간('4/건')에서 꺾인다 — 짧은 말 이음 가운데 마지막 하나는 줄을 바꿀 수 있게 남긴다('안 본 / 알림 4건').
+    if (!whole && glue.length >= 2 && glue.every((g) => g)) {
+      for (var i = glue.length - 1; i >= 0; i--) {
+        final next = tokens[i + 1];
+        if (!(next.isNotEmpty && _isDigit(next.codeUnitAt(0)))) {
+          glue[i] = false;
+          break;
+        }
+      }
+    }
     final out = StringBuffer(tokens.first);
     for (var i = 1; i < tokens.length; i++) {
-      final prev = tokens[i - 1], next = tokens[i];
-      final glue = (whole && !prev.endsWith(',')) ||
-          _short(prev) ||
-          (next.isNotEmpty && _isDigit(next.codeUnitAt(0)));
       out
-        ..write(glue ? kNoBreakSpace : ' ')
-        ..write(next);
+        ..write(glue[i - 1] ? kNoBreakSpace : ' ')
+        ..write(tokens[i]);
     }
     return out.toString();
   }).join('$kNoBreakSpace· ');

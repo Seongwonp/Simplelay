@@ -342,7 +342,7 @@ void main() {
         _ev(1, 'quiet_routine'),
       ]);
       final row = find.byKey(const Key('home-attention-care'));
-      expect(_in(row, findPlainText('못 한 일·정지 등 알림 4건, 아직 안 봤어요')), findsOneWidget);
+      expect(_in(row, findPlainText('안 본 알림 4건, 못 한 일이 있어요')), findsOneWidget);
       expect(_in(row, findPlainText('읽지 않은', contains: true)), findsNothing);
       await tester.tap(row);
       await tester.pumpAndSettle();
@@ -350,10 +350,11 @@ void main() {
     });
 
     test('알림 줄 말 — 종류 수에 따라', () {
-      expect(careAttentionText([_ev(1, 'quiet_routine')]), '안부 알림 1건, 아직 안 봤어요');
+      // 평가 13차(10/18): 이름은 '안 본 알림 N건' 하나, 볼 것이 섞이면 가장 무거운 것 한 마디(eval13_phone_test 1).
+      expect(careAttentionText([_ev(1, 'quiet_routine')]), '안 본 알림 1건, 안부 신호가 있어요');
       expect(careAttentionText([_ev(2, 'danger_sound'), _ev(1, 'execution_failed')]),
-          '위험 소리·못 한 일 알림 2건, 아직 안 봤어요');
-      expect(careAttentionText([_ev(1, 'something_new')]), '알림 1건, 아직 안 봤어요');
+          '안 본 알림 2건, 위험 소리가 났어요');
+      expect(careAttentionText([_ev(1, 'something_new')]), '안 본 알림 1건');
     });
   });
 

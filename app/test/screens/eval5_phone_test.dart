@@ -379,7 +379,7 @@ void main() {
       final row = find.byKey(const Key('home-attention-care'));
       expect(find.descendant(of: find.byKey(const Key('home-attention')), matching: row), findsOneWidget);
       // 평가 11차(10/18): 무슨 알림인지 앞에 — 이 시험의 알림은 모두 실행 실패.
-      expect(find.descendant(of: row, matching: findPlainText('못 한 일 알림 4건, 아직 안 봤어요')), findsOneWidget);
+      expect(find.descendant(of: row, matching: findPlainText('안 본 알림 4건, 못 한 일이 있어요')), findsOneWidget);
       await tester.tap(row);
       await tester.pumpAndSettle();
       expect(_visited, ['/care']);

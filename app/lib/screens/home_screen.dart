@@ -307,36 +307,35 @@ class _SectionTitle extends StatelessWidget {
       );
 }
 
-/// 홈 '확인이 필요해요'의 안 본 알림 줄 — 무슨 알림인지 종류 말을 앞에(평가 11차 10/18: '읽지 않은 보호자 알림 4건'은
-/// 무엇인지 드러나지 않았다). 종류 말은 알림함 카드 이름표와 같은 갈래(위험 신호음·실행 실패·정지·안부 신호)를 쉬운 말로,
-/// 무거운 것부터 두 가지까지('등'). 모르는 종류뿐이면 그냥 '알림'.
+/// 홈 '확인이 필요해요'의 안 본 알림 줄 — 이름은 하나, '안 본 알림 N건'(설정 줄·설정 탭 접근성 이름과 같은 말).
 ///
-/// 평가 12차(10/18): 실기기에는 '알림 4건'만 보였다 — 본체가 실제로 보내는 종류가 네 가지보다 많았다(자동 실행 결과
-/// `auto_rule`, 루틴 알림 `routine_notice`·`routine_announce`, 루틴 멈춤 `routine_stopped`, 가전 끝 처리 실패
-/// `appliance_done_undelivered` — 서버 rpi/routines·rpi/api/deps.py). 같은 말은 한 번만.
+/// 평가 11·12차(10/18)에 종류 말('자동으로 한 일·루틴 안내 알림 4건, 아직 안 봤어요')을 붙였더니 평가 13차(10/18)에서
+/// 분류 나열 말투에 어절 중간에서 끊겼고, 문제가 아닌 알림도 경고처럼 읽혔다. 그래서 종류는 **봐야 할 것이 섞였을 때만**
+/// 가장 무거운 것 하나를 짧은 말로 붙인다('안 본 알림 3건, 못 한 일이 있어요'). 자동으로 한 일·루틴 안내뿐이면 건수만.
 String careAttentionText(List<RpiCareEvent> unread) {
+  final head = '안 본 알림 ${unread.length}건';
+  final look = _careLookWord(unread);
+  return look == null ? head : '$head, $look';
+}
+
+/// 안 본 알림 가운데 사람이 봐야 할 것(위험 소리·실패·정지·루틴 멈춤·안부 신호)이 있는가 — 경고색은 이때만.
+bool careNeedsLook(List<RpiCareEvent> unread) => _careLookWord(unread) != null;
+
+/// 봐야 할 종류 가운데 가장 무거운 것 하나의 짧은 말. 없으면 null(자동으로 한 일·루틴 안내·모르는 종류).
+String? _careLookWord(List<RpiCareEvent> unread) {
   const order = [
-    ('danger_sound', '위험 소리'),
-    ('execution_failed', '못 한 일'),
-    ('appliance_done_undelivered', '못 한 일'),
-    ('emergency_stop', '정지'),
-    ('routine_stopped', '루틴 멈춤'),
-    ('auto_rule', '자동으로 한 일'),
-    ('routine_notice', '루틴 안내'),
-    ('routine_announce', '루틴 안내'),
-    ('quiet_routine', '안부'),
+    ('danger_sound', '위험 소리가 났어요'),
+    ('execution_failed', '못 한 일이 있어요'),
+    ('appliance_done_undelivered', '못 한 일이 있어요'),
+    ('emergency_stop', '멈춘 일이 있어요'),
+    ('routine_stopped', '멈춘 루틴이 있어요'),
+    ('quiet_routine', '안부 신호가 있어요'),
   ];
   final kinds = {for (final e in unread) e.kind};
-  final words = <String>{
-    for (final (k, w) in order)
-      if (kinds.contains(k)) w,
-  }.toList();
-  final head = words.isEmpty
-      ? ''
-      : words.length <= 2
-          ? '${words.join('·')} '
-          : '${words.take(2).join('·')} 등 ';
-  return '$head알림 ${unread.length}건, 아직 안 봤어요';
+  for (final (k, w) in order) {
+    if (kinds.contains(k)) return w;
+  }
+  return null;
 }
 
 // ── 지금 우리 집 ─────────────────────────────────────────────────────────────
@@ -555,12 +554,17 @@ class _Attention extends ConsumerWidget {
     };
     if (pending.isEmpty && result == null && unreadCare.isEmpty) return const SizedBox.shrink();
     // 흰 카드가 아니라 옅은 주황 면 — 할 일이 있다는 것을 면 색으로도 가른다(평가 5차 10/18). 글·아이콘이 같이 말한다.
+    // 평가 13차(10/18): 자동으로 한 일·루틴 안내만 안 봤으면 문제가 아니다 — 주황 대신 중립색. 경고색은 설정이 남았거나
+    // 지난 일을 못 했거나, 실패·정지 같은 알림이 섞였을 때만.
+    final careLook = careNeedsLook(unreadCare);
+    final warn = pending.isNotEmpty || result != null || careLook;
+    final tone = warn ? context.appWarning : context.appMuted;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpace.lg),
       child: Container(
         key: const Key('home-attention'),
         decoration: BoxDecoration(
-          color: context.appWarning.withValues(alpha: 0.08),
+          color: tone.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Padding(
@@ -569,16 +573,14 @@ class _Attention extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Icon(Icons.error_outline, size: 20, color: context.appWarning),
+                Icon(warn ? Icons.error_outline : Icons.notifications_none,
+                    key: const Key('home-attention-icon'), size: 20, color: tone),
                 const SizedBox(width: AppSpace.sm),
                 Expanded(
                   child: Semantics(
                     header: true,
                     child: Text('확인이 필요해요',
-                        style: TextStyle(
-                            fontSize: AppFont.body,
-                            fontWeight: FontWeight.w700,
-                            color: context.appWarning)),
+                        style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700, color: tone)),
                   ),
                 ),
               ]),
@@ -595,7 +597,7 @@ class _Attention extends ConsumerWidget {
                   key: const Key('home-attention-care'),
                   icon: Icons.family_restroom,
                   text: careAttentionText(unreadCare),
-                  color: context.appWarning,
+                  color: careLook ? context.appWarning : Theme.of(context).colorScheme.onSurface,
                   onTap: () => context.push('/care'),
                 ),
               // 한 대면 그 가전의 설정 카드를 그대로(연습 자리 확인이면 '실제 자리는 몰라요'까지), 둘 이상은 한 줄.
@@ -639,7 +641,8 @@ class _AttentionRow extends StatelessWidget {
               Icon(icon, size: 20, color: color),
               const SizedBox(width: AppSpace.sm),
               Expanded(
-                child: Text(keepWordsTogether(text),
+                // '알림 / 4건'처럼 숫자가 앞 낱말과 갈리지 않게(평가 13차 10/18).
+                child: Text(keepPhrasesTogether(text),
                     style: TextStyle(fontSize: AppFont.caption, color: color)),
               ),
               Icon(Icons.chevron_right, color: context.appMuted),

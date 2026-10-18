@@ -397,8 +397,9 @@ class _HistoryRowState extends State<_HistoryRow> {
           ),
           // 사람이 시작한 LG 가전 기록은 손 대신 가전 아이콘(평가 12차 10/18: 클라우드로 켠 기록에 손이 붙어 작은 팔·손
           // 누름과 헷갈렸다). 루틴·자동은 그대로 출처 아이콘.
+          // 평가 13차(10/18): LG 가전 자동 실행도 가전 아이콘('자동 · LG 가전'). 작은 팔 자동은 그대로 자동 아이콘.
           child: Icon(
-              historyIsLgDirect(entry)
+              historyIsLgAppliance(entry)
                   ? (widget.applianceIcon ?? ApplianceCategory.other.icon)
                   : AppIcons.source(source),
               key: Key('history-icon-${entry.jobId}'),
@@ -412,8 +413,10 @@ class _HistoryRowState extends State<_HistoryRow> {
             children: [
               Text(title,
                   style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600)),
-              // 낱말 중간에서 꺾이지 않게('전자레인/지' 방지). 낭독은 원문.
-              Text(keepWordsTogether(timeLine), semanticsLabel: timeLine, style: muted),
+              // 낱말 중간에서 꺾이지 않게('전자레인/지' 방지). 가운뎃점은 앞 낱말에 붙여 줄 머리에 오지 않게
+              // (평가 13차 10/18: '사람이 직접 / · 전자레인지'). 낭독은 원문.
+              Text(keepPhrasesTogether(timeLine, wholeParts: !big),
+                  key: Key('history-time-${entry.jobId}'), semanticsLabel: timeLine, style: muted),
               if (reason != null)
                 Text(keepPhrasesTogether(reason),
                     key: Key('history-reason-${entry.jobId}'),

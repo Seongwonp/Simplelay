@@ -292,15 +292,22 @@ String historySourceLabel(RpiHistoryEntry e) {
   // 지어내지 않는다(사람이 시작했다는 것까지만).
   // 평가 12차(10/18): LG 가전(클라우드) 기록에 '사람이 직접'과 손 아이콘이 붙어 작은 팔·손 누름과 헷갈렸다 →
   // 출처는 'LG 가전'. 폰·본체 화면 가운데 어디서 보냈는지는 기록(/history)에 가를 필드가 없어 거기까지만 말한다.
-  if (historyIsLgDirect(e)) return 'LG 가전';
-  if (routine == null) return source == '직접' ? '사람이 직접' : source;
+  // 평가 13차(10/18): LG 가전 자동 실행('자동')도 출처를 같이 — '자동 · LG 가전'. 작은 팔 가전의 자동 실행은 '자동' 그대로.
+  if (historyIsLgAppliance(e)) return source == '자동' ? '자동 · LG 가전' : 'LG 가전';
+  // 평가 13차(10/18): '사람이 직접'은 손으로 직접 눌렀다는 뜻으로 읽혔다. 기록이 아는 사실만 —
+  // 목적 문장이 없는 실행은 수동 조작 화면에서 버튼을 고른 것(`/execute-buttons`, 폰·본체 화면)이라 '화면에서 골라 누름'.
+  // 목적 문장이 있으면 말·제안 가운데 무엇인지 가를 필드가 없어 중립어 '바로 실행'(물어보고 한 루틴·자동과 구분).
+  if (routine == null) {
+    if (source != '직접') return source;
+    return purpose.isEmpty ? '화면에서 골라 누름' : '바로 실행';
+  }
   return source == '자동' ? '루틴 · 자동으로' : '루틴 · 물어보고';
 }
 
-/// 사람이 시작한 LG 가전(클라우드) 기록인가 — 루틴·자동 실행이 아닌 ThinQ 경로. 기록 줄은 손 아이콘 대신 가전
-/// 아이콘, 출처는 'LG 가전'(평가 12차 10/18).
-bool historyIsLgDirect(RpiHistoryEntry e) {
-  if (e.route != 'thinq' || historySource(e) != '직접') return false;
+/// LG 가전(클라우드) 기록인가 — 루틴이 아닌 ThinQ 경로(사람이 시작했든 자동이든). 기록 줄은 출처 아이콘 대신
+/// 가전 아이콘(평가 12·13차 10/18).
+bool historyIsLgAppliance(RpiHistoryEntry e) {
+  if (e.route != 'thinq' || historySource(e) == '루틴') return false;
   final purpose = e.purpose?.trim() ?? '';
   return purpose.isEmpty || _purposeParts(purpose).routine == null;
 }

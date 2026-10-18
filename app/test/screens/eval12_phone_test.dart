@@ -184,8 +184,8 @@ void main() {
       // 확인 수준은 그대로 — 초록 '됐어요'가 아니라 '봐 주세요'.
       final badge = tester.widget<StatusBadge>(_in(row, find.byType(StatusBadge)));
       expect(badge.label, '봐 주세요');
-      // 작은 팔 기록은 손 아이콘·'사람이 직접' 그대로.
-      expect(_in(row, findPlainText('사람이 직접', contains: true)), findsOneWidget);
+      // 작은 팔 기록은 손 아이콘 그대로(출처 말은 평가 13차에 '바로 실행' — eval13_phone_test 3).
+      expect(_in(row, findPlainText('바로 실행', contains: true)), findsOneWidget);
       expect(tester.widget<Icon>(find.byKey(const Key('history-icon-j-rep'))).icon, AppIcons.manual);
     });
 
@@ -205,7 +205,7 @@ void main() {
     test('출처 말 — LG 가전 직접만 바뀐다', () {
       RpiHistoryEntry e(Map<String, dynamic> j) => RpiHistoryEntry.fromJson(_hist('x', '', appliance: 'air')..addAll(j));
       expect(historySourceLabel(e({'purpose': '공기청정기를 켜요'})), 'LG 가전');
-      expect(historySourceLabel(e({'purpose': '즉석밥 데워줘', 'route': 'physical'})), '사람이 직접');
+      expect(historySourceLabel(e({'purpose': '즉석밥 데워줘', 'route': 'physical'})), '바로 실행');
       expect(historySourceLabel(e({'purpose': "자동 실행 · '저녁 공기청정기 켜기' 루틴"})), '루틴 · 자동으로');
       expect(historySourceLabel(e({'purpose': "'아침 공기청정기 끄기' 루틴"})), '루틴 · 물어보고');
     });
@@ -261,15 +261,15 @@ void main() {
 
   group('5. 홈 안 본 알림 줄', () {
     test('본체가 실제로 보내는 종류도 말한다', () {
+      // 평가 13차(10/18): 자동으로 한 일·루틴 안내뿐이면 건수만, 볼 것이 섞이면 가장 무거운 것 한 마디.
       expect(careAttentionText([_ev(4, 'auto_rule'), _ev(3, 'auto_rule'), _ev(2, 'routine_notice'), _ev(1, 'auto_rule')]),
-          '자동으로 한 일·루틴 안내 알림 4건, 아직 안 봤어요');
+          '안 본 알림 4건');
       expect(careAttentionText([_ev(2, 'routine_stopped'), _ev(1, 'appliance_done_undelivered')]),
-          '못 한 일·루틴 멈춤 알림 2건, 아직 안 봤어요');
-      expect(careAttentionText([_ev(2, 'routine_announce'), _ev(1, 'routine_notice')]), '루틴 안내 알림 2건, 아직 안 봤어요');
-      // 같은 말은 한 번.
+          '안 본 알림 2건, 못 한 일이 있어요');
+      expect(careAttentionText([_ev(2, 'routine_announce'), _ev(1, 'routine_notice')]), '안 본 알림 2건');
       expect(careAttentionText([_ev(2, 'execution_failed'), _ev(1, 'appliance_done_undelivered')]),
-          '못 한 일 알림 2건, 아직 안 봤어요');
-      expect(careAttentionText([_ev(1, 'something_new')]), '알림 1건, 아직 안 봤어요');
+          '안 본 알림 2건, 못 한 일이 있어요');
+      expect(careAttentionText([_ev(1, 'something_new')]), '안 본 알림 1건');
     });
   });
 }

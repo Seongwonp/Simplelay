@@ -33,6 +33,8 @@ class _NavRow extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.badge = 0,
+    this.badgeAlert = true,
+    this.badgeKey,
   });
 
   final IconData icon;
@@ -40,6 +42,10 @@ class _NavRow extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final int badge;
+
+  /// 배지를 경고(빨강)로 칠하는가. 볼 것이 없는 건수(자동으로 한 일·루틴 안내뿐)는 중립색(평가 13차 10/18).
+  final bool badgeAlert;
+  final Key? badgeKey;
 
   // 한 줄 = 이름 + 오른쪽 지금 값(2026-10-18). [subtitle]은 그 값이다(설명 문장을 두지 않는다).
   @override
@@ -56,9 +62,10 @@ class _NavRow extends StatelessWidget {
           children: [
             if (badge > 0)
               Container(
+                key: badgeKey,
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
                 decoration: BoxDecoration(
-                  color: AppColors.danger,
+                  color: badgeAlert ? AppColors.danger : context.appMuted,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(

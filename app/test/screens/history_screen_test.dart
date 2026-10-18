@@ -253,7 +253,7 @@ void main() {
     // '확인하지 못했어요'가 와서 신호가 섞였다).
     expect(find.byIcon(Icons.check_circle), findsNothing);
     expect(find.byIcon(Icons.help_outline), findsNWidgets(3));
-    expect(findPlainText('오전 8:10 · 사람이 직접'), findsOneWidget);
+    expect(findPlainText('오전 8:10 · 바로 실행'), findsOneWidget);
     expect(find.textContaining('실행 환경 미확인'), findsNothing);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
@@ -466,7 +466,7 @@ void main() {
     final order = [
       find.text('오늘'),
       find.text('아침 데우기'),
-      findPlainText('오전 8:10 · 사람이 직접 · 전자레인지'),
+      findPlainText('오전 8:10 · 바로 실행 · 전자레인지'),
       find.text('다시 눌러도 눌렸는지 몰라요'),
       find.text('연습이라 실제로 누르지 않았어요'),
       find.text('버튼판에서 직접 누르기'),
@@ -508,8 +508,8 @@ void main() {
       },
     ]);
     expect(find.text('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
-    // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다.
-    expect(findPlainText('오전 8:10 · 사람이 직접'), findsOneWidget);
+    // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다. 목적 없는 실행은 수동 조작 화면에서 고른 것(평가 13차).
+    expect(findPlainText('오전 8:10 · 화면에서 골라 누름'), findsOneWidget);
     expect(findPlainText('버튼은 다 눌렀어요, 움직이는지 봐 주세요'), findsNWidgets(2)); // 평가 12차: 볼 것은 이 한 줄이 함께 말한다
     expect(find.text('버튼 누르기'), findsOneWidget);
   });
@@ -615,7 +615,9 @@ void main() {
       },
     ], expand: false);
 
-    expect(find.byIcon(AppIcons.auto), findsOneWidget);
+    // LG 가전 자동 실행은 자동 아이콘 대신 가전 아이콘(평가 13차 10/18 — eval13_phone_test 2).
+    expect(find.byIcon(AppIcons.auto), findsNothing);
+    expect(findPlainText('오전 8:30 · 자동 · LG 가전'), findsOneWidget);
     expect(find.byIcon(AppIcons.routine), findsOneWidget);
     expect(find.byIcon(AppIcons.manual), findsOneWidget);
     // 상태를 다시 읽어 확인한 것만 초록 '됐어요'.

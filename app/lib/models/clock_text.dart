@@ -61,3 +61,24 @@ String withAmPmSpoken(String text, String? hhmm) {
   final at = RegExp('(?<![가-힣\\d])${RegExp.escape(spoken)}(?!\\s?\\d|\\d)');
   return text.replaceFirst(at, ampmClock(hhmm));
 }
+
+/// 본체 알림 문장 안의 '밤 10시'·'아침 7시 30분'을 '오후 10:00'·'오전 7:30'으로(평가 13차 10/18 — 폰 시각은 한 꼴).
+///
+/// 규칙 시각을 모르는 문장(보호자 알림)에 쓴다. 본체 `spoken_time`이 만드는 꼴과 **정확히** 맞는 조각만 바꾼다 —
+/// 읽은 시각을 다시 본체 말로 만들어 같을 때만(예: '밤 7시'는 본체가 만들지 않는 말이라 그대로). 바로 뒤
+/// '이/가 되어'는 '에'로 — '오후 10:00가 되어'처럼 숫자 뒤 조사가 어색해지지 않게.
+String withAmPmInSentence(String text) {
+  final at = RegExp(r'(?<![가-힣\d])(새벽|아침|낮|저녁|밤) (\d{1,2})시(?: (\d{1,2})분)?(?![간\d])((?:이|가) 되어)?');
+  return text.replaceAllMapped(at, (m) {
+    final h12 = int.parse(m[2]!);
+    final min = m[3] == null ? 0 : int.parse(m[3]!);
+    for (final h in {h12 % 12, h12 % 12 + 12}) {
+      if (h > 23 || min > 59) continue;
+      final hhmm = '${h.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
+      if (serverSpokenTime(hhmm) == '${m[1]} $h12시${min == 0 ? '' : ' $min분'}') {
+        return '${ampmClock(hhmm)}${m[4] == null ? '' : '에'}';
+      }
+    }
+    return m[0]!;
+  });
+}
