@@ -191,7 +191,7 @@ void main() {
         expect(tester.takeException(), isNull);
         // 아이콘 4~5개 대신 상태 칩 하나 + 메뉴(10/18) — 칩 말과 메뉴 이름이 잘리지 않고 다 보인다.
         // 사전 변경(평가 4차 10/18): 콘센트 → 전기 플러그.
-        for (final label in ['전기 플러그를 봐 주세요', '메뉴']) {
+        for (final label in ['확인 필요 1', '메뉴']) {
           _expectFullyVisible(tester, find.text(label));
         }
         // 메뉴 이름은 제 아이콘 바로 아래에 있다.
@@ -234,9 +234,10 @@ void main() {
           now: DateTime(2026, 10, 17, 8, 38),
           connected: true,
           dndUntil: dnd,
+          // 칩이 보이는 경우(문제 하나)로 잰다 — 모두 괜찮으면 칩이 없다(사용자 결정 10/18).
           connections: const [
             ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
-            ConnectionItem(id: 'press', state: 'ok', title: '', message: ''),
+            ConnectionItem(id: 'press', state: 'error', title: '', message: ''),
           ],
           appliances: const [kMicrowaveAppliance],
           onSelectAppliance: (_) {},

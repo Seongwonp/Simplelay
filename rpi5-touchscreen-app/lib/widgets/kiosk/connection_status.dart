@@ -52,10 +52,11 @@ IconData connectionIcon(ConnectionItem item) => switch (item.id) {
 /// 위쪽 아이콘 아래 짧은 이름(UI 평가 3차 10/17 — 1~2 m에서 로봇·플러그 아이콘만으로는 뜻을 몰랐다).
 /// 66px 칸 안에 한 줄로 들어가는 말만 쓴다. 평소 화면의 설정·제안 쉬기 단추도 같은 모양을 쓴다.
 class KioskTopIconLabel extends StatelessWidget {
-  const KioskTopIconLabel(this.text, {super.key, this.color = KioskColors.muted});
+  const KioskTopIconLabel(this.text, {super.key, Color? color}) : _color = color;
 
   final String text;
-  final Color color;
+  final Color? _color;
+  Color get color => _color ?? KioskColors.muted;
 
   @override
   Widget build(BuildContext context) => Text(text,
@@ -116,7 +117,7 @@ class _ConnectionIcon extends StatelessWidget {
                   if (item.state != 'unknown')
                     KioskTopIconLabel(_shortName(item.id), color: color)
                   else
-                    const Text('모름',
+                    Text('모름',
                         maxLines: 1,
                         softWrap: false,
                         style: TextStyle(
@@ -131,11 +132,11 @@ class _ConnectionIcon extends StatelessWidget {
                       width: 18,
                       height: 18,
                       alignment: Alignment.center,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: KioskColors.warning,
                         shape: BoxShape.circle,
                       ),
-                      child: const Text(
+                      child: Text(
                         '!',
                         style: TextStyle(
                           fontSize: KioskType.caption,
@@ -253,7 +254,7 @@ class KioskConnectionModal extends StatelessWidget {
                                     color: Colors.white, shape: BoxShape.circle),
                                 child: Text('${i + 1}',
                                     textScaler: TextScaler.noScaling,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: KioskType.caption,
                                         height: 1,
                                         fontWeight: FontWeight.w800,
@@ -309,7 +310,7 @@ class KioskConnectionModal extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(0, 56),
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: KioskColors.border),
+                        side: BorderSide(color: KioskColors.border),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),

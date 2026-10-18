@@ -51,7 +51,17 @@ class KioskIdleView extends StatelessWidget {
     required this.onDndGesture,
     this.onSettingsGesture,
     this.onEstopGuide,
+    this.quietDim = false,
+    this.onTouch,
   });
+
+  /// 조용한 시간이라 어둡게(사용자 결정 10/18) — 시계·다음 루틴·문제 표시만 남기고 예보·인사말·온습도·가전 줄을 접고,
+  /// 화면 전체에 어두운 막을 얹는다. 막을 누르면 [onTouch]만 불린다(그 아래 단추는 눌리지 않는다 — 깨우는 손길).
+  /// 처음 화면에만 쓴다 — 실행·정지 대기·결과·제안·비상 화면은 kiosk_screen이 어둡게 하지 않는다(안전).
+  final bool quietDim;
+
+  /// 화면을 만졌다(어디든) — kiosk_screen이 조용한 시간에 잠시(30초) 평소 밝기로 돌린다.
+  final VoidCallback? onTouch;
 
   final DateTime now;
 
@@ -195,7 +205,56 @@ class KioskIdleView extends StatelessWidget {
     final pagerWidth =
         compactPager ? KioskApplianceStrip.compactPagerWidth : KioskApplianceStrip.pagerWidth;
 
-    return _IdleSheetHost(view: this, builder: (sheets) => ColoredBox(
+    // 위쪽(화면 구조 개편 10/18): 날짜 · (쉬는 중이면 쉬는 중 칩) · 상태 칩 · 메뉴. 상태 칩·메뉴는 오른쪽에 붙여
+    // 재므로 쉬는 중 칩이 켜져도 자리가 바뀌지 않는다(UI 평가 4차 10/17 — 늘 누르던 자리가 밀렸다).
+    Widget topRow(_IdleSheets sheets) =>
+      SizedBox(height: _Idle.topRow, child: LayoutBuilder(builder: (context, top) {
+        final topWidth = top.maxWidth;
+        return Row(children: [
+        // 쉬는 중 칩이 켜지면 위 줄이 좁아진다 — 날짜는 말줄임 대신 살짝 줄여 다 보인다.
+        // 지금 날씨는 날짜 옆이 아니라 오른쪽 예보 줄 첫 칸 '지금'(사용자 요청 10/18).
+        Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+          child: Text(_dateStr, maxLines: 1, softWrap: false,
+              style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)))),
+        if (dnd != null || quietUntil != null) ...[
+          _DndEntry(
+              key: const ValueKey('dnd-chip'),
+              remaining: dnd == null ? null : _dndRemaining(dnd),
+              quietUntil: dnd == null && quietUntil != null ? spokenHhmm(quietUntil!) : null,
+              onTap: onDndGesture),
+          const SizedBox(width: KioskSpace.sm),
+        ],
+        // 쉬는 중 칩 + 문제 칩 + 큰 글씨가 겹치면 위 줄이 모자란다 — 칩은 잘리지 않고 통째로 조금 줄어든다.
+        // 폭 상한은 위 줄의 42% — 보통은 제 크기 그대로라 자리가 바뀌지 않는다.
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: topWidth * 0.42),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: KioskIdleStatusChip(
+              items: connections,
+              onTap: () {
+                // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창. 비상 버튼 띠 아래에서는 칩이 연결 문제만 말한다
+                // (평가 14차 10/18) — 풀기 안내는 띠의 '풀기 안내'·못 쓰는 가전 타일이 연다.
+                final (_, _, direct) = connectionSummary(connections);
+                direct != null ? onOpenConnection(direct) : sheets.openConnections();
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: KioskSpace.xs),
+        KioskIdleMenuButton(onTap: sheets.openMenu),
+      ]);
+      }));
+
+    final Widget host = _IdleSheetHost(view: this, builder: (sheets) => quietDim
+        ? _QuietIdle(
+            view: this,
+            topRow: topRow(sheets),
+            clock: _clock,
+            large: large,
+            air: badAir)
+        : ColoredBox(
       color: KioskColors.bg,
       child: Padding(
         // 여백을 넉넉히(10/7 "빽빽하다" 수리) — 화면을 끝까지 채우지 않는다.
@@ -277,32 +336,7 @@ class KioskIdleView extends StatelessWidget {
           return Column(children: [
             // 위쪽(화면 구조 개편 10/18): 날짜 · (쉬는 중이면 쉬는 중 칩) · 상태 칩 · 메뉴. 상태 칩·메뉴는 오른쪽에 붙여
             // 재므로 쉬는 중 칩이 켜져도 자리가 바뀌지 않는다(UI 평가 4차 10/17 — 늘 누르던 자리가 밀렸다).
-            SizedBox(height: _Idle.topRow, child: Row(children: [
-              // 쉬는 중 칩이 켜지면 위 줄이 좁아진다 — 날짜는 말줄임 대신 살짝 줄여 다 보인다.
-              // 지금 날씨는 날짜 옆이 아니라 오른쪽 예보 줄 첫 칸 '지금'(사용자 요청 10/18).
-              Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-                child: Text(_dateStr, maxLines: 1, softWrap: false,
-                    style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted)))),
-              if (dnd != null || quietUntil != null) ...[
-                _DndEntry(
-                    key: const ValueKey('dnd-chip'),
-                    remaining: dnd == null ? null : _dndRemaining(dnd),
-                    quietUntil: dnd == null && quietUntil != null ? spokenHhmm(quietUntil!) : null,
-                    onTap: onDndGesture),
-                const SizedBox(width: KioskSpace.sm),
-              ],
-              KioskIdleStatusChip(
-                items: connections,
-                onTap: () {
-                  // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창. 비상 버튼 띠 아래에서는 칩이 연결 문제만 말한다
-                  // (평가 14차 10/18) — 풀기 안내는 띠의 '풀기 안내'·못 쓰는 가전 타일이 연다.
-                  final (_, _, direct) = connectionSummary(connections);
-                  direct != null ? onOpenConnection(direct) : sheets.openConnections();
-                },
-              ),
-              const SizedBox(width: KioskSpace.xs),
-              KioskIdleMenuButton(onTap: sheets.openMenu),
-            ])),
+            topRow(sheets),
             const SizedBox(height: 8),
             Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(flex: leftFlex, child: SingleChildScrollView(child: Column(
@@ -318,7 +352,7 @@ class KioskIdleView extends StatelessWidget {
                           Text(i == 0 ? env[i] : ' · ${env[i]}',
                               maxLines: 1,
                               softWrap: false,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted)),
                       ],
                     ),
@@ -460,6 +494,10 @@ class KioskIdleView extends StatelessWidget {
         }),
       ),
     ));
+    final touch = onTouch;
+    if (touch == null) return host;
+    // 화면 어디를 만져도 알린다(단추 동작은 그대로 지나간다).
+    return Listener(behavior: HitTestBehavior.translucent, onPointerDown: (_) => touch(), child: host);
   }
 
   /// 왼쪽 칸에서 시계를 뺀 높이(온습도·나쁜 공기·다음 루틴)가 [width] 폭에서 차지할 높이 — 시계·가전 타일 높이를 정하는 데만 쓴다.
@@ -528,7 +566,7 @@ class _Clock extends StatelessWidget {
                   maxLines: 1,
                   softWrap: false,
                   textScaler: TextScaler.noScaling,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: KioskType.status, height: 1, color: KioskColors.muted)),
               const SizedBox(width: KioskSpace.xs),
               Text(digits,
@@ -947,7 +985,7 @@ class _DndEntry extends StatelessWidget {
                   children: [
                     if (!on)
                       // 꺼져 있으면 아이콘 아래 이름(UI 평가 3차 10/17) — 켜지면 오른쪽 두 줄이 같은 말을 한다.
-                      const Column(mainAxisSize: MainAxisSize.min, children: [
+                      Column(mainAxisSize: MainAxisSize.min, children: [
                         Icon(Icons.pause_circle_outline, size: 28, color: KioskColors.muted),
                         KioskTopIconLabel('쉬기'),
                       ])
@@ -1123,13 +1161,13 @@ class _StripNotice extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // 누를 수 없는 안내다 — '+'는 단추로 읽혔다(2026-10-15 B5).
-          const Icon(Icons.info_outline,
+          Icon(Icons.info_outline,
               size: 26, color: KioskColors.muted),
           const SizedBox(width: 10),
           // 큰 글씨에서는 줄을 바꾼다(넘치지 않게).
           Flexible(
             child: KioskText(text,
-                style: const TextStyle(fontSize: _Idle.stripName, color: KioskColors.muted)),
+                style: TextStyle(fontSize: _Idle.stripName, color: KioskColors.muted)),
           ),
         ],
       );
@@ -1547,12 +1585,20 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                     key: const ValueKey('settings-entry'),
                     icon: Icons.settings_outlined,
                     label: '설정',
-                    sub: '큰 글씨, 음성 안내, 폰 연결',
+                    sub: '큰 글씨, 고대비, 음성 안내, 폰 연결',
                     semanticsLabel: '설정',
                     onTap: () {
                       _close();
                       v.onSettingsGesture?.call();
                     },
+                  ),
+                  // 모두 괜찮으면 위 상태 칩이 없다(사용자 결정 10/18) — 그때도 연결 상태를 볼 수 있게 메뉴에 둔다.
+                  KioskSheetRow(
+                    key: const ValueKey('connections-entry'),
+                    icon: Icons.wifi,
+                    label: '연결',
+                    sub: '와이파이와 작은 팔 연결 상태',
+                    onTap: () => setState(() => _sheet = _Sheet.connections),
                   ),
                 ],
               )
@@ -1566,5 +1612,84 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
               ),
       ),
     ]);
+  }
+}
+
+/// 조용한 시간 어둡게의 막 짙기(사용자 결정 10/18) — 흰 시계가 검은 바탕 위 약 5:1로 남는 정도. 앱 안에서만 어둡게 한다
+/// (패널 밝기 장치는 건드리지 않는다). 값은 추측이다 — 실패널에서 밤에 1~2 m로 보고 고친다(실패널에서 측정 필요).
+const double kQuietDimAlpha = 0.5;
+
+/// 조용한 시간의 처음 화면 — 위 줄(날짜·조용한 시간·문제 칩·메뉴) · 큰 시계 · (나쁘면) 공기 · 다음 루틴만. 예보·인사말·온습도·
+/// 가전 줄은 접는다. 전체에 어두운 막을 얹고, 막을 누르면 그 아래 단추는 눌리지 않는다(깨우는 손길 — 다시 밝아지면 고른다).
+class _QuietIdle extends StatelessWidget {
+  const _QuietIdle({
+    required this.view,
+    required this.topRow,
+    required this.clock,
+    required this.large,
+    this.air,
+  });
+
+  final KioskIdleView view;
+  final Widget topRow;
+  final String clock;
+  final bool large;
+  final KioskAirReading? air;
+
+  /// 시계 상한(캔버스) — 1920x1080에서 약 307px. 1~2 m에서 시계가 먼저 읽히게 평소보다 크게.
+  static const double _clockMax = 150;
+
+  @override
+  Widget build(BuildContext context) {
+    final next = view.nextRun;
+    return ColoredBox(
+      key: const ValueKey('idle-quiet'),
+      color: KioskColors.bg,
+      child: Stack(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(_Idle.side, 14, _Idle.side, 10),
+          // 시계는 평소 화면과 같은 왼쪽 선에서(가운데로 옮기지 않는다).
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            topRow,
+            const SizedBox(height: 8),
+            Expanded(
+              child: LayoutBuilder(builder: (context, box) {
+                final rest = KioskIdleView._leftRest(context, box.maxWidth,
+                    air: air, next: next, onToggle: view.onToggleNextRunSkip, notice: view.nextRunNotice);
+                final size = (box.maxHeight - rest - _Idle.slack)
+                    .clamp(large ? _Idle.clockLargeMin : _Idle.clockMin, _clockMax)
+                    .toDouble();
+                return SingleChildScrollView(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    _Clock(ampm: ampmOf(view.now.hour), digits: clock, size: size),
+                    if (air != null) ...[
+                      const SizedBox(height: _Idle.airGap),
+                      _AirLine(key: const ValueKey('idle-air'), air: air!, compact: large),
+                    ],
+                    if (next != null) ...[
+                      const SizedBox(height: _Idle.nextGap),
+                      _NextRunLine(
+                          key: const ValueKey('idle-next-run'),
+                          next: next,
+                          busy: view.nextRunBusy,
+                          notice: view.nextRunNotice,
+                          onToggle: view.onToggleNextRunSkip),
+                    ],
+                  ]),
+                );
+              }),
+            ),
+          ]),
+        ),
+        Positioned.fill(
+          child: GestureDetector(
+            key: const ValueKey('idle-quiet-dim'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: ColoredBox(color: Colors.black.withValues(alpha: kQuietDimAlpha)),
+          ),
+        ),
+      ]),
+    );
   }
 }

@@ -154,7 +154,8 @@ class KioskEstopBanner extends StatelessWidget {
     );
   }
 
-  static final _filled = FilledButton.styleFrom(
+  // 게터 — 고대비를 켜고 끄면 정지 색이 바뀐다(한 번만 만들어 두면 옛 색이 남는다).
+  static ButtonStyle get _filled => FilledButton.styleFrom(
     backgroundColor: _white,
     foregroundColor: KioskColors.stop,
     disabledBackgroundColor: Colors.white70,

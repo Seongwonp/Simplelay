@@ -163,7 +163,7 @@ class KioskStatusBand extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.25)),
                   const SizedBox(width: KioskSpace.md),
                   if (detailIcon != null) ...[
-                    Icon(detailIcon, size: iconSize, color: Colors.white70),
+                    Icon(detailIcon, size: iconSize, color: KioskColors.muted),
                     const SizedBox(width: KioskSpace.xs),
                   ],
                   Flexible(

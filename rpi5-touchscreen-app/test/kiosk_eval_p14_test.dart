@@ -7,7 +7,7 @@
 // 3. 제안 이유 대체문은 '아침에 3번 하셨어요'(높임·낮춤 섞인 '하셔서 여쭤봐요' 금지).
 // 4. LG 가전 보내는 중 정지 안내는 한 줄 '정지를 누르면 그 뒤로는 보내지 않아요'.
 // 5. 화면 문구는 '버튼'으로 통일('단추' 금지), 연습을 마친 대기 화면의 정지 안내 문장은 뺀다.
-// 6. 공기 나쁨 줄 아래 할 일 작은 글자 단추(그 공기청정기로), 상태 칩은 '기기 모두 정상'. 비 확률이 높으면 인사말을 뺀다.
+// 6. 공기 나쁨 줄 아래 할 일 작은 글자 단추(그 공기청정기로), 상태 칩은 모두 괜찮으면 없다(사용자 결정 10/18). 비 확률이 높으면 인사말을 뺀다.
 // 7. 연습 띠 안 테두리 칩 없음(띠 안 글자로), 비상 버튼 띠 아래 글자 없는 '!' 칩 없음.
 // 8. 누름 보고만인 성공은 폰과 같은 말 — '버튼은 다 눌렀어요' + '가전이 움직이는지 봐 주세요'.
 import 'dart:io';
@@ -312,10 +312,10 @@ void main() {
       expect(find.byKey(const ValueKey('idle-air')), findsOneWidget);
     });
 
-    testWidgets("상태 칩은 '기기 모두 정상'", (tester) async {
+    testWidgets("연결이 다 괜찮으면 상태 칩이 없다(사용자 결정 10/18 — '기기 모두 정상'도 없다)", (tester) async {
       await _pumpView(tester, _idle());
-      final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('기기 모두 정상')), findsOneWidget);
+      expect(find.byKey(const ValueKey('idle-status-chip')), findsNothing);
+      expect(find.text('기기 모두 정상'), findsNothing);
     });
 
     testWidgets('비 확률이 높으면 인사말을 뺀다', (tester) async {
@@ -385,7 +385,7 @@ void main() {
               ])));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
       expect(chip, findsOneWidget);
-      expect(find.descendant(of: chip, matching: find.text('작은 팔 연결이 끊겼어요')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('확인 필요 1')), findsOneWidget);
     });
   });
 

@@ -37,12 +37,12 @@ Future<void> _pump(WidgetTester tester, Widget child, {double scale = 1.0}) asyn
 }
 
 KioskIdleView _idle(DateTime now, AmbientInfo? ambient,
-        {Duration? dnd, KioskNextRun? next}) =>
+        {Duration? dnd, KioskNextRun? next, List<ConnectionItem> connections = _ok}) =>
     KioskIdleView(
       now: now,
       connected: true,
       ambient: ambient,
-      connections: _ok,
+      connections: connections,
       dndUntil: dnd == null ? null : now.add(dnd),
       nextRun: next,
       appliances: const [kMicrowaveAppliance, kInductionAppliance],
@@ -150,6 +150,11 @@ void main() {
                     tip: const AmbientTip(
                         kind: 'rain', text: '오후 3시부터 비 예보가 있어요. 우산 챙기세요.', icon: 'rain')),
                 dnd: const Duration(minutes: 90),
+                // 칩이 보이는 경우(문제 하나)로 잰다 — 모두 괜찮으면 칩이 없다(사용자 결정 10/18).
+                connections: const [
+                  ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
+                  ConnectionItem(id: 'press', state: 'error', title: '', message: ''),
+                ],
                 next: const KioskNextRun(
                     name: '저녁 공기청정기 켜기', dayLabel: '오늘', hhmm: '22:00', modeLabel: '자동 실행')),
             scale: scale);

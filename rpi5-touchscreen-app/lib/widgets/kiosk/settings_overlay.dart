@@ -21,6 +21,8 @@ class KioskSettingsOverlay extends StatefulWidget {
     this.onTtsChanged,
     this.largeTextEnabled = false,
     this.onLargeTextChanged,
+    this.highContrastEnabled = false,
+    this.onHighContrastChanged,
     this.countdownSeconds = KioskTimings.countdownSeconds,
     this.onCountdownChanged,
     this.onOpenDnd,
@@ -41,6 +43,10 @@ class KioskSettingsOverlay extends StatefulWidget {
   /// 큰 글씨 모드 켜짐 여부 + 토글 콜백
   final bool largeTextEnabled;
   final ValueChanged<bool>? onLargeTextChanged;
+
+  /// 고대비 켜짐 여부 + 토글 콜백(사용자 결정 10/18)
+  final bool highContrastEnabled;
+  final ValueChanged<bool>? onHighContrastChanged;
 
   /// 제안 카드 자동 닫힘 시간(초) + 변경 콜백
   final int countdownSeconds;
@@ -205,11 +211,11 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                           const SizedBox(height: 16),
                           _buildTtsSection(),
                           const SizedBox(height: 16),
-                          const Divider(color: KioskColors.border, height: 1),
+                          Divider(color: KioskColors.border, height: 1),
                           const SizedBox(height: 16),
                           _buildApplianceSection(),
                           const SizedBox(height: 20),
-                          const Divider(color: KioskColors.border, height: 1),
+                          Divider(color: KioskColors.border, height: 1),
                           const SizedBox(height: 20),
                           _buildNodeSection(),
                         ],
@@ -239,7 +245,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           const Spacer(),
           GestureDetector(
             onTap: widget.onDismiss,
-            child: const Icon(Icons.close, color: KioskColors.muted, size: 20),
+            child: Icon(Icons.close, color: KioskColors.muted, size: 20),
           ),
         ],
       );
@@ -261,6 +267,16 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
             value: widget.largeTextEnabled,
             onChanged: widget.onLargeTextChanged,
           ),
+          const SizedBox(height: 4),
+          // 고대비(사용자 결정 10/18) — 큰 글씨 바로 옆. 같은 파일에 저장된다.
+          _toggleRow(
+            key: const ValueKey('settings-high-contrast'),
+            icon: Icons.contrast,
+            title: '고대비',
+            subtitle: '글자와 테두리를 더 또렷하게 보여 줘요',
+            value: widget.highContrastEnabled,
+            onChanged: widget.onHighContrastChanged,
+          ),
           const SizedBox(height: 10),
           _buildCountdownRow(),
         ],
@@ -270,9 +286,9 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   /// 사람마다 다르므로 고를 수 있어야 한다.
   Widget _buildCountdownRow() => Row(
         children: [
-          const Icon(Icons.timer_outlined, color: KioskColors.muted, size: 18),
+          Icon(Icons.timer_outlined, color: KioskColors.muted, size: 18),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -328,6 +344,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
       );
 
   Widget _toggleRow({
+    Key? key,
     required IconData icon,
     required String title,
     required String subtitle,
@@ -335,6 +352,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
     required ValueChanged<bool>? onChanged,
   }) =>
       Row(
+        key: key,
         children: [
           Icon(icon, color: KioskColors.muted, size: 18),
           const SizedBox(width: 10),
@@ -350,7 +368,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                 Text(
                   subtitle,
                   style:
-                      const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+                      TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                 ),
               ],
             ),
@@ -446,7 +464,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   border: Border.all(
                       color: KioskColors.success.withValues(alpha: 0.35)),
                 ),
-                child: const Text(
+                child: Text(
                   '등록됨',
                   style: TextStyle(fontSize: KioskType.caption, color: KioskColors.success),
                 ),
@@ -455,7 +473,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
         ),
         const SizedBox(height: 10),
         if (_loading)
-          const Center(
+          Center(
             child: SizedBox(
               width: 18,
               height: 18,
@@ -475,17 +493,17 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                         const TextStyle(fontSize: KioskType.caption, color: Color(0xFFFAF7F2)),
                     decoration: InputDecoration(
                       hintText: '192.168.x.x  또는  http://...:8080',
-                      hintStyle: const TextStyle(
+                      hintStyle: TextStyle(
                           fontSize: KioskType.caption, color: KioskColors.muted),
                       filled: true,
                       fillColor: KioskColors.surface2,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: KioskColors.border),
+                        borderSide: BorderSide(color: KioskColors.border),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: KioskColors.border),
+                        borderSide: BorderSide(color: KioskColors.border),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -518,7 +536,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   ),
                   child: Center(
                     child: _saving
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 14,
                             height: 14,
                             child: CircularProgressIndicator(
@@ -543,7 +561,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           const SizedBox(height: 8),
           Text(
             _saveError!,
-            style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.danger),
+            style: TextStyle(fontSize: KioskType.caption, color: KioskColors.danger),
           ),
         ],
       ],
@@ -558,7 +576,7 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: KioskType.caption,
           color: KioskColors.muted,
           letterSpacing: 0.8,

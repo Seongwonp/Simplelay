@@ -180,7 +180,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
                     style: const TextStyle(fontSize: KioskType.status)),
               if (_error != null)
                 Text(_error!,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: KioskType.status, color: KioskColors.warning)),
             ]))),
             Wrap(alignment: WrapAlignment.end, spacing: 16, children: [

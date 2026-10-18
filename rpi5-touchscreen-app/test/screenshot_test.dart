@@ -33,6 +33,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/past_result_line.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 import 'support/golden_fonts.dart';
@@ -164,10 +165,15 @@ KioskIdleView _idle({
   Set<String> running = const {'washer'},
   Set<String> on = const {},
   Set<String> off = const {},
+  DateTime? now,
+  String? quietUntil,
+  bool quietDim = false,
 }) =>
     KioskIdleView(
       // 7:38 — 예보 첫 칸(9시)이 지금 ±90분 안이라 날짜 옆에 바깥 날씨가 붙는다(사용자 요청 10/18).
-      now: DateTime(2026, 9, 30, 7, 38),
+      now: now ?? DateTime(2026, 9, 30, 7, 38),
+      quietUntil: quietUntil,
+      quietDim: quietDim,
       connected: true,
       ambient: ambient,
       connections: connections,
@@ -1099,6 +1105,63 @@ void main() {
 
   testWidgets('15인치 미리보기 — 평소, 제안 쉬는 중', (t) async {
     await _shoot15(t, 'kiosk15_idle_dnd', _idle(dndUntil: DateTime(2026, 9, 30, 8, 38)));
+  });
+
+  // 사용자 결정(10/18) — 조용한 시간에는 처음 화면만 어둡게: 시계·다음 루틴·문제 표시만, 예보·인사말·가전 줄은 접는다.
+  // 막 짙기는 추측이다(실패널에서 밤에 1~2 m로 보고 고친다).
+  testWidgets('15인치 미리보기 — 평소, 조용한 시간 어둡게', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_idle_quiet',
+        _idle(
+            now: DateTime(2026, 9, 30, 23, 12),
+            quietUntil: '07:00',
+            quietDim: true,
+            nextRun: const KioskNextRun(
+              name: '아침 공기청정기 끄기',
+              dayLabel: '내일',
+              hhmm: '07:00',
+              modeLabel: '자동 실행',
+              routineId: 'rt-morning',
+              at: '2026-10-01T07:00:00+09:00',
+              skipActionLabel: '내일은 건너뛰기',
+            )));
+  });
+
+  // 사용자 결정(10/18) — 설정의 고대비: 회색 보조 글자 → 흰색, 옅은 면 → 검정 + 흰 테두리, 상태색은 더 또렷하게.
+  testWidgets('15인치 미리보기 — 평소, 고대비', (t) async {
+    KioskColors.setHighContrast(true);
+    addTearDown(() => KioskColors.setHighContrast(false));
+    await _shoot15(
+        t,
+        'kiosk15_idle_contrast',
+        _idle(
+            appliances: [_purifierAppliance, _mw, _ind, _washerSetup],
+            running: const {},
+            on: const {'air_purifier'},
+            nextRun: _nextRun(),
+            connections: const [
+              ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
+              ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+            ]));
+  });
+
+  // 사용자 결정(10/18) — 결과 화면을 닫은 뒤에도 실패·'확인 못 함'은 처음 화면 위에 한 줄로, '확인'을 누를 때까지.
+  testWidgets('15인치 미리보기 — 평소, 지난 일 한 줄', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_idle_past',
+        KioskEstopLayout(
+          banner: KioskPastResultLine(
+            result: KioskPastResult(at: DateTime(2026, 9, 30, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 몰라요'),
+            onAcknowledge: _noop,
+          ),
+          child: _idle(
+              appliances: [_purifierAppliance, _mw, _ind, _washerSetup],
+              running: const {},
+              on: const {'air_purifier'},
+              nextRun: _nextRun()),
+        ));
   });
 
   // ── 2026-10-16 디자인 규격 — 연습(청록 띠)·비상 버튼 띠 + 정지 영역 ────────────────────

@@ -24,9 +24,9 @@ class KioskAutoRunNotice extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
-                const Icon(Icons.autorenew, size: 22, color: KioskColors.muted),
+                Icon(Icons.autorenew, size: 22, color: KioskColors.muted),
                 const SizedBox(width: 8),
-                const Text('자동으로 하기',
+                Text('자동으로 하기',
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
                 const SizedBox(width: 12),
                 Expanded(

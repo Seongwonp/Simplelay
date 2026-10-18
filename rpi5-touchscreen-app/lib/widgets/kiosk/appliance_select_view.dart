@@ -60,7 +60,7 @@ class KioskApplianceSelectView extends StatelessWidget {
               // 0대는 정상 상태다(마지막 가전을 폰에서 삭제한 직후, B11) —
               // GridView는 crossAxisCount 0으로 죽으므로 먼저 가른다.
               child: appliances.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -182,7 +182,7 @@ class _ApplianceCard extends StatelessWidget {
                             color: KioskColors.surface2,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
+                          child: Text(
                             '지난번',
                             maxLines: 1,
                             softWrap: false,

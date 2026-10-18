@@ -9,7 +9,7 @@ import 'kiosk_settings_backend_io.dart'
 
 import '../widgets/kiosk/kiosk_timings.dart';
 
-/// 키오스크 로컬 설정 스냅샷 — 음성 안내·큰 글씨·마지막 선택 가전.
+/// 키오스크 로컬 설정 스냅샷 — 음성 안내·큰 글씨·고대비·마지막 선택 가전.
 ///
 /// 그동안 세션 한정(메모리)이라 정전·재부팅·앱 재시작마다 고령 사용자가
 /// 설정(dot 3연타 진입)을 다시 찾아 들어가야 했다 — 접근성 설정일수록
@@ -18,12 +18,16 @@ class KioskSettings {
   const KioskSettings({
     this.ttsEnabled = true,
     this.largeText = false,
+    this.highContrast = false,
     this.applianceId,
     this.countdownSeconds = KioskTimings.countdownSeconds,
   });
 
   final bool ttsEnabled;
   final bool largeText;
+
+  /// 고대비(사용자 결정 10/18) — 큰 글씨와 같은 파일에 같은 방식으로 저장한다.
+  final bool highContrast;
 
   /// 제안 카드가 자동으로 닫히기까지의 시간(초).
   final int countdownSeconds;
@@ -34,12 +38,14 @@ class KioskSettings {
   KioskSettings copyWith({
     bool? ttsEnabled,
     bool? largeText,
+    bool? highContrast,
     String? applianceId,
     int? countdownSeconds,
   }) =>
       KioskSettings(
         ttsEnabled: ttsEnabled ?? this.ttsEnabled,
         largeText: largeText ?? this.largeText,
+        highContrast: highContrast ?? this.highContrast,
         applianceId: applianceId ?? this.applianceId,
         countdownSeconds: countdownSeconds ?? this.countdownSeconds,
       );
@@ -50,6 +56,8 @@ class KioskSettings {
             : true,
         largeText:
             json['large_text'] is bool ? json['large_text'] as bool : false,
+        highContrast:
+            json['high_contrast'] is bool ? json['high_contrast'] as bool : false,
         applianceId: json['appliance_id'] is String
             ? json['appliance_id'] as String
             : null,
@@ -64,6 +72,7 @@ class KioskSettings {
   Map<String, dynamic> toJson() => {
         'tts_enabled': ttsEnabled,
         'large_text': largeText,
+        'high_contrast': highContrast,
         'appliance_id': applianceId,
         'countdown_seconds': countdownSeconds,
       };

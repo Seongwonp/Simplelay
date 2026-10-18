@@ -127,7 +127,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                               textKey: const ValueKey('manual-explain'),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: KioskType.caption, color: KioskColors.muted),
                             ),
                         ],
@@ -232,14 +232,14 @@ class _RoutinePanel extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('내 루틴',
+          Text('내 루틴',
               maxLines: 1,
               softWrap: false,
               style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
           const SizedBox(height: 8),
           Expanded(
             child: routines.isEmpty
-                ? const KioskText(
+                ? KioskText(
                     '아직 이 가전의 루틴이 없어요',
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                   )
@@ -281,12 +281,12 @@ class _RoutinePanel extends StatelessWidget {
                                   if (size.isNotEmpty)
                                     KioskText(
                                       size,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: KioskType.caption, color: KioskColors.muted),
                                     ),
                                   // 누르면 한다는 표시(평가 8차 10/18) — 폰 루틴 줄과 같은 말. 누르면 바로 하지 않고 확인 카드가 먼저 뜬다.
                                   if (onRoutine != null)
-                                    const Align(
+                                    Align(
                                       alignment: Alignment.centerRight,
                                       child: Text('지금 하기 ›',
                                           maxLines: 1,
@@ -306,7 +306,7 @@ class _RoutinePanel extends StatelessWidget {
                   ),
           ),
           const SizedBox(height: 8),
-          const KioskText(
+          KioskText(
             '새 루틴은 휴대폰 앱에서 만들어요',
             style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
           ),
@@ -360,7 +360,7 @@ class _PressConfirm extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 60),
                           foregroundColor: Colors.white,
-                          side: const BorderSide(color: KioskColors.border),
+                          side: BorderSide(color: KioskColors.border),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
@@ -441,7 +441,7 @@ class _NotReadyNotice extends StatelessWidget {
                   const SizedBox(height: 4),
                   KioskText(
                     appliance.readinessReasons.join(' · '),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: KioskType.caption,
                       color: KioskColors.muted,
                     ),

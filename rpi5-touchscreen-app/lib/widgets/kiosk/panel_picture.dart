@@ -116,7 +116,7 @@ class KioskPanelPicture extends StatelessWidget {
         ),
         padding: const EdgeInsets.all(KioskSpace.xs),
         child: !_drawable(a)
-            ? const Center(
+            ? Center(
                 child: Text(
                   '버튼판 그림이 없어요',
                   style: TextStyle(
@@ -139,7 +139,7 @@ class KioskPanelPicture extends StatelessWidget {
                             // 큰 글씨에서 두 줄로는 잘렸다(2026-10-16 골든) — 세 줄까지.
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: KioskType.caption,
                                 color: KioskColors.muted),
                           ),
@@ -158,11 +158,11 @@ class KioskPanelPicture extends StatelessWidget {
         child: current == null
             ? KioskText(caption,
                 textKey: captionKey,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted))
             // '작은 팔 위치 취소'는 표 머리처럼 읽혔다(평가 4차 10/18) — 한 문장으로 '작은 팔이 [취소] 위에 있어요'.
             : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Text('작은 팔이',
+                Text('작은 팔이',
                     maxLines: 1,
                     softWrap: false,
                     style: TextStyle(
@@ -182,7 +182,7 @@ class KioskPanelPicture extends StatelessWidget {
                                     : KioskColors.running,
                             fontWeight: FontWeight.w800))),
                 const SizedBox(width: KioskSpace.xs),
-                const Text('위에 있어요',
+                Text('위에 있어요',
                     maxLines: 1,
                     softWrap: false,
                     style: TextStyle(
@@ -296,7 +296,7 @@ class _Badge extends StatelessWidget {
             ? Icon(icon, size: KioskType.caption, color: KioskColors.onAccent)
             : Text(text!,
                 textScaler: TextScaler.noScaling,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: KioskType.caption,
                     height: 1,
                     fontWeight: FontWeight.w800,

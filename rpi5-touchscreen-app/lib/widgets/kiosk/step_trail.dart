@@ -58,7 +58,7 @@ class KioskStepTrail extends StatelessWidget {
             Text(t,
                 maxLines: 1,
                 softWrap: false,
-                style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+                style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
             const SizedBox(height: KioskSpace.xs),
           ],
           LayoutBuilder(builder: (context, box) {
@@ -106,12 +106,12 @@ class _Cell extends StatelessWidget {
       KioskStepState.done => (
           KioskColors.neutralFill,
           KioskColors.neutralFill,
-          const Icon(Icons.check, size: 30, color: KioskColors.onAccent)
+          Icon(Icons.check, size: 30, color: KioskColors.onAccent)
         ),
       KioskStepState.unknown => (
           Colors.transparent,
           KioskColors.warning,
-          const Icon(Icons.question_mark, size: 28, color: KioskColors.warning)
+          Icon(Icons.question_mark, size: 28, color: KioskColors.warning)
         ),
       KioskStepState.current => (currentColor, currentColor, _num(index, KioskColors.onAccent)),
       KioskStepState.todo => (Colors.transparent, KioskColors.muted, _num(index, KioskColors.muted)),

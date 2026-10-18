@@ -207,7 +207,7 @@ class KioskHoldView extends StatelessWidget {
                 captionKey: const ValueKey('hold-estop-panel-caption'),
               ),
         band: _band,
-        header: const KioskStatusHeader(
+        header: KioskStatusHeader(
             icon: Icons.pan_tool_outlined,
             title: '작은 팔을 쓸 수 없어요',
             iconColor: KioskColors.danger),
@@ -225,7 +225,7 @@ class KioskHoldView extends StatelessWidget {
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
             // 회색 정지 단추가 왜 안 눌리는지(UI 평가 4차 10/17).
-            const KioskText('비상 버튼을 풀면 정지 버튼을 다시 쓸 수 있어요',
+            KioskText('비상 버튼을 풀면 정지 버튼을 다시 쓸 수 있어요',
                 textKey: ValueKey('hold-estop-stop-note'),
                 style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
           ],
@@ -349,7 +349,7 @@ class KioskHoldView extends StatelessWidget {
                 ],
                 // 연습에는 끝날 가전이 없다 — '끝나는 시간은 몰라요'를 두지 않는다(평가 4차 10/18).
                 if (waiting && !_mock) ...[
-                  const KioskText('끝나는 시간은 몰라요',
+                  KioskText('끝나는 시간은 몰라요',
                       style: TextStyle(
                           fontSize: KioskType.body,
                           height: 1.25,

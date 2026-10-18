@@ -180,6 +180,60 @@ class KioskDoneView extends StatelessWidget {
     );
   }
 
+  /// 실제 LG 가전에 보낸 결과를 확인하지 못했나(성공으로 왔지만 상태를 못 본 것 포함). 연습은 아니다.
+  bool get _thinqUnconfirmed {
+    if (executionMode == 'mock' || route != 'thinq') return false;
+    // LG 가전 결과 창이면 그 창의 판정(확인한 실제 성공만 초록)을 따른다.
+    if (thinqCopy case final copy?) return copy.tone == ThinqResultTone.attention;
+    // 그 밖은 이 화면의 큰 글자와 같은 기준 — 상태를 본 근거가 없으면 '됐는지 몰라요'.
+    if (success) return !_thinqStateSeen;
+    return reason?.isUnconfirmed ?? false;
+  }
+
+  bool get _thinqStateSeen => const {
+        'state_confirmed',
+        'state_confirmed_unknown_before',
+        'already_at_target'
+      }.contains(resultConfirmation);
+
+  /// 작은 팔로 눌렀는데 눌렸는지 모르나(실제 실행). 사용자 정지·작은 팔 걸림(원인을 아는 정지)·본체 끊김은 아니다.
+  bool get _pressUnknown {
+    if (executionMode == 'mock' || route == 'thinq') return false;
+    if (success) return executionMode == 'real' && resultConfirmation == 'none';
+    final r = reason ?? KioskFailureReason.execution;
+    return r == KioskFailureReason.execution ||
+        (r == KioskFailureReason.safetyStop && motionAbortSentence(abortReason) == null);
+  }
+
+  /// '확인 못 함' 결과의 순서 안내(사용자 결정 10/18) — LG 가전 확인 못 함·작은 팔 눌렸는지 모름. 그 밖은 null.
+  /// 자동으로 다시 하지 않는다 — '한 번 더 하기'는 종전 정책 그대로다.
+  List<String>? get recoverySteps => _thinqUnconfirmed
+      ? kThinqRecoverySteps
+      : _pressUnknown
+          ? kPressRecoverySteps
+          : null;
+
+  /// 결과 화면을 닫은 뒤 처음 화면에 남길 큰 글자(사용자 결정 10/18) — 실패·'확인 못 함'만. 성공·연습·확인한 정지·
+  /// 정지 보고를 기다리는 중이면 null. 글은 이 화면의 큰 글자와 같다.
+  String? get pastHeadline {
+    if (executionMode == 'mock') return null;
+    if (thinqCopy case final copy?) {
+      return copy.tone == ThinqResultTone.attention ? copy.headline : null;
+    }
+    if (success) {
+      if (_thinqUnconfirmed) return '됐는지 몰라요'; // 이 화면의 LG 가전 성공 큰 글자와 같은 말
+      if (_pressUnknown) return '눌렸는지 몰라요';
+      return null;
+    }
+    final r = reason ?? KioskFailureReason.execution;
+    if (r == KioskFailureReason.stopped) {
+      if (stopPending) return null;
+      return stopLevelConfirmed(stopLevel) ? null : stopLevelHeadline(stopLevel);
+    }
+    final motion = r == KioskFailureReason.safetyStop ? motionAbortSentence(abortReason) : null;
+    return motion ?? r.headline;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (thinqCopy case final copy?) {
@@ -189,7 +243,8 @@ class KioskDoneView extends StatelessWidget {
           success: success,
           held: autoReturnHeld,
           onHold: onHold,
-          onClose: onDismiss);
+          onClose: onDismiss,
+          steps: recoverySteps);
     }
     // 큰 글자(§1-8): 결과 원을 줄이고, 보조 단추(다시 시도·화면으로 조작하기)는 할 일 문장 아래 같은 세로 흐름으로
     // 옮긴다 — 가로 단추 줄이 두 줄로 접혀 할 일 줄을 스크롤 아래로 밀었다(2026-10-16 골든). '처음 화면으로'는 아래 고정.
@@ -205,6 +260,7 @@ class KioskDoneView extends StatelessWidget {
     final side = pressedMap != null;
     final ta = side ? TextAlign.start : TextAlign.center;
     final r = reason ?? KioskFailureReason.execution;
+    final steps = recoverySteps;
     // 사용자가 멈춘 것은 실패가 아니다 — 빨간 X가 아니라 정지 단계만큼의 표시(2026-10-14, 10-15).
     final userStop = !success && r == KioskFailureReason.stopped;
     // 정지 확인 보고를 기다리는 중 — 끝난 결과가 아니다(평가 8차 10/18).
@@ -394,6 +450,7 @@ class KioskDoneView extends StatelessWidget {
         ],
         ...facts,
         if (operationSentence != null) operationSentence,
+        if (steps != null) recoveryStepsSpoken(steps),
         if (runSteps.length > 1)
           for (var i = 0; i < runSteps.length; i++)
             '${_stepTitle(i, runSteps[i])}. ${runStepFacts(runSteps[i])}',
@@ -405,7 +462,8 @@ class KioskDoneView extends StatelessWidget {
         children: [
           // 큰 글씨에서는 결과 원을 뺀다 — 위 상태 띠가 같은 아이콘·색으로 말하고, 남기면 이름 줄이 스크롤 아래로
           // 밀렸다(UI 평가 5차 10/17).
-          if (!large && !side) _ResultRing(
+          // 순서 안내가 있으면 원을 뺀다(사용자 결정 10/18) — 위 띠가 같은 아이콘·색으로 말하고, 안내 세 줄이 단추 위에 다 보이게.
+          if (!large && !side && steps == null) _ResultRing(
             icon: verifiedSuccess
                 ? Icons.check
                 : pressCompleted
@@ -427,7 +485,7 @@ class KioskDoneView extends StatelessWidget {
             color: color,
             size: KioskSizes.resultIcon,
           ),
-          if (!large && !side) const SizedBox(height: 12),
+          if (!large && !side && steps == null) const SizedBox(height: 12),
           // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
           // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 누르기**다.
           // 제목은 2줄까지 자연스럽게 넘어간다(폭은 [KioskSizes.resultMaxWidth], 2026-10-16 §1-7).
@@ -478,6 +536,8 @@ class KioskDoneView extends StatelessWidget {
                 detail: !success && showLabel ? label : null,
                 textKey: const ValueKey('done-target')),
           ],
+          // '확인 못 함'이면 순서 안내 2~3단계(사용자 결정 10/18). 자동 재시도 단추는 두지 않는다.
+          if (steps != null) KioskRecoverySteps(steps: steps, center: !side),
           // 경로(ThinQ)와 확인 수준. 서버가 준 값만 말한다(물리 경로는 배지 없음).
           if (facts.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -510,7 +570,7 @@ class KioskDoneView extends StatelessWidget {
               KioskText(
                 thinqLine,
                 textAlign: ta,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted),
               ),
           ] else ...[
@@ -533,7 +593,7 @@ class KioskDoneView extends StatelessWidget {
               KioskText(
                 d,
                 textAlign: ta,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: KioskType.caption, color: KioskColors.muted),
               ),
             ],
@@ -631,7 +691,7 @@ class KioskDoneView extends StatelessWidget {
             child: Center(
               child: pending
                   // 처음 화면·보조 단추 없이 기다림 표시만(평가 8차 10/18) — 정지 확인 보고는 몇 초 안에 오거나 끊긴다.
-                  ? const SizedBox(
+                  ? SizedBox(
                       key: ValueKey('done-pending'),
                       height: KioskSizes.primaryButton,
                       child: Center(
@@ -697,7 +757,7 @@ class _RunSteps extends StatelessWidget {
                       KioskText(
                         runStepFacts(steps[i]),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: KioskType.caption,
                             color: KioskColors.muted),
                       ),
@@ -763,7 +823,7 @@ class _OperationLine extends StatelessWidget {
             KioskText(
               caption,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: KioskType.caption, color: KioskColors.muted),
             ),
           ],
@@ -878,7 +938,11 @@ class _ThinqResult extends StatelessWidget {
     required this.held,
     required this.onHold,
     required this.onClose,
+    this.steps,
   });
+
+  /// '확인 못 함'이면 순서 안내(사용자 결정 10/18). 없으면 null.
+  final List<String>? steps;
 
   final ThinqResultCopy copy;
   final ApplianceMap? target;
@@ -907,7 +971,7 @@ class _ThinqResult extends StatelessWidget {
     // (평가 14차 10/18: 띠 '됐어요' + 테두리 상자 + 큰 체크 원은 같은 뜻을 세 번 장식했다). 뜻은 띠의 아이콘·색과 글자가 말한다.
     final content = Semantics(
       liveRegion: true,
-      label: [if (showName) name, copy.spoken].join('. '),
+      label: [if (showName) name, copy.spoken, if (steps != null) recoveryStepsSpoken(steps!)].join('. '),
       excludeSemantics: true,
       child: Column(
         key: const ValueKey('thinq-result'),
@@ -932,6 +996,7 @@ class _ThinqResult extends StatelessWidget {
             const SizedBox(height: 10),
             KioskTargetLine(appliance: target!, textKey: const ValueKey('thinq-result-name')),
           ],
+          if (steps != null) KioskRecoverySteps(steps: steps!),
         ],
       ),
     );
@@ -966,7 +1031,7 @@ class _ThinqResult extends StatelessWidget {
                 children: [
                   if (success)
                     held
-                        ? const Text('자동으로 닫지 않아요',
+                        ? Text('자동으로 닫지 않아요',
                             style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted))
                         : const _AutoReturn(),
                   // 나가는 단추는 다른 결과 화면과 같은 '⌂ 처음 화면으로'(평가 11차 10/18 — 여기만 '× 닫기'였다).
@@ -1027,7 +1092,7 @@ class _AutoReturn extends StatelessWidget {
               '${seconds.ceil()}초 뒤 처음 화면으로 돌아가요',
               maxLines: 1,
               softWrap: false,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: KioskType.caption, color: KioskColors.muted),
             ),
           ),
@@ -1071,7 +1136,7 @@ class _SuccessActions extends StatelessWidget {
         runSpacing: KioskSpace.xs,
         children: [
           held
-              ? const Text('자동으로 닫지 않아요',
+              ? Text('자동으로 닫지 않아요',
                   style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted))
               : const _AutoReturn(),
           if (onDismiss != null) _homeButton(onDismiss!),
@@ -1179,7 +1244,7 @@ class _FailureActions extends StatelessWidget {
       style: OutlinedButton.styleFrom(
           minimumSize: const Size(0, 48),
           foregroundColor: Colors.white,
-          side: const BorderSide(color: KioskColors.muted, width: 1.5),
+          side: BorderSide(color: KioskColors.muted, width: 1.5),
           padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius))),
     );
@@ -1201,7 +1266,7 @@ class _FailureActions extends StatelessWidget {
                 key: const ValueKey('done-retry-hint'),
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.info_outline, size: KioskType.caption + 3, color: KioskColors.warning),
+                  Icon(Icons.info_outline, size: KioskType.caption + 3, color: KioskColors.warning),
                   const SizedBox(width: 6),
                   Text(kRetryOnlyIfNot,
                       maxLines: 1,
@@ -1226,3 +1291,82 @@ const kRetryOnlyIfNot = '가전을 보고 안 됐을 때만 다시 하세요';
 
 
 
+
+/// LG 가전에 보냈지만 확인하지 못했을 때의 순서 안내(사용자 결정 10/18) — 짧은 말, 하나씩 해 볼 순서.
+const kThinqRecoverySteps = [
+  '가전 전원과 와이파이를 봐 주세요',
+  '휴대폰 앱에서 지금 상태를 봐 주세요',
+  '그래도 모르겠으면 가전을 직접 봐 주세요',
+];
+
+/// 작은 팔이 눌렀는지 모를 때의 순서 안내(사용자 결정 10/18). 바뀌지 않았을 때만 손으로 누르게 한다 — 이미 눌렸으면 한 번 더
+/// 눌려 꺼질 수 있다(열린 문제 R1과 같은 이유).
+const kPressRecoverySteps = [
+  '가전 화면이나 불빛이 바뀌었는지 봐 주세요',
+  '작은 팔이 버튼 앞에 있는지 봐 주세요',
+  '안 바뀌었으면 가전 버튼을 손으로 눌러 주세요',
+];
+
+/// 화면 읽기·음성용 한 문장 — '첫째, …. 둘째, …'.
+String recoveryStepsSpoken(List<String> steps) {
+  const order = ['첫째', '둘째', '셋째', '넷째'];
+  return [
+    for (var i = 0; i < steps.length; i++) '${i < order.length ? order[i] : '${i + 1}'}, ${steps[i]}',
+  ].join('. ');
+}
+
+/// 순서 안내 — 동그라미 숫자 + 짧은 한 줄씩(본문 크기, 흰 글자). 결과 화면의 큰 글자·할 일 한 줄 아래에 둔다.
+class KioskRecoverySteps extends StatelessWidget {
+  const KioskRecoverySteps({super.key, required this.steps, this.center = false});
+
+  final List<String> steps;
+
+  /// 가운데 정렬 결과 화면(누른 자리 그림이 없을 때)이면 묶음째 가운데에 둔다. 줄 안 글은 늘 왼쪽 정렬.
+  final bool center;
+
+  @override
+  Widget build(BuildContext context) {
+    final list = Column(
+      key: const ValueKey('done-recovery-steps'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < steps.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(top: KioskSpace.xs),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: KioskColors.muted, width: 1.5),
+                  ),
+                  child: Text('${i + 1}',
+                      textScaler: TextScaler.noScaling,
+                      style: const TextStyle(
+                          fontSize: KioskType.caption, height: 1, fontWeight: FontWeight.w700, color: Colors.white)),
+                ),
+                const SizedBox(width: KioskSpace.sm),
+                Flexible(
+                  child: KioskText(
+                    steps[i],
+                    textKey: ValueKey('done-recovery-step-$i'),
+                    style: const TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: KioskSpace.sm),
+      child: ExcludeSemantics(child: center ? Center(child: list) : list),
+    );
+  }
+}

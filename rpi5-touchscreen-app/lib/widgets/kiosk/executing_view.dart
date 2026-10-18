@@ -219,7 +219,7 @@ class KioskExecutingView extends StatelessWidget {
               SizedBox(
                 width: large ? 64 : 96,
                 height: large ? 64 : 96,
-                child: const CircularProgressIndicator(strokeWidth: 8, color: KioskColors.running),
+                child: CircularProgressIndicator(strokeWidth: 8, color: KioskColors.running),
               ),
               SizedBox(height: large ? KioskSpace.sm : KioskSpace.lg),
               KioskText(
@@ -233,7 +233,7 @@ class KioskExecutingView extends StatelessWidget {
               KioskText(
                 sub,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: KioskType.body, height: 1.3, color: KioskColors.muted),
+                style: TextStyle(fontSize: KioskType.body, height: 1.3, color: KioskColors.muted),
               ),
             ],
           ),
@@ -302,7 +302,7 @@ class KioskExecutingView extends StatelessWidget {
             ),
       // 다 누른 뒤 결과 화면으로 넘어가기 전 잠깐(0.9초)은 상태를 새로 지어내지 않고 목록 제목만 둔다.
       header: isDone
-          ? const KioskStatusHeader(
+          ? KioskStatusHeader(
               icon: Icons.checklist,
               title: '누른 버튼',
               iconColor: KioskColors.muted)
@@ -374,14 +374,14 @@ class _NowBlock extends StatelessWidget {
           if (total != null && total > 0) ...[
             KioskText(view.progressLine(total, done),
                 textKey: const ValueKey('execution-step'),
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: KioskType.body,
                     color: KioskColors.muted,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
           ] else if (view.completedSteps != null) ...[
             KioskText('버튼 $done개를 눌렀어요',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted)),
             const SizedBox(height: 4),
           ],
@@ -390,7 +390,7 @@ class _NowBlock extends StatelessWidget {
             Text.rich(
               TextSpan(children: [
                 TextSpan(text: view.currentButton),
-                const TextSpan(
+                TextSpan(
                     text: ' 버튼',
                     style: TextStyle(
                         fontSize: KioskType.status,

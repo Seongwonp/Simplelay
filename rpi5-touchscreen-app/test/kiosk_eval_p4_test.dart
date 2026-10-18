@@ -195,9 +195,9 @@ void main() {
           isNot('지금 못 써요'));
     });
 
-    testWidgets('비상 버튼이 없으면 그대로 모두 정상', (tester) async {
+    testWidgets('비상 버튼이 없고 연결이 괜찮으면 칩이 없다(사용자 결정 10/18)', (tester) async {
       await _pump(tester, _idle());
-      expect(find.text('기기 모두 정상'), findsOneWidget);
+      expect(find.byKey(const ValueKey('idle-status-chip')), findsNothing);
       expect(find.text('지금 못 써요'), findsNothing);
     });
   });

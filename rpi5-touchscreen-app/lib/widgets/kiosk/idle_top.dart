@@ -10,7 +10,8 @@ import 'kiosk_text.dart';
 /// 평소 화면 위쪽(화면 구조 개편 10/18) — 아이콘 4~5개(쉬기·설정·와이파이·작은 팔·콘센트) 대신
 /// **상태 칩 하나**와 **메뉴** 하나.
 ///
-/// - 상태 칩: 모두 괜찮으면 '기기 모두 정상'(중립), 문제가 있을 때만 앰버로 무엇이 문제인지('작은 팔 연결이 끊겼어요').
+/// - 상태 칩: 모두 괜찮으면 **두지 않는다**(사용자 결정 10/18 — 예전 '기기 모두 정상'). 문제가 있을 때만 앰버 '확인 필요 N',
+///   본체에 닿지 않으면 '본체와 연결이 끊겼어요'. 아직 확인하지 못했으면 '연결을 확인하고 있어요'(정상이라고 하지 않는다).
 ///   비상 버튼 띠가 떠 있으면 연결 문제가 있을 때만 보인다(평가 14차 10/18).
 ///   문제가 하나면 누르면 그 연결 창이 바로 열리고, 그 밖에는 연결 목록 창이 열린다(항목을 누르면 그 연결 창).
 /// - 메뉴: 화면 가운데 큰 창에 '잠시 쉬기'·'설정' — 설정은 구석에 두지 않는다(누르는 자리 48 이상).
@@ -57,7 +58,8 @@ bool _isHubDown(ConnectionItem i) =>
 ///
 /// 비상 버튼이 걸려 있으면([estopTitle], 위 빨간 띠 제목) 연결이 다 괜찮아도 '모두 정상'이 아니다 — 띠와 같은 말을
 /// 칩에도 쓴다(평가 4차 10/18: 빨간 띠 아래 칩이 '모두 정상'이라 서로 다른 말을 했다).
-(String, bool, ConnectionItem?) connectionSummary(List<ConnectionItem> items, {String? estopTitle}) {
+/// 글이 null이면 칩을 두지 않는다(모두 괜찮음, 사용자 결정 10/18).
+(String?, bool, ConnectionItem?) connectionSummary(List<ConnectionItem> items, {String? estopTitle}) {
   if (estopTitle != null) return (estopTitle, true, null);
   final shown = _shown(items);
   // 본체에 닿지 않으면 그 말 하나(나머지는 본체 너머라 볼 수 없다).
@@ -65,26 +67,30 @@ bool _isHubDown(ConnectionItem i) =>
     return ('본체와 연결이 끊겼어요', true, hub);
   }
   final problems = shown.where((i) => i.needsAttention).toList();
-  if (problems.length == 1) {
-    final p = problems.single;
-    // 명사형('연결 끊김') 대신 쉬운 서술(평가 3차 10/18).
-    final name = connectionShortName(p.id);
-    final text = p.state == 'error'
-        ? '$name 연결이 끊겼어요'
-        : '$name${p.id == 'press' ? '을' : '를'} 봐 주세요';
-    return (text, true, p);
+  // 문제가 있으면 '확인 필요 N'(사용자 결정 10/18) — 무엇이 왜인지는 누르면 보인다(하나면 그 연결 창, 여럿이면 연결 목록).
+  if (problems.isNotEmpty) {
+    return (kNeedsCheck(problems.length), true, problems.length == 1 ? problems.single : null);
   }
-  if (problems.length > 1) return ('연결 ${problems.length}곳을 봐 주세요', true, null);
-  // 볼 수 없음(unreachable — 첫 응답 전)도 정상이 아니다 — 모름과 같이 말한다(평가 7차 10/18).
+  // 볼 수 없음(unreachable — 첫 응답 전)도 정상이 아니다 — 모름과 같이 말한다(평가 7차 10/18). 숨기지 않는다:
+  // 확인 못 한 것이 있는데 칩이 사라지면 '다 괜찮다'로 읽힌다.
   if (shown.any((i) => i.state == 'unknown' || i.state == 'unreachable')) {
-    return ('연결을 확인하고 있어요', false, null);
+    return (kCheckingConnections, false, null);
   }
-  return (kAllDevicesOk, false, null);
+  // 모두 괜찮으면 칩을 두지 않는다(사용자 결정 10/18 — 체크·'기기 모두 정상'도 없다). 글이 null이면 숨긴다.
+  return (null, false, null);
 }
 
-/// 연결이 다 괜찮을 때 칩 말 — 무엇이 정상인지(기기 연결) 드러나게(평가 14차 10/18: '모두 정상' 옆에 '공기 나빠요'가
-/// 있으면 집이 다 괜찮다는 말로 엇갈려 읽혔다).
-const kAllDevicesOk = '기기 모두 정상';
+/// 문제 칩 글 — '확인 필요 2'(사용자 결정 10/18).
+String kNeedsCheck(int n) => '확인 필요 $n';
+
+/// 아직 연결을 다 보지 못했을 때 칩 글(정상이라고 하지 않는다).
+const kCheckingConnections = '연결을 확인하고 있어요';
+
+/// 연결 하나의 문제를 쉬운 서술로(평가 3차 10/18 — 명사형 '연결 끊김' 대신). 칩을 읽는 화면 읽기 말에 쓴다.
+String connectionProblemText(ConnectionItem p) {
+  final name = connectionShortName(p.id);
+  return p.state == 'error' ? '$name 연결이 끊겼어요' : '$name${p.id == 'press' ? '을' : '를'} 봐 주세요';
+}
 
 /// 연결 문제 칩 아래 다음 행동 한 줄(평가 7차 10/18).
 const kProblemHelp = '눌러서 해결 방법 보기';
@@ -105,14 +111,24 @@ class KioskIdleStatusChip extends StatelessWidget {
       final (_, problem, _) = connectionSummary(items);
       if (!problem) return const SizedBox.shrink();
     }
-    final (text, problem, _) = connectionSummary(items);
-    final unknown = !problem && text != kAllDevicesOk;
+    final (summary, problem, _) = connectionSummary(items);
+    // 모두 괜찮으면 칩이 없다(사용자 결정 10/18). 메뉴 단추는 그대로 같은 자리.
+    if (summary == null) return const SizedBox.shrink();
+    final text = summary;
+    final unknown = !problem;
     // 연결 문제는 앰버.
-    const tone = KioskColors.warning;
+    final tone = KioskColors.warning;
     final color = problem ? tone : KioskColors.muted;
+    // 화면 읽기는 무엇이 문제인지까지 읽는다('확인 필요 1. 작은 팔 연결이 끊겼어요').
+    final what = [
+      for (final i in _shown(items))
+        if (i.needsAttention && !_isHubDown(i)) connectionProblemText(i),
+    ];
     return Semantics(
       button: true,
-      label: problem ? '$text. $kProblemHelp' : '$text. 연결 자세히 보기',
+      label: problem
+          ? [text, ...what, kProblemHelp].join('. ')
+          : '$text. 연결 자세히 보기',
       excludeSemantics: true,
       child: Material(
         key: const ValueKey('idle-status-chip'),
@@ -135,14 +151,7 @@ class KioskIdleStatusChip extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                      problem
-                          ? Icons.error_outline
-                          : unknown
-                              ? Icons.help_outline
-                              : Icons.check_circle_outline,
-                      size: 24,
-                      color: color),
+                  Icon(unknown ? Icons.help_outline : Icons.error_outline, size: 24, color: color),
                   ...[
                     const SizedBox(width: KioskSpace.xs),
                     // 문제가 있으면 바로 아래 다음 행동 한 줄(평가 7차 10/18 — '작은 팔 연결이 끊겼어요'만 있고 할 일이 없었다).
@@ -164,7 +173,7 @@ class KioskIdleStatusChip extends StatelessWidget {
                             key: const ValueKey('idle-problem-help'),
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text(kProblemHelp,
+                              Text(kProblemHelp,
                                   maxLines: 1,
                                   softWrap: false,
                                   style: TextStyle(
@@ -202,7 +211,7 @@ class KioskIdleMenuButton extends StatelessWidget {
           key: const ValueKey('idle-menu'),
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          child: const SizedBox(
+          child: SizedBox(
             width: 64,
             height: 64,
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -345,7 +354,7 @@ class KioskSheetRow extends StatelessWidget {
                             KioskText(sub!,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: KioskType.caption,
                                     color: KioskColors.muted)),
                         ],
@@ -358,9 +367,9 @@ class KioskSheetRow extends StatelessWidget {
                         height: 24,
                         alignment: Alignment.center,
                         margin: const EdgeInsets.only(right: KioskSpace.xs),
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                             color: KioskColors.warning, shape: BoxShape.circle),
-                        child: const Text('!',
+                        child: Text('!',
                             textScaler: TextScaler.noScaling,
                             style: TextStyle(
                                 fontSize: KioskType.caption,
@@ -368,7 +377,7 @@ class KioskSheetRow extends StatelessWidget {
                                 fontWeight: FontWeight.w800,
                                 color: KioskColors.onAccent)),
                       ),
-                    const Icon(Icons.chevron_right, size: 28, color: KioskColors.muted),
+                    Icon(Icons.chevron_right, size: 28, color: KioskColors.muted),
                   ]),
                 ),
               ),

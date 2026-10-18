@@ -32,6 +32,7 @@ import '../widgets/kiosk/kiosk_canvas.dart';
 import '../widgets/kiosk/kiosk_phase.dart';
 import '../widgets/kiosk/kiosk_timings.dart';
 import '../widgets/kiosk/manual_view.dart';
+import '../widgets/kiosk/past_result_line.dart';
 import '../widgets/kiosk/suggestion_view.dart';
 import '../widgets/kiosk/settings_overlay.dart';
 import '../widgets/kiosk/top_progress_bar.dart';
@@ -55,6 +56,9 @@ const _doneReturnDuration = KioskTimings.doneReturn;
 // 실행 중 /status가 이 시간 동안 한 번도 응답하지 않으면 서버 유실로 판정 —
 // "실행 중" 화면에 영원히 갇히는 대신 실패 화면으로 탈출한다.
 const _statusLostTimeout = Duration(seconds: 30);
+
+/// 조용한 시간에 화면을 만지면 이만큼 평소 밝기로 둔다(사용자 결정 10/18 — 예: 30초).
+const kQuietWakeDuration = Duration(seconds: 30);
 
 class KioskScreen extends StatefulWidget {
   const KioskScreen({
@@ -96,6 +100,19 @@ class _KioskScreenState extends State<KioskScreen> {
       widget.events ?? KioskEventStream();
   // 큰 글씨 모드 — settings 주입 시 파일에 영속화, 아니면 세션 한정
   bool _largeText = false;
+
+  /// 고대비(사용자 결정 10/18) — 큰 글씨와 같은 파일에 저장. 색 토큰([KioskColors])을 바꾸고 화면 전체를 다시 그린다.
+  bool _highContrast = false;
+
+  /// 조용한 시간에 화면을 만져 잠시 평소 밝기다([kQuietWakeDuration] 뒤 다시 어둡게).
+  bool _quietAwake = false;
+  Timer? _quietWakeTimer;
+
+  /// 처음 화면 '지난 일' 한 줄(사용자 결정 10/18) — 실패·'확인 못 함' 결과. '확인'을 누를 때까지 남는다(키오스크 안 기억).
+  KioskPastResult? _pastResult;
+
+  /// 결과 화면이 뜬 시각 — 지난 일 한 줄의 시각.
+  DateTime _doneAt = DateTime.now();
 
   late ApplianceMap _currentAppliance;
   // 서버 가전 목록 — 폰에서 등록한 커스텀 가전이 여기로 들어온다.
@@ -295,6 +312,7 @@ class _KioskScreenState extends State<KioskScreen> {
     widget.settings?.save(KioskSettings(
       ttsEnabled: _tts.enabled,
       largeText: _largeText,
+      highContrast: _highContrast,
       applianceId: _currentAppliance.id,
       countdownSeconds: _countdownSeconds,
     ));
@@ -310,6 +328,7 @@ class _KioskScreenState extends State<KioskScreen> {
     if (saved != null) {
       _tts.enabled = saved.ttsEnabled;
       _largeText = saved.largeText;
+      _highContrast = saved.highContrast;
       _countdownSeconds = saved.countdownSeconds;
       var restored = false;
       for (final a in kAppliances) {
@@ -324,6 +343,8 @@ class _KioskScreenState extends State<KioskScreen> {
         _pendingRestoreApplianceId = saved.applianceId;
       }
     }
+    // 고대비는 저장값으로(없으면 평소 색). 색 토큰은 앱 전체가 함께 쓰는 값이다.
+    KioskColors.setHighContrast(_highContrast);
     _checkHealth();
     _fetchSensors();
     _fetchAppliances();
@@ -370,6 +391,9 @@ class _KioskScreenState extends State<KioskScreen> {
 
   @override
   void dispose() {
+    _quietWakeTimer?.cancel();
+    // 색 토큰은 정적 값이다 — 이 화면이 사라지면 평소 색으로 돌린다(다음 화면·시험이 고대비를 물려받지 않게).
+    KioskColors.setHighContrast(false);
     _doneReturnTimer?.cancel();
     _nextRunNoticeTimer?.cancel();
     _holdReturnTimer?.cancel();
@@ -1109,7 +1133,56 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
+  /// 결과 화면을 떠나는 순간 — 실패·'확인 못 함'이면 처음 화면 '지난 일' 한 줄로 남긴다(사용자 결정 10/18). 성공은 남기지 않는다.
+  /// 결과 화면이 보이는 동안의 최종 글(정지 보고를 받은 뒤의 말)을 쓴다. 새 지난 일은 이전 것을 바꾼다.
+  void _rememberPastResult() {
+    if (_phase != KioskPhase.done) return;
+    final view = _doneView();
+    final headline = view.pastHeadline;
+    if (headline == null) return;
+    final name = actionName(_doneLabel);
+    final label = name.isNotEmpty ? name : (view.target?.name ?? '');
+    _pastResult = KioskPastResult(at: _doneAt, label: label, headline: headline);
+  }
+
+  /// 조용한 시간에 화면을 만졌다 — 잠시 평소 밝기로(사용자 결정 10/18). 만질 때마다 다시 센다.
+  void _noteIdleTouch() {
+    if (!_health.quietActive) return;
+    _quietWakeTimer?.cancel();
+    _quietWakeTimer = Timer(kQuietWakeDuration, () {
+      if (mounted) setState(() => _quietAwake = false);
+    });
+    if (!_quietAwake) setState(() => _quietAwake = true);
+  }
+
+  /// 처음 화면을 어둡게 할까(사용자 결정 10/18) — 조용한 시간(서버 quiet.active) 동안 처음 화면에서만. 실행·정지 대기·결과·
+  /// 제안·비상 화면은 어둡게 하지 않는다(안전): 처음 화면이 아니면, 비상 버튼 띠·위험 신호음 창이 떠 있으면, 설정·잠시 쉬기·
+  /// 연결 창이 열려 있으면, 만진 뒤 [kQuietWakeDuration] 동안은 밝게 둔다.
+  bool get _quietDim =>
+      _phase == KioskPhase.idle &&
+      _health.quietActive &&
+      !_quietAwake &&
+      !_showEstop &&
+      !_alert.active &&
+      !_showSettings &&
+      !_showDnd &&
+      _openConnectionId == null;
+
+  /// 고대비를 켜고 끈다 — 색 토큰을 바꾸고 화면을 통째로 다시 그린다(같은 위젯 인스턴스도 새 색을 읽게).
+  void _setHighContrast(bool on) {
+    setState(() => _highContrast = on);
+    KioskColors.setHighContrast(on);
+    void rebuild(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(rebuild);
+    }
+
+    (context as Element).visitChildren(rebuild);
+    _persistSettings();
+  }
+
   void _toIdle() {
+    _rememberPastResult();
     _holdReturnTimer?.cancel();
     _holdReturnTimer = null;
     _countdownTimer?.cancel();
@@ -1242,6 +1315,7 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 실패 화면의 '화면으로 조작하기' — 자동 실행을 포기하고 사람이 직접 고르는
   /// 화면으로 보낸다. _toManual은 idle에서만 동작하므로 phase를 먼저 되돌린다.
   void _onManualFromFailure() {
+    _rememberPastResult();
     _countdownTimer?.cancel();
     setState(() {
       _phase = KioskPhase.manual;
@@ -1310,6 +1384,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   void _toExecuting(String title,
       {String? applianceId, String? jobId, bool thinqOnly = false, String? thinqActionText}) {
+    _rememberPastResult();
     _execThinqOnly = thinqOnly;
     _execThinqActionText = thinqOnly ? thinqActionText : null;
     _executionMode = 'unknown';
@@ -1419,6 +1494,7 @@ class _KioskScreenState extends State<KioskScreen> {
     );
     _doneReturnTimer?.cancel();
     _doneReturnTimer = null;
+    _doneAt = DateTime.now();
     setState(() {
       _phase = KioskPhase.done;
       _doneSuccess = success;
@@ -1596,11 +1672,28 @@ class _KioskScreenState extends State<KioskScreen> {
     // 물려받아 크기만 덮어쓰기 때문. 순서를 뒤집으면 캔버스의 크기 지정이
     // 실제 화면 크기로 되돌아간다.
     final media = MediaQuery.of(context);
+    final base = Theme.of(context);
+    // 고대비면 Material 기본 색(스위치 바탕·구분선·대화 창 면)도 검정·흰색 쪽으로(사용자 결정 10/18).
+    final theme = !_highContrast
+        ? base
+        : base.copyWith(
+            scaffoldBackgroundColor: KioskColors.bg,
+            dividerColor: KioskColors.border,
+            colorScheme: base.colorScheme.copyWith(
+              surface: KioskColors.surface,
+              onSurface: Colors.white,
+              onSurfaceVariant: Colors.white,
+              outline: KioskColors.border,
+              outlineVariant: KioskColors.border,
+              primary: KioskColors.primary,
+              onPrimary: KioskColors.onAccent,
+            ),
+          );
     return MediaQuery(
       data: media.copyWith(
         textScaler: TextScaler.linear(_largeText ? 1.22 : 1.0),
       ),
-      child: KioskCanvas(child: _buildScaffold()),
+      child: Theme(data: theme, child: KioskCanvas(child: _buildScaffold())),
     );
   }
 
@@ -1647,13 +1740,7 @@ class _KioskScreenState extends State<KioskScreen> {
                     // 실행·동작 중 화면의 정지 버튼과 실행 상태는 그대로 둔다.
                     Positioned.fill(
                       child: KioskEstopLayout(
-                        banner: _autoNotice != null &&
-                                (_phase == KioskPhase.idle || _phase == KioskPhase.done)
-                            ? KioskAutoRunNotice(
-                                text: _autoNotice!,
-                                onClose: () => setState(() => _autoNotice = null),
-                              )
-                            : null,
+                        banner: _topNotices(),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 250),
                           child: _buildScreen(),
@@ -1695,6 +1782,8 @@ class _KioskScreenState extends State<KioskScreen> {
                             setState(() => _largeText = enabled);
                             _persistSettings();
                           },
+                          highContrastEnabled: _highContrast,
+                          onHighContrastChanged: _setHighContrast,
                           countdownSeconds: _countdownSeconds,
                           onCountdownChanged: (seconds) {
                             setState(() => _countdownSeconds = seconds);
@@ -1717,6 +1806,72 @@ class _KioskScreenState extends State<KioskScreen> {
       ),
     );
   }
+
+  /// 평소·결과 화면 위에 줄을 더하는 알림들 — 자동 실행 결과 한 줄(C2)과 처음 화면의 '지난 일'(사용자 결정 10/18).
+  /// 지난 일은 처음 화면에서만(결과 화면에는 그 결과가 이미 크게 보인다). 둘 다 없으면 null.
+  Widget? _topNotices() {
+    final auto = _autoNotice != null && (_phase == KioskPhase.idle || _phase == KioskPhase.done)
+        ? KioskAutoRunNotice(
+            text: _autoNotice!,
+            onClose: () => setState(() => _autoNotice = null),
+          )
+        : null;
+    final past = _pastResult != null && _phase == KioskPhase.idle
+        ? KioskPastResultLine(
+            result: _pastResult!,
+            onAcknowledge: () => setState(() => _pastResult = null),
+          )
+        : null;
+    if (auto == null || past == null) return auto ?? past;
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [auto, past]);
+  }
+
+  /// 결과 화면 — 화면과 '지난 일' 판정이 같은 값을 쓴다.
+  KioskDoneView _doneView() => KioskDoneView(
+        executionMode: _executionMode,
+        key: const ValueKey('done'),
+        success: _doneSuccess,
+        label: _doneLabel,
+        autoReturnHeld: _doneHeld,
+        onHold: _holdDone,
+        // 이 실행에서 작은 팔이 누른 버튼(실행 화면이 끝날 때 받은 기록) — 버튼판에 누른 칸을 표시한다(10/18).
+        pressed: _lastButtons,
+        target: _execApplianceId == null
+            ? null
+            : _findIn(_appliances, _execApplianceId!),
+        reason: _doneReason,
+        route: _doneRoute,
+        thinqOnly: _execThinqOnly,
+        thinqActionText: _execThinqActionText,
+        confirmation: _doneConfirmation,
+        resultConfirmation: _doneRawConfirmation,
+        detail: _doneDetail,
+        operationConfirmed: _doneOperationConfirmed,
+        operationSource: _doneOperationSource,
+        operationDetail: _doneOperationDetail,
+        runSteps: _doneRunSteps,
+        stopLevel: _doneStopLevel,
+        stopAckMs: _doneStopAckMs,
+        stopPending: _stopPending && _doneStopLevel == null,
+        abortReason: _doneAbortReason,
+        // 다시 보낼 요청이 없으면(폰이 시작한 실행·이어받은 실행·놓친 결과, 2026-10-15 B2) '다시 시도'를
+        // 그리지 않는다 — 예전에는 보였지만 누르면 처음 화면으로만 갔다.
+        // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
+        // 그때는 수동 조작(사람이 직접 고르기)을 앞세운다.
+        // ThinQ 확인 못 함·접수 불명은 다시 보내면 중복 실행이 될 수 있어
+        // '다시 시도'를 내걸지 않는다.
+        // 모션 걸림·재시작 등(2026-10-14)도 권하지 않는다 — 장치를 먼저 봐야 하고 되풀이하면 또 걸린다.
+        onRetry: _retryAction == null ||
+                _doneReason == KioskFailureReason.serverLost ||
+                (_doneReason?.isUnconfirmed ?? false) ||
+                (_doneReason == KioskFailureReason.safetyStop &&
+                    motionAbortSentence(_doneAbortReason) != null)
+            ? null
+            : _onRetryFailed,
+        // ThinQ 명령에는 누를 조작판이 없다.
+        onManual: _doneRoute == 'thinq' ? null : _onManualFromFailure,
+        onDismiss: _toIdle,
+      );
 
   Widget _buildConnectionModal() {
     final id = _openConnectionId;
@@ -1765,6 +1920,8 @@ class _KioskScreenState extends State<KioskScreen> {
           onSettingsGesture: () => setState(() => _showSettings = true),
           // 비상 버튼이 눌려 있을 때 상태 칩·못 쓰는 가전 타일을 누르면 위 띠의 풀기 안내를 연다(평가 4차 10/18).
           onEstopGuide: () => setState(() => _estopConfirming = true),
+          quietDim: _quietDim,
+          onTouch: _noteIdleTouch,
         );
       case KioskPhase.hold:
         final st = _hold!;
@@ -1864,51 +2021,7 @@ class _KioskScreenState extends State<KioskScreen> {
           thinqActionText: _execThinqActionText,
         );
       case KioskPhase.done:
-        return KioskDoneView(
-          executionMode: _executionMode,
-          key: const ValueKey('done'),
-          success: _doneSuccess,
-          label: _doneLabel,
-          autoReturnHeld: _doneHeld,
-          onHold: _holdDone,
-          // 이 실행에서 작은 팔이 누른 버튼(실행 화면이 끝날 때 받은 기록) — 버튼판에 누른 칸을 표시한다(10/18).
-          pressed: _lastButtons,
-          target: _execApplianceId == null
-              ? null
-              : _findIn(_appliances, _execApplianceId!),
-          reason: _doneReason,
-          route: _doneRoute,
-          thinqOnly: _execThinqOnly,
-          thinqActionText: _execThinqActionText,
-          confirmation: _doneConfirmation,
-          resultConfirmation: _doneRawConfirmation,
-          detail: _doneDetail,
-          operationConfirmed: _doneOperationConfirmed,
-          operationSource: _doneOperationSource,
-          operationDetail: _doneOperationDetail,
-          runSteps: _doneRunSteps,
-          stopLevel: _doneStopLevel,
-          stopAckMs: _doneStopAckMs,
-          stopPending: _stopPending && _doneStopLevel == null,
-          abortReason: _doneAbortReason,
-          // 다시 보낼 요청이 없으면(폰이 시작한 실행·이어받은 실행·놓친 결과, 2026-10-15 B2) '다시 시도'를
-          // 그리지 않는다 — 예전에는 보였지만 누르면 처음 화면으로만 갔다.
-          // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
-          // 그때는 수동 조작(사람이 직접 고르기)을 앞세운다.
-          // ThinQ 확인 못 함·접수 불명은 다시 보내면 중복 실행이 될 수 있어
-          // '다시 시도'를 내걸지 않는다.
-          // 모션 걸림·재시작 등(2026-10-14)도 권하지 않는다 — 장치를 먼저 봐야 하고 되풀이하면 또 걸린다.
-          onRetry: _retryAction == null ||
-                  _doneReason == KioskFailureReason.serverLost ||
-                  (_doneReason?.isUnconfirmed ?? false) ||
-                  (_doneReason == KioskFailureReason.safetyStop &&
-                      motionAbortSentence(_doneAbortReason) != null)
-              ? null
-              : _onRetryFailed,
-          // ThinQ 명령에는 누를 조작판이 없다.
-          onManual: _doneRoute == 'thinq' ? null : _onManualFromFailure,
-          onDismiss: _toIdle,
-        );
+        return _doneView();
     }
   }
 }

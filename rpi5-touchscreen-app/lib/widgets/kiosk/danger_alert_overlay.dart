@@ -32,7 +32,7 @@ class DangerAlertOverlay extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.warning_rounded,
                 size: 64,
                 color: KioskColors.danger,

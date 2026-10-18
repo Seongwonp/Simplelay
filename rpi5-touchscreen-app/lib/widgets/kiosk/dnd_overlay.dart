@@ -86,7 +86,7 @@ class DndOverlay extends StatelessWidget {
                               ? '${_clockOf(dndUntil!)}까지 새 제안만 쉬어요. 자동으로 하는 일은 그대로예요'
                               : '${_clockOf(dndUntil!)}까지 새 제안과 자동으로 하는 일을 쉬어요',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: KioskType.caption,
                         color: KioskColors.muted,
                       ),
@@ -96,7 +96,7 @@ class DndOverlay extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.only(top: 2),
                             child: Icon(Icons.bedtime_outlined, size: 20, color: KioskColors.muted),
                           ),
@@ -104,7 +104,7 @@ class DndOverlay extends StatelessWidget {
                           Flexible(
                             child: KioskText(
                               '매일 ${spokenHhmm(start)}부터 ${spokenHhmm(end)}까지 조용한 시간이에요. 폰 설정에서 바꿔요',
-                              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+                              style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                             ),
                           ),
                         ],
@@ -130,7 +130,7 @@ class DndOverlay extends StatelessWidget {
                       onPressed: onDismiss,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: KioskColors.border, width: 2),
+                        side: BorderSide(color: KioskColors.border, width: 2),
                         minimumSize: const Size(160, 52),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),

@@ -256,15 +256,16 @@ void main() {
       expect(selected?.id, 'air');
     });
 
-    testWidgets("칩은 쉬운 말 '작은 팔 연결이 끊겼어요' — 누르면 바로 그 연결 창", (tester) async {
+    testWidgets("칩은 '확인 필요 1'(사용자 결정 10/18) — 누르면 바로 그 연결 창, 읽기 말은 쉬운 말 '작은 팔 연결이 끊겼어요'", (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('작은 팔 연결이 끊겼어요')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('확인 필요 1')), findsOneWidget);
       await tester.tap(chip);
       await tester.pump();
       expect(opened?.id, 'press');
-      expect(connectionSummary(_pressDown).$1, '작은 팔 연결이 끊겼어요');
+      expect(connectionSummary(_pressDown).$1, '확인 필요 1');
+      expect(connectionProblemText(_pressDown.firstWhere((c) => c.id == 'press')), '작은 팔 연결이 끊겼어요');
     });
   });
 

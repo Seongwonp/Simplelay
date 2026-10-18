@@ -340,7 +340,7 @@ class _ArrowButton extends StatelessWidget {
               children: [
                 Material(
                   color: KioskColors.surface,
-                  shape: const CircleBorder(
+                  shape: CircleBorder(
                       side: BorderSide(color: KioskColors.border)),
                   child: SizedBox(
                     width: _KioskApplianceStripState._arrow,
@@ -597,33 +597,33 @@ KioskTileBand kioskTileBand(
   bool on = false,
   bool off = false,
 }) {
-  if (attention) return const KioskTileBand('확인해 주세요', Icons.error_outline, KioskColors.warning);
+  if (attention) return KioskTileBand('확인해 주세요', Icons.error_outline, KioskColors.warning);
   if (unavailable) {
     // 이유는 누르면 연다(비상 버튼 풀기 안내·작은 팔 연결 창).
     return unavailableByEstop
-        ? const KioskTileBand('지금 못 써요', Icons.report, KioskColors.danger)
-        : const KioskTileBand('지금 못 써요', Icons.link_off, KioskColors.muted, fill: kTileBandGrey);
+        ? KioskTileBand('지금 못 써요', Icons.report, KioskColors.danger)
+        : KioskTileBand('지금 못 써요', Icons.link_off, KioskColors.muted, fill: kTileBandGrey);
   }
   if (running) {
     // ThinQ는 허브가 설정을 보냈을 뿐 가전이 도는 것을 본 게 아니다(2026-10-15 외부 검토 L2) — '바꾸는 중'.
     return KioskTileBand(a.isThinq ? '바꾸는 중' : '작동 중', Icons.autorenew, KioskColors.running);
   }
-  if (on) return const KioskTileBand('켜져 있어요', Icons.power_settings_new, KioskColors.confirmed);
+  if (on) return KioskTileBand('켜져 있어요', Icons.power_settings_new, KioskColors.confirmed);
   // 꺼짐도 본체가 읽은 것만(평가 10차 10/18 — 꺼진 공기청정기가 손 아이콘 '준비됐어요'로 보였다, 폰은 '꺼져 있어요').
   // 회색 — 문제가 아니다. 손 아이콘 대신 전원 아이콘. 모르면 아래 종전 판정.
   if (off && a.isThinq) {
-    return const KioskTileBand('꺼져 있어요', Icons.power_settings_new, KioskColors.muted, fill: kTileBandGrey);
+    return KioskTileBand('꺼져 있어요', Icons.power_settings_new, KioskColors.muted, fill: kTileBandGrey);
   }
   if (a.needsPanelMapping) {
-    return const KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning);
+    return KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning);
   }
   return switch (a.readiness) {
-    'disconnected' => const KioskTileBand('연결이 안 돼요', Icons.link_off, KioskColors.warning),
-    'needs_setup' => const KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning),
+    'disconnected' => KioskTileBand('연결이 안 돼요', Icons.link_off, KioskColors.warning),
+    'needs_setup' => KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning),
     // 체크는 '됐어요'로 읽힌다 — 준비는 누를 수 있다는 손가락(폰과 같은 그림). 눌림을 확인했다는 뜻이 아니라 회색.
     'operable' when a.canExecute =>
-      const KioskTileBand('준비됐어요', Icons.touch_app_outlined, KioskColors.muted, fill: kTileBandGrey),
-    _ => const KioskTileBand('확인 전이에요', Icons.help_outline, KioskColors.muted, fill: kTileBandGrey),
+      KioskTileBand('준비됐어요', Icons.touch_app_outlined, KioskColors.muted, fill: kTileBandGrey),
+    _ => KioskTileBand('확인 전이에요', Icons.help_outline, KioskColors.muted, fill: kTileBandGrey),
   };
 }
 

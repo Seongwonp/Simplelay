@@ -119,7 +119,7 @@ class KioskSuggestionView extends StatelessWidget {
             Text(
               caveat,
               key: const ValueKey('suggestion-caveat'),
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: KioskType.body, color: KioskColors.warning),
             ),
           ],
@@ -228,7 +228,7 @@ class KioskSuggestionView extends StatelessWidget {
               !suggestion.purpose.contains(suggestion.routineName!)) ...[
             Text(
               '내 루틴 "${suggestion.routineName}"',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: KioskType.body, color: KioskColors.muted),
             ),
             const SizedBox(height: 6),
@@ -236,7 +236,7 @@ class KioskSuggestionView extends StatelessWidget {
           if (scenario && scenarioName != null) ...[
             Text(
               '루틴 $scenarioName',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: KioskType.body, color: KioskColors.muted),
             ),
             const SizedBox(height: 6),
@@ -292,7 +292,7 @@ class KioskSuggestionView extends StatelessWidget {
                               children: [
                                 Text(
                                   stepsHeading,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: KioskType.caption,
                                       color: KioskColors.muted),
                                 ),
@@ -318,7 +318,7 @@ class KioskSuggestionView extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 '작은 팔이 누를 순서',
                                 style: TextStyle(
                                     fontSize: KioskType.caption,
@@ -459,7 +459,7 @@ class _WhyText extends StatefulWidget {
 class _WhyTextState extends State<_WhyText> {
   bool _expanded = false;
 
-  static const _style =
+  static TextStyle get _style =>
       TextStyle(fontSize: KioskType.body, color: KioskColors.muted);
 
   @override
@@ -526,13 +526,13 @@ class _StepList extends StatelessWidget {
         height: 30,
         alignment: Alignment.center,
         // 순서 번호는 정보다. 강조색은 주 행동('지금 실행') 몫으로 남긴다.
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: KioskColors.success,
           shape: BoxShape.circle,
         ),
         child: Text(
           '$n',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: KioskType.caption,
             fontWeight: FontWeight.w700,
             color: KioskColors.onAccent,

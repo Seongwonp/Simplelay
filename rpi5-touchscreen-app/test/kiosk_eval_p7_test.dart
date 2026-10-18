@@ -158,7 +158,7 @@ void main() {
 
     testWidgets('모두 괜찮으면 해결 방법 줄이 없다', (tester) async {
       await _pump(tester, _idle());
-      expect(find.text('기기 모두 정상'), findsOneWidget);
+      expect(find.byKey(const ValueKey('idle-status-chip')), findsNothing); // 칩째 없다(사용자 결정 10/18)
       expect(find.byKey(const ValueKey('idle-problem-help')), findsNothing);
     });
 

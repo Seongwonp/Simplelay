@@ -155,7 +155,9 @@ void main() {
     expect(find.text('확인해 주세요'), findsOneWidget);
     expect(find.text('주의'), findsNothing);
     expect(find.text('실패'), findsNothing);
-    expect(find.byIcon(Icons.question_mark), findsOneWidget);
+    // 순서 안내가 있으면 큰 결과 원은 뺀다(사용자 결정 10/18) — 물음표는 위 띠가 말한다.
+    expect(find.byIcon(Icons.help_outline), findsWidgets);
+    expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
     expect(find.byIcon(Icons.close), findsNothing);
   });
 

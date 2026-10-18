@@ -225,8 +225,9 @@ void main() {
       final api = FakeKioskApi()..applianceList = _six;
       await _pump(tester, api);
 
-      expect(find.byKey(const ValueKey('idle-status-chip')), findsOneWidget); // 아이콘 줄 대신 상태 칩(10/18)
-      expect(find.text('기기 모두 정상'), findsOneWidget);
+      // 모두 괜찮으면 상태 칩이 없다(사용자 결정 10/18 — 체크·'기기 모두 정상'도 없다).
+      expect(find.byKey(const ValueKey('idle-status-chip')), findsNothing);
+      expect(find.text('기기 모두 정상'), findsNothing);
       expect(find.text('!'), findsNothing);
     });
 
@@ -251,9 +252,8 @@ void main() {
         ];
       await _pump(tester, api);
 
-      // 문제가 있을 때만 앰버 칩에 무엇이 문제인지(10/18) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
-      // 사전 변경(평가 4차 10/18): 콘센트 → 전기 플러그.
-      expect(find.text('전기 플러그를 봐 주세요'), findsOneWidget);
+      // 문제가 있을 때만 앰버 칩 '확인 필요 1'(사용자 결정 10/18) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
+      expect(find.text('확인 필요 1'), findsOneWidget);
       expect(find.text('와이파이 연결이 끊겼어요'), findsNothing);
       expect(find.text('작은 팔 연결이 끊겼어요'), findsNothing);
 
@@ -275,7 +275,7 @@ void main() {
       await tester.tap(find.text('다시 연결해 보기'));
       await _settle(tester);
       expect(api.connectionsCalls, greaterThan(before));
-      expect(find.text('기기 모두 정상'), findsOneWidget);
+      expect(find.text('확인 필요 1'), findsNothing); // 다 괜찮아지면 칩이 사라진다
       expect(find.text('전기 플러그가 연결돼 있어요'), findsOneWidget);
 
       await tester.tap(find.text('닫기'));
@@ -633,6 +633,9 @@ void main() {
         );
       await _pump(tester, api);
       expect(find.byType(KioskSuggestionView), findsNothing); // 저절로 뜬 카드는 없다
+      // 조용한 시간에는 처음 화면이 어둡다(사용자 결정 10/18) — 한 번 만져 밝게 한 뒤 고른다.
+      await tester.tap(find.byKey(const ValueKey('idle-quiet-dim')));
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('strip-microwave')));
       await _settle(tester);
       await tester.tap(find.byKey(const ValueKey('routine-morning')));

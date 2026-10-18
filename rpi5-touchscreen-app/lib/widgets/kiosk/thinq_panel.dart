@@ -287,9 +287,9 @@ class _StateCardState extends State<_StateCard> {
     final onReread = widget.onReread;
     final List<Widget> body;
     if (loading || s == null) {
-      body = const [
+      body = [
         KioskText('지금 상태를 보는 중…',
-            textKey: ValueKey('thinq-reading'),
+            textKey: const ValueKey('thinq-reading'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
       ];
     } else if (!s.ok) {
@@ -297,7 +297,7 @@ class _StateCardState extends State<_StateCard> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline, color: KioskColors.warning, size: 28),
+            Icon(Icons.error_outline, color: KioskColors.warning, size: 28),
             const SizedBox(width: 10),
             Expanded(
               child: KioskText('지금 상태를 못 봤어요. ${s.failure}',
@@ -325,7 +325,7 @@ class _StateCardState extends State<_StateCard> {
       final dustNote = thinqDustNote(map);
       body = [
         if (all.isEmpty)
-          const KioskText('보여 줄 상태가 없어요',
+          KioskText('보여 줄 상태가 없어요',
               style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted))
         else
           for (final row in rows) _StateRowView(row: row),
@@ -371,7 +371,7 @@ class _StateCardState extends State<_StateCard> {
           if (_airOpen) ...[
             for (final row in dust) _StateRowView(row: row),
             if (total != null && kAirGradeWords.containsKey(total))
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 4),
                 child: KioskText('종합은 가전이 매긴 등급이에요',
                     textKey: ValueKey('thinq-air-total-note'),
@@ -384,7 +384,7 @@ class _StateCardState extends State<_StateCard> {
             padding: const EdgeInsets.only(top: 4),
             child: KioskText(dustNote,
                 textKey: const ValueKey('thinq-dust-note'),
-                style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted, height: 1.3)),
+                style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted, height: 1.3)),
           ),
         // 연습이면 읽은 시각 줄('연습 화면이에요. 진짜 값이 아니에요')을 두지 않는다 — 조작 칸 위 연습 안내가 같은 말을 한다
         // (평가 5차 10/18). 조작 칸이 없을 때(읽기 실패)는 그대로 남는다.
@@ -392,7 +392,7 @@ class _StateCardState extends State<_StateCard> {
           const SizedBox(height: 8),
           KioskText(thinqReadTimeLine(s.readAt!, mock: s.mock),
               textKey: const ValueKey('thinq-read-time'),
-              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+              style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
         ],
       ];
     }
@@ -448,7 +448,7 @@ class _StateRowView extends StatelessWidget {
         spacing: 12,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          KioskText(row.label, style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
+          KioskText(row.label, style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -474,7 +474,7 @@ class _PracticeChip extends StatelessWidget {
   const _PracticeChip();
 
   @override
-  Widget build(BuildContext context) => const Row(
+  Widget build(BuildContext context) => Row(
         key: ValueKey('thinq-practice'),
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -513,7 +513,7 @@ class _Controls extends StatelessWidget {
     if (s == null) {
       // 읽는 중 — 조작 칸은 아직 그리지 않는다.
     } else if (!s.ok) {
-      children.add(const KioskText('지금 상태를 본 뒤 바꿀 수 있어요. 왼쪽의 새로 보기를 눌러 주세요.',
+      children.add(KioskText('지금 상태를 본 뒤 바꿀 수 있어요. 왼쪽의 새로 보기를 눌러 주세요.',
           textKey: ValueKey('thinq-controls-unknown'),
           style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted, height: 1.3)));
     } else {
@@ -525,7 +525,7 @@ class _Controls extends StatelessWidget {
         children.add(const Padding(padding: EdgeInsets.only(bottom: 10), child: _PracticeChip()));
       }
       if (controls.isEmpty) {
-        children.add(const KioskText('이 가전은 휴대폰 앱에서 바꿀 수 있어요.',
+        children.add(KioskText('이 가전은 휴대폰 앱에서 바꿀 수 있어요.',
             textKey: ValueKey('thinq-controls-phone'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted, height: 1.3)));
       }
@@ -562,7 +562,7 @@ class _Controls extends StatelessWidget {
               ),
               if (blockedByPower) ...[
                 const SizedBox(height: 6),
-                const KioskText(kThinqPowerOffNote,
+                KioskText(kThinqPowerOffNote,
                     textKey: ValueKey('thinq-power-off-note'),
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
               ],
@@ -571,7 +571,7 @@ class _Controls extends StatelessWidget {
         ));
       }
       if (controls.isNotEmpty && estop) {
-        children.add(const Row(
+        children.add(Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(Icons.warning_amber_rounded, color: KioskColors.danger, size: 26),
@@ -586,7 +586,7 @@ class _Controls extends StatelessWidget {
       }
     }
     if (sending) {
-      children.add(const Padding(
+      children.add(Padding(
         padding: EdgeInsets.only(top: 6),
         child: KioskText('보내는 중…',
             textKey: ValueKey('thinq-sending'),
@@ -600,7 +600,7 @@ class _Controls extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.info_outline, color: KioskColors.warning, size: 24),
+            Icon(Icons.info_outline, color: KioskColors.warning, size: 24),
             const SizedBox(width: 8),
             Expanded(
               child: KioskText(msg,
@@ -716,7 +716,7 @@ class _ChangeConfirm extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: KioskType.status, fontWeight: FontWeight.w700, color: Colors.white, height: 1.25)),
                   const SizedBox(height: 10),
-                  const KioskText('LG 가전으로 보내요. 바뀌었는지는 보낸 뒤 다시 봐요.',
+                  KioskText('LG 가전으로 보내요. 바뀌었는지는 보낸 뒤 다시 봐요.',
                       style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted, height: 1.3)),
                   const SizedBox(height: 20),
                   Row(
