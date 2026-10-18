@@ -87,7 +87,11 @@ class _ValueRow extends StatelessWidget {
     required this.value,
     required this.detail,
     this.onOpen,
+    this.action,
   });
+
+  /// 줄 아래 따로 누르는 단추(예: 못 읽은 값의 '새로 보기'). 줄 전체 누르기와 겹치지 않는 제 몫의 단추.
+  final Widget? action;
 
   /// 상세를 열기 전에 — 값을 못 읽은 줄은 여기서 다시 읽게 한다('새로 보기').
   final VoidCallback? onOpen;
@@ -99,7 +103,24 @@ class _ValueRow extends StatelessWidget {
   final Widget detail;
 
   @override
-  Widget build(BuildContext context) => Semantics(
+  Widget build(BuildContext context) {
+    final row = _row(context);
+    final extra = action;
+    if (extra == null) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row,
+        Padding(
+          // 아이콘 칸만큼 들여 이름 아래에 둔다.
+          padding: const EdgeInsets.only(left: AppSpace.lg + 24 + AppSpace.sm, bottom: AppSpace.xs),
+          child: Align(alignment: Alignment.centerLeft, child: extra),
+        ),
+      ],
+    );
+  }
+
+  Widget _row(BuildContext context) => Semantics(
         button: true,
         label: '$title, $value',
         excludeSemantics: true,

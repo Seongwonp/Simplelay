@@ -286,9 +286,8 @@ void main() {
     expect(find.descendant(of: find.byKey(const Key('routine-row-rt-1')), matching: find.byKey(const Key('routine-next-badge-rt-1'))),
         findsOneWidget);
     expect(findPlainText('아침 데우기'), findsOneWidget);
-    // 대상 · 크기('누를 버튼 N개')를 한 줄로. 언제는 이름 위 작은 줄 '평일 오전 7:30'(평가 7차 10/18).
-    expect(findPlainText('평일 오전 7:30'), findsOneWidget);
-    expect(findPlainText('전자레인지 · 누를 버튼 3개'), findsOneWidget);
+    // 이름 아래 한 줄 '언제 · 대상 · 크기'(평가 10차 10/18) — 끝에 '다음' 배지.
+    expect(findPlainText('평일 오전 7:30 · 전자레인지 · 누를 버튼 3개', contains: true), findsOneWidget);
     expect(find.textContaining('승인 후 실행 ·'), findsNothing);
     expect(find.text('새 루틴'), findsOneWidget);
   });
@@ -604,9 +603,11 @@ void main() {
     expect(runButton('rt-off'), findsNothing);
     expect(menuButton('rt-n'), findsNothing);
     // 알림만은 부제에 적지 않고 '알려 드려요' 배지가 말한다(평가 4차 10/18).
-    expect(findPlainText('전자레인지 · 누를 버튼 3개'), findsOneWidget);
+    // 배지는 그 한 줄 끝(평가 10차 10/18).
+    expect(find.descendant(of: find.byKey(const Key('routine-line-rt-n')),
+        matching: findPlainText('전자레인지 · 누를 버튼 3개 ', contains: true), matchRoot: true), findsOneWidget);
     expect(findPlainText('알려 드려요'), findsOneWidget);
-    expect(findPlainText('전자레인지 · 누를 버튼 3개 · 꺼짐'), findsOneWidget);
+    expect(findPlainText('전자레인지 · 누를 버튼 3개 · 꺼짐', contains: true), findsOneWidget);
   });
 
   testWidgets('알려진 가전 알림은 "세탁이 끝나면"으로, 이름은 사용자 것 그대로', (tester) async {
@@ -699,11 +700,11 @@ void main() {
       _tall(tester);
       await tester.pumpWidget(_build(server));
       await _settle(tester);
-      expect(find.textContaining('예시 루틴으로 만들어 보세요'), findsOneWidget);
+      expect(findPlainText('예시 루틴으로 만들어 보세요', contains: true), findsOneWidget);
       expect(find.textContaining('추천'), findsNothing);
 
       await _openNew(tester);
-      expect(find.text('지금 보여 드릴 예시 루틴이 없어요.'), findsOneWidget);
+      expect(findPlainText('지금 보여 드릴 예시 루틴이 없어요.'), findsOneWidget);
       expect(find.textContaining('추천'), findsNothing);
     });
   });

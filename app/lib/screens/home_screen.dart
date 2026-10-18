@@ -1185,14 +1185,19 @@ class _ApplianceCard extends ConsumerWidget {
     // 띠의 짧은 말 — 모두 문장(평가 7차 10/18: '준비됐어요'와 '켜짐'·'설정 필요'가 섞였다. 키오스크와 같은 말투).
     // 평소(실행 가능)는 '준비됐어요' — 서버가 실행 요청을 받아 준다는 뜻이고, 눌림을 확인했다는 말이 아니라 회색이다.
     // 위치를 맞추지 않은 가전은 '설정이 필요해요'(무엇이 남았는지는 '확인이 필요해요' 카드 한 곳).
+    // 자리 확인 보조 줄이 있으면 띠가 그 한 문장(평가 9차·10차 10/18: 위 '자리 확인을 했는지 몰라요'와 아래 '준비됐어요'가
+    // 엇갈려 읽혔다). 표시만 — 실행을 막지 않는다(판정은 [verifyPassTileNote] 그대로, 회색 '모름' 갈래).
+    final noteInBand = verifyNote != null && !setup && s.text.isEmpty;
     final line = setup
         ? kSetupNeededText
         : s.text.isEmpty
-            ? '준비됐어요'
+            ? (noteInBand ? verifyNote! : '준비됐어요')
             : s.text;
     final (Color color, IconData icon) = setup
         ? (context.appWarning, Icons.priority_high_rounded)
-        : switch (s.tone) {
+        : noteInBand
+            ? (context.appMuted, Icons.help_outline)
+            : switch (s.tone) {
             TileTone.active => (context.appInk, AppIcons.running),
             TileTone.attention => (context.appWarning, Icons.error_outline),
             TileTone.unknown => (context.appMuted, Icons.help_outline),
@@ -1212,7 +1217,7 @@ class _ApplianceCard extends ConsumerWidget {
         if (a.isDemo) '연습',
         if (s.text.isNotEmpty) s.text else line,
         if (s.detail case final d?) d,
-        if (verifyNote case final v?) v,
+        if (verifyNote case final v? when !noteInBand) v,
       ].join(', '),
       excludeSemantics: true,
       child: Card(
@@ -1272,7 +1277,7 @@ class _ApplianceCard extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                       ),
-                    if (verifyNote case final v?)
+                    if (verifyNote case final v? when !noteInBand)
                       Padding(
                         padding: const EdgeInsets.only(top: AppSpace.xs),
                         child: Text(

@@ -107,6 +107,10 @@ class _Hub {
             fail('실행 경로를 불렀어요: ${req.method} $path');
           }
           if (req.method == 'GET' && path == '/appliances') return _json(appliances);
+          // 실제 자리 확인을 마친 가전(평가 10차 10/18부터 자리 확인을 모르면 띠가 그 말 한 문장이라 '준비됐어요' 시험은 근거를 준다).
+          if (req.method == 'GET' && path.endsWith('/verify-pass')) {
+            return _json({'state': 'done', 'execution_mode': 'real'});
+          }
           if (req.method == 'GET' && path == '/routines') return _json(routines);
           if (req.method == 'GET' && path == '/routines/next') return _json(next);
           if (req.method == 'GET' && path == '/thinq/power') {
@@ -334,8 +338,9 @@ void main() {
 
   group('설정 문장', () {
     test('가전 다시 불러오기(평가 4차·6차 10/18에 이름 바꿈)', () => expect(kResyncLabel, '가전 다시 불러오기'));
-    test('조용한 시간을 못 읽으면 "확인 못 했어요 · 새로 보기"', () {
-      expect(quietRowValue(null, hasApi: true), '확인 못 했어요 · 새로 보기');
+    // 평가 10차(10/18): 까닭은 알 때만 앞에, '새로 보기'는 값이 아니라 따로 단추(eval10_phone_test 5).
+    test('조용한 시간을 못 읽으면 "못 불러왔어요"', () {
+      expect(quietRowValue(null, hasApi: true), '못 불러왔어요');
       expect(quietRowValue(null, hasApi: false), '연결 전이에요');
     });
     testWidgets('안부 확인 쉬기·기본 가전 같은 말이 없다', (tester) async {

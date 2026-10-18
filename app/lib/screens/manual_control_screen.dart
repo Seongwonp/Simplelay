@@ -545,7 +545,20 @@ class _ButtonGrid extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.only(right: x < appliance.cols - 1 ? AppSpace.sm : 0),
                 child: btn == null
-                    ? const SizedBox.shrink()
+                    // 버튼 없는 칸은 옅은 점선 빈 자리(평가 9차 10/18: 그냥 비워 두면 깨진 화면처럼 보였다). 누를 수 없고
+                    // 낭독하지 않는다.
+                    ? ExcludeSemantics(
+                        child: ConstrainedBox(
+                          key: Key('manual-empty-cell-$x-$y'),
+                          constraints: BoxConstraints(minHeight: fill ? 72 : cellHeight),
+                          child: CustomPaint(
+                            painter: _EmptyCellPainter(
+                              color: (onPhoto ? Colors.white : Theme.of(context).colorScheme.outline)
+                                  .withValues(alpha: onPhoto ? 0.35 : 0.45),
+                            ),
+                          ),
+                        ),
+                      )
                     : _ButtonCell(
                         button: btn,
                         state: btn.id == pendingButtonId
@@ -687,4 +700,33 @@ class _ButtonCell extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 버튼 없는 칸의 옅은 점선 테두리(버튼 칸과 같은 둥근 모서리 12).
+class _EmptyCellPainter extends CustomPainter {
+  _EmptyCellPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+          (Offset.zero & size).deflate(0.6), const Radius.circular(12)));
+    const dash = 5.0;
+    const gap = 4.0;
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        canvas.drawPath(metric.extractPath(d, d + dash), paint);
+        d += dash + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_EmptyCellPainter old) => old.color != color;
 }

@@ -158,8 +158,16 @@ void main() {
     ]) {
       expect(_inTile('d', t), findsNothing, reason: '실제 완료는 보조 줄 없음: $t');
     }
-    // 평소 상태 줄은 할 일만(평가 3차 10/18) — 보조 줄은 별개로 남는다.
-    expect(_inTile('a', '준비됐어요'), findsOneWidget);
+    // 평가 10차(10/18): 보조 줄이 있으면 띠가 그 한 문장 — 위 보조 줄과 아래 '준비됐어요'가 엇갈리지 않게.
+    expect(_inTile('a', '준비됐어요'), findsNothing);
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('appliance-band-a')),
+            matching: find.byWidgetPredicate(
+                (w) => w is Text && (w.data ?? '').replaceAll('⁠', '') == '연습으로만 자리 확인했어요')),
+        findsOneWidget);
+    // 실제로 자리 확인을 마친 가전은 그대로 '준비됐어요'.
+    expect(_inTile('d', '준비됐어요'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -227,13 +235,14 @@ void main() {
     });
     await tester.pumpWidget(_home(api));
     await _settle(tester);
+    // 띠가 보조 줄 한 문장이면 낭독도 그 한 번(평가 10차 10/18).
     expect(
         find.bySemanticsLabel(
-            '전자레인지, 준비됐어요, 연습으로만 자리 확인했어요'),
+            '전자레인지, 연습으로만 자리 확인했어요'),
         findsOneWidget);
     expect(
         find.bySemanticsLabel(
-            '세탁기, 준비됐어요, 자리 확인을 했는지 몰라요'),
+            '세탁기, 자리 확인을 했는지 몰라요'),
         findsOneWidget);
     expect(find.bySemanticsLabel('밥솥, 준비됐어요'), findsOneWidget);
     handle.dispose();

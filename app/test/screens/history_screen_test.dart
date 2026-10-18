@@ -247,13 +247,13 @@ void main() {
     expect(find.text('오늘'), findsOneWidget);
     expect(find.text('어제'), findsOneWidget);
     expect(find.text('9월 6일'), findsOneWidget);
-    // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄.
-    expect(find.text('다 눌렀다고 알려 왔어요'), findsNWidgets(3));
+    // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄. '봐 주세요' 줄은 그 까닭 한 줄로(평가 10차 10/18).
+    expect(findPlainText('다 눌렀다고 알려 왔어요'), findsNWidgets(3));
     // 동작을 확인하지 못한 물리 기록은 성공 체크가 아니라 중립 아이콘(UI 평가 5차 10/17 — 체크 바로 아래
     // '확인하지 못했어요'가 와서 신호가 섞였다).
     expect(find.byIcon(Icons.check_circle), findsNothing);
     expect(find.byIcon(Icons.help_outline), findsNWidgets(3));
-    expect(findPlainText('오전 8:10 · 직접'), findsOneWidget);
+    expect(findPlainText('오전 8:10 · 사람이 직접'), findsOneWidget);
     expect(find.textContaining('실행 환경 미확인'), findsNothing);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
@@ -466,7 +466,7 @@ void main() {
     final order = [
       find.text('오늘'),
       find.text('아침 데우기'),
-      findPlainText('오전 8:10 · 직접 · 전자레인지'),
+      findPlainText('오전 8:10 · 사람이 직접 · 전자레인지'),
       find.text('다시 눌러도 눌렸는지 몰라요'),
       find.text('연습이라 실제로 누르지 않았어요'),
       find.text('버튼판에서 직접 누르기'),
@@ -509,7 +509,7 @@ void main() {
     ]);
     expect(find.text('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다.
-    expect(findPlainText('오전 8:10 · 직접'), findsOneWidget);
+    expect(findPlainText('오전 8:10 · 사람이 직접'), findsOneWidget);
     expect(find.text('전자레인지를 봐 주세요'), findsOneWidget);
     expect(find.text('버튼 누르기'), findsOneWidget);
   });

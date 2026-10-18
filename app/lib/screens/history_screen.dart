@@ -360,6 +360,9 @@ class _HistoryRowState extends State<_HistoryRow> {
     ].join(' · ');
     final receipt = _thinqReceiptLine(entry, kind);
     final muted = context.appCaption;
+    // '봐 주세요' 배지에는 까닭 한 줄(평가 10차 10/18: 왜 보라는지 펼쳐야만 알았다). 결과 문장 그대로 — 데이터가 아는
+    // 만큼만('눌렸는지 몰라요'·'보냈지만 설정이 바뀌었는지 몰라요'·'다 눌렀다고 알려 왔어요'). 펼친 칸에서는 되풀이하지 않는다.
+    final reason = badge.label == '봐 주세요' ? result.sentence : null;
 
     // 큰 글씨에서는 배지를 제목 아래로 — 오른쪽에 두면 제목이 한 글자씩 꺾인다.
     final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
@@ -386,6 +389,11 @@ class _HistoryRowState extends State<_HistoryRow> {
                   style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600)),
               // 낱말 중간에서 꺾이지 않게('전자레인/지' 방지). 낭독은 원문.
               Text(keepWordsTogether(timeLine), semanticsLabel: timeLine, style: muted),
+              if (reason != null)
+                Text(keepWordsTogether(reason),
+                    key: Key('history-reason-${entry.jobId}'),
+                    semanticsLabel: reason,
+                    style: muted.copyWith(fontWeight: FontWeight.w600, color: context.appWarning)),
               if (big) ...[const SizedBox(height: AppSpace.xs), badgeWidget],
             ],
           ),
@@ -419,10 +427,11 @@ class _HistoryRowState extends State<_HistoryRow> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    result.sentence,
-                    style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600),
-                  ),
+                  if (reason == null)
+                    Text(
+                      result.sentence,
+                      style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600),
+                    ),
                   if (result.mockNote case final note?) Text(note, style: muted),
                   if (receipt != null) Text(receipt, style: muted),
                   if (result.next case final next?) ...[

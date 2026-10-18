@@ -288,8 +288,8 @@ void main() {
           matching: find.byIcon(ApplianceCategory.parse('microwave').icon));
       expect(heat, findsOneWidget);
       expect(tester.getCenter(morn).dx, moreOrLessEquals(tester.getCenter(heat).dx, epsilon: 0.5));
-      // 시각은 여전히 크게 보인다.
-      expect(find.byKey(const Key('routine-clock-r-morn')), findsOneWidget);
+      // 시각은 이름 아래 한 줄(평가 10차 10/18).
+      expect(find.byKey(const Key('routine-line-r-morn')), findsOneWidget);
     });
   });
 

@@ -217,11 +217,11 @@ void main() {
         await _pump(tester, const SettingsScreen(), width: width, scale: scale, hub: false);
         expect(
             brokenLines(tester,
-                keepTogether: big ? ['4건'] : ['읽지 않은 알림 4건', '연결됐는지 몰라요', '휴대폰 설정', '알아 둔 습관']),
+                keepTogether: big ? ['4건'] : ['읽지 않은 알림 4건', '못 불러왔어요', '휴대폰 설정', '알아 둔 습관']),
             isEmpty);
         // 값은 한 줄 — 이름 옆에 다 안 들어가면 이름 아래로 내린다(값이 두 줄로 갈리지 않게).
         if (!big) {
-          for (final v in ['읽지 않은 알림 4건', '연결됐는지 몰라요']) {
+          for (final v in ['읽지 않은 알림 4건', '못 불러왔어요']) {
             expect(lineCountOf(tester, findPlainText(v)), 1, reason: v);
           }
         }
@@ -333,8 +333,9 @@ void main() {
           findsOneWidget,
           reason: '줄 아이콘(24)이 종');
       expect(find.byKey(const Key('routine-run-r-notify')), findsNothing);
-      // 부제는 언제만 — '알림만'을 배지와 겹쳐 말하지 않는다.
-      expect(find.descendant(of: row, matching: findPlainText('세탁이 끝나면')), findsOneWidget);
+      // 부제는 언제만 — '알림만'을 배지와 겹쳐 말하지 않는다. 배지는 그 한 줄 끝(평가 10차 10/18).
+      expect(find.descendant(of: row, matching: findPlainText('세탁이 끝나면', contains: true)), findsOneWidget);
+      expect(findPlainText('알림만', contains: true), findsNothing);
     });
   });
 }

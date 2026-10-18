@@ -94,7 +94,8 @@ void main() {
     }
 
     // ThinQ 확인 못 함은 실패로 말하지 않는다.
-    expect(find.textContaining('설정이 바뀌었는지 몰라요'), findsNWidgets(2));
+    // '봐 주세요' 줄의 까닭 한 줄은 낱말 단위로 그린다(평가 10차 10/18) — 결합 문자를 빼고 본다.
+    expect(findPlainText('설정이 바뀌었는지 몰라요', contains: true), findsNWidgets(2));
     // 경로 · 확인 수준은 '경로'·'확인' 꼬리표 없이 자연스러운 한 줄로 말한다.
     expect(find.text('가전이 받았어요'), findsOneWidget);
     // t2는 모의 실행 — 결과 문장 한 줄이 연습이라고 말하고 수신 줄을 겹치지 않는다(2026-10-14).

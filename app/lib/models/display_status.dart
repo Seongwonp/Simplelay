@@ -276,13 +276,17 @@ String historySource(RpiHistoryEntry e) {
 ///
 /// 서버 기록(`/history`)에는 '지금 하기'와 '정해진 시각에 물어본 카드를 허락'을 가르는 필드가 없다 — 둘 다 목적
 /// 문장이 `'이름' 루틴`이다. 가를 수 있는 것은 묻지 않고 한 자동 실행(`자동 실행 · '이름' 루틴`)뿐이라, 그 밖의
-/// 루틴 기록은 '사람이 허락하고 실행했다'까지만 말한다(지어내지 않는다).
+/// 루틴 기록은 '물어보고(사람이 허락해서) 했다'까지만 말한다(지어내지 않는다).
 String historySourceLabel(RpiHistoryEntry e) {
   final source = historySource(e);
   final purpose = e.purpose?.trim() ?? '';
   final routine = purpose.isEmpty ? null : _purposeParts(purpose).routine;
-  if (routine == null) return source;
-  return source == '자동' ? '루틴 · 자동으로' : '루틴 · 허락하고 실행';
+  // 평가 10차(10/18): '허락하고 실행'은 딱딱했다 → '물어보고'('자동으로'와 짝). '했어요'를 붙이지 않는다 — 오른쪽 배지가
+  // '못 했어요'·'봐 주세요'일 때 엇갈린다(결과는 배지 하나가 말한다).
+  // '직접'은 누가 직접인지 몰랐다 → '사람이 직접'. 폰·본체 화면·말 가운데 어디서 했는지는 기록에 가를 자료가 없어
+  // 지어내지 않는다(사람이 시작했다는 것까지만).
+  if (routine == null) return source == '직접' ? '사람이 직접' : source;
+  return source == '자동' ? '루틴 · 자동으로' : '루틴 · 물어보고';
 }
 
 /// 목적 문장에서 출처 머리('자동 실행 · ')를 떼고, 루틴이면 그 이름을 돌려준다.

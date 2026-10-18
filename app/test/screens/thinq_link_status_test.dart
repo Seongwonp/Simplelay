@@ -79,7 +79,10 @@ void main() {
     await tester.pumpWidget(
         _settings(() => throw http.ClientException('hub unreachable')));
     await _settle(tester);
-    expect(findPlainText('연결됐는지 몰라요'), findsOneWidget);
+    // 평가 10차(10/18): 까닭은 본체 연결 상태로 알 때만 — 여기서는 본체가 연결돼 있어 '못 불러왔어요'까지만.
+    // (조용한 시간 줄도 같은 까닭으로 '못 불러왔어요'라 둘 이상.)
+    expect(findPlainText('못 불러왔어요'), findsWidgets);
+    expect(findPlainText('연결됐는지 몰라요'), findsNothing);
     expect(find.text('아직 연결 전이에요'), findsNothing);
 
     await _openThinq(tester);

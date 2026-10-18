@@ -53,9 +53,34 @@ part 'settings/developer_tab.dart';
 /// 설정 줄 '조용한 시간'의 지금 값 — '오후 10:00~오전 7:00 · 켜짐'. 못 읽었으면 그렇다고 하고 할 일을 붙인다
 /// (꺼짐으로 단정하지 않는다). 예전 '몰라요' 한마디는 무엇을 모르는지·어떻게 하는지 말하지 않았다(평가 3차 10/18).
 /// 줄을 누르면 상세가 다시 읽는다.
-String quietRowValue(QuietHoursStatus? s, {required bool hasApi}) {
-  if (s == null) return hasApi ? '확인 못 했어요 · 새로 보기' : '연결 전이에요';
+///
+/// 평가 10차(10/18): '확인 못 했어요 · 새로 보기'는 까닭이 없었고 '새로 보기'가 값처럼 붙어 있었다 → 까닭은 본체 연결
+/// 상태로 알 때만 앞에 붙이고([hubReadFailReason]), '새로 보기'는 줄 아래 따로 단추([kRefreshLabel]).
+String quietRowValue(QuietHoursStatus? s,
+    {required bool hasApi, RpiConnectionState? hub, bool loading = false}) {
+  if (s == null) {
+    if (!hasApi) return '연결 전이에요';
+    if (loading) return '알아보고 있어요';
+    return readFailText(hub);
+  }
   return '${ampmRange(s.start, s.end)} · ${s.enabled ? '켜짐' : '꺼짐'}';
+}
+
+/// 못 읽은 값의 다시 읽기 단추 이름.
+const kRefreshLabel = '새로 보기';
+
+/// 본체에서 값을 못 읽은 까닭 — 연결 상태로 **알 때만**('본체와 연결이 끊겨'). 확인 중·연결됨이면 null(까닭을 지어내지 않는다).
+String? hubReadFailReason(RpiConnectionState? hub) => switch (hub) {
+      RpiConnectionState.unreachable => '본체와 연결이 끊겨',
+      RpiConnectionState.keyRequired => '연결 비밀번호가 없어',
+      RpiConnectionState.unconfigured => '본체 주소가 없어',
+      _ => null,
+    };
+
+/// '못 불러왔어요' — 까닭을 알면 앞에('본체와 연결이 끊겨 못 불러왔어요').
+String readFailText(RpiConnectionState? hub) {
+  final why = hubReadFailReason(hub);
+  return why == null ? '못 불러왔어요' : '$why 못 불러왔어요';
 }
 
 class SettingsScreen extends ConsumerWidget {
@@ -97,8 +122,11 @@ class SettingsScreen extends ConsumerWidget {
               icon: Icons.link,
               title: 'LG 가전 연결',
               // 확인 중·확인 실패를 '계정 연결 전'으로 말하지 않는다(외부 검토 M3, 10/15).
-              subtitle: thinqApi == null || thinqAsync.hasError
-                  ? '연결됐는지 몰라요'
+              // 평가 10차(10/18): '연결됐는지 몰라요'에 까닭이 없었다 — 본체 연결 상태로 알 때만 까닭을 붙인다.
+              subtitle: thinqApi == null
+                  ? '본체를 연결하면 볼 수 있어요'
+                  : thinqAsync.hasError
+                  ? readFailText(rpi)
                   : !thinqAsync.hasValue
                       ? '알아보고 있어요'
                       : thinq == null
@@ -162,8 +190,17 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.quietHours,
               title: '조용한 시간',
               value: _quietValue(ref),
-              // 못 읽었으면 '새로 보기' — 줄을 누르면 다시 읽는다.
+              // 줄을 누르면 상세가 다시 읽는다. 못 읽었으면 줄 아래 '새로 보기' 단추를 따로 둔다(평가 10차 10/18).
               onOpen: () => ref.invalidate(quietHoursProvider),
+              action: _quietFailed(ref)
+                  ? TextButton.icon(
+                      key: const Key('settings-quiet-refresh'),
+                      onPressed: () => ref.invalidate(quietHoursProvider),
+                      style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text(kRefreshLabel),
+                    )
+                  : null,
               detail: _QuietHoursTile(),
             ),
             _ValueRow(
@@ -238,9 +275,19 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   /// 조용한 시간의 지금 값 — [quietRowValue].
-  static String _quietValue(WidgetRef ref) => quietRowValue(
-      ref.watch(quietHoursProvider).valueOrNull,
-      hasApi: ref.watch(rpiApiServiceProvider) != null);
+  static String _quietValue(WidgetRef ref) {
+    final q = ref.watch(quietHoursProvider);
+    return quietRowValue(q.valueOrNull,
+        hasApi: ref.watch(rpiApiServiceProvider) != null,
+        hub: ref.watch(rpiConnectionProvider),
+        loading: q.isLoading && !q.hasValue);
+  }
+
+  /// 조용한 시간을 본체에서 못 읽었다(다 읽고도 값이 없다) — '새로 보기' 단추를 둔다.
+  static bool _quietFailed(WidgetRef ref) {
+    final q = ref.watch(quietHoursProvider);
+    return ref.watch(rpiApiServiceProvider) != null && !q.isLoading && q.valueOrNull == null;
+  }
 
   /// 집 비우는 날의 지금 값 — 꺼짐 / 'M월 D일까지'.
   static String _wellnessValue(WidgetRef ref) {

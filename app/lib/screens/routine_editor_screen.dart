@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../models/clock_text.dart';
+import '../models/line_break.dart';
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/routine_provider.dart';
@@ -300,7 +301,9 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _Token(text: who, icon: a?.icon),
-            const Text('동작이 끝날 때까지 기다리기'),
+            // '[전자레인지] 끝나면' 한 줄(평가 10차 10/18: '동작이 끝날 때까지 기다리/기'로 꺾였고 '동작'이 막연했다).
+            // 앞 줄 머리 '그다음'과 이어 읽힌다 — 이 가전이 끝나면 다음 일을 한다.
+            Text(keepWordsTogether('끝나면'), semanticsLabel: '$who 끝나면'),
           ],
         );
     }

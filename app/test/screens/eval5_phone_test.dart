@@ -131,6 +131,8 @@ RpiApiService _api() => RpiApiService(
           fail('실행 경로를 불렀어요: ${req.method} $path');
         }
         if (path == '/appliances') return json([_mw, _washer, _air]);
+        // 실제 자리 확인을 마친 가전(평가 10차 10/18부터 자리 확인을 모르면 띠가 그 말 한 문장이라 '준비됐어요' 시험은 근거를 준다).
+        if (path.endsWith('/verify-pass')) return json({'state': 'done', 'execution_mode': 'real'});
         if (path == '/routines') return json(_routines);
         if (path == '/routines/next') return json(const []);
         if (path == '/thinq/power') {
@@ -268,11 +270,13 @@ void main() {
       expect(find.byKey(const Key('routines-group-manual')), findsOneWidget);
       expect(find.descendant(of: find.byKey(const Key('routines-group-manual')), matching: findPlainText('필요할 때')),
           findsOneWidget);
-      final morn = find.byKey(const Key('routine-clock-r-morn'));
-      final eve = find.byKey(const Key('routine-clock-r-eve'));
-      // 평가 7차(10/18): 시각은 이름 위 작은 보조 줄 '매일 오전 7:00'(크기는 eval7_phone_test가 본다).
-      expect(find.descendant(of: morn, matching: findPlainText('매일 오전 7:00'), matchRoot: true), findsOneWidget);
-      expect(find.descendant(of: eve, matching: findPlainText('매일 오후 10:00'), matchRoot: true), findsOneWidget);
+      final morn = find.byKey(const Key('routine-line-r-morn'));
+      final eve = find.byKey(const Key('routine-line-r-eve'));
+      // 평가 10차(10/18): 시각은 이름 아래 한 줄 '매일 오전 7:00 · 공기청정기'(구성은 eval10_phone_test가 본다).
+      expect(find.descendant(of: morn, matching: findPlainText('매일 오전 7:00', contains: true), matchRoot: true),
+          findsOneWidget);
+      expect(find.descendant(of: eve, matching: findPlainText('매일 오후 10:00', contains: true), matchRoot: true),
+          findsOneWidget);
       expect(tester.getTopLeft(morn).dy, lessThan(tester.getTopLeft(eve).dy), reason: '07:00이 22:00보다 위');
     });
 

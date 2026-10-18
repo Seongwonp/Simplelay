@@ -254,18 +254,18 @@ void main() {
       expect(find.descendant(of: heat, matching: findPlainText('전자레인지 · 누를 버튼 2개')), findsOneWidget);
     });
 
-    testWidgets("'다음' 배지는 시각 줄 옆 — 이름 위 한 층", (tester) async {
+    // 평가 10차(10/18): 시각 줄이 이름 아래로 내려가 '다음' 배지도 그 한 줄 끝(eval10_phone_test 1·7).
+    testWidgets("'다음' 배지는 시각 줄 끝 — 세 층으로 흩어지지 않는다", (tester) async {
       await _pump(tester, const RoutinesScreen());
       final badge = find.byKey(const Key('routine-next-badge-r-eve'));
-      final clock = find.byKey(const Key('routine-clock-r-eve'));
+      final clock = find.byKey(const Key('routine-line-r-eve'));
       final name = findPlainText('저녁 공기청정기 켜기');
       expect(badge, findsOneWidget);
-      // 시각 글 오른쪽, 세로 가운데가 시각 글 높이 안.
-      expect(tester.getTopLeft(badge).dx, greaterThan(tester.getTopRight(clock).dx));
+      // 시각 글 안, 이름 아래.
       final c = tester.getCenter(badge).dy;
       expect(c, greaterThanOrEqualTo(tester.getTopLeft(clock).dy - 2));
       expect(c, lessThanOrEqualTo(tester.getBottomLeft(clock).dy + 2));
-      expect(tester.getBottomLeft(badge).dy, lessThanOrEqualTo(tester.getTopLeft(name).dy + 0.5));
+      expect(tester.getTopLeft(badge).dy, greaterThanOrEqualTo(tester.getBottomLeft(name).dy - 0.5));
     });
 
     testWidgets('줄 끝 ⋮ 없음 — 줄을 누르면 편집 화면(지우기는 그 안)', (tester) async {

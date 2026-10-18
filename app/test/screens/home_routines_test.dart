@@ -105,6 +105,10 @@ class _Hub {
             return list == null ? _json({'detail': 'boom'}, 500) : _json(list);
           }
           if (req.method == 'GET' && path == '/routines/next') return _json(next);
+          // 실제 자리 확인을 마친 가전(평가 10차 10/18부터 자리 확인을 모르면 띠가 그 말 한 문장).
+          if (req.method == 'GET' && path.endsWith('/verify-pass')) {
+            return _json({'state': 'done', 'execution_mode': 'real'});
+          }
           if (req.method == 'GET' && path == '/thinq/power') {
             return _json({'execution_mode': 'real', 'appliances': power});
           }

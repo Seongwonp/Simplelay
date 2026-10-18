@@ -114,6 +114,8 @@ RpiApiService _api({String power = 'on'}) => RpiApiService(
           fail('실행 경로를 불렀어요: ${req.method} $path');
         }
         if (path == '/appliances') return json(_rawAppliances);
+        // 실제 자리 확인을 마친 가전(평가 10차 10/18부터 자리 확인을 모르면 띠가 그 말 한 문장이라 '준비됐어요' 시험은 근거를 준다).
+        if (path.endsWith('/verify-pass')) return json({'state': 'done', 'execution_mode': 'real'});
         if (path == '/routines') return json(_routines);
         if (path == '/routines/next') {
           return json([
@@ -232,17 +234,19 @@ void main() {
       }
     });
 
-    testWidgets("시각은 이름 위 작은 칩 '매일 오전 7:00' — 이름보다 크지 않다", (tester) async {
+    // 평가 10차(10/18): 시각은 이름 위 칩이 아니라 이름 아래 한 줄 '매일 오전 7:00 · 공기청정기'(모든 줄이 같은 꼴).
+    testWidgets("시각은 이름 아래 작은 한 줄 '매일 오전 7:00' — 이름보다 크지 않다", (tester) async {
       await _pump(tester, const RoutinesScreen());
-      final chip = find.byKey(const Key('routine-clock-r-morn'));
-      expect(find.descendant(of: chip, matching: findPlainText('매일 오전 7:00'), matchRoot: true), findsOneWidget);
-      expect(find.descendant(of: find.byKey(const Key('routine-clock-r-eve')), matching: findPlainText('매일 오후 10:00'),
-          matchRoot: true), findsOneWidget);
+      final chip = find.byKey(const Key('routine-line-r-morn'));
+      expect(find.descendant(of: chip, matching: findPlainText('매일 오전 7:00', contains: true), matchRoot: true),
+          findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('routine-line-r-eve')),
+          matching: findPlainText('매일 오후 10:00', contains: true), matchRoot: true), findsOneWidget);
       final name = findPlainText('아침 공기청정기 끄기');
       final chipText = tester.widget<Text>(find.descendant(of: chip, matching: find.byType(Text), matchRoot: true).first);
       final nameText = tester.widget<Text>(name);
       expect(chipText.style!.fontSize!, lessThan(nameText.style!.fontSize!));
-      expect(tester.getBottomLeft(chip).dy, lessThanOrEqualTo(tester.getTopLeft(name).dy + 0.5));
+      expect(tester.getTopLeft(chip).dy, greaterThanOrEqualTo(tester.getBottomLeft(name).dy - 0.5));
       // 부제에서 '매일'을 되풀이하지 않는다.
       expect(find.descendant(of: find.byKey(const Key('routine-row-r-morn')), matching: findPlainText('매일', contains: true)),
           findsOneWidget);
@@ -314,10 +318,11 @@ void main() {
       expect(stopped.icon, Icons.front_hand_outlined);
     });
 
-    test("루틴 기록은 출처를 밝힌다 — 자동 실행과 허락하고 실행", () {
-      expect(historySourceLabel(e({'purpose': "'아침 공기청정기 끄기' 루틴"})), '루틴 · 허락하고 실행');
+    // 평가 10차(10/18): '허락하고 실행' → '물어보고', '직접' → '사람이 직접'(eval10_phone_test 3).
+    test("루틴 기록은 출처를 밝힌다 — 자동으로와 물어보고", () {
+      expect(historySourceLabel(e({'purpose': "'아침 공기청정기 끄기' 루틴"})), '루틴 · 물어보고');
       expect(historySourceLabel(e({'purpose': "자동 실행 · '아침 공기청정기 끄기' 루틴"})), '루틴 · 자동으로');
-      expect(historySourceLabel(e({'purpose': '공기청정기 켜줘'})), '직접');
+      expect(historySourceLabel(e({'purpose': '공기청정기 켜줘'})), '사람이 직접');
       expect(historySourceLabel(e({'purpose': '자동 실행 · 공기청정기 바람을 세게 해요'})), '자동');
     });
   });
