@@ -640,7 +640,8 @@ void main() {
 
     testWidgets('버튼판 그림 위에 누르는 자리라고 말한다', (tester) async {
       await _pumpView(tester, exec());
-      expect(find.text('누름 장치가 누르는 자리예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
+      // 실행 중에는 한 줄로 줄였다(출시 검토 10/18).
+      expect(find.text('화면은 누르지 않아도 돼요'), findsOneWidget);
     });
 
     testWidgets('긴 실행 이름은 2줄까지 줄이지 않고 보인다', (tester) async {

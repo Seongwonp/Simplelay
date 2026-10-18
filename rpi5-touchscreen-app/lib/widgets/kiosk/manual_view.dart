@@ -553,12 +553,19 @@ class _ButtonGrid extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(_cellGap),
               child: btn == null
-                  // 버튼이 없는 자리 — 점선 빈 자리(휴리스틱 평가 10/18: 빈 칸이 눌러지지 않는 단추처럼 뜻 없이 비어 보였다).
+                  // 버튼이 없는 자리 — 테두리 없이 흐린 '버튼 없음'(출시 검토 10/18 — 점선 칸이 고장 난 단추처럼 보였다).
+                  // 칸 자리는 남겨 실제 가전 버튼 자리와 같게 둔다.
                   ? ExcludeSemantics(
-                      child: CustomPaint(
+                      child: SizedBox(
                         key: ValueKey('manual-empty-$col-$row'),
-                        size: cellSize,
-                        painter: _DashedSlotPainter(color: KioskColors.border),
+                        width: cellSize.width,
+                        height: cellSize.height,
+                        child: Center(
+                          child: Text(kManualNoButton,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+                        ),
                       ),
                     )
                   : _ButtonCell(
@@ -584,34 +591,6 @@ String manualLayoutNote(String applianceName) => '$applianceName 버튼 자리 �
 String manualPressNote(String applianceName, String buttonLabel) =>
     '누르면 누름 장치가 $applianceName $buttonLabel 버튼을 눌러요';
 
-/// 버튼이 없는 칸 — 둥근 점선 테두리만.
-class _DashedSlotPainter extends CustomPainter {
-  _DashedSlotPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    final rrect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(1, 1, size.width - 2, size.height - 2), const Radius.circular(10));
-    final path = Path()..addRRect(rrect);
-    const dash = 8.0, gap = 6.0;
-    for (final metric in path.computeMetrics()) {
-      var d = 0.0;
-      while (d < metric.length) {
-        canvas.drawPath(metric.extractPath(d, d + dash), paint);
-        d += dash + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedSlotPainter old) => old.color != color;
-}
 
 // 멀리서 읽히는 하한. 4열(인덕션)·4행(전자레인지)이 800x480에 들어가는 크기였다.
 const double _cellWidth = 124;
@@ -691,3 +670,6 @@ class _ButtonCell extends StatelessWidget {
     );
   }
 }
+
+/// 버튼이 없는 자리 글자(출시 검토 10/18).
+const kManualNoButton = '버튼 없음';

@@ -27,7 +27,10 @@ typedef KioskStep = ({String? label, KioskStepState state});
 /// 누른 이름)가 있을 때만 그린다 — 두 칸 미만이거나 [maxSteps]를 넘으면 그리지 않는다(위 '누를 버튼 N개 중 K번째'가 말한다).
 /// 화면 읽기는 위 상태 영역이 같은 말을 하므로 읽지 않는다. 키는 칸마다 `step-<i>-<상태>`.
 class KioskStepTrail extends StatelessWidget {
-  const KioskStepTrail({super.key, required this.steps, this.title, this.caution = false});
+  const KioskStepTrail({super.key, required this.steps, this.title, this.caution = false, this.big = false});
+
+  /// 크게(실행 화면 제목 아래, 출시 검토 10/18) — 동그라미·이름 한 단계 크게.
+  final bool big;
 
   final List<KioskStep> steps;
 
@@ -42,9 +45,11 @@ class KioskStepTrail extends StatelessWidget {
   /// 이 줄을 그릴 만한가.
   static bool worth(int count) => count >= 2 && count <= maxSteps;
 
-  static const double _dot = 48;
+  static const double _dotSmall = 48;
+  static const double _dotBig = 72;
   static const double _gap = 28;
   static const double _maxCell = 132;
+  static const double _maxCellBig = 190;
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +68,11 @@ class KioskStepTrail extends StatelessWidget {
           ],
           LayoutBuilder(builder: (context, box) {
             final n = steps.length;
-            final cell = ((box.maxWidth - (n - 1) * _gap) / n).clamp(_dot, _maxCell).toDouble();
+            // 크게일 때도 칸이 많으면 폭에 맞춰 줄인다(작은 크기 아래로는 줄이지 않는다).
+            final dot = big
+                ? ((box.maxWidth - (n - 1) * _gap) / n).clamp(_dotSmall, _dotBig).toDouble()
+                : _dotSmall;
+            final cell = ((box.maxWidth - (n - 1) * _gap) / n).clamp(dot, big ? _maxCellBig : _maxCell).toDouble();
             return Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,7 +81,7 @@ class KioskStepTrail extends StatelessWidget {
                   if (i > 0)
                     // 칸 사이 잇는 선 — 동그라미 가운데 높이.
                     Padding(
-                      padding: const EdgeInsets.only(top: _dot / 2 - 1.5),
+                      padding: EdgeInsets.only(top: dot / 2 - 1.5),
                       child: Container(
                           width: _gap,
                           height: 3,
@@ -80,7 +89,7 @@ class KioskStepTrail extends StatelessWidget {
                               ? KioskColors.muted
                               : KioskColors.border),
                     ),
-                  SizedBox(width: cell, child: _Cell(index: i, step: steps[i], caution: caution)),
+                  SizedBox(width: cell, child: _Cell(index: i, step: steps[i], caution: caution, big: big, dot: dot)),
                 ],
               ],
             );
@@ -92,29 +101,33 @@ class KioskStepTrail extends StatelessWidget {
 }
 
 class _Cell extends StatelessWidget {
-  const _Cell({required this.index, required this.step, required this.caution});
+  const _Cell({required this.index, required this.step, required this.caution, required this.big, required this.dot});
+
+  final double dot;
 
   final int index;
   final KioskStep step;
   final bool caution;
+  final bool big;
 
   @override
   Widget build(BuildContext context) {
     final s = step.state;
+    final mk = dot / KioskStepTrail._dotSmall;
     final currentColor = caution ? KioskColors.warning : KioskColors.running;
     final (Color fill, Color border, Widget mark) = switch (s) {
       KioskStepState.done => (
           KioskColors.neutralFill,
           KioskColors.neutralFill,
-          Icon(Icons.check, size: 30, color: KioskColors.onAccent)
+          Icon(Icons.check, size: 30 * mk, color: KioskColors.onAccent)
         ),
       KioskStepState.unknown => (
           Colors.transparent,
           KioskColors.warning,
-          Icon(Icons.question_mark, size: 28, color: KioskColors.warning)
+          Icon(Icons.question_mark, size: 28 * mk, color: KioskColors.warning)
         ),
-      KioskStepState.current => (currentColor, currentColor, _num(index, KioskColors.onAccent)),
-      KioskStepState.todo => (Colors.transparent, KioskColors.muted, _num(index, KioskColors.muted)),
+      KioskStepState.current => (currentColor, currentColor, _num(index, KioskColors.onAccent, mk)),
+      KioskStepState.todo => (Colors.transparent, KioskColors.muted, _num(index, KioskColors.muted, mk)),
     };
     final label = step.label;
     return Column(
@@ -122,8 +135,8 @@ class _Cell extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: KioskStepTrail._dot,
-          height: KioskStepTrail._dot,
+          width: dot,
+          height: dot,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: fill,
@@ -140,7 +153,7 @@ class _Cell extends StatelessWidget {
           softWrap: false,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: KioskType.body,
+            fontSize: big ? KioskType.status : KioskType.body,
             height: 1.2,
             fontWeight: s == KioskStepState.current ? FontWeight.w800 : FontWeight.w600,
             color: s == KioskStepState.current ? Colors.white : KioskColors.muted,
@@ -150,8 +163,8 @@ class _Cell extends StatelessWidget {
     );
   }
 
-  static Widget _num(int i, Color color) => Text('${i + 1}',
+  static Widget _num(int i, Color color, double mk) => Text('${i + 1}',
       textScaler: TextScaler.noScaling,
       style: TextStyle(
-          fontSize: KioskType.body, height: 1, fontWeight: FontWeight.w800, color: color));
+          fontSize: KioskType.body * mk, height: 1, fontWeight: FontWeight.w800, color: color));
 }

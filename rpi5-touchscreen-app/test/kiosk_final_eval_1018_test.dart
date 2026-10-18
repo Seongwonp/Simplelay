@@ -21,7 +21,6 @@ import 'package:simplelay_touchscreen/widgets/kiosk/danger_alert_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/help_guide.dart';
-import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_timings.dart';
@@ -198,7 +197,8 @@ void main() {
           ));
       final caption = find.byKey(const ValueKey('exec-panel-caption'));
       expect(caption, findsOneWidget);
-      expect(_plain(kPracticePanelCaption), findsOneWidget);
+      // 실행 중에는 한 줄(출시 검토 10/18) — 연습은 위 청록 띠가 말한다.
+      expect(_plain(kExecPanelCaption), findsOneWidget);
       expect(_styleOf(tester, caption).fontSize, greaterThanOrEqualTo(KioskType.body));
     });
 
@@ -257,11 +257,14 @@ void main() {
           onDismiss: () {},
         );
 
-    testWidgets("위 띠는 한 줄 — 연습 표시는 짧게 '연습'", (tester) async {
+    // 출시 검토(10/18)에서 바꿈: 연습 실패(확인 필요)는 앰버가 아니라 청록 연습 띠 — 글자는 짧게 '연습'(한 줄).
+    testWidgets("위 띠는 한 줄 — 청록 연습 띠, 연습 표시는 짧게 '연습'", (tester) async {
       await _pump15(tester, failed());
       final band = find.byKey(const ValueKey('status-band'));
       expect(find.descendant(of: band, matching: _plain(kPracticeBandText)), findsNothing);
       expect(find.descendant(of: band, matching: _plain('연습')), findsOneWidget);
+      final box = tester.widget<Container>(band).decoration as BoxDecoration;
+      expect((box.border as Border).left.color, KioskColors.practice);
       // 한 줄 띠 — 기본 높이(캔버스 40 = 실제 82px) 그대로(getSize는 캔버스 단위).
       expect(tester.getSize(band).height, closeTo(KioskSizes.bandHeight, 1), reason: "캔버스 단위 — 한 줄 띠 높이");
     });

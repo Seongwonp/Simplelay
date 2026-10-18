@@ -81,9 +81,9 @@ void main() {
       expect(trail, findsOneWidget);
       expect(find.byKey(const ValueKey('step-0-done')), findsOneWidget);
       expect(find.byKey(const ValueKey('step-1-current')), findsOneWidget);
-      // 왼쪽 아래를 채운다 — 화면 아래쪽 1/3 안, 정지 단추 왼쪽.
+      // 출시 검토(10/18)에서 바꿈: 상태 제목 바로 아래(화면 위쪽 절반 안), 정지 단추 왼쪽.
       final r = tester.getRect(trail);
-      expect(r.bottom, greaterThan(480 * 2 / 3));
+      expect(r.top, lessThan(480 / 2));
       expect(r.right, lessThan(tester.getRect(find.byKey(const ValueKey('kiosk-stop-area'))).left));
       expect(tester.takeException(), isNull);
     });

@@ -1497,11 +1497,16 @@ class _Hours extends StatelessWidget {
   /// 예보 칸의 높이 — 모든 칸이 같다(가장 높은 칸 기준, FittedBox는 줄이기만 하므로 상한이다).
   static double heightFor(BuildContext context, List<ForecastSlot> hours, {required bool compact}) {
     var max = 0.0;
+    // 비 확률 둘째 줄 자리는 어느 칸이라도 비 %가 있을 때만(출시 검토 10/18 — 비 없는 날 칸 아래 절반이 비었다).
+    // 칸끼리는 늘 같은 높이다.
+    final anyPop = hours.any((s) => _popOf(s.hour) != null);
     for (final s in hours) {
       final label = _textHeight(context, s.label, _labelStyle(compact), double.infinity);
       final value = _textHeight(context, '0°', _tempStyle(compact), double.infinity);
       // 비 확률 둘째 줄 자리는 늘 둔다(평가 17차 10/18 — 비 칸이 있을 때만 칸이 높아져 화면마다 칸 높이가 들쭉날쭉했다).
-      final popH = _gap(compact) + _textHeight(context, _popOf(s.hour) ?? '비 100%', _popStyle(compact), double.infinity);
+      final popH = anyPop
+          ? _gap(compact) + _textHeight(context, _popOf(s.hour) ?? '비 100%', _popStyle(compact), double.infinity)
+          : 0.0;
       final cell = 2 * _cellPadV + label + _gap(compact) + (value > _Idle.hourIcon ? value : _Idle.hourIcon) + popH;
       if (cell > max) max = cell;
     }

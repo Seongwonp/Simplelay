@@ -485,8 +485,12 @@ void main() {
       );
       expect(find.textContaining(why), findsOneWidget, reason: '$reason');
       expect(find.byKey(const ValueKey('done-next-step')), findsNothing, reason: '$reason');
-      // 실제 가전을 움직이지 않았다는 말 — 위 띠는 짧은 '연습'이라 본문 한 줄이 한다(결선 모의 평가 10/18).
-      expect(find.text(kPracticeRealUnchanged), findsOneWidget, reason: '$reason');
+      // 실제 가전을 움직이지 않았다는 말 — 연습 띠(청록, 출시 검토 10/18) 또는 본문 한 줄이 한 번 한다.
+      expect(
+          find.byWidgetPredicate((w) =>
+              w is RichText && w.text.toPlainText().replaceAll('⁠', '').contains(kPracticeRealUnchanged)),
+          findsOneWidget,
+          reason: '$reason');
     }
   });
 

@@ -110,7 +110,8 @@ void main() {
   testWidgets('대상 가전의 버튼판에서 지금 누르는 버튼을 가리킨다', (tester) async {
     await _pump(tester, total: 3, target: kMicrowaveAppliance);
 
-    expect(find.text('누름 장치가 누르는 자리예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
+    // 실행 중 버튼판 위 안내는 한 줄(출시 검토 10/18).
+    expect(find.text('화면은 누르지 않아도 돼요'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('panel-current')),

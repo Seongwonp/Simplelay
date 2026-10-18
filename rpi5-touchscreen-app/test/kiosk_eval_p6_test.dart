@@ -154,11 +154,11 @@ void main() {
       expect(ready, isNot(_bandFill(tester, 'rice')));
     });
 
-    testWidgets("누름 장치 끊김은 회색 '지금 못 써요', 비상 버튼은 빨강 '지금 못 써요'", (tester) async {
+    // 출시 검토(10/18)에서 바꿈: '지금 못 써요'는 이유와 상관없이 한 모양(빨강) — 회색 끊긴 고리와 빨간 느낌표가 달랐다.
+    testWidgets("누름 장치 끊김·비상 버튼 모두 같은 빨강 '지금 못 써요'", (tester) async {
       await _pump(tester, _idle([_microwave, _air], connections: _pressDown));
       expect(_status(tester, 'microwave'), '지금 못 써요');
-      expect(_bandFill(tester, 'microwave'), isNot(_tint(KioskColors.danger)));
-      expect(_bandFill(tester, 'microwave'), isNot(_tint(KioskColors.warning)));
+      expect(_bandFill(tester, 'microwave'), _tint(KioskColors.danger));
 
       await _pump(
           tester,

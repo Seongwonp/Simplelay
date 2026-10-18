@@ -354,7 +354,7 @@ class KioskDoneView extends StatelessWidget {
     // 누름 장치가 멈춘 것을 확인한 정지(verified)만 흰색·체크(2026-10-15). 그 밖의 정지는 멈췄는지 모른다 — 주의색·물음표.
     final stopVerified = userStop && stopLevelConfirmed(stopLevel);
     // 확인 못 함은 실패가 아니다 — 빨강이 아니라 주의색으로 말한다.
-    final color = verifiedSuccess
+    final baseColor = verifiedSuccess
         ? KioskColors.confirmed
         : pressCompleted
             // 누름 보고만도 '확인 필요' 결과 — 띠('확인해 주세요', 앰버)와 같은 앰버 제목(접근성 감사 10/18: 같은 확인 필요 상태가
@@ -368,6 +368,9 @@ class KioskDoneView extends StatelessWidget {
                     : r.isUnconfirmed || r == KioskFailureReason.execution
                         ? KioskColors.warning
                         : KioskColors.danger;
+    // 연습의 확인 필요는 앰버가 아니라 연습 색(청록, 출시 검토 10/18) — 실제 가전은 그대로이니 사람이 확인할 일이 아니다.
+    // 실패(빨강)는 그대로 둔다.
+    final color = mock && baseColor == KioskColors.warning ? KioskColors.practice : baseColor;
     final target = this.target;
     // 모션 걸림 등(2026-10-14) — '눌림을 확인하지 못해'로 원인을 바꿔 말하지 않는다.
     final motion = !success && r == KioskFailureReason.safetyStop
@@ -508,7 +511,11 @@ class KioskDoneView extends StatelessWidget {
     } else if (mock &&
         color != KioskColors.warning &&
         color != KioskColors.danger) {
-      band = KioskStatusBand.practice(detail: bandDetail, detailIcon: target?.icon);
+      // 연습의 확인 필요(실패)는 청록 띠에 짧은 '연습' + 가전 줄 한 줄(출시 검토 10/18) — 실제 가전이 그대로라는 말은 본문.
+      band = KioskStatusBand.practice(
+          detail: bandDetail,
+          detailIcon: target?.icon,
+          practiceShort: !success && !userStop && bandDetail != null);
     } else {
       final danger = color == KioskColors.danger;
       final what = bandDetail;
@@ -522,7 +529,9 @@ class KioskDoneView extends StatelessWidget {
     }
     // 연습이 다른 띠(확인 필요·실패)와 겹치고 가전 줄까지 있으면 띠의 연습 표시는 짧은 '연습'([KioskStatusBand]) — 그때 본문이
     // '실제 가전은 그대로예요'를 말한다. 멈추는 중(pending)은 아래 기다림 말이 먼저라 두지 않는다.
-    final practiceInBand = mock && band.tone != KioskBandTone.practice && (band.detail?.isNotEmpty ?? false);
+    final practiceInBand = mock &&
+        (band.tone != KioskBandTone.practice || band.practiceShort) &&
+        (band.detail?.isNotEmpty ?? false);
 
     final content = Semantics(
       liveRegion: true,
@@ -802,7 +811,9 @@ class KioskDoneView extends StatelessWidget {
                   children: [
                     Expanded(
                       // 왼쪽 아래 빈자리에 누른 순서(평가 7차 10/18) — 버튼판의 ✓와 같은 뜻(누름 장치가 눌렀다고 알려 옴).
-                      child: KioskStepTrail.worth(pressed!.length)
+                      // 번호 안내(확인 못 함)가 있으면 누른 순서 줄은 두지 않는다(출시 검토 10/18 — 셋째 안내가 스크롤 아래로
+                      // 밀려 잘렸다). 누른 칸 ✓·?는 오른쪽 버튼판이 같은 자리에서 말한다.
+                      child: KioskStepTrail.worth(pressed!.length) && steps == null
                           ? Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

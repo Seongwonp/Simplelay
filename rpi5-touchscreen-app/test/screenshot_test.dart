@@ -1079,6 +1079,8 @@ void main() {
         success: false,
         label: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
+        // 서버는 실패에도 누른 단계(last_buttons)를 준다 — 성공과 같은 자리에 누른 순서·버튼판(출시 검토 10/18).
+        pressed: const [KioskButtonResult(button: '즉석밥', success: true), KioskButtonResult(button: '시작', success: false)],
         onRetry: () {},
         onManual: () {},
         onDismiss: () {},
@@ -1096,6 +1098,7 @@ void main() {
         executionMode: 'real',
         label: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
+        pressed: const [KioskButtonResult(button: '즉석밥', success: true), KioskButtonResult(button: '시작', success: false)],
         onRetry: () {},
         onManual: () {},
         onDismiss: () {},

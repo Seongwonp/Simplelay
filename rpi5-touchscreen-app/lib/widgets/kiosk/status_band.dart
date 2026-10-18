@@ -42,10 +42,10 @@ class KioskStatusBand extends StatelessWidget {
     this.suppressUnderEstop = false,
     this.detail,
     this.detailIcon,
-  });
+  }) : practiceShort = false;
 
   /// 연습 실행의 일반 상태 — 띠 전체가 청록 연습 띠.
-  const KioskStatusBand.practice({super.key, this.detail, this.detailIcon})
+  const KioskStatusBand.practice({super.key, this.detail, this.detailIcon, this.practiceShort = false})
       : tone = KioskBandTone.practice,
         icon = Icons.school_outlined,
         label = kPracticeBandText,
@@ -59,6 +59,10 @@ class KioskStatusBand extends StatelessWidget {
   /// 연습 실행인가 — [tone]이 확인 필요·실패여도 청록 연습 칸을 함께 그린다.
   final bool practice;
   final bool suppressUnderEstop;
+
+  /// 청록 연습 띠의 글자를 짧은 '연습'으로(출시 검토 10/18 — 연습의 확인 필요 결과: 가전 줄과 함께 한 줄에 둔다).
+  /// 실제 가전이 그대로라는 말은 그 화면 본문이 한다.
+  final bool practiceShort;
 
   /// 띠 오른쪽의 무엇을 하는 중인가(가전·할 일, 화면 구조 개편 10/18) — 실행 화면 왼쪽 글을 상태·진행·한 줄로
   /// 줄이려고 위 띠로 올렸다. 좁으면 다음 줄로 내려간다(자르지 않는다).
@@ -105,7 +109,8 @@ class KioskStatusBand extends StatelessWidget {
       content = _PracticeMark(
           iconKey: const ValueKey('status-band-icon'),
           style: text,
-          iconSize: iconSize);
+          iconSize: iconSize,
+          short: practiceShort);
     } else {
       final main = Row(
         mainAxisSize: MainAxisSize.min,

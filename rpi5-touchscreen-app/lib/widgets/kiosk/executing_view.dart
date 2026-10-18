@@ -6,7 +6,6 @@ import '../../models/thinq_run.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
-import 'hold_view.dart' show kPanelCaption, kPracticePanelCaption;
 import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 import 'run_frame.dart';
@@ -274,21 +273,23 @@ class KioskExecutingView extends StatelessWidget {
         ],
       ),
     );
-    // 왼쪽 아래 빈자리에 누를 순서(평가 7차 10/18) — 큰 글씨는 세로 1열이라 자리가 없어 위 진행 줄만 둔다.
+    // 누를 순서는 상태 제목 바로 아래에 크게(출시 검토 10/18 — 왼쪽 아래에 두니 가운데가 비었다).
+    // 큰 글씨는 세로 1열이라 자리가 없어 진행 줄만 둔다.
     final trail = isDone || KioskLayout.isLarge(context) ? null : steps;
     final body = trail == null
         ? scroll
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: scroll),
-              const SizedBox(height: KioskSpace.sm),
               // 머리말은 결과 화면('누른 순서')과 같은 모양(평가 8차 10/18).
               KioskStepTrail(
                   key: const ValueKey('exec-step-trail'),
                   title: _mock ? '연습으로 누를 순서' : '누를 순서',
                   steps: trail,
+                  big: true,
                   caution: _retrying),
+              const SizedBox(height: KioskSpace.md),
+              Expanded(child: scroll),
             ],
           );
 
@@ -335,18 +336,21 @@ class KioskExecutingView extends StatelessWidget {
               current: onPanel,
               pressed: _donePressed(target, onPanel),
               caution: _retrying,
-              caption: _mock ? kPracticePanelCaption : kPanelCaption,
+              caption: kExecPanelCaption,
               captionKey: const ValueKey('exec-panel-caption'),
             )
           : KioskPanelPicture(
               appliance: target,
-              caption: _mock ? kPracticePanelCaption : kPanelCaption,
+              caption: kExecPanelCaption,
               captionKey: const ValueKey('exec-panel-caption'),
             ),
       stop: KioskStopButton(label: '정지', onPressed: onStop),
     );
   }
 }
+
+/// 실행 중 버튼판 위 한 줄(출시 검토 10/18) — 세 줄 설명 대신 할 일만. 연습도 같은 말(연습은 위 청록 띠가 말한다).
+const kExecPanelCaption = '화면은 누르지 않아도 돼요';
 
 /// 실행 중 상태 — 누르기 단계(결선 모의 평가 10/18). 무슨 버튼인지는 바로 아래 큰 이름('시작 버튼')이 말한다.
 const kExecPressing = '누르고 있어요';

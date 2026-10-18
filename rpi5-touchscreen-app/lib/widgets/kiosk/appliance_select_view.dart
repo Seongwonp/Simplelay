@@ -5,6 +5,7 @@ import '../../theme/kiosk_tokens.dart';
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_back_button.dart';
+import 'kiosk_text.dart';
 import 'route_badge.dart';
 
 /// 수동 조작 진입 시 가전 선택 — 키오스크는 특정 가전 전속이 아니라
@@ -154,8 +155,10 @@ class _ApplianceCard extends StatelessWidget {
               children: [
                 Icon(appliance.icon, size: 44, color: KioskColors.muted),
                 const SizedBox(height: 12),
-                Text(
+                // 낱말 단위로 줄을 바꾼다(출시 검토 10/18 — '연습 전자레인/지'처럼 한 글자가 떨어졌다).
+                KioskText(
                   appliance.displayName,
+                  textKey: ValueKey('appliance-select-name-${appliance.id}'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: KioskType.body,

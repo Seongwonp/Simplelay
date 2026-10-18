@@ -593,6 +593,9 @@ class KioskTileBand {
 /// 회색 띠 면 — 준비됨·모름·누름 장치 끊김·가족이 설정. 색 있는 띠보다 옅다.
 const Color kTileBandGrey = Color(0x1FAEB3C0);
 
+/// '지금 못 써요' 띠 말 — 비상 버튼·누름 장치 끊김 모두 같은 모양(빨강·느낌표).
+const kUnavailableText = '지금 못 써요';
+
 /// 설정이 남은 가전 타일의 띠 말(접근성 감사 10/18) — 어르신이 할 일이 아니라 가족이 폰에서 한다.
 const kFamilySetupText = '가족이 설정해요';
 
@@ -611,9 +614,9 @@ KioskTileBand kioskTileBand(
   if (attention) return KioskTileBand('확인 필요', Icons.error_outline, KioskColors.warning);
   if (unavailable) {
     // 이유는 누르면 연다(비상 버튼 풀기 안내·누름 장치 연결 창).
-    return unavailableByEstop
-        ? KioskTileBand('지금 못 써요', Icons.report, KioskColors.danger)
-        : KioskTileBand('지금 못 써요', Icons.link_off, KioskColors.muted, fill: kTileBandGrey);
+    // '지금 못 써요'는 이유와 상관없이 한 모양(출시 검토 10/18 — 비상 버튼은 빨간 느낌표, 누름 장치 끊김은 회색 고리로 달랐다).
+    // 상태 색 표: 못 씀 = 빨강. 이유는 위 경고 줄과 누르면 여는 창이 말한다.
+    return KioskTileBand(kUnavailableText, Icons.report, KioskColors.danger);
   }
   // 연습 가전(서버 이름 '(연습)')은 연습 색(위 연습 띠와 같은 청록, 2026-10-18 휴리스틱 평가) — 누름 장치의 '준비됐어요'·손가락
   // 그림을 쓰지 않는다. 읽은 전원만 말하고 모르면 '확인 전이에요'. 글자는 흰색(청록은 면·아이콘).

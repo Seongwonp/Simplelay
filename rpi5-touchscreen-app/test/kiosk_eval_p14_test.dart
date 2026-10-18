@@ -366,7 +366,7 @@ void main() {
           ));
       final band = find.byKey(const ValueKey('status-band'));
       expect(find.descendant(of: band, matching: find.byKey(const ValueKey('practice-band'))), findsOneWidget);
-      // 가전 줄이 함께 있으면 짧게 '연습', 실제 가전이 그대로라는 말은 본문(결선 모의 평가 10/18).
+      // 가전 줄이 함께 있으면 짧게 '연습', 실제 가전이 그대로라는 말은 본문(결선 모의 평가 10/18). 띠는 청록(출시 검토 10/18).
       expect(find.descendant(of: band, matching: find.text(kPracticeShort)), findsOneWidget);
       expect(find.text(kPracticeRealUnchanged), findsOneWidget);
       expect(_hasBorderBox(tester, band), isFalse);

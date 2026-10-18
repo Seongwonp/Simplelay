@@ -255,12 +255,13 @@ void main() {
     }
   });
 
-  testWidgets('4. 예보 칸 높이는 비 확률 줄이 있든 없든 같다', (tester) async {
+  // 출시 검토(10/18)에서 바꿈: 비 확률이 없는 날은 칸을 내용에 맞춰 줄인다(아래 절반이 비었다). 칸끼리는 늘 같다.
+  testWidgets('4. 예보 칸은 비 확률 줄이 없으면 줄어든다(칸끼리는 같다)', (tester) async {
     await _pump(tester, _idle(_dry));
     final dry = tester.getSize(find.byKey(const ValueKey('ambient-hour-0'))).height;
     await _pump(tester, _idle(_wet));
     final wet = tester.getSize(find.byKey(const ValueKey('ambient-hour-0'))).height;
-    expect(dry, closeTo(wet, 0.5));
+    expect(dry, lessThan(wet - 10));
   });
 
   testWidgets("5. 문제 칩은 '연결 확인 필요 N' — 가전 문제와 함께여도 무엇을 센 숫자인지 드러난다", (tester) async {
