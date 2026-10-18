@@ -144,9 +144,11 @@ class ThinqBinding:
         return cap
 
     def command_for_purpose(self, target_id: str, purpose: str) -> Command | None:
-        key = purpose.strip()
+        # 음성 인식은 띄어쓰기를 제멋대로 넣는다('공기 청정기 켜 줘' — 10/19 실기기). 띄어쓰기와 끝 문장부호만
+        # 무시하고 나머지는 그대로 같아야 한다(뜻을 짐작해 맞추지 않는다).
+        key = _purpose_key(purpose)
         for fn in self.functions:
-            if fn.purpose == key:
+            if _purpose_key(fn.purpose) == key:
                 return self.command(target_id, fn.action, dict(fn.args))
         return None
 
@@ -294,3 +296,8 @@ def dehumidifier_binding(device_id: str) -> ThinqBinding:
         functions=DEHUMIDIFIER_FUNCTIONS,
         readable=(("operation", "dehumidifierOperationMode"),),
     )
+
+
+def _purpose_key(text: str) -> str:
+    """목적 문장 비교 키 — 공백을 모두 빼고 끝의 . ! ? 를 뗀다."""
+    return "".join(text.split()).rstrip(".!?")
