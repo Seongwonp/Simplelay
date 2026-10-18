@@ -44,14 +44,14 @@ Future<void> _pump(
 
 void main() {
   // 2026-10-15 B1: completed_steps는 끝낸 수 — 지금 누르는 번호는 끝낸 수 + 1.
-  testWidgets('버튼·누르는 중·누를 버튼 N개 중 K번째·대상 가전을 보여준다', (tester) async {
+  testWidgets('버튼·누르고 있어요·누를 버튼 N개 중 K번째·대상 가전을 보여준다', (tester) async {
     await _pump(tester, total: 3, target: kMicrowaveAppliance);
 
     expect(find.text('해동 버튼'), findsOneWidget);
     // 큰 버튼 이름이 무엇인지 이름표가 붙는다(외부 평가 10/16 2차 k05).
     // 시제를 가리지 않는 이름표 — 확인 중에도 맞는 말(외부 평가 10/16 3차).
     expect(find.text('이번 버튼'), findsNothing); // 이름표 대신 진행 줄이 위에서 말한다(10/18).
-    expect(find.text('누르는 중'), findsOneWidget);
+    expect(find.text('누르고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 단계대로
     expect(find.text('누를 버튼 3개 중 2번째'), findsOneWidget);
     expect(find.textContaining('전자레인지'), findsOneWidget); // 위 띠(10/18)
     // 시간으로 채우는 퍼센트가 아니다.
@@ -59,11 +59,11 @@ void main() {
   });
 
   // 2026-10-15 §3-1: 숫자(mA·dB·%)는 화면에서 뺀다 — 무엇을 보고 있는지만 작은 한 줄로.
-  testWidgets('검증 근거가 오면 제대로 눌렸는지 보는 중이고, 숫자는 화면에 없다',
+  testWidgets("검증 근거가 오면 '눌렀어요, 확인 중이에요', 숫자는 화면에 없다",
       (tester) async {
     await _pump(tester, confidence: 0.93, detail: '전류 +14mA · 소리 +9dB');
 
-    expect(find.text('제대로 눌렸는지 보는 중'), findsOneWidget);
+    expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
     // 같은 뜻의 둘째 줄('가전이 켜지는지 보고 있어요')은 두지 않는다(평가 15차 10/18).
     expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing);
     expect(find.textContaining('mA'), findsNothing);

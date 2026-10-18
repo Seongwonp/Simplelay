@@ -405,6 +405,8 @@ class KioskDoneView extends StatelessWidget {
                 ? '원하는 대로 됐는지 봐 주세요'
                 // 폰·서버와 같은 말(평가 14차 10/18 — 폰 '버튼은 다 눌렀어요, 움직이는지 봐 주세요'). 제목이 '버튼은 다 눌렀어요'.
                 : '가전이 움직이는지 봐 주세요';
+    // 제목 바로 아래 근거 한 줄(결선 모의 평가 10/18) — 전력 실측으로 확인한 성공에만.
+    final String? evidence = success && !thinq && !mock && operationVerified ? kDoneEvidencePower : null;
     // 판정 출처가 real일 때만 실제 동작을 확인했다고 말한다. 출처를 모르면 단정하지 않는다(폰과 같은 규칙).
     // 모의 출처는 아래 작은 글씨("연습 값이에요")가 같이 밝힌다. 물리 성공의 확인은 위 한 줄이 이미 말했다.
     // 연습에는 두지 않는다 — '연습이라 가전은 보지 않았어요'는 위 연습 띠와 부딪혔다(평가 4차 10/18).
@@ -500,6 +502,9 @@ class KioskDoneView extends StatelessWidget {
           detail: what == null || what.isEmpty ? null : what,
           detailIcon: what == null || what.isEmpty ? null : target?.icon);
     }
+    // 연습이 다른 띠(확인 필요·실패)와 겹치고 가전 줄까지 있으면 띠의 연습 표시는 짧은 '연습'([KioskStatusBand]) — 그때 본문이
+    // '실제 가전은 그대로예요'를 말한다. 멈추는 중(pending)은 아래 기다림 말이 먼저라 두지 않는다.
+    final practiceInBand = mock && band.tone != KioskBandTone.practice && (band.detail?.isNotEmpty ?? false);
 
     final content = Semantics(
       liveRegion: true,
@@ -508,6 +513,7 @@ class KioskDoneView extends StatelessWidget {
         if (success) ...[
           if (showLabel) label,
           successHeadline,
+          if (evidence != null) evidence,
           if (successSub != null) successSub,
         ] else ...[
           if (showLabel) label,
@@ -575,6 +581,17 @@ class KioskDoneView extends StatelessWidget {
                   height: 1.3),
             ),
           ],
+          // 연습이 확인 필요·실패 띠와 겹치면 띠의 연습 표시는 짧은 '연습'이다(결선 모의 평가 10/18) — 실제 가전이 그대로라는
+          // 말은 본문 한 줄로(띠가 하던 말, 같은 말 두 번이 아니다).
+          if (practiceInBand && !pending) ...[
+            const SizedBox(height: KioskSpace.xs),
+            KioskText(
+              kPracticeRealUnchanged,
+              textKey: const ValueKey('done-practice-note'),
+              textAlign: ta,
+              style: const TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
+            ),
+          ],
           // 기다림 상한(kiosk_screen이 실제로 끊는 시간과 같은 값)과 정지를 또 누르지 않아도 된다는 말(휴리스틱 평가 10/18).
           if (pending) ...[
             const SizedBox(height: KioskSpace.xs),
@@ -585,16 +602,28 @@ class KioskDoneView extends StatelessWidget {
               style: const TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
             ),
           ],
+          // 무엇으로 확인했는지 제목 바로 아래 한 줄(결선 모의 평가 10/18 — 근거가 없어 '켜졌어요'가 과장으로 읽혔다).
+          // 콘센트 모듈 전력 실측(L3, 출처 real)일 때만 — 누름 보고·연습에는 두지 않는다. 본문 크기·흰 글자.
+          if (success && evidence != null) ...[
+            const SizedBox(height: KioskSpace.xs),
+            KioskText(
+              evidence,
+              textKey: const ValueKey('done-evidence'),
+              textAlign: ta,
+              style: const TextStyle(
+                  fontSize: KioskType.body, fontWeight: FontWeight.w700, height: 1.3, color: Colors.white),
+            ),
+          ],
           if (success && successSub != null) ...[
             const SizedBox(height: 8),
-            // 할 일 한 줄 — 상태 크기(§1-3).
+            // 할 일 한 줄 — 상태 크기(§1-3). 근거 줄이 있으면 그 아래 본문 크기로(근거가 먼저 읽힌다).
             KioskText(
               successSub,
               textKey: const ValueKey('done-sub'),
               textAlign: ta,
-              style: const TextStyle(
-                  fontSize: KioskType.status,
-                  fontWeight: FontWeight.w700,
+              style: TextStyle(
+                  fontSize: evidence != null ? KioskType.body : KioskType.status,
+                  fontWeight: evidence != null ? FontWeight.w500 : FontWeight.w700,
                   color: Colors.white),
             ),
           ],
@@ -934,6 +963,10 @@ class _OperationLine extends StatelessWidget {
     );
   }
 }
+
+/// 전력 실측(콘센트 모듈 L3, 출처 real)으로 확인한 성공의 근거 한 줄(결선 모의 평가 10/18). 확인한 것은 전기를 쓰기
+/// 시작한 것이지 조리·동작이 끝난 것이 아니다 — 그 아래 '원하는 대로 됐는지 봐 주세요'가 사람이 볼 것을 말한다.
+const kDoneEvidencePower = '전기를 쓰기 시작한 걸 확인했어요';
 
 /// 연습 실패 제목 — 이 제목이면 아래 할 일 줄을 두지 않는다(같은 말 두 번 금지, 평가 5차 10/18).
 const kPracticeStoppedHeadline = '연습이 중간에 멈췄어요';
@@ -1376,6 +1409,40 @@ class KioskResultActions extends StatelessWidget {
             ],
           ),
         ),
+      );
+    }
+    // 주 단추가 따로 있고 보조 단추도 있으면(연습 실패의 '한 번 더 하기' + '처음 화면으로'·'누름 장치로 골라 누르기') 같은 폭
+    // 격자(결선 모의 평가 10/18 — 세 단추의 크기·줄이 어긋났다): 윗줄 첫 칸이 주 단추, 아랫줄은 보조 단추들이 같은 폭·같은 높이.
+    if (primary != null && secondaries.isNotEmpty && stop == null) {
+      final lower = <Widget>[if (homeButton != null) homeButton, ...secondaries];
+      return Column(
+        key: const ValueKey('done-actions-grid'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            for (var i = 0; i < lower.length; i++) ...[
+              if (i > 0) const SizedBox(width: KioskSpace.sm),
+              Expanded(
+                child: i == 0
+                    ? primary!
+                    : i == 1 && note != null
+                        ? Align(alignment: Alignment.centerLeft, child: note!)
+                        : const SizedBox.shrink(),
+              ),
+            ],
+          ]),
+          const SizedBox(height: KioskSpace.xs),
+          Row(
+            key: const ValueKey('done-secondary-row'),
+            children: [
+              for (var i = 0; i < lower.length; i++) ...[
+                if (i > 0) const SizedBox(width: KioskSpace.sm),
+                Expanded(child: lower[i]),
+              ],
+            ],
+          ),
+        ],
       );
     }
     return LayoutBuilder(builder: (context, box) {

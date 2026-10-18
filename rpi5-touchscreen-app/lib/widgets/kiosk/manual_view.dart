@@ -618,7 +618,9 @@ const double _cellWidth = 124;
 const double _cellHeight = 66;
 
 // 칸이 커질 수 있는 상한(설계 캔버스 기준).
-const double _cellMaxWidth = 200;
+// 폭 상한은 3열 판이 화면 폭을 고르게 쓰는 값(결선 모의 평가 10/18 — 200이면 오른쪽 25%가 비었다). 루틴 칸이 있으면
+// 자리가 좁아 이 상한에 닿지 않는다.
+const double _cellMaxWidth = 260;
 const double _cellMaxHeight = 96;
 const double _cellGap = 5;
 

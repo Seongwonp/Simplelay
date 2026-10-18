@@ -325,7 +325,7 @@ void main() {
   });
 
   group('5. 문제 칩 — 원인과 영향', () {
-    testWidgets('누름 장치 끊김 하나면 첫 줄 원인·영향, 확인 필요 1은 남는다', (tester) async {
+    testWidgets('누름 장치 끊김 하나면 한 줄 제목이 원인·영향, 해결 방법 보기는 따로 선 단추(결선 모의 평가 10/18)', (tester) async {
       await _pump15(
           tester,
           _idle(connections: const [
@@ -334,7 +334,8 @@ void main() {
           ]));
       final texts = _texts(tester);
       expect(texts, contains('누름 장치가 끊겨 가전 4대를 못 써요'));
-      expect(texts, contains('연결 확인 필요 1'));
+      expect(texts, isNot(contains('연결 확인 필요 1'))); // 한 줄 제목만(결선 모의 평가 10/18)
+      expect(find.byKey(const ValueKey('idle-problem-help')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -536,7 +537,7 @@ void main() {
             verificationDetail: '전력 변화를 보는 중',
             onStop: () {},
           ));
-      expect(find.text('제대로 눌렸는지 보는 중'), findsOneWidget);
+      expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing);
     });
   });

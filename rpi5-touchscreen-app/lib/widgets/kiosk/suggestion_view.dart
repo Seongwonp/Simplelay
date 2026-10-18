@@ -408,34 +408,50 @@ class KioskSuggestionView extends StatelessWidget {
             children: [
               // 카운트다운에서 정작 중요한 정보는 남은 초가 아니라 "가만히 두면
               // 아무 일도 없다"는 사실이다 — 자동으로 실행될까 봐 서두르지 않도록.
+              // 1~2 m에서 읽히게 본문 크기·흰 글자, 남은 초는 굵게 따로(결선 모의 평가 10/18 — 작은 회색이었다).
               Expanded(
-                child: Text(
+                child: KioskText(
                   canExecute
-                      // 남은 초는 이 화면에서 닫히는 시간이다 — 거절·실행을 보내지 않는다(2026-10-15).
-                      ? '누르지 않으면 하지 않아요. $cdRemaining초 뒤 닫혀요'
+                      ? '누르지 않으면 하지 않아요'
                       : scenario
-                          ? '$blockedWhy. $cdRemaining초 뒤 닫혀요'
-                          : '이 가전을 찾지 못해 할 수 없어요. '
-                              '$cdRemaining초 뒤 닫혀요',
+                          ? (blockedWhy ?? '')
+                          : '이 가전을 찾지 못해 할 수 없어요',
+                  textKey: const ValueKey('suggestion-countdown'),
                   style: TextStyle(
-                      fontSize: KioskType.caption,
+                      fontSize: KioskType.body,
+                      height: 1.25,
                       color: canExecute || !scenario
-                          ? KioskColors.muted
+                          ? Colors.white
                           : KioskColors.danger),
                 ),
+              ),
+              // 남은 시간은 오른쪽에 따로, 초는 크게 — 문장을 다 읽지 않아도 얼마나 남았는지 보인다.
+              // 남은 초는 이 화면에서 닫히는 시간이다 — 거절·실행을 보내지 않는다(2026-10-15).
+              const SizedBox(width: KioskSpace.sm),
+              Text.rich(
+                key: const ValueKey('suggestion-countdown-seconds'),
+                TextSpan(children: [
+                  TextSpan(
+                    text: '$cdRemaining초',
+                    style: const TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800),
+                  ),
+                  const TextSpan(text: ' 뒤 닫혀요'),
+                ]),
+                maxLines: 1,
+                softWrap: false,
+                style: const TextStyle(
+                    fontSize: KioskType.body, height: 1.1, color: Colors.white),
               ),
             ],
           ),
           const SizedBox(height: 8),
           ClipRRect(
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
               value: cdTotal > 0 ? cdRemaining / cdTotal : 0,
-              minHeight: 2,
+              minHeight: 6,
               backgroundColor: KioskColors.border,
-              valueColor: AlwaysStoppedAnimation(
-                KioskColors.muted.withValues(alpha: 0.5),
-              ),
+              valueColor: AlwaysStoppedAnimation(KioskColors.panelText),
             ),
           ),
         ],

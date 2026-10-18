@@ -166,9 +166,11 @@ class KioskPanelPicture extends StatelessWidget {
                             // 큰 글씨에서 두 줄로는 잘렸다(2026-10-16 골든) — 세 줄까지.
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
+                            // 본문 크기·밝은 회색(결선 모의 평가 10/18 — 작은 회색 안내가 1~2 m에서 읽히지 않았다).
                             style: TextStyle(
-                                fontSize: KioskType.caption,
-                                color: KioskColors.muted),
+                                fontSize: KioskType.body,
+                                height: 1.25,
+                                color: KioskColors.panelText),
                           ),
                           const SizedBox(height: KioskSpace.xs),
                         ],

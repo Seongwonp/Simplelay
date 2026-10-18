@@ -422,7 +422,7 @@ void main() {
     final tts = FakeTts();
     await _pumpKiosk(tester, api, tts: tts);
     final spoken = tts.utterances.length;
-    for (var i = 0; i < 15; i++) {
+    for (var i = 0; i < KioskTimings.countdownSeconds - 5; i++) { // 기본 카운트다운에 맞춘다(40초, 10/18)
       await tester.pump(const Duration(seconds: 1));
     }
     api.suggestionList = const [KioskSuggestion(
@@ -446,7 +446,7 @@ void main() {
     final api = FakeKioskApi()..suggestionList = [_sug];
     final tts = FakeTts();
     await _pumpKiosk(tester, api, tts: tts);
-    for (var i = 0; i < 25; i++) {
+    for (var i = 0; i < KioskTimings.countdownSeconds + 5; i++) {
       await tester.pump(const Duration(seconds: 1));
     }
     expect(find.byType(KioskSuggestionView), findsNothing);
@@ -1221,20 +1221,21 @@ void main() {
 
     expect(find.text('자리를 맞춰 다시 누르는 중'), findsNothing);
     // 제목과 hero가 같은 라벨을 쓰므로 hero 쪽 상태 구절로 확인한다
-    expect(find.text('누르는 중'), findsOneWidget);
+    expect(find.text('누르고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 단계대로
   });
 
   // ── 카운트다운·설정 진입 (디자인 리뷰) ──────────────────────────────────
 
-  testWidgets('제안 카운트다운 기본값은 20초다', (tester) async {
+  testWidgets('제안 카운트다운 기본값은 40초다', (tester) async {
     // 10초는 음성 안내를 듣고 걸어와서 읽고 판단하기에 짧았다
     useKioskViewport(tester);
     final api = FakeKioskApi()..suggestionList = [_sug];
 
     await _pumpKiosk(tester, api);
 
-    expect(KioskTimings.countdownSeconds, 20);
-    expect(find.text('누르지 않으면 하지 않아요. 20초 뒤 닫혀요'), findsOneWidget);
+    expect(KioskTimings.countdownSeconds, 40); // 결선 모의 평가 10/18 — 20초도 짧았다
+    expect(find.text('누르지 않으면 하지 않아요'), findsOneWidget);
+    expect(find.text('40초 뒤 닫혀요'), findsOneWidget);
   });
 
   testWidgets('제안 화면은 지금 고른 가전이 아니라 제안 자신의 대상을 말한다',
@@ -1272,12 +1273,12 @@ void main() {
     final tempDir = Directory.systemTemp.createTempSync('kiosk-cd-test');
     addTearDown(() => tempDir.deleteSync(recursive: true));
     final path = '${tempDir.path}${Platform.pathSeparator}settings.json';
-    KioskSettingsStore(path: path).save(const KioskSettings(countdownSeconds: 30));
+    KioskSettingsStore(path: path).save(const KioskSettings(countdownSeconds: 60));
 
     final api = FakeKioskApi()..suggestionList = [_sug];
     await _pumpKiosk(tester, api, settings: KioskSettingsStore(path: path));
 
-    expect(find.text('누르지 않으면 하지 않아요. 30초 뒤 닫혀요'), findsOneWidget);
+    expect(find.text('60초 뒤 닫혀요'), findsOneWidget);
   });
 
   test('목록에 없는 카운트다운 값은 기본값으로 폴백한다', () {

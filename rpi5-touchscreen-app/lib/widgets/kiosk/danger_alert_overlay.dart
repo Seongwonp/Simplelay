@@ -12,6 +12,9 @@ import 'kiosk_scroll_area.dart';
 /// 그대로 유지된다(오탐이었을 수도 있으니 강제로 안 없앰). 계속 울리는
 /// 상태라면 alert_cleared가 오기 전까지는 그냥 둬도 자동으로는 안 없어진다 —
 /// 새로 한 번 더 raised로 바뀌면(edge) kiosk_screen.dart가 다시 띄운다.
+/// 경보 화면의 큰 한 줄(결선 모의 평가 10/18).
+const kDanger119 = '위급하면 119에 전화하세요';
+
 class DangerAlertOverlay extends StatelessWidget {
   const DangerAlertOverlay({super.key, required this.onAcknowledge});
 
@@ -58,7 +61,30 @@ class DangerAlertOverlay extends StatelessWidget {
                 // 화재·가스 상황에서 고령 사용자를 위험 쪽으로 보낼 수 있었다.
                 style: TextStyle(fontSize: KioskType.body, color: Colors.white),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 14),
+              // 누구에게 도움을 요청하는지 한 줄 크게(결선 모의 평가 10/18 — '도움을 요청하세요'만 있었다).
+              // 가족 휴대폰에 알렸다고는 쓰지 않는다: 서버는 위험 신호음을 보호자 알림함(care events)에 기록만 하고,
+              // 폰은 앱이 켜져 있을 때 45초마다 당겨 온다(푸시 없음). 이 화면은 기록이 됐는지도 받지 않는다.
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.call, size: KioskType.status + 4, color: KioskColors.danger),
+                  const SizedBox(width: KioskSpace.sm),
+                  const Flexible(
+                    child: Text(
+                      kDanger119,
+                      key: ValueKey('danger-119'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: KioskType.status,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
               const Text(
                 '경보가 아닌 다른 소리일 수도 있어요',
                 style:

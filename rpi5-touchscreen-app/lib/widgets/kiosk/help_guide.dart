@@ -91,7 +91,7 @@ class _KioskHelpGuideState extends State<KioskHelpGuide> {
                   ExcludeSemantics(
                     child: Text('사용 방법 ${_i + 1}/${widget.pages.length}',
                         key: const ValueKey('help-page-number'),
-                        style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+                        style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
                   ),
                   const SizedBox(height: KioskSpace.xs),
                   ExcludeSemantics(
@@ -118,7 +118,7 @@ class _KioskHelpGuideState extends State<KioskHelpGuide> {
                   ExcludeSemantics(
                     child: KioskText(page.body,
                         textKey: const ValueKey('help-body'),
-                        style: const TextStyle(fontSize: KioskType.body, height: 1.35, color: Colors.white)),
+                        style: const TextStyle(fontSize: KioskType.status, height: 1.3, color: Colors.white)),
                   ),
                   const SizedBox(height: KioskSpace.md),
                   Row(

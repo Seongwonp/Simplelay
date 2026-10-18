@@ -381,7 +381,7 @@ void main() {
       expect(opened, 1);
     });
 
-    testWidgets('문제 칩 두 줄 모두 본문 글자', (tester) async {
+    testWidgets('연결 문제 줄 — 제목은 상태 글자, 해결 방법 단추는 본문 글자(결선 모의 평가 10/18)', (tester) async {
       await _pump(
           tester,
           KioskIdleStatusChip(
@@ -394,7 +394,7 @@ void main() {
       final help = tester.widget<Text>(find.byKey(const ValueKey('idle-problem-help-text')));
       expect(help.style!.fontSize, KioskType.body);
       final cause = tester.widget<Text>(find.byKey(const ValueKey('idle-problem-cause')));
-      expect(cause.style!.fontSize, KioskType.body);
+      expect(cause.style!.fontSize, KioskType.status);
     });
 
     testWidgets('가전 타일 상태 띠 글자는 본문 단계', (tester) async {

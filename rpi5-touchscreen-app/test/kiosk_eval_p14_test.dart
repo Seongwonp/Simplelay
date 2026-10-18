@@ -366,7 +366,9 @@ void main() {
           ));
       final band = find.byKey(const ValueKey('status-band'));
       expect(find.descendant(of: band, matching: find.byKey(const ValueKey('practice-band'))), findsOneWidget);
-      expect(find.descendant(of: band, matching: find.text(kPracticeBandText)), findsOneWidget);
+      // 가전 줄이 함께 있으면 짧게 '연습', 실제 가전이 그대로라는 말은 본문(결선 모의 평가 10/18).
+      expect(find.descendant(of: band, matching: find.text(kPracticeShort)), findsOneWidget);
+      expect(find.text(kPracticeRealUnchanged), findsOneWidget);
       expect(_hasBorderBox(tester, band), isFalse);
     });
 
@@ -387,7 +389,8 @@ void main() {
               ])));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
       expect(chip, findsOneWidget);
-      expect(find.descendant(of: chip, matching: find.text('연결 확인 필요 1')), findsOneWidget);
+      // 연결 문제 줄 — 한 줄 제목(원인과 영향, 결선 모의 평가 10/18).
+      expect(find.descendant(of: chip, matching: find.byKey(const ValueKey('idle-problem-cause'))), findsOneWidget);
     });
   });
 

@@ -209,7 +209,22 @@ class KioskIdleView extends StatelessWidget {
 
     // 위쪽(화면 구조 개편 10/18): 날짜 · (쉬는 중이면 쉬는 중 칩) · 상태 칩 · 메뉴. 상태 칩·메뉴는 오른쪽에 붙여
     // 재므로 쉬는 중 칩이 켜져도 자리가 바뀌지 않는다(UI 평가 4차 10/17 — 늘 누르던 자리가 밀렸다).
-    Widget topRow(_IdleSheets sheets) =>
+    // 연결 문제는 위 줄 칩이 아니라 그 아래 한 줄 전체(결선 모의 평가 10/18 — 알약 안 두 줄 글자가 꽉 끼었다): 한 줄 제목 +
+    // 따로 선 '해결 방법 보기' 단추. 그 줄 높이만큼 가운데 칸이 줄어든다([problemExtra]).
+    final (_, connProblem, _) = connectionSummary(connections);
+    final problemExtra = connProblem ? KioskIdleProblemBar.height + KioskSpace.xs : 0.0;
+    Widget statusChip(_IdleSheets sheets) => KioskIdleStatusChip(
+          items: connections,
+          // 누름 장치가 끊겨 '지금 못 써요'인 가전 수(아래 타일과 같은 규칙 — 누름 장치가 누르는 가전).
+          pressImpact: pressDown && list != null ? list.where((a) => !a.isThinq).length : null,
+          onTap: () {
+            // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창. 비상 버튼 띠 아래에서는 칩이 연결 문제만 말한다
+            // (평가 14차 10/18) — 풀기 안내는 띠의 '풀기 안내'·못 쓰는 가전 타일이 연다.
+            final (_, _, direct) = connectionSummary(connections);
+            direct != null ? onOpenConnection(direct) : sheets.openConnections();
+          },
+        );
+    Widget topRow(_IdleSheets sheets) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SizedBox(height: _Idle.topRow, child: LayoutBuilder(builder: (context, top) {
         final topWidth = top.maxWidth;
         return Row(children: [
@@ -226,31 +241,25 @@ class KioskIdleView extends StatelessWidget {
               onTap: onDndGesture),
           const SizedBox(width: KioskSpace.sm),
         ],
-        // 쉬는 중 칩 + 문제 칩 + 큰 글씨가 겹치면 위 줄이 모자란다 — 칩은 잘리지 않고 통째로 조금 줄어든다.
-        // 폭 상한은 위 줄의 절반(원인·영향 한 줄이 들어가게, 평가 15차 10/18 — 큰 글씨는 전처럼 42%) — 쉬는 중 칩이 함께 있어도 같은 상한이라
-        // 보통은 제 크기 그대로, 자리가 바뀌지 않는다.
-        ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: topWidth * (large ? 0.42 : 0.5)),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: KioskIdleStatusChip(
-              items: connections,
-              // 누름 장치가 끊겨 '지금 못 써요'인 가전 수(아래 타일과 같은 규칙 — 누름 장치가 누르는 가전).
-              pressImpact: pressDown && list != null ? list.where((a) => !a.isThinq).length : null,
-              onTap: () {
-                // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창. 비상 버튼 띠 아래에서는 칩이 연결 문제만 말한다
-                // (평가 14차 10/18) — 풀기 안내는 띠의 '풀기 안내'·못 쓰는 가전 타일이 연다.
-                final (_, _, direct) = connectionSummary(connections);
-                direct != null ? onOpenConnection(direct) : sheets.openConnections();
-              },
+        // 쉬는 중 칩 + 확인 중 칩 + 큰 글씨가 겹치면 위 줄이 모자란다 — 칩은 잘리지 않고 통째로 조금 줄어든다.
+        if (!connProblem)
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: topWidth * (large ? 0.42 : 0.5)),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: statusChip(sheets),
             ),
           ),
-        ),
         const SizedBox(width: KioskSpace.xs),
         KioskIdleMenuButton(onTap: sheets.openMenu),
       ]);
-      }));
+      })),
+      if (connProblem) ...[
+        const SizedBox(height: KioskSpace.xs),
+        statusChip(sheets),
+      ],
+    ]);
 
     final Widget host = _IdleSheetHost(view: this, builder: (sheets) => quietDim
         ? _QuietIdle(
@@ -267,7 +276,7 @@ class KioskIdleView extends StatelessWidget {
         child: LayoutBuilder(builder: (context, outer) {
           // 가운데(시계·안내) 칸이 실제로 필요한 높이만 두고 남는 높이는 가전 타일을 키우는 데 쓴다(평가 4차 10/18 —
           // 시계·안내와 타일 사이에 빈 띠가 남았다). 화면과 같은 글꼴·배율로 재므로 실패널의 넓은 글꼴에서도 맞다.
-          final middleAndStrip = outer.maxHeight - _Idle.topRow - 8 - 8;
+          final middleAndStrip = outer.maxHeight - _Idle.topRow - problemExtra - 8 - 8;
           final columns = outer.maxWidth - _Idle.columnGap;
           // 큰 글씨에서는 시계 칸을 넓힌다(6:5, 2026-10-18) — 나쁜 공기·다음 루틴 줄이 덜 꺾인다. 오른쪽은 큰 글씨에서 안내가 있으면
           // 예보를 접으므로 좁아져도 된다. 보통 글씨는 5:6(예보 4칸이 넉넉히).

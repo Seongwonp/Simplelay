@@ -69,10 +69,10 @@ void main() {
       of: find.text('시작'),
       matching: find.byType(InkWell),
     ));
-    // 예전 고정 크기(124x66)보다 크고, 상한(200x96)을 넘지 않는다.
+    // 예전 고정 크기(124x66)보다 크고, 상한(260x96)을 넘지 않는다(폭 상한 결선 모의 평가 10/18).
     expect(cell.width, greaterThan(124));
     expect(cell.height, greaterThan(66));
-    expect(cell.width, lessThanOrEqualTo(200));
+    expect(cell.width, lessThanOrEqualTo(260));
     expect(cell.height, lessThanOrEqualTo(96));
     // 판이 화면 폭의 절반을 넘게 쓴다(예전 3열 판은 약 400/800).
     final left = tester.getTopLeft(find.text('10초')).dx;

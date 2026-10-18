@@ -191,7 +191,7 @@ void main() {
         expect(tester.takeException(), isNull);
         // 아이콘 4~5개 대신 상태 칩 하나 + 메뉴(10/18) — 칩 말과 메뉴 이름이 잘리지 않고 다 보인다.
         // 사전 변경(평가 4차 10/18): 콘센트 → 전기 플러그.
-        for (final label in ['연결 확인 필요 1', '메뉴']) {
+        for (final label in ['전기 플러그를 봐 주세요', '메뉴']) { // 연결 문제는 한 줄 제목(결선 모의 평가 10/18)
           _expectFullyVisible(tester, find.text(label));
         }
         // 메뉴 이름은 제 아이콘 바로 아래에 있다.

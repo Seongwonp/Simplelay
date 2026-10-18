@@ -252,8 +252,8 @@ void main() {
         ];
       await _pump(tester, api);
 
-      // 문제가 있을 때만 앰버 칩 '연결 확인 필요 1'(사용자 결정 10/18) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
-      expect(find.text('연결 확인 필요 1'), findsOneWidget);
+      // 문제가 있을 때만 앰버 연결 문제 줄(결선 모의 평가 10/18 — 한 줄 제목) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
+      expect(find.text('전기 플러그를 봐 주세요'), findsOneWidget); // 한 줄 제목(결선 모의 평가 10/18)
       expect(find.text('와이파이 연결이 끊겼어요'), findsNothing);
       expect(find.text('누름 장치 연결이 끊겼어요'), findsNothing);
 

@@ -14,6 +14,8 @@ import 'kiosk_text.dart';
 ///   본체에 닿지 않으면 '본체와 연결이 끊겼어요'. 아직 확인하지 못했으면 '연결을 확인하고 있어요'(정상이라고 하지 않는다).
 ///   비상 버튼 띠가 떠 있으면 연결 문제가 있을 때만 보인다(평가 14차 10/18).
 ///   문제가 하나면 누르면 그 연결 창이 바로 열리고, 그 밖에는 연결 목록 창이 열린다(항목을 누르면 그 연결 창).
+///   연결 문제는 위 줄 칩이 아니라 그 아래 한 줄 전체의 [KioskIdleProblemBar](한 줄 제목 + 따로 선 '해결 방법 보기' 단추,
+///   결선 모의 평가 10/18).
 /// - 메뉴: 화면 가운데 큰 창에 '잠시 쉬기'·'설정' — 설정은 구석에 두지 않는다(누르는 자리 48 이상).
 /// 모름(unknown)은 정상처럼 두지 않고 '연결을 확인하고 있어요'(중립·물음표)로 말한다.
 
@@ -103,18 +105,16 @@ String connectionCauseLine(ConnectionItem p, {int? pressImpact}) {
   return connectionProblemText(p);
 }
 
-/// 원인 줄이 있을 때 둘째 줄 끝의 짧은 다음 행동(평가 15차 10/18) — '확인 필요 1 · 해결 방법 보기'.
+/// 연결 문제 줄 오른쪽 단추 글자(평가 15차 10/18, 결선 모의 평가 10/18부터 따로 선 단추).
 const kProblemHelpShort = '해결 방법 보기';
 
-/// 연결 문제 칩 아래 다음 행동 한 줄(평가 7차 10/18).
+/// 연결 문제 단추의 화면 읽기 이름(평가 7차 10/18).
 const kProblemHelp = '눌러서 해결 방법 보기';
 
-/// 상태 칩 — 높이 48 이상, 아이콘 + 짧은 말. 색만으로 말하지 않는다(문제면 아이콘 모양도 바뀐다).
+/// 상태 칩 — 높이 48 이상, 아이콘 + 짧은 말. 연결 문제가 있으면 [KioskIdleProblemBar](한 줄 제목 + 해결 방법 단추)로 그린다 —
+/// 평소 화면은 그 줄을 위 줄 아래 한 줄 전체에 둔다.
 class KioskIdleStatusChip extends StatelessWidget {
   const KioskIdleStatusChip({super.key, required this.items, required this.onTap, this.pressImpact});
-
-  /// 문제 칩 두 줄의 글자 — 본문 단계(휴리스틱 평가 10/18).
-  static const double _problemSize = KioskType.body;
 
   final List<ConnectionItem> items;
   final VoidCallback onTap;
@@ -135,35 +135,34 @@ class KioskIdleStatusChip extends StatelessWidget {
     // 모두 괜찮으면 칩이 없다(사용자 결정 10/18). 메뉴 단추는 그대로 같은 자리.
     if (summary == null) return const SizedBox.shrink();
     final text = summary;
-    // 원인이 하나면 첫 줄은 원인과 영향, 둘째 줄에 '확인 필요 1 · 눌러서 해결 방법 보기'(평가 15차 10/18). 본체 끊김은 칩 글이 이미 원인이다.
-    final cause = problem && direct != null && !_isHubDown(direct)
-        ? connectionCauseLine(direct, pressImpact: pressImpact)
-        : null;
-    final unknown = !problem;
-    // 연결 문제는 앰버.
-    final tone = KioskColors.warning;
-    final color = problem ? tone : KioskColors.muted;
-    // 화면 읽기는 무엇이 문제인지까지 읽는다('확인 필요 1. 누름 장치 연결이 끊겼어요').
-    final what = [
-      for (final i in _shown(items))
-        if (i.needsAttention && !_isHubDown(i)) connectionProblemText(i),
-    ];
+    if (problem) {
+      // 원인이 하나면 제목은 원인과 영향(평가 15차 10/18) — '누름 장치가 끊겨 가전 5대를 못 써요'. 본체 끊김은 칩 글이 이미 원인이다.
+      final cause = direct != null && !_isHubDown(direct)
+          ? connectionCauseLine(direct, pressImpact: pressImpact)
+          : null;
+      final what = [
+        for (final i in _shown(items))
+          if (i.needsAttention && !_isHubDown(i)) connectionProblemText(i),
+      ];
+      return KioskIdleProblemBar(
+        title: cause ?? text,
+        titleIsCause: cause != null,
+        // 화면 읽기는 무엇이 문제인지까지 읽는다('누름 장치가 끊겨 가전 5대를 못 써요. 연결 확인 필요 1').
+        semanticsLabel: [if (cause != null) cause, text, if (cause == null) ...what].join('. '),
+        onTap: onTap,
+      );
+    }
+    // 아직 다 보지 못했을 때('연결을 확인하고 있어요') — 위 줄 작은 칩(정상이라고 하지 않는다).
     return Semantics(
       button: true,
-      label: problem
-          ? [if (cause != null) cause, text, if (cause == null) ...what, kProblemHelp].join('. ')
-          : '$text. 연결 자세히 보기',
+      label: '$text. 연결 자세히 보기',
       excludeSemantics: true,
       child: Material(
         key: const ValueKey('idle-status-chip'),
-        color: problem
-            ? tone.withValues(alpha: KioskSizes.bandTint)
-            : KioskColors.surface,
+        color: KioskColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: BorderSide(
-              color: problem ? tone : KioskColors.border,
-              width: problem ? 2 : 1),
+          side: BorderSide(color: KioskColors.border, width: 1),
         ),
         child: InkWell(
           onTap: onTap,
@@ -175,64 +174,119 @@ class KioskIdleStatusChip extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(unknown ? Icons.help_outline : Icons.error_outline, size: 24, color: color),
-                  ...[
-                    const SizedBox(width: KioskSpace.xs),
-                    // 문제가 있으면 바로 아래 다음 행동 한 줄(평가 7차 10/18 — '누름 장치 연결이 끊겼어요'만 있고 할 일이 없었다).
-                    // 칩 전체가 누르는 자리라 이 줄을 눌러도 같은 연결 창이 열린다.
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(cause ?? text,
-                            key: cause == null ? null : const ValueKey('idle-problem-cause'),
-                            maxLines: 1,
-                            softWrap: false,
-                            style: TextStyle(
-                                // 문제면 본문 크기(휴리스틱 평가 10/18 — 1~2 m에서 작은 글자는 읽히지 않았다).
-                                fontSize: problem ? _problemSize : KioskType.caption,
-                                height: problem ? 1.15 : null,
-                                fontWeight: problem ? FontWeight.w700 : FontWeight.w500,
-                                color: problem ? Colors.white : KioskColors.muted)),
-                        if (problem)
-                          Row(
-                            key: const ValueKey('idle-problem-help'),
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (cause != null) ...[
-                                Text(text,
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    style: TextStyle(
-                                        fontSize: _problemSize,
-                                        height: 1.15,
-                                        fontWeight: FontWeight.w700,
-                                        color: tone)),
-                                Text(' · ',
-                                    style: TextStyle(
-                                        fontSize: _problemSize, height: 1.15, color: KioskColors.muted)),
-                              ],
-                              // 할 일은 흰 글자·본문 크기(휴리스틱 평가 10/18 — 회색 작은 글자라 눌러 볼 수 있다는 것을 놓쳤다).
-                              Text(cause != null ? kProblemHelpShort : kProblemHelp,
-                                  key: const ValueKey('idle-problem-help-text'),
-                                  maxLines: 1,
-                                  softWrap: false,
-                                  style: TextStyle(
-                                      fontSize: _problemSize,
-                                      height: 1.15,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white)),
-                              Icon(Icons.chevron_right, size: _problemSize + 3, color: tone),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ],
+                  Icon(Icons.help_outline, size: 24, color: KioskColors.muted),
+                  const SizedBox(width: KioskSpace.xs),
+                  Text(text,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                          fontSize: KioskType.caption, fontWeight: FontWeight.w500, color: KioskColors.muted)),
                 ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 연결 문제 줄(결선 모의 평가 10/18) — 평소 화면 위 줄 아래 한 줄 전체. 예전 알약 칩은 두 줄 글자가 꽉 끼었다.
+///
+/// - 왼쪽: 앰버 면의 **한 줄 제목**(상태 크기, 흰 굵은 글자) — 원인과 영향('누름 장치가 끊겨 가전 5대를 못 써요') 또는
+///   '본체와 연결이 끊겼어요'·'연결 확인 필요 2'. 누르면 연결 창(아래 단추와 같다).
+/// - 오른쪽: 따로 선 **'해결 방법 보기 ›'** 단추(테두리, 누르는 자리 48 이상).
+/// 줄 높이는 [height]로 고정 — 평소 화면이 이 높이만큼 가운데 칸을 줄인다. 글이 길거나 큰 글씨면 제목이 통째로 조금 줄어든다.
+class KioskIdleProblemBar extends StatelessWidget {
+  const KioskIdleProblemBar({
+    super.key,
+    required this.title,
+    required this.semanticsLabel,
+    required this.onTap,
+    this.titleIsCause = false,
+  });
+
+  /// 줄 높이(캔버스) — 1920x1080에서 약 107px.
+  static const double height = 52;
+
+  final String title;
+  final bool titleIsCause;
+  final String semanticsLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = KioskColors.warning;
+    return SizedBox(
+      height: height,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Semantics(
+              button: true,
+              label: semanticsLabel,
+              excludeSemantics: true,
+              child: Material(
+                key: const ValueKey('idle-status-chip'),
+                color: tone.withValues(alpha: KioskSizes.bandTint),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(KioskSizes.buttonRadius),
+                  side: BorderSide(color: tone, width: 2),
+                ),
+                child: InkWell(
+                  onTap: onTap,
+                  customBorder:
+                      RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
+                    child: Row(children: [
+                      Icon(Icons.error_outline, size: KioskType.status, color: tone),
+                      const SizedBox(width: KioskSpace.sm),
+                      Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(title,
+                              key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: const TextStyle(
+                                  fontSize: KioskType.status,
+                                  height: 1.15,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white)),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: KioskSpace.sm),
+          // 할 일은 따로 선 단추(결선 모의 평가 10/18 — 같은 알약 안 둘째 줄이라 누를 수 있다는 것을 놓쳤다).
+          Semantics(
+            button: true,
+            label: kProblemHelp,
+            excludeSemantics: true,
+            child: OutlinedButton(
+              key: const ValueKey('idle-problem-help'),
+              onPressed: onTap,
+              style: KioskButtons.secondary(foreground: Colors.white, border: tone).copyWith(
+                padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(kProblemHelpShort,
+                    key: const ValueKey('idle-problem-help-text'),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w800)),
+                Icon(Icons.chevron_right, size: KioskType.body + 4, color: tone),
+              ]),
+            ),
+          ),
+        ],
       ),
     );
   }

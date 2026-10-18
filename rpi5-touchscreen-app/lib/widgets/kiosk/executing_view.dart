@@ -15,7 +15,7 @@ import 'step_trail.dart';
 
 /// 실행 화면 — 센서 대시보드가 아니라 **지금 무슨 버튼을 어떻게 하고 있는가**.
 ///
-/// 읽는 순서: 위 상태 띠(실행 중·연습 중) → 왼쪽 위 상태(누르는 중 / 제대로 눌렸는지 확인하는 중 /
+/// 읽는 순서: 위 상태 띠(실행 중·연습 중) → 왼쪽 위 상태(누르고 있어요 / 눌렀어요, 확인 중이에요 /
 /// 자리를 맞춰 다시 누르는 중) → 어느 가전·무엇을 → 지금 누르는 버튼(크게) → 누를 버튼 N개 중 K번째.
 /// 전류·소리·센서 % 같은 숫자는 화면에 싣지 않는다(서버 기록에는 남는다, 2026-10-15 §3-1).
 /// 연습(mock)은 위 청록 띠로 말하고, 실물 동사(누르는·눌렸는지) 대신 '짚는'으로 쓴다(§3-2).
@@ -143,10 +143,14 @@ class KioskExecutingView extends StatelessWidget {
       );
     }
     if (_mock) return ('누르는 연습 중', Icons.touch_app_outlined, Colors.white);
+    // 실제 단계대로(결선 모의 평가 10/18 — '제대로 눌렸는지 보는 중'과 '2번째 시작 버튼'이 함께 있어 누르는 중인지 확인 중인지
+    // 헷갈렸다). 서버 진행 보고(`ExecutionProgress`)는 누르고 난 **뒤** 확인 결과를 실어 온다 — 그때는 '눌렀어요, 확인
+    // 중이에요'(눌렸다고 단정하지 않는다). 확인 결과 없이 버튼만 오면(누르기가 끝나지 않아 그 버튼을 다시 누르러 간다)
+    // '누르고 있어요'.
     return _hasVerification
-        // 보는 중은 눈 아이콘 하나(평가 3차 10/18 — 목록+돋보기 모양은 뜻이 둘로 읽혔다).
-        ? ('제대로 눌렸는지 보는 중', Icons.visibility_outlined, Colors.white)
-        : ('누르는 중', Icons.touch_app_outlined, Colors.white);
+        // 확인 단계는 눈 아이콘 하나(평가 3차 10/18 — 목록+돋보기 모양은 뜻이 둘로 읽혔다).
+        ? (kExecPressedChecking, Icons.visibility_outlined, Colors.white)
+        : (kExecPressing, Icons.touch_app_outlined, Colors.white);
   }
 
   /// 무엇을 보고 있는지 숫자 없이 한 줄(2026-10-15 — 'mA·dB·센서 %'는 뜻을 몰랐다). 몇 번째 시도인지는 남긴다.
@@ -343,6 +347,12 @@ class KioskExecutingView extends StatelessWidget {
     );
   }
 }
+
+/// 실행 중 상태 — 누르기 단계(결선 모의 평가 10/18). 무슨 버튼인지는 바로 아래 큰 이름('시작 버튼')이 말한다.
+const kExecPressing = '누르고 있어요';
+
+/// 실행 중 상태 — 누른 뒤 확인 결과가 온 단계. 눌렸다고 단정하지 않는다(확인은 서버·결과 화면이 말한다).
+const kExecPressedChecking = '눌렀어요, 확인 중이에요';
 
 // ── 진행 · 지금 버튼 · 한 줄 ─────────────────────────────────────────────────
 

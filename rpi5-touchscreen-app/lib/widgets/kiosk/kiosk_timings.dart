@@ -10,10 +10,13 @@ class KioskTimings {
   /// 걸어와서, 읽고, 판단하고, 누르기까지가 그 안에 들어가지 않는다.
   /// 사용자가 설정에서 바꿀 수 있고(KioskSettings.countdownSeconds),
   /// 이 값은 설정이 없을 때의 기본값이다.
-  static const int countdownSeconds = 20;
+  ///
+  /// 40초(결선 모의 평가 10/18 — 20초도 짧았다). 이 시간은 **키오스크 화면 타이머**다 — 서버 제안 카드는 분 단위로
+  /// 따로 만료되고(rpi/intent/suggestions.py), 화면이 닫혀도 거절·실행을 보내지 않는다.
+  static const int countdownSeconds = 40;
 
-  /// 설정에서 고를 수 있는 값 — 시연 리듬과 접근성을 함께 맞추기 위해.
-  static const List<int> countdownChoices = [10, 20, 30];
+  /// 설정에서 고를 수 있는 값 — 시연 리듬과 접근성을 함께 맞추기 위해. 저장된 값이 목록에 없으면(옛 10·30초) 기본값.
+  static const List<int> countdownChoices = [20, 40, 60];
 
   /// 완료 화면 → 대기 화면 자동 복귀
   static const Duration doneReturn = Duration(seconds: 10);

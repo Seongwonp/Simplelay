@@ -136,7 +136,9 @@ class KioskStatusBand extends StatelessWidget {
                         height: iconSize,
                         color: Colors.white.withValues(alpha: 0.25)),
                     const SizedBox(width: KioskSpace.md),
-                    Flexible(child: _PracticeMark(style: text, iconSize: iconSize)),
+                    // 무엇을 하는지(가전·할 일)까지 함께 있으면 짧게 '연습'(결선 모의 평가 10/18 — 상태 · 연습 문장 · 가전이
+                    // 띠를 두 줄로 꺾었다). 실제 가전이 그대로라는 말은 그 화면 본문이 한다(결과 화면 [kPracticeRealUnchanged]).
+                    Flexible(child: _PracticeMark(style: text, iconSize: iconSize, short: this.detail?.isNotEmpty ?? false)),
                   ],
                 ),
               ],
@@ -204,11 +206,15 @@ class _PracticeMark extends StatelessWidget {
     this.iconKey,
     this.style = KioskStatusBand._text,
     this.iconSize = KioskSizes.bandIcon,
+    this.short = false,
   });
 
   final Key? iconKey;
   final TextStyle style;
   final double iconSize;
+
+  /// 다른 띠(확인 필요·실패) 안의 짧은 표시 — [kPracticeShort].
+  final bool short;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -219,7 +225,7 @@ class _PracticeMark extends StatelessWidget {
               key: iconKey, size: iconSize, color: KioskColors.practice),
           const SizedBox(width: 10),
           Flexible(
-            child: KioskText(kPracticeBandText, style: style),
+            child: KioskText(short ? kPracticeShort : kPracticeBandText, style: style),
           ),
         ],
       );

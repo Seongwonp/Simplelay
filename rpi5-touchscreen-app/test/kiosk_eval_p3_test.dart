@@ -260,7 +260,7 @@ void main() {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('연결 확인 필요 1')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.byKey(const ValueKey('idle-problem-cause'))), findsOneWidget); // 한 줄 제목(결선 모의 평가 10/18)
       await tester.tap(chip);
       await tester.pump();
       expect(opened?.id, 'press');
@@ -397,9 +397,9 @@ void main() {
           reason: '지금 누르는 칸에는 ✓를 달지 않는다');
     });
 
-    testWidgets("'제대로 눌렸는지 보는 중' 아이콘은 눈 하나", (tester) async {
+    testWidgets("'눌렀어요, 확인 중이에요' 아이콘은 눈 하나", (tester) async {
       await _pump(tester, exec(confidence: 0.5));
-      expect(find.text('제대로 눌렸는지 보는 중'), findsOneWidget);
+      expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
       expect(find.byIcon(Icons.manage_search), findsNothing);
     });

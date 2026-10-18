@@ -384,7 +384,8 @@ void main() {
             .widgetList<Text>(find.descendant(of: find.byKey(_practice), matching: find.byType(Text)))
             .map((t) => t.data ?? t.textSpan?.toPlainText() ?? '');
         // 연습 띠 한 문장(평가 4차 10/18) — '연습이에요. 실제 가전은 그대로예요'.
-        expect(texts.any((t) => t.contains('연습이에요')), isTrue);
+        // 가전 줄이 함께 있는 결과 띠에서는 짧게 '연습'(결선 모의 평가 10/18).
+        expect(texts.any((t) => t.contains('연습')), isTrue);
         for (final t in tester.widgetList<Text>(
             find.descendant(of: find.byKey(_practice), matching: find.byType(Text)))) {
           if (t.style?.color case final c?) {

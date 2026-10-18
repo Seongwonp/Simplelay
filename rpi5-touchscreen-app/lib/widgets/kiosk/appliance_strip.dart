@@ -687,9 +687,10 @@ class _TileBand extends StatelessWidget {
                 style: TextStyle(
                   fontSize: fontSize,
                   height: 1.2,
-                  fontWeight: grey ? FontWeight.w600 : FontWeight.w700,
+                  fontWeight: FontWeight.w700,
                   // 작동 중·연습은 흰 글자(파랑·청록은 아이콘·면) — 색 있는 상태는 그 색 글자.
-                  color: band.tone == KioskColors.running || band.tone == KioskColors.practice
+                  // 회색 띠도 글자는 흰색(결선 모의 평가 10/18 — 회색 글자가 1~2 m에서 흐렸다). 회색 뜻은 아이콘·면이 말한다.
+                  color: grey || band.tone == KioskColors.running || band.tone == KioskColors.practice
                       ? Colors.white
                       : band.tone,
                 ),

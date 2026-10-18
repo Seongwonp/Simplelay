@@ -70,11 +70,11 @@ void main() {
       expect(find.byKey(const ValueKey('idle-menu')), findsOneWidget);
     });
 
-    testWidgets("문제가 있을 때만 앰버 '연결 확인 필요 1' — 누르면 그 연결 창", (tester) async {
+    testWidgets("문제가 있을 때만 앰버 한 줄 제목(결선 모의 평가 10/18) — 누르면 그 연결 창", (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('연결 확인 필요 1')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('누름 장치가 끊겨 가전 2대를 못 써요')), findsOneWidget);
       expect(tester.getSize(chip).height, greaterThanOrEqualTo(48));
       // 화면 읽기는 무엇이 문제인지까지 읽는다 — 원인이 하나면 원인과 영향(평가 15차 10/18).
       expect(tester.getSemantics(chip).label, contains('누름 장치가 끊겨 가전 2대를 못 써요'));

@@ -485,8 +485,8 @@ void main() {
       );
       expect(find.textContaining(why), findsOneWidget, reason: '$reason');
       expect(find.byKey(const ValueKey('done-next-step')), findsNothing, reason: '$reason');
-      // 실제 가전을 움직이지 않았다는 말은 위 연습 띠가 한다(10/18).
-      expect(find.text(kPracticeBandText), findsOneWidget, reason: '$reason');
+      // 실제 가전을 움직이지 않았다는 말 — 위 띠는 짧은 '연습'이라 본문 한 줄이 한다(결선 모의 평가 10/18).
+      expect(find.text(kPracticeRealUnchanged), findsOneWidget, reason: '$reason');
     }
   });
 

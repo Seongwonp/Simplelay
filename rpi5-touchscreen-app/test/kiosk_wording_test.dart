@@ -622,7 +622,7 @@ void main() {
 
     testWidgets('숫자 근거(mA·dB·%) 없이 무엇을 보는지만 말한다', (tester) async {
       await _pumpView(tester, exec(confidence: 0.93, detail: '전류 +14mA · 소리 +9dB'));
-      expect(find.text('제대로 눌렸는지 보는 중'), findsOneWidget);
+      expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing); // 위 상태와 같은 말 — 하나만(평가 15차 10/18)
       expect(find.textContaining('mA'), findsNothing);
       expect(find.textContaining('dB'), findsNothing);
@@ -659,7 +659,7 @@ void main() {
       expect(find.text('연습 모드'), findsNothing);
       expect(find.text('누르는 연습 중'), findsOneWidget);
       expect(find.text('누를 버튼 2개 중 2번째'), findsOneWidget);
-      expect(find.text('누르는 중'), findsNothing);
+      expect(find.text('누르고 있어요'), findsNothing);
       expect(find.textContaining('눌렸는지'), findsNothing);
       expect(find.textContaining('모의'), findsNothing);
       // 띠는 1.6배 글자에서도 줄지 않는다(말줄임 없음).
@@ -705,7 +705,8 @@ void main() {
       expect(find.text('이번엔 안 할게요'), findsOneWidget);
       expect(find.text('다음에'), findsNothing);
       expect(find.text('누름 장치가 누를 순서'), findsOneWidget);
-      expect(find.text('누르지 않으면 하지 않아요. 20초 뒤 닫혀요'), findsOneWidget);
+      expect(find.text('누르지 않으면 하지 않아요'), findsOneWidget);
+      expect(find.text('20초 뒤 닫혀요'), findsOneWidget); // 남은 시간은 따로 크게(결선 모의 평가 10/18)
       // 서버 문장이 없을 때의 대체문 — 기간을 모르니 '최근'은 없다.
       expect(find.text('아침에 3번 하셨어요'), findsOneWidget);
       expect(find.textContaining('최근'), findsNothing);
