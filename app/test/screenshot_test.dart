@@ -34,6 +34,7 @@ import 'package:simplelay/models/routine.dart';
 import 'package:simplelay/screens/appliance_detail_screen.dart';
 import 'package:simplelay/screens/appliance_editor_screen.dart';
 import 'package:simplelay/screens/routine_editor_screen.dart';
+import 'package:simplelay/screens/help_screen.dart';
 import 'package:simplelay/screens/history_screen.dart';
 import 'package:simplelay/providers/estop_provider.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
@@ -204,6 +205,21 @@ void main() {
     });
   }
 
+  // 휴리스틱 평가(10/18) — '지금 하기'를 누르면 먼저 묻는 시트, 설정 '사용 방법'.
+  testWidgets('루틴 탭 — 지금 하기 확인 시트 (라이트)', (t) async {
+    await _shoot(t, 'lt_routine_confirm', const RoutinesScreen(),
+        light: true, installed: _homeInstalled, hub: _demoHub(), before: (tester) async {
+      await tester.tap(find.byKey(const Key('routine-run-r-1')));
+      await tester.pumpAndSettle();
+    });
+  });
+
+  for (final (name, light, scale) in [('lt_help', true, 1.0), ('help_large', true, 2.0)]) {
+    testWidgets('설정 — 사용 방법 ($name)', (t) async {
+      await _shoot(t, name, const HelpScreen(), light: light, textScale: scale);
+    });
+  }
+
   testWidgets('루틴 탭 — 자동으로 하기 (라이트)', (t) async {
     await _shoot(t, 'routines_rules_light', const RoutinesScreen(),
         light: true, installed: _homeInstalled, hub: _demoHub(), before: (tester) async {
@@ -371,7 +387,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 2,
     applianceId: 'microwave',
-    message: '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.',
+    message: '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.',
   );
   const failed = ExecutionStatus(
     phase: ExecutionPhase.failed,
@@ -380,7 +396,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '끝까지 하지 못했어요. 가전을 봐 주세요.',
+    message: '끝까지 하지 못했어요. 집에서 가전을 확인해야 해요.',
   );
   const unknownState = ExecutionStatus(
     phase: ExecutionPhase.unknown,
@@ -389,7 +405,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.',
+    message: '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.',
   );
   for (final (name, st) in [
     ('status_retrying', retrying),
