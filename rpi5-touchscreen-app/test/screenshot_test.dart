@@ -1284,4 +1284,75 @@ void main() {
   testWidgets('LG 가전 결과 — 큰 글씨', (t) async {
     await _shoot(t, 'thinq_result_large', thinqDone(), textScale: 1.22);
   });
+  // ── 제출용 장면(심사위원 시각 평가 10/18 §3-5) ─────────────────────────────────────────────
+  // 위 골든의 가전 다섯(세탁기·선풍기·인덕션 등)은 화면 시험용 예시다. 제출 서류·발표 그림에는 지금 실물 구성
+  // — 작은 팔이 누르는 전자레인지 1대 + LG 공기청정기 — 으로 만든 아래 장면만 쓴다. 결과는 지금 실물로 낼 수 있는
+  // 확인 수준(작은 팔 보고, 전력 판정 없음)이라 '버튼은 다 눌렀어요'까지만 말한다(콘센트 모듈 CT 미측정).
+  final submissionPurifier = _served('air_purifier', '공기청정기', 'air_purifier', control: 'thinq');
+  const submissionAmbient = AmbientInfo(
+    greeting: '좋은 저녁이에요.',
+    hourly: [
+      AmbientHour(label: '18시', icon: 'partly', temp: 17),
+      AmbientHour(label: '21시', icon: 'cloudy', temp: 15),
+      AmbientHour(label: '0시', icon: 'cloudy', temp: 13),
+      AmbientHour(label: '3시', icon: 'cloudy', temp: 12),
+    ],
+    weatherSource: 'kma',
+  );
+
+  testWidgets('제출용 — 처음 화면(전자레인지 + 공기청정기)', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_submission_idle',
+      _idle(
+        now: DateTime(2026, 10, 18, 18, 20),
+        ambient: submissionAmbient,
+        appliances: [_mw, submissionPurifier],
+        running: const {},
+        on: const {'air_purifier'},
+        nextRun: _nextRun(),
+      ),
+    );
+  });
+
+  testWidgets('제출용 — 전자레인지 실행 중(작은 팔)', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_submission_executing',
+      KioskExecutingView(
+        title: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        executionMode: 'real',
+        lastButtons: null,
+        currentButton: '시작',
+        currentAttempt: 1,
+        completedSteps: 1,
+        doneButtons: const ['즉석밥'],
+        totalSteps: 2,
+        // 지금 실물 구성은 버튼별 눌림 센서 판정을 보내지 않는다.
+        verificationConfidence: null,
+        verificationDetail: null,
+        onStop: () {},
+      ),
+    );
+  });
+
+  testWidgets('제출용 — 전자레인지 결과(작은 팔 보고)', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_submission_done',
+      KioskDoneView(
+        success: true,
+        label: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        executionMode: 'real',
+        resultConfirmation: 'reported',
+        pressed: const [
+          KioskButtonResult(button: '즉석밥', success: true),
+          KioskButtonResult(button: '시작', success: true),
+        ],
+        onDismiss: _noop,
+      ),
+    );
+  });
 }

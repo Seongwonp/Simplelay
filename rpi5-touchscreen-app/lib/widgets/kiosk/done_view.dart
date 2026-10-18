@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/action_name.dart';
 import '../../models/appliance.dart';
 import '../../models/command_result.dart';
+import '../../models/josa.dart';
 import '../../models/scenario_run.dart';
 import '../../models/thinq_run.dart';
 import '../../theme/kiosk_colors.dart';
@@ -358,10 +359,11 @@ class KioskDoneView extends StatelessWidget {
             : mock
                 ? '연습을 마쳤어요'
                 : executionMode == 'real'
-                    // 전력 변화(L3)를 본 것만 '가전이 켜졌어요'(쉬운 말 사전 10/17 — 전력 변화 확인 → 켜졌어요).
-                    // 누름 보고만이면 '다 눌렀어요', 원하는 동작인지는 사람이 본다(아래 한 줄).
+                    // 전력 변화(L3 실측)를 본 것만 '<가전 이름>이 켜졌어요'(쉬운 말 사전 10/17 — 전력 변화 확인 → 켜졌어요,
+                    // 10/18 §3-5 — 어느 가전인지 이름으로). 누름 보고·누름 센서(L1)·엔코더만이면 '다 눌렀어요', 원하는 동작인지는
+                    // 사람이 본다(아래 한 줄).
                     ? (operationVerified
-                        ? '가전이 켜졌어요'
+                        ? '${withSubject(target?.name ?? '가전')} 켜졌어요'
                         : pressCompleted
                             // 누름 보고만 — 버튼까지만 말한다. 가전은 사람이 본다(평가 3차 10/18).
                             ? '버튼은 다 눌렀어요'

@@ -2235,7 +2235,7 @@ void main() {
           lastOperationDetail: '전력 파형에서 가열 시작을 확인했어요'),
     );
     expect(done.operationConfirmed, isTrue);
-    expect(find.text('가전이 켜졌어요'), findsOneWidget);
+    expect(find.text('전자레인지가 켜졌어요'), findsOneWidget);
     expect(find.text('원하는 대로 됐는지 봐 주세요'),
         findsOneWidget);
     expect(find.text('가전 동작도 확인했어요'), findsNothing);

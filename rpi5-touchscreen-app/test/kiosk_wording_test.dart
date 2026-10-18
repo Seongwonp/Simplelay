@@ -229,7 +229,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('성공·전력 확인 — 전력 변화를 본 것만 가전이 켜졌어요, 할 일은 원하는 대로 됐는지 보기', (tester) async {
+    testWidgets('성공·전력 확인 — 전력 변화를 본 것만 <가전 이름>이 켜졌어요, 할 일은 원하는 대로 됐는지 보기', (tester) async {
       await _pumpView(
         tester,
         KioskDoneView(
@@ -243,7 +243,7 @@ void main() {
         ),
       );
       // 띠('가전 상태 확인')·제목·본문이 같은 확인 수준(전력 변화)을 말한다(외부 평가 10/16 2차 k06).
-      expect(find.text('가전이 켜졌어요'), findsOneWidget);
+      expect(find.text('전자레인지가 켜졌어요'), findsOneWidget);
       expect(find.text('다 눌렀어요'), findsNothing);
       // 띠도 같은 수준 — '가전 상태 확인'은 한 단계 강했다(외부 평가 10/16 3차).
       expect(find.text('됐어요'), findsOneWidget);

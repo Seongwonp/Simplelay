@@ -125,8 +125,8 @@ String? confirmationLabel({
     };
   }
   return switch (confirmation) {
-    // 동작 확인은 콘센트 전력이 늘어난 것이다 — 켜졌다·조리를 시작했다고 말하지 않는다(2026-10-15).
-    'operation_confirmed' => '가전이 켜졌어요',
+    // 동작 확인은 콘센트 전력이 늘어난 것이다 — 조리를 시작했다고 말하지 않는다(2026-10-15). 폰과 같은 말(10/18 §3-5).
+    'operation_confirmed' => '가전이 전기를 쓰기 시작했어요',
     'press_confirmed' => '버튼을 눌렀어요',
     // 기계 말투('알려 왔어요') 대신 본 사실(평가 4차 10/18) — 작은 팔이 눌렀다는 것까지, 가전은 말하지 않는다.
     'reported' => '작은 팔이 눌렀어요',
@@ -211,7 +211,8 @@ String finishedMessage({
       // 화면 띠('확인해 주세요')와 뒤 문장('가전이 움직이는지 봐 주세요')이 지킨다.
       const head = '버튼은 다 눌렀어요.';
       return operationVerified
-          ? '$head 가전이 켜졌어요. 원하는 대로 됐는지 봐 주세요.'
+          // 전력 변화(L3 실측)만 — 확인한 그대로 '전기를 쓰기 시작했어요'(폰과 같은 말, 10/18 §3-5).
+          ? '$head 가전이 전기를 쓰기 시작했어요. 원하는 대로 됐는지 봐 주세요.'
           : '$head 가전이 움직이는지 봐 주세요.'; // 폰과 같은 말(평가 14차 10/18)
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
