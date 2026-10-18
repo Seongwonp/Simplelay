@@ -196,6 +196,20 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
+    testWidgets('잠시 쉬기(reason pause)는 어둡게 하지 않는다 — 매일 조용한 시간에만(10/18 결정)', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = [_microwave]
+        ..healthResult = HealthStatus.fromJson({
+          ..._quietHealth,
+          'quiet': {'enabled': false, 'start': '22:00', 'end': '07:00', 'active': true, 'reason': 'pause'},
+        });
+      await _pumpKiosk(tester, api);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byKey(const ValueKey('idle-quiet-dim')), findsNothing);
+      expect(find.byKey(const ValueKey('strip-microwave')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('조용한 시간이 아니면 어둡게 하지 않는다', (tester) async {
       final api = FakeKioskApi()..applianceList = [_microwave];
       await _pumpKiosk(tester, api);

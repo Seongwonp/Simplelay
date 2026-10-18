@@ -1155,12 +1155,12 @@ class _KioskScreenState extends State<KioskScreen> {
     if (!_quietAwake) setState(() => _quietAwake = true);
   }
 
-  /// 처음 화면을 어둡게 할까(사용자 결정 10/18) — 조용한 시간(서버 quiet.active) 동안 처음 화면에서만. 실행·정지 대기·결과·
+  /// 처음 화면을 어둡게 할까(사용자 결정 10/18) — 매일 조용한 시간(서버 quiet.reason=schedule) 동안 처음 화면에서만(잠시 쉬기는 어둡게 하지 않는다). 실행·정지 대기·결과·
   /// 제안·비상 화면은 어둡게 하지 않는다(안전): 처음 화면이 아니면, 비상 버튼 띠·위험 신호음 창이 떠 있으면, 설정·잠시 쉬기·
   /// 연결 창이 열려 있으면, 만진 뒤 [kQuietWakeDuration] 동안은 밝게 둔다.
   bool get _quietDim =>
       _phase == KioskPhase.idle &&
-      _health.quietActive &&
+      _health.quietScheduleActive &&
       !_quietAwake &&
       !_showEstop &&
       !_alert.active &&
