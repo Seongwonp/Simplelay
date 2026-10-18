@@ -215,6 +215,18 @@ void main() {
   // ── 제출용 장면(심사위원 시각 평가 10/18 §3-5) ─────────────────────────────────────────────
   // 다른 골든의 세탁기 등은 화면 시험용 예시다. 제출 서류·발표 그림에는 지금 실물 구성(작은 팔이 누르는 전자레인지 1대 +
   // LG 공기청정기)으로 만든 아래 장면만 쓴다. 실행 중은 눌림 센서 판정 없이, 결과는 작은 팔 보고(전력 판정 없음)까지만.
+  // 2026-10-18 — 연습용 LG 세탁기: 실제 공기청정기 옆에 모의 세탁기 한 대. 세탁기 그림과 '연습' 표시가 보여야 한다.
+  testWidgets('LG 세탁기(연습) 상세 (라이트)', (t) async {
+    await _shoot(t, 'lt_thinq_washer_practice',
+        const ApplianceDetailScreen(applianceId: 'thinq_washer'),
+        light: true, installed: _practiceInstalled, hub: _demoHub(practiceWasher: true));
+  });
+
+  testWidgets('홈 — LG 세탁기(연습) 가전 칸 (라이트)', (t) async {
+    await _shoot(t, 'lt_home_practice_washer', const HomeScreen(),
+        light: true, installed: _practiceInstalled, hub: _demoHub(practiceWasher: true));
+  });
+
   testWidgets('제출용 — 홈(전자레인지 + 공기청정기)', (t) async {
     await _shoot(t, 'submission_home', const HomeScreen(),
         light: true, installed: _submissionInstalled, hub: _demoHub(submission: true));
@@ -977,12 +989,33 @@ final _homeInstalled = <ApplianceMap>[
   }),
 ];
 
+/// 연습용 LG 세탁기(2026-10-18) — 서버 `SIMPLELAY_THINQ_PRACTICE_DEVICES=washer`가 세우는 모의 세탁기(이름에 '(연습)').
+final _practiceWasherJson = <String, dynamic>{
+  'id': 'thinq_washer',
+  'name': 'LG 세탁기(연습)',
+  'category': 'washing_machine',
+  'rows': 0,
+  'cols': 0,
+  'buttons': <dynamic>[],
+  'control_path': 'thinq',
+  'can_execute': true,
+  'readiness': 'operable',
+  'readiness_reasons': <dynamic>[],
+};
+
+/// 집 + 연습 LG 세탁기 — 전자레인지(사진 등록)·공기청정기(LG, 실제)·LG 세탁기(연습).
+final _practiceInstalled = <ApplianceMap>[
+  _homeInstalled[0],
+  _homeInstalled[1],
+  ApplianceMap.fromJson(_practiceWasherJson),
+];
+
 /// 제출용 집 — 지금 실물 구성 그대로: 전자레인지(사진 등록) + 공기청정기(LG).
 final _submissionInstalled = <ApplianceMap>[_homeInstalled[0], _homeInstalled[1]];
 
 /// 골든용 가짜 본체 — 실행 경로는 없다(찍기만 한다).
 /// [submission]이면 지금 실물 구성(전자레인지 + LG 공기청정기)만 — 등록 안 된 세탁기 루틴·알림을 뺀다(10/18 §3-5).
-RpiApiService _demoHub({bool submission = false}) {
+RpiApiService _demoHub({bool submission = false, bool practiceWasher = false}) {
   http.Response json(Object body, [int status = 200]) => http.Response.bytes(
       utf8.encode(jsonEncode(body)), status,
       headers: {'content-type': 'application/json'});
@@ -1010,9 +1043,22 @@ RpiApiService _demoHub({bool submission = false}) {
     if (submission && path.endsWith('/verify-pass')) {
       return json({'detail': VerifyPassLookup.noRecordDetail}, 404);
     }
+    // 연습 LG 세탁기 상태 — 서버가 연습 기기에 주는 꼴(execution_mode mock, 모의 값).
+    if (practiceWasher && path == '/thinq/status/thinq_washer') {
+      return json({
+        'appliance_id': 'thinq_washer',
+        'execution_mode': 'mock',
+        'state': {
+          'runState': {'currentState': 'RUNNING'},
+          'remoteControlEnable': {'remoteControlEnabled': true},
+          'timer': {'remainHour': 0, 'remainMinute': 45},
+        },
+      });
+    }
     switch (path) {
       case '/appliances':
         return json([
+          if (practiceWasher) _practiceWasherJson,
           {
             ..._homeInstalled[0].toJson(),
             'can_execute': true,

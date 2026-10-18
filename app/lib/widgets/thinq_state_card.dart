@@ -324,6 +324,22 @@ const _wind = {
   'AUTO': '자동',
   'POWER': '파워',
 };
+// 세탁기 운전 상태(2026-10-18 연습 세탁기). 서버 모의·SDK 상태 이름(runState.currentState) — 모르는 값은 그대로 보인다.
+const _washState = {
+  'POWER_OFF': '꺼짐',
+  'INITIAL': '기다리는 중',
+  'DETECTING': '빨래 양 보는 중',
+  'RUNNING': '빨래하는 중',
+  'RINSING': '헹구는 중',
+  'SPINNING': '탈수하는 중',
+  'PAUSE': '잠시 멈춤',
+  'END': '다 됐어요',
+  'ERROR': '오류',
+};
+
+/// 세탁기 '시작'으로 칠 운전 상태(서버 `WASHER_RUNNING_STATES`와 같은 뜻).
+const _washRunning = {'DETECTING', 'RUNNING', 'RINSING', 'SPINNING', 'PREWASH', 'SOAKING'};
+
 const _level = {
   'GOOD': '좋음',
   'NORMAL': '보통',
@@ -367,6 +383,7 @@ class ThinqControl {
   /// 확인 질문. 값 이름(약·중·강·자동·청정·수면)은 모두 받침이 있어 '으로'를 붙인다.
   String question(String value, String word) => switch (action) {
         'set_power' => value == 'POWER_OFF' ? '전원을 끌까요?' : '전원을 켤까요?',
+        'set_operation' => value == 'STOP' ? '빨래를 잠시 멈출까요?' : '빨래를 시작할까요?',
         'set_job_mode' => '모드를 $word${_ro(word)} 바꿀까요?',
         _ => '$label${_eul(label)} $word${_ro(word)} 바꿀까요?',
       };
@@ -426,11 +443,32 @@ const kAirPurifierControls = <ThinqControl>[
   ),
 ];
 
-/// 공기청정기 상태일 때만 조작 줄을 만든다(표는 [kAirPurifierControls]).
+/// 세탁기 조작 줄(2026-10-18 연습 세탁기) — 서버 대응표 `WASHER_CAPABILITIES`(시작·일시정지)와 같다.
+/// 원격 시작이 꺼져 있으면 허브가 보내기 전에 거절한다(그 이유를 그대로 보인다).
+const kWasherControls = <ThinqControl>[
+  ThinqControl(
+    label: '빨래',
+    action: 'set_operation',
+    arg: 'operation',
+    choices: [('START', '시작'), ('STOP', '잠시 멈춤')],
+  ),
+];
+
+/// 공기청정기·세탁기 상태일 때만 조작 줄을 만든다(표는 [kAirPurifierControls]·[kWasherControls]).
 List<ThinqControl> thinqControlsFor(Map<String, dynamic> state) {
   final op = state['operation'];
   final power = op is Map ? op['airPurifierOperationMode']?.toString() : null;
-  if (power == null) return const [];
+  if (power == null) {
+    final run = state['runState'];
+    final current = run is Map ? run['currentState']?.toString() : null;
+    if (current == null) return const [];
+    final picked = _washRunning.contains(current)
+        ? 'START'
+        : current == 'PAUSE'
+            ? 'STOP'
+            : null;
+    return [for (final c in kWasherControls) c.withCurrent(picked)];
+  }
   final flow = state['airFlow'];
   final wind = flow is Map
       ? (flow['windStrengthDetail'] ?? flow['windStrength'])?.toString()
@@ -538,5 +576,24 @@ List<(String, String)> thinqStateRows(Map<String, dynamic> state) {
   final filter = at('filterInfo', 'filterRemainPercent');
   if (filter != null) rows.add(('필터 남은 양', '$filter%'));
 
+  // 세탁기(2026-10-18 연습 세탁기) — 운전 상태·남은 시간·원격 시작.
+  final wash = at('runState', 'currentState');
+  if (wash != null) rows.add(('빨래', word(_washState, wash)));
+  final left = thinqRemainText(at('timer', 'remainHour'), at('timer', 'remainMinute'));
+  if (left != null) rows.add(('남은 시간', left));
+  final remote = at('remoteControlEnable', 'remoteControlEnabled');
+  if (remote is bool) rows.add(('휴대폰으로 시작', remote ? '켜져 있어요' : '꺼져 있어요'));
+
   return rows;
+}
+
+/// 세탁기 남은 시간 — '45분'·'1시간 5분'. 둘 다 없으면 null(지어내지 않는다).
+String? thinqRemainText(Object? hour, Object? minute) {
+  final h = hour is num ? hour.toInt() : null;
+  final m = minute is num ? minute.toInt() : null;
+  if (h == null && m == null) return null;
+  final hh = h ?? 0;
+  final mm = m ?? 0;
+  if (hh <= 0) return '$mm분';
+  return mm <= 0 ? '$hh시간' : '$hh시간 $mm분';
 }
