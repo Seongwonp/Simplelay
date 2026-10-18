@@ -18,6 +18,7 @@
 //   "vesa_plate" VESA 75 x 75 누름판(선택 — panel_hold = "vesa", 상자에 잇는 방법은 실측 뒤 정함)
 //   "splice"     옛 평판 보강판(seam = "splice"일 때만 쓴다)
 //   "fit_test"   맞춤 시험 조각(앞판 왼쪽 아래 모서리)
+//   "dowel_pin"  분할면 맞춤 핀 Ø3.8 × 20(몸통 12 + 뒤판 4 = 16개, 예비 포함 20개 출력 — 개수는 맨 아래 echo)
 //   "none"       아무것도 그리지 않음(간섭 확인 파일에서 include할 때)
 //
 // **치수 상태:** 패널 외형·화면 영역·VESA 75 x 75는 사양표 값. '⚠ 실측 필요' 표시가 붙은 값은 추측이다.
@@ -115,6 +116,31 @@ seam_top_ys  = [top_front_y + 30, depth - wall - 15];  // 위판 덧살 볼트 Y
 side_rib_y0  = (split_z + seam_rib_t + seam_rib_h - lip_h) * tan(tilt) + wall / cos(tilt) + 25;  // 패널·플러그 뒤로 비켜서
 side_rib_ys  = [side_rib_y0 + 10, depth - wall - 15];  // 옆벽 덧살 볼트 Y
 
+// ── 맞춤 핀(다월, 10/18) ────────────────────────────────────
+// HW 담당이 같은 메이커스페이스 프린터(Bambu Lab A1 / A1 mini)로 레일 조각을 이을 때 써서 맞은 방법:
+// 구멍 Ø4.0 · 한쪽 깊이 10~11 · 출력 핀 Ø3.8 × 20(지름 간격 0.2). 핀은 위치 맞춤만 — 힘은 덧살 볼트·접착이 받는다.
+// 벽(3)은 Ø4 구멍에 얇고 덧살(분할면 한쪽 4)은 깊이 10.5가 안 나와서, 분할면을 걸치는 덩어리(단면 9 × 9, 길이 24)를 안쪽에 덧붙여 구멍을 낸다.
+dowel_on      = true;
+dowel_hole_d  = 4.0;      // 구멍 지름
+dowel_pin_d   = 3.8;      // 핀 지름
+dowel_len     = 20;       // 핀 길이
+dowel_depth   = 10.5;     // 한쪽 구멍 깊이(양쪽 합 21 = 핀 20 + 1)
+dowel_edge    = 6;        // 구멍 가장자리 ~ 바깥면(목표). 위판 쪽만 패널 넣는 길 때문에 못 지킨다(맨 아래 echo)
+dowel_wall    = 1.2;      // 구멍 둘레 최소 살
+dowel_pad_w   = 9;        // 덩어리 단면(구멍이 가운데)
+dowel_floor   = 1.5;      // 구멍 바닥 너머 살
+dowel_chamfer = 0.4;      // 핀 양 끝 모따기
+dowel_face_gap = 1.5;     // 경사면 위 끝 덩어리 ~ 패널 위 끝(경사면 따라) 간격
+dowel_lip_z   = 24;       // 앞 턱 핀 높이 — 앞 턱 덧살 볼트(z 14.5) 너트 위, 패널 세워 넣는 길(z 28.9) 아래
+dowel_floor_ys = [55, 115];       // 세로 분할 바닥 핀 Y(덧살 볼트 25·85·145 사이)
+dowel_top_ys  = [133, 162];       // 세로 분할 위판 핀 Y(볼트 114·152 사이, 뒤 테두리)
+dowel_side_ys = [95, 128, 162];   // 가로 분할 옆벽 핀 Y(볼트 78·152 피함, 뒤판 받침 z 110·150 사이)
+back_dowel    = true;
+back_dowel_zs = [82, 112];        // 뒤판 LB–RB(세로 분할) 핀 Z — 흡기 슬롯(z 20~70) 위
+back_dowel_xs = [60, 140];        // 뒤판 LB–LT(가로 분할) 핀 X
+// 뒤판 RT(정비 문)와 맞닿는 이음(LT–RT · RB–RT)에는 핀을 넣지 않는다 — 핀이 판과 나란해 문을 뒤로 뺄 수 없게 된다.
+// 경사면 띠의 가로 분할(창 왼쪽·오른쪽)도 넣지 않는다 — 왼쪽은 플러그 여유, 오른쪽은 OSD 버튼 구멍 길(접착).
+
 // ── 패널 누름(#8) ───────────────────────────────────────────
 panel_hold   = "clip";   // "clip" 고리 받침 + L자 고리(기본) | "vesa" VESA 누름판(구멍 위치·나사·상자 고정 실측 뒤)
 clip_foam    = 1;        // 고리와 패널 뒤 사이 폼 두께
@@ -134,6 +160,8 @@ foot_in      = 14;       // 바깥 모서리에서 고무발 중심까지
 
 // ── 프린터 ──────────────────────────────────────────────────
 printer      = [220, 220, 250];
+printer_a1   = [256, 256, 256];   // Bambu Lab A1(메이커스페이스)
+printer_mini = [180, 180, 180];   // Bambu Lab A1 mini
 
 $fn = 40;
 
@@ -173,6 +201,30 @@ clip_xL  = panel_x0 - panel_fit / 2 - 1 - clip_boss_d / 2;
 clip_xR  = panel_x0 + panel_w + panel_fit / 2 + 1 + clip_boss_d / 2;
 clip_len = clip_boss_d + 1 + panel_fit / 2 + clip_overlap;
 
+// 맞춤 핀
+dowel_r     = dowel_hole_d / 2;
+dowel_c     = dowel_edge + dowel_r;                 // 바깥면 ~ 구멍 중심(8)
+dowel_pad_l = 2 * (dowel_depth + dowel_floor);      // 분할면에 수직 길이(24)
+dowel_pad_t = dowel_c + dowel_pad_w / 2;            // 바깥면 ~ 덩어리 안쪽 면(12.5 — 벽 3 + 9.5)
+// 패널 위 앞 모서리 높이: 뒤에서 곧장 밀어 넣으면 이 높이로 뒤까지 지나가므로 위판 덩어리는 그보다 위에 둔다.
+panel_top_z = lip_h - wall * sin(tilt) + (panel_up + panel_h) * cos(tilt);
+dtop_z0     = max(H - dowel_c - dowel_pad_w / 2, panel_top_z + 0.5);       // 위판 덩어리 아랫면
+dtop_zc     = max(H - dowel_c, dtop_z0 + dowel_wall + dowel_r);              // 위판 구멍 중심 Z
+dface_yc    = (dowel_c + (dtop_zc - lip_h) * sin(tilt)) / cos(tilt);         // 경사면 위 끝 구멍 Y(경사 바깥면에서 dowel_c)
+
+// 구멍 목록 [[중심 X, Y, Z], 축] — 축은 분할면에 수직("x" 세로 분할, "z" 가로 분할)
+function shell_dowels() = !dowel_on ? [] : concat(
+    [[[split_x, dowel_c, dowel_lip_z], "x"]],                                  // 세로 아래: 앞 턱
+    [for (y = dowel_floor_ys) [[split_x, y, dowel_c], "x"]],                   //            바닥
+    [[[split_x, dface_yc, dtop_zc], "x"]],                                     // 세로 위: 경사면 위 끝(창 위)
+    [for (y = dowel_top_ys) [[split_x, y, dtop_zc], "x"]],                     //          위판
+    [for (sx = [0, 1], y = dowel_side_ys) [[sx == 0 ? dowel_c : W - dowel_c, y, split_z], "z"]]   // 가로: 옆벽
+);
+function back_dowels() = !(dowel_on && back_dowel) ? [] : concat(
+    [for (z = back_dowel_zs) [[split_x, depth - dowel_c, z], "x"]],            // 뒤판 LB–RB
+    [for (x = back_dowel_xs) [[x, depth - dowel_c, split_z], "z"]]             // 뒤판 LB–LT
+);
+
 // ===== 기본 형상 =====
 module profile2d(off = 0) {
     // 옆에서 본 단면(Y, Z). off > 0이면 안쪽으로 줄인 윤곽.
@@ -186,6 +238,14 @@ module face_frame() {
 }
 
 module shell_solid() {
+    // 몸통 + 맞춤 핀 구멍(분할면을 걸쳐 양쪽 dowel_depth씩)
+    difference() {
+        shell_body();
+        for (d = shell_dowels()) dowel_hole(d);
+    }
+}
+
+module shell_body() {
     difference() {
         rotate([90, 0, 90]) linear_extrude(W) profile2d();
         // 속 비우기(뒤는 뒤판으로 막으니 뚫어 둔다)
@@ -227,6 +287,62 @@ module shell_solid() {
     for (p = boss_points()) boss(p);
     // 분할 이음 덧살(#7)
     if (seam == "rib") seam_ribs();
+    // 맞춤 핀 덩어리
+    if (dowel_on) dowel_pads();
+}
+
+module dowel_hole(d) {
+    p = d[0];
+    if (d[1] == "x") translate(p - [dowel_depth, 0, 0]) rotate([0, 90, 0]) cylinder(d = dowel_hole_d, h = 2 * dowel_depth, $fn = 48);
+    else             translate(p - [0, 0, dowel_depth]) cylinder(d = dowel_hole_d, h = 2 * dowel_depth, $fn = 48);
+}
+
+module dowel_pads() {
+    // 분할면을 걸치는 덩어리(구멍 둘레 dowel_pad_w, 분할면에 수직 dowel_pad_l). 바깥 윤곽 밖으로는 나가지 않게 자른다.
+    L = dowel_pad_l;  w = dowel_pad_w;  T = dowel_pad_t;
+    x0 = split_x - L / 2;
+    intersection() {
+        union() {
+            // 세로 아래 — 앞 턱 안쪽(아랫면 9.5 오버행, 가운데 8 mm는 앞 턱 덧살이 받친다)
+            translate([x0, wall - 0.5, dowel_lip_z - w / 2]) cube([L, T - wall + 0.5, w]);
+            // 세로 아래 — 바닥 위
+            for (y = dowel_floor_ys) translate([x0, y - w / 2, wall - 0.5]) cube([L, w, T - wall + 0.5]);
+            // 세로 위 — 위판 아래(위 조각은 뒤집어 출력하므로 판 쪽)
+            for (y = dowel_top_ys) translate([x0, y - w / 2, dtop_z0]) cube([L, w, H - wall + 0.5 - dtop_z0]);
+            // 세로 위 — 경사면 위 끝(창 위 띠 ~ 위판 모서리). 패널 위 끝에서 경사면 따라 dowel_face_gap 띄운다.
+            intersection() {
+                translate([x0, top_front_y - 20, dtop_z0]) cube([L, dface_yc + w / 2 - top_front_y + 20, H - dtop_z0 + 1]);
+                face_frame() translate([x0 - 1, -20, panel_up + panel_h + dowel_face_gap]) cube([L + 2, 60, 60]);
+            }
+            // 가로 — 옆벽 안쪽, 위아래 45° 모따기(위 조각은 뒤집어 출력하므로 양쪽 모두)
+            for (sx = [0, 1], y = dowel_side_ys) side_dowel_pad(sx, y);
+        }
+        rotate([90, 0, 90]) linear_extrude(W) profile2d();
+    }
+}
+
+module side_dowel_pad(sx, y) {
+    T = dowel_pad_t;  L = dowel_pad_l;
+    xw  = sx == 0 ? 0 : W;            // 바깥면
+    dir = sx == 0 ? 1 : -1;           // 안쪽 방향
+    translate([0, y + dowel_pad_w / 2, 0]) rotate([90, 0, 0]) linear_extrude(dowel_pad_w)
+        polygon([[xw + dir * (wall - 0.5), split_z - L / 2 - (T - wall)], [xw + dir * T, split_z - L / 2],
+                 [xw + dir * T, split_z + L / 2], [xw + dir * (wall - 0.5), split_z + L / 2 + (T - wall)]]);
+}
+
+module back_dowel_pads() {
+    // 뒤판 안쪽 덩어리(판 3 + 9.5) — 뒤판은 바깥면을 판에 대고 출력하므로 덩어리가 위로 선다
+    L = dowel_pad_l;  w = dowel_pad_w;
+    y0 = depth - dowel_pad_t;
+    for (z = back_dowel_zs) translate([split_x - L / 2, y0, z - w / 2]) cube([L, depth - wall - y0 + 0.5, w]);
+    for (x = back_dowel_xs) translate([x - w / 2, y0, split_z - L / 2]) cube([w, depth - wall - y0 + 0.5, L]);
+}
+
+module dowel_pin() {
+    // 맞춤 핀 Ø3.8 × 20, 양 끝 0.4 모따기. 세워서 출력(둥글게) — 위치 맞춤용이라 층 방향 힘은 받지 않는다.
+    c = dowel_chamfer;  r = dowel_pin_d / 2;
+    rotate_extrude($fn = 64)
+        polygon([[0, 0], [r - c, 0], [r, c], [r, dowel_len - c], [r - c, dowel_len], [0, dowel_len]]);
 }
 
 module ledge_gusset(x) {
@@ -356,9 +472,19 @@ module side_rib(sx) {
 }
 
 module back_plate() {
+    difference() {
+        back_plate_body();
+        for (d = back_dowels()) dowel_hole(d);
+    }
+}
+
+module back_plate_body() {
     // 몸통 뒤 테두리(벽 3 mm) 안쪽에 끼워 나사 받침 끝면(y = depth − wall)에 닿는다
     difference() {
-        translate([back_x0, depth - wall, back_z0]) cube([back_x1 - back_x0, wall, back_z1 - back_z0]);
+        union() {
+            translate([back_x0, depth - wall, back_z0]) cube([back_x1 - back_x0, wall, back_z1 - back_z0]);
+            if (dowel_on && back_dowel) back_dowel_pads();
+        }
         // 아래 흡기 슬롯(분할선 양쪽)
         for (x = in_xs) translate([x, depth - wall - 1, 20]) cube([in_w, wall + 2, in_h]);
         // 전원 입구(Type-C 선 두 가닥)
@@ -414,10 +540,11 @@ module vesa_plate() {
 }
 
 module insert_obstacles() {
-    // 패널 넣는 길 간섭 확인용(README) — 뒤판 받침 · 이음 덧살 · 고리 받침
+    // 패널 넣는 길 간섭 확인용(README) — 뒤판 받침 · 이음 덧살 · 고리 받침 · 맞춤 핀 덩어리
     for (p = boss_points()) boss(p);
     if (seam == "rib") seam_ribs();
     for (c = clip_points()) clip_boss(c[0], c[1]);
+    if (dowel_on) dowel_pads();
 }
 
 module show_parts() {
@@ -438,9 +565,9 @@ module show_parts() {
                 cube([vesa_plate_w, vesa_plate_t, vesa_plate_w]);
 }
 
-// 출력 방향: 아래 조각은 바닥을 판에, 위 조각은 뒤집어 위판을 판에, 뒤판은 눕혀서.
+// 출력 방향: 아래 조각은 바닥을 판에, 위 조각은 뒤집어 위판을 판에, 뒤판은 바깥면을 판에 대고 눕혀서(핀 덩어리가 위로).
 module lay_back(ix, iz) {
-    translate([0, 0, wall]) rotate([90, 0, 0]) translate([0, -depth, 0]) quad(ix, iz) back_plate();
+    translate([0, 0, depth]) rotate([-90, 0, 0]) quad(ix, iz) back_plate();
 }
 
 if (part == "assembly") {
@@ -479,10 +606,12 @@ else if (part == "sensor_lid") sensor_lid();
 else if (part == "panel_clip") panel_clip();
 else if (part == "vesa_plate") vesa_plate();
 else if (part == "splice") splice();
+else if (part == "dowel_pin") dowel_pin();
 
 // ===== 확인 echo =====
-function fits(s) = s[2] <= printer[2]
-    && ((s[0] <= printer[0] && s[1] <= printer[1]) || (s[1] <= printer[0] && s[0] <= printer[1]));
+function fits_in(s, p) = s[2] <= p[2]
+    && ((s[0] <= p[0] && s[1] <= p[1]) || (s[1] <= p[0] && s[0] <= p[1]));
+function fits(s) = fits_in(s, printer);
 function in_piece(p, ix, iz) = (p[0] < split_x ? 0 : 1) == ix && (p[1] < split_z ? 0 : 1) == iz;
 function boss_count(ix, iz) = len([for (p = boss_points()) if (in_piece(p, ix, iz)) 1]);
 
@@ -491,16 +620,19 @@ part_sizes = [   // 조각별 바깥 크기(상한)
     ["shell_RB",  [W - split_x, depth, split_z]],
     ["shell_LT",  [split_x, depth, H - split_z]],
     ["shell_RT",  [W - split_x, depth, H - split_z]],
-    ["back_LB",   [split_x - back_x0, split_z - back_z0, wall]],
-    ["back_RB",   [back_x1 - split_x, split_z - back_z0, wall]],
-    ["back_LT",   [split_x - back_x0, back_z1 - split_z, wall]],
+    ["back_LB",   [split_x - back_x0, split_z - back_z0, len(back_dowels()) > 0 ? dowel_pad_t : wall]],
+    ["back_RB",   [back_x1 - split_x, split_z - back_z0, len(back_dowels()) > 0 ? dowel_pad_t : wall]],
+    ["back_LT",   [split_x - back_x0, back_z1 - split_z, len(back_dowels()) > 0 ? dowel_pad_t : wall]],
     ["back_RT",   [back_x1 - split_x, back_z1 - split_z, wall]],
     ["sensor_lid", [sensor_w - 2 * lid_gap, sensor_d - 2 * lid_gap, lid_t]],
     ["panel_clip", [clip_len, clip_w, clip_t + clip_step]],
     ["vesa_plate", [vesa_plate_w, vesa_plate_w, vesa_plate_t]],
     ["fit_test",  [panel_x0 + 44, 69, lip_h + 69]],
-    ["splice",    [40, 20, 3]]
+    ["splice",    [40, 20, 3]],
+    ["dowel_pin", [dowel_pin_d, dowel_pin_d, dowel_len]]
 ];
+n_dowel = len(shell_dowels()) + len(back_dowels());
+function dowel_count(axis, lo) = len([for (d = shell_dowels()) if (d[1] == axis && (axis == "z" ? (d[0][0] < split_x) == lo : (d[0][2] < split_z) == lo)) 1]);
 boss_split_min = min([for (p = boss_points()) min(abs(p[0] - split_x), abs(p[1] - split_z))]) - boss_d / 2;
 boss_panel_min = min([for (p = boss_points()) if (p[1] > lip_h)
                       max(panel_x0 - (p[0] + boss_d / 2), (p[0] - boss_d / 2) - (panel_x0 + panel_w))]);
@@ -510,7 +642,17 @@ rpi_on_RT = rpi_center[0] - rpi_hole_dx / 2 - rpi_hole_d / 2 > split_x
 echo(str("전체 크기 W x D x H = ", W, " x ", depth, " x ", H, " mm"));
 for (p = part_sizes)
     echo(str("조각 ", p[0], " ", p[1][0], " x ", p[1][1], " x ", p[1][2], " mm — ",
-             fits(p[1]) ? "프린터 안" : "**프린터 초과**"));
+             fits(p[1]) ? "프린터 안" : "**프린터 초과**",
+             " | A1 256³ ", fits_in(p[1], printer_a1) ? "안" : "초과",
+             " | A1 mini 180³ ", fits_in(p[1], printer_mini) ? "안" : "초과"));
+echo(str("맞춤 핀: 구멍 Ø", dowel_hole_d, " × 한쪽 ", dowel_depth, "(합 ", 2 * dowel_depth, " ≥ 핀 ", dowel_len,
+         ") — 세로 분할 아래 ", dowel_count("x", true), " · 위 ", dowel_count("x", false),
+         " · 가로 분할 왼쪽 ", dowel_count("z", true), " · 오른쪽 ", dowel_count("z", false),
+         " · 뒤판 ", len(back_dowels()), " = 핀 Ø", dowel_pin_d, " × ", dowel_len, " ", n_dowel, "개"));
+echo(str("맞춤 핀 구멍 가장자리 ~ 바깥면: 앞 턱·바닥·옆벽·경사면·뒤판 ", dowel_edge, ", 위판 ", H - dtop_zc - dowel_r,
+         " (목표 ", dowel_edge, " — 위판은 패널 위 앞 모서리 z ", panel_top_z, " 위로 비켜서)"));
+echo(str("맞춤 핀 구멍 둘레 최소 살 ", min(dowel_pad_w / 2 - dowel_r, dtop_zc - dowel_r - dtop_z0, dowel_floor),
+         " (", dowel_wall, " 이상)"));
 echo(str("뒤판 나사 받침 개수 LB/RB/LT/RT = ", boss_count(0, 0), "/", boss_count(1, 0), "/",
          boss_count(0, 1), "/", boss_count(1, 1), " (각 3 이상)"));
 echo(str("받침 가장자리 ~ 분할선 최소 ", boss_split_min, " mm (15 이상), 가운데·위 줄 받침 ~ 패널 옆 최소 ",
