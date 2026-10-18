@@ -76,8 +76,8 @@ void main() {
       final chip = find.byKey(const ValueKey('idle-status-chip'));
       expect(find.descendant(of: chip, matching: find.text('확인 필요 1')), findsOneWidget);
       expect(tester.getSize(chip).height, greaterThanOrEqualTo(48));
-      // 화면 읽기는 무엇이 문제인지까지 읽는다.
-      expect(tester.getSemantics(chip).label, contains('작은 팔 연결이 끊겼어요'));
+      // 화면 읽기는 무엇이 문제인지까지 읽는다 — 원인이 하나면 원인과 영향(평가 15차 10/18).
+      expect(tester.getSemantics(chip).label, contains('작은 팔이 끊겨 가전 2대를 못 써요'));
       final icon = tester.widget<Icon>(find.descendant(of: chip, matching: find.byType(Icon)).first);
       expect(icon.color, KioskColors.warning);
       await tester.tap(chip);

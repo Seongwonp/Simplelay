@@ -153,8 +153,8 @@ class KioskExecutingView extends StatelessWidget {
   /// 큰 글씨에서는 확인 문장을 뺀다 — 위 상태('제대로 눌렸는지 확인하는 중')가 같은 말을 하고, 남기면 마지막 줄이
   /// 스크롤 아래에서 잘렸다(UI 평가 3차 10/17).
   String? _evidence({bool large = false}) {
+    // '가전이 켜지는지 보고 있어요'는 두지 않는다(평가 15차 10/18) — 위 상태 '제대로 눌렸는지 보는 중'과 같은 말이었다.
     final parts = <String>[
-      if (_hasVerification && !_mock && !large) '가전이 켜지는지 보고 있어요',
       if (_retrying) '$currentAttempt번째 시도',
     ];
     return parts.isEmpty ? null : parts.join(' · ');

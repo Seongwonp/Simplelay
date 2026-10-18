@@ -129,7 +129,8 @@ KioskDoneView _failed({bool userStop = false}) => KioskDoneView(
       label: '즉석밥 데워줘',
       target: kMicrowaveAppliance,
       reason: userStop ? KioskFailureReason.stopped : null,
-      stopLevel: userStop ? 'sent' : null,
+      // 멈춘 것을 확인한 정지 — 멈췄는지 모르면 골라 누르기 대신 '다시 멈추기'(평가 15차 10/18).
+      stopLevel: userStop ? 'verified' : null,
       onRetry: _noop,
       onManual: _noop,
       onDismiss: _noop,
@@ -291,18 +292,19 @@ void main() {
       });
     }
 
-    // 평가 13차(10/18): 글자 단추는 꺼진 단추로 보였다 — 작은 테두리 보조 단추, 안내 문장과는 조금 뗀다.
-    testWidgets('한 번 더 하기는 안내 문장 옆(같은 묶음) 작은 테두리 단추', (tester) async {
+    // 평가 13차(10/18): 글자 단추는 꺼진 단추로 보였다 — 작은 테두리 보조 단추. 평가 15차(10/18): 주 단추 하나 + 보조 한 줄
+    // (같은 폭·같은 높이·같은 오른쪽 끝) — 안내 문장 묶음 대신 누르면 뜨는 확인 창이 말한다.
+    testWidgets('한 번 더 하기는 보조 한 줄 안 작은 테두리 단추', (tester) async {
       await _pumpView(tester, _failed());
-      final hint = tester.getRect(find.byKey(const ValueKey('done-retry-hint')));
+      expect(find.byKey(const ValueKey('done-retry-hint')), findsNothing);
       final retry = find.byKey(const ValueKey('done-retry'));
       expect(tester.widget(retry), isA<OutlinedButton>());
       final r = tester.getRect(retry);
-      expect((hint.center.dy - r.center.dy).abs(), lessThan(4), reason: '같은 줄');
-      expect(r.left, greaterThanOrEqualTo(hint.right - 1), reason: '안내 오른쪽');
-      expect(r.left - hint.right, lessThan(60), reason: '같은 묶음');
+      final m = tester.getRect(find.byKey(const ValueKey('done-manual')));
+      expect((r.width - m.width).abs(), lessThan(1), reason: '같은 폭');
+      expect((r.height - m.height).abs(), lessThan(1), reason: '같은 높이');
       final home = tester.getRect(find.byKey(const ValueKey('done-home')));
-      expect(r.top, greaterThan(home.bottom), reason: '주 출구 아래 보조 묶음');
+      expect(r.height, lessThan(home.height), reason: '주 출구보다 약하다');
       expect(r.bottom, lessThanOrEqualTo(480));
       expect(tester.takeException(), isNull);
     });
@@ -434,7 +436,7 @@ void main() {
       final text = rich.text.toPlainText().replaceAll('⁠', '').replaceAll(' ', ' ');
       expect(text, isNot(contains('\n')));
       expect('.'.allMatches(text.replaceAll(RegExp(r'\.$'), '')), isEmpty, reason: '한 문장');
-      expect(text, contains('그 뒤로는 보내지 않'));
+      expect(text, contains('더 하지 않'));
       expect(text, isNot(contains('그대로일 수 있어요')), reason: '평가 14차(10/18): 엔지니어 설명투 없이 한 줄');
       final stop = tester.getRect(find.byKey(const ValueKey('kiosk-stop-area')));
       final r = tester.getRect(note);

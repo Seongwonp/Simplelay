@@ -80,7 +80,7 @@ Future<void> _shoot(
 /// (docs/하드웨어-연결-설계.md §0-1). KioskCanvas가 가장자리 48px을 비우고
 /// 800x480 설계 캔버스를 2.05배로 확대해 채운 모습 -- 글씨·버튼·터치타깃이 함께 커진다.
 Future<void> _shoot15(WidgetTester tester, String name, Widget child,
-    {Future<void> Function(WidgetTester)? before}) async {
+    {Future<void> Function(WidgetTester)? before, bool dim = false}) async {
   tester.view.physicalSize = const Size(1920, 1080);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -90,6 +90,7 @@ Future<void> _shoot15(WidgetTester tester, String name, Widget child,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(fontFamily: 'Malgun', brightness: Brightness.dark),
       home: KioskCanvas(
+        dim: dim,
         child: Scaffold(backgroundColor: KioskColors.bg, body: child),
       ),
     ),
@@ -1029,12 +1030,15 @@ void main() {
       'kiosk15_done_user_stop',
       KioskDoneView(
         success: false,
+        executionMode: 'real',
         label: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
         reason: KioskFailureReason.stopped,
         stopLevel: 'sent',
         onRetry: () {},
         onManual: () {},
+        // 평가 15차(10/18) — 멈췄는지 모르면 골라 누르기 대신 정지 자리의 '다시 멈추기'.
+        onStopAgain: () {},
         onDismiss: () {},
       ),
     );
@@ -1125,7 +1129,9 @@ void main() {
               routineId: 'rt-morning',
               at: '2026-10-01T07:00:00+09:00',
               skipActionLabel: '내일은 건너뛰기',
-            )));
+            )),
+        // 평가 15차(10/18) — 어두운 막은 패널 전체(가장자리 여백까지). kiosk_screen이 캔버스에 같은 판정을 넘긴다.
+        dim: true);
   });
 
   // 사용자 결정(10/18) — 설정의 고대비: 회색 보조 글자 → 흰색, 옅은 면 → 검정 + 흰 테두리, 상태색은 더 또렷하게.

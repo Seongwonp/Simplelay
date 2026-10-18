@@ -180,9 +180,8 @@ void main() {
       expect(find.byKey(const ValueKey('idle-next-run')), findsOneWidget);
       expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
       expect(find.byKey(const ValueKey('strip-microwave')), findsNothing);
-      // 막은 앱 안의 어두운 면이다(패널 밝기 장치는 건드리지 않는다).
-      final dim = tester.widget<ColoredBox>(
-          find.descendant(of: find.byKey(const ValueKey('idle-quiet-dim')), matching: find.byType(ColoredBox)));
+      // 막은 앱 안의 어두운 면이다(패널 밝기 장치는 건드리지 않는다). 평가 15차(10/18) — 패널 전체(가장자리 여백까지)에 얹는다.
+      final dim = tester.widget<ColoredBox>(find.byKey(const ValueKey('kiosk-panel-dim')));
       expect(dim.color.a, closeTo(kQuietDimAlpha, 0.01));
 
       // 만지면 평소 밝기·평소 화면(가전 줄)으로.

@@ -174,7 +174,9 @@ void main() {
     testWidgets('제목 한 줄 + 할 일 한 줄, 무엇이었는지는 가전·이름 한 줄', (tester) async {
       await _pump(tester, _failed());
       expect(find.text('눌렸는지 몰라요'), findsOneWidget);
-      expect(find.text('가전을 봐 주세요'), findsOneWidget);
+      // 할 일은 번호 안내가 한 번만 말한다(평가 15차 10/18 — '가전을 봐 주세요' 줄을 따로 두지 않는다).
+      expect(find.text('가전을 봐 주세요'), findsNothing);
+      expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
       // 가전 이름과 행동 이름이 따로 두 줄이 아니라 한 줄.
       final meta = _allTexts(tester).where((t) => t.contains('즉석밥 데우기')).toList();
       expect(meta, hasLength(1));

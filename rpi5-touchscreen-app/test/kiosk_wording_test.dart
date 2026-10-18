@@ -620,7 +620,7 @@ void main() {
     testWidgets('숫자 근거(mA·dB·%) 없이 무엇을 보는지만 말한다', (tester) async {
       await _pumpView(tester, exec(confidence: 0.93, detail: '전류 +14mA · 소리 +9dB'));
       expect(find.text('제대로 눌렸는지 보는 중'), findsOneWidget);
-      expect(find.text('가전이 켜지는지 보고 있어요'), findsOneWidget);
+      expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing); // 위 상태와 같은 말 — 하나만(평가 15차 10/18)
       expect(find.textContaining('mA'), findsNothing);
       expect(find.textContaining('dB'), findsNothing);
       expect(find.textContaining('%'), findsNothing);

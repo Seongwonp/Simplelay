@@ -30,8 +30,22 @@ import '../../theme/kiosk_colors.dart';
 /// 캔버스를 확대한다. 화면마다 여백을 따로 챙기지 않아도 **누르는 자리 전부가**
 /// 구조적으로 가장자리를 피한다(1920x1080에서 배율 2.05, 좌우 140·위아래 48px).
 /// 800x480 그대로인 화면(옛 7인치·골든)은 여백 둘 자리가 없어 종전과 같다.
+///
+/// **조용한 시간 어둡게(평가 15차 10/18).** [dim]이면 어두운 막을 캔버스 안이 아니라 **패널 전체**(가장자리 여백까지)에
+/// 얹는다 — 캔버스 안에만 얹으면 여백의 밝은 바탕과 막 사이에 안쪽 사각형 테두리가 드러났다. 막은 누름을 막지 않는다
+/// (깨우는 손길은 처음 화면이 받는다). 처음 화면은 [dimsPanelOf]로 막이 이미 있는지 보고 제 막을 겹쳐 얹지 않는다.
 class KioskCanvas extends StatelessWidget {
-  const KioskCanvas({super.key, required this.child});
+  const KioskCanvas({super.key, required this.child, this.dim = false});
+
+  /// 조용한 시간이라 패널 전체를 어둡게 하나(kiosk_screen의 판정 — 처음 화면에서만).
+  final bool dim;
+
+  /// 막 짙기 — 흰 시계가 검은 바탕 위 약 5:1로 남는 정도. 값은 추측이다(실패널에서 밤에 1~2 m로 보고 고친다).
+  static const double dimAlpha = 0.5;
+
+  /// 이 캔버스가 패널 전체에 막을 얹고 있나.
+  static bool dimsPanelOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_CanvasDim>()?.dim ?? false;
 
   /// 모든 키오스크 화면이 전제하는 설계 해상도.
   static const Size design = Size(800, 480);
@@ -51,7 +65,7 @@ class KioskCanvas extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final inset = insetsFor(media.size) ? edgeInset : 0.0;
-    return ColoredBox(
+    final canvas = ColoredBox(
       color: KioskColors.bg,
       // SizedBox.expand로 **꽉 찬 제약**을 줘야 FittedBox가 확대한다.
       // Center처럼 느슨한 제약을 주면 FittedBox가 자식 크기(800x480)로
@@ -73,12 +87,28 @@ class KioskCanvas extends StatelessWidget {
               child: SizedBox(
                 width: design.width,
                 height: design.height,
-                child: child,
+                child: _CanvasDim(dim: dim, child: child),
               ),
             ),
           ),
         ),
       ),
     );
+    if (!dim) return canvas;
+    return Stack(fit: StackFit.expand, children: [
+      canvas,
+      IgnorePointer(
+        child: ColoredBox(
+            key: const ValueKey('kiosk-panel-dim'), color: Colors.black.withValues(alpha: dimAlpha)),
+      ),
+    ]);
   }
+}
+
+class _CanvasDim extends InheritedWidget {
+  const _CanvasDim({required this.dim, required super.child});
+  final bool dim;
+
+  @override
+  bool updateShouldNotify(_CanvasDim old) => old.dim != dim;
 }

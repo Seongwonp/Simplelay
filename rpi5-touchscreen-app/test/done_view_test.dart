@@ -178,11 +178,11 @@ void main() {
 
     expect(find.textContaining('안전하게 멈췄어요'), findsNothing);
     expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
-    expect(find.text('가전을 봐 주세요'), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
     // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
-    // 다시 하려면 처음 화면에서 고른다. '작은 팔로 골라 누르기'는 남는다.
+    // 멈췄는지 모르면 작은 팔을 다시 움직이게 하는 '작은 팔로 골라 누르기'도 두지 않는다(평가 15차 10/18, 안전).
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('작은 팔로 골라 누르기'), findsOneWidget);
+    expect(find.text('작은 팔로 골라 누르기'), findsNothing);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {

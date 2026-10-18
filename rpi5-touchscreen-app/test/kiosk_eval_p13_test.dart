@@ -327,11 +327,8 @@ void main() {
         expect(_contrast(fg, KioskColors.bg), greaterThanOrEqualTo(4.5));
         final home = find.descendant(of: find.byKey(const ValueKey('done-home')), matching: find.text('처음 화면으로'));
         expect(_fontOf(tester, label), lessThan(_fontOf(tester, home)));
-        if (!mock) {
-          final hint = tester.getRect(find.byKey(const ValueKey('done-retry-hint')));
-          final r = tester.getRect(retry);
-          expect(r.left - hint.right >= 24 || r.top >= hint.bottom, isTrue, reason: '안내 문장과 떨어져 있다');
-        }
+        // 평가 15차(10/18): 안내 문장 묶음은 없다 — 보조 한 줄 안(확인 창이 '가전을 보고 안 됐을 때만'을 말한다).
+        expect(find.byKey(const ValueKey('done-retry-hint')), findsNothing);
         expect(tester.takeException(), isNull);
       });
     }

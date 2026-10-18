@@ -74,6 +74,7 @@ class AmbientInfo {
     this.tip,
     this.hourly = const [],
     this.now,
+    this.nowKnown = false,
     this.weatherSource = 'none',
     this.stale = false,
   });
@@ -84,6 +85,10 @@ class AmbientInfo {
 
   /// 지금 날씨 한 칸(서버 `now`, 10/18) — 예보 1시간 칸 중 지금에 가장 가까운 것. 옛 서버·값 없음이면 null.
   final AmbientHour? now;
+
+  /// 서버 응답에 `now` 키가 있었나(평가 15차 10/18). 있으면 그 값만 '지금' 칸으로 쓴다 — null이면 '지금' 칸이 없다
+  /// (서버 '지금'은 날씨 안내 문장과 같은 정의다). 키가 없는 옛 서버일 때만 화면이 3시간 칸에서 대신 고른다.
+  final bool nowKnown;
 
   /// kma | mock | none
   final String weatherSource;
@@ -101,6 +106,7 @@ class AmbientInfo {
         now: json['now'] is Map<String, dynamic>
             ? AmbientHour.fromJson(json['now'] as Map<String, dynamic>)
             : null,
+        nowKnown: json.containsKey('now'),
         weatherSource: json['weather_source'] as String? ?? 'none',
         stale: json['stale'] as bool? ?? false,
       );

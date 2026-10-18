@@ -145,7 +145,8 @@ void main() {
               onOpen: (i) => opened = i));
       final help = find.byKey(const ValueKey('idle-problem-help'));
       expect(help, findsOneWidget);
-      expect(find.text('눌러서 해결 방법 보기'), findsOneWidget);
+      // 원인이 하나면 둘째 줄 '확인 필요 1 · 해결 방법 보기'(평가 15차 10/18 — 첫 줄은 원인과 영향).
+      expect(find.text('해결 방법 보기'), findsOneWidget);
       final chip = tester.getRect(find.byKey(const ValueKey('idle-status-chip')));
       final h = tester.getRect(help);
       expect((h.center.dx - chip.center.dx).abs(), lessThan(chip.width));
@@ -218,16 +219,14 @@ void main() {
             onManual: () {},
             onDismiss: () {},
           ));
-      final hint = find.byKey(const ValueKey('done-retry-hint'));
-      expect(hint, findsOneWidget);
-      expect(find.text('가전을 보고 안 됐을 때만 다시 하세요'), findsOneWidget);
+      // 평가 15차(10/18): 주 단추 하나 + 보조 한 줄 — 안내 문장 묶음 대신 보조 줄 안(같은 폭·같은 높이). '다시 하기 전에 가전을
+      // 보라'는 말은 누르면 뜨는 확인 창이 한다(정책 그대로).
+      expect(find.byKey(const ValueKey('done-retry-hint')), findsNothing);
       final retry = find.byKey(const ValueKey('done-retry'));
-      final hr = tester.getRect(hint);
       final rr = tester.getRect(retry);
-      // 평가 12차(10/18): 안내 문장 바로 옆 같은 줄(주 출구 하나 + 보조 묶음) — 따로 떨어진 세 번째 출구로 보이지 않게.
-      expect((hr.center.dy - rr.center.dy).abs(), lessThan(4));
-      expect(rr.left, greaterThanOrEqualTo(hr.right - 0.5));
-      expect(rr.left - hr.right, lessThan(60));
+      final mr = tester.getRect(find.byKey(const ValueKey('done-manual')));
+      expect((rr.width - mr.width).abs(), lessThan(1));
+      expect((rr.height - mr.height).abs(), lessThan(1));
       // 평가 13차(10/18): 글자 단추는 꺼진 단추로 보였다 — 작은 테두리 보조 단추. 처음 화면으로(채움)보다 낮다.
       expect(tester.widget(retry), isA<OutlinedButton>());
       expect(rr.height, lessThan(tester.getRect(find.byKey(const ValueKey('done-home'))).height));

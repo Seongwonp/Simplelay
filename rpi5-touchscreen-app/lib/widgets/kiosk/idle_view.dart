@@ -11,6 +11,7 @@ import 'appliance_strip.dart';
 import 'connection_status.dart';
 import 'idle_top.dart';
 import '../../theme/kiosk_tokens.dart';
+import 'kiosk_canvas.dart';
 import 'kiosk_text.dart';
 import 'thinq_panel.dart' show airGradeColor;
 
@@ -225,14 +226,17 @@ class KioskIdleView extends StatelessWidget {
           const SizedBox(width: KioskSpace.sm),
         ],
         // 쉬는 중 칩 + 문제 칩 + 큰 글씨가 겹치면 위 줄이 모자란다 — 칩은 잘리지 않고 통째로 조금 줄어든다.
-        // 폭 상한은 위 줄의 42% — 보통은 제 크기 그대로라 자리가 바뀌지 않는다.
+        // 폭 상한은 위 줄의 절반(원인·영향 한 줄이 들어가게, 평가 15차 10/18 — 큰 글씨는 전처럼 42%) — 쉬는 중 칩이 함께 있어도 같은 상한이라
+        // 보통은 제 크기 그대로, 자리가 바뀌지 않는다.
         ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: topWidth * 0.42),
+          constraints: BoxConstraints(maxWidth: topWidth * (large ? 0.42 : 0.5)),
           child: FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerRight,
             child: KioskIdleStatusChip(
               items: connections,
+              // 작은 팔이 끊겨 '지금 못 써요'인 가전 수(아래 타일과 같은 규칙 — 작은 팔이 누르는 가전).
+              pressImpact: pressDown && list != null ? list.where((a) => !a.isThinq).length : null,
               onTap: () {
                 // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창. 비상 버튼 띠 아래에서는 칩이 연결 문제만 말한다
                 // (평가 14차 10/18) — 풀기 안내는 띠의 '풀기 안내'·못 쓰는 가전 타일이 연다.
@@ -266,8 +270,10 @@ class KioskIdleView extends StatelessWidget {
           final columns = outer.maxWidth - _Idle.columnGap;
           // 큰 글씨에서는 시계 칸을 넓힌다(6:5, 2026-10-18) — 나쁜 공기·다음 루틴 줄이 덜 꺾인다. 오른쪽은 큰 글씨에서 안내가 있으면
           // 예보를 접으므로 좁아져도 된다. 보통 글씨는 5:6(예보 4칸이 넉넉히).
-          final leftFlex = large ? 6 : 5;
-          final rightFlex = large ? 5 : 6;
+          // 공기 할 일이 있으면 보통 글씨에서도 시계 칸을 넓힌다(평가 15차 10/18) — '공기 나빠요' 아래 할 일·다음 루틴이 덜 꺾여
+          // 시계 아래에 다 들어간다. 오른쪽은 날씨 안내·예보뿐이라 좁아져도 된다.
+          final leftFlex = large || airAction != null ? 6 : 5;
+          final rightFlex = large || airAction != null ? 5 : 6;
           final leftWidth = columns * leftFlex / 11;
           final rightWidth = columns * rightFlex / 11;
           var strip = large ? _Idle.stripLarge : _Idle.strip;
@@ -286,8 +292,18 @@ class KioskIdleView extends StatelessWidget {
             showEnv = false;
             rest = leftRest();
           }
-          // 그래도 모자라면 공기 줄의 할 일 단추를 접는다(평가 14차 10/18) — 공기 말·다음 루틴이 먼저다. 가전 타일로도 같은 곳에 간다.
-          if (showAirAction && clockMin + rest > middleAndStrip - minStrip - _Idle.slack) {
+          // 그래도 시계 아래가 모자라면(공기 할 일·위 '지난 일' 줄 등, 평가 15차 10/18) 시계를 [_Idle.clockTightMin]까지, 가전 줄을
+          // [_Idle.stripTightMin]까지 줄인다 — 예전에는 왼쪽 칸이 넘쳐 '오늘은 건너뛰기'가 가전 줄에 붙어 잘렸다.
+          // 공기 할 일은 '공기 나빠요' 바로 아래 같은 왼쪽 열에만 둔다(오른쪽 예보 아래 혼자 떠 있었다). 그래도 모자랄 때만
+          // 할 일을 접는다 — 가전 타일로도 같은 곳에 간다.
+          var clockFloor = clockMin;
+          var stripFloor = minStrip;
+          if (clockFloor + rest > middleAndStrip - stripFloor - _Idle.slack) {
+            // 큰 글씨는 이미 더 낮은 하한(clockLargeMin·stripLargeMin)을 쓴다 — 올리지 않는다.
+            if (_Idle.clockTightMin < clockFloor) clockFloor = _Idle.clockTightMin;
+            if (!large && _Idle.stripTightMin < stripFloor) stripFloor = _Idle.stripTightMin;
+          }
+          if (showAirAction && clockFloor + rest > middleAndStrip - stripFloor - _Idle.slack) {
             showAirAction = false;
             rest = leftRest();
           }
@@ -297,11 +313,11 @@ class KioskIdleView extends StatelessWidget {
             // 시계를 먼저 [_Idle.clockLargeSoftMin]까지 줄이고, 그래도 모자라면 타일 줄을 낮추고, 마지막으로 시계를 하한까지.
             if (_Idle.clockLargeSoftMin + rest > middleAndStrip - strip - _Idle.slack) {
               strip = (middleAndStrip - _Idle.slack - _Idle.clockLargeSoftMin - rest)
-                  .clamp(_Idle.stripLargeMin, _Idle.stripLarge)
+                  .clamp(stripFloor, _Idle.stripLarge)
                   .toDouble();
             }
             clockSize = (middleAndStrip - strip - _Idle.slack - rest)
-                .clamp(clockMin, _Idle.clockLarge)
+                .clamp(clockFloor, _Idle.clockLarge)
                 .toDouble();
           } else {
             final left = _Idle.clock + rest;
@@ -318,13 +334,15 @@ class KioskIdleView extends StatelessWidget {
             }
             final right = rightOf(hourly);
             final need = left > right ? left : right;
-            strip = (middleAndStrip - need - _Idle.slack)
-                .clamp(_Idle.strip, _Idle.stripMax)
+            // 왼쪽(시계 하한 기준)이 가장 작은 타일 줄로도 넘치면 타일 줄을 하한([stripFloor])까지 낮춘다(공기 할 일 자리).
+            final stripLow = (middleAndStrip - _Idle.slack - clockFloor - rest)
+                .clamp(stripFloor, _Idle.strip)
                 .toDouble();
+            strip = (middleAndStrip - need - _Idle.slack).clamp(stripLow, _Idle.stripMax).toDouble();
             final room = middleAndStrip - strip - _Idle.slack;
             if (left > room) {
               // 왼쪽이 넘치면 시계를 줄인다(하한까지) — 다음 루틴 단추가 잘리지 않게.
-              clockSize = (room - rest).clamp(clockMin, _Idle.clock).toDouble();
+              clockSize = (room - rest).clamp(clockFloor, _Idle.clock).toDouble();
             } else {
               // 오른쪽 칸이 더 길면 그 차이만큼은 공짜, 타일을 다 키우고도 남는 높이도 쓴다.
               final spare = room - need;
@@ -359,7 +377,7 @@ class KioskIdleView extends StatelessWidget {
                   ],
                   // 실내 공기(2026-10-16) — 나쁠 때만(사용자 결정 10/18). 모르면 줄이 없다(지어내지 않는다).
                   if (badAir != null) ...[
-                    const SizedBox(height: _Idle.airGap),
+                    SizedBox(height: _Idle.airGapFor(showAirAction)),
                     _AirLine(key: const ValueKey('idle-air'), air: badAir, compact: large,
                         action: showAirAction ? airAction : null, onAction: airTarget == null ? null : () => onSelectAppliance(airTarget)),
                   ],
@@ -391,24 +409,10 @@ class KioskIdleView extends StatelessWidget {
                 // 다음 루틴 카드가 빠진 자리(2026-10-18) — 남으면 안내 카드 속 예보도 보통 꼴(크게)로 쓴다.
                 final roomyHours = hoursFit &&
                     tip != null &&
+                    isWeatherTip(tip) &&
                     !large &&
                     _rightColumnHeight(context, box.maxWidth,
                                 tip: tip, hours: hourly, large: large, roomyHours: true) <=
-                        box.maxHeight;
-                // 시계 아래에 공기 할 일 단추 자리가 없으면(다음 루틴과 함께 있을 때 등) 이 칸 아래 빈자리에 같은 공기 아이콘과
-                // 함께 둔다(평가 14차 10/18). 여기도 자리가 없으면 두지 않는다 — 가전 타일로 같은 곳에 간다.
-                final rightAction = airAction != null && !showAirAction && airTarget != null
-                    ? airAction
-                    : null;
-                final rightActionFits = rightAction != null &&
-                    _rightColumnHeight(context, box.maxWidth,
-                                greeting: showGreeting ? greeting : null,
-                                tip: tip,
-                                hours: hoursFit ? hourly : const [],
-                                large: large,
-                                roomyHours: roomyHours) +
-                            KioskSpace.sm +
-                            _AirLine._actionMin <=
                         box.maxHeight;
                 final top = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -416,30 +420,14 @@ class KioskIdleView extends StatelessWidget {
                     if (showGreeting)
                       KioskText(greeting, style: const TextStyle(
                           fontSize: _Idle.greeting, height: 1.25, color: Colors.white)),
+                    // 날씨 안내만 예보 줄을 카드 안에 품는다(평가 12차). 알림(약 드실 시간·확인 필요 가전 등)은 날씨와 다른 일이라
+                    // 따로 선 카드 — 예보는 그 아래 따로(평가 15차 10/18: '약 드실 시간이에요'가 날씨 카드 안에 있었다).
                     if (tip != null)
                       _TipCard(key: const ValueKey('ambient-tip'), tip: tip,
-                          compact: large, hours: hoursFit ? hourly : const [], hoursCompact: !roomyHours),
-                    if (tip == null && hoursFit) ...[
+                          compact: large, hours: hoursFit && isWeatherTip(tip) ? hourly : const [], hoursCompact: !roomyHours),
+                    if ((tip == null || !isWeatherTip(tip)) && hoursFit) ...[
                       const SizedBox(height: _Idle.hoursGap),
                       _Hours(key: const ValueKey('ambient-hours'), hours: hourly),
-                    ],
-                    if (rightActionFits) ...[
-                      const SizedBox(height: KioskSpace.sm),
-                      Row(children: [
-                        Icon(Icons.air, size: _NextRunLine._headIcon, color: airGradeColor(badAir!.grade)),
-                        const SizedBox(width: _NextRunLine._iconGap),
-                        Flexible(
-                          child: _SkipButton(
-                            key: const ValueKey('idle-air-action'),
-                            label: rightAction,
-                            width: _AirLine._actionWidth(context, rightAction,
-                                box.maxWidth - _NextRunLine._headIcon - _NextRunLine._iconGap),
-                            minHeight: _AirLine._actionMin,
-                            busy: false,
-                            onTap: () => onSelectAppliance(airTarget!),
-                          ),
-                        ),
-                      ]),
                     ],
                   ],
                 );
@@ -510,7 +498,7 @@ class KioskIdleView extends StatelessWidget {
           _textHeight(context, env.join(' · '),
               const TextStyle(fontSize: _Idle.envText, height: 1.25), width);
     }
-    if (air != null) h += _Idle.airGap + _AirLine.heightFor(context, air, width, action: airAction);
+    if (air != null) h += _Idle.airGapFor(airAction != null) + _AirLine.heightFor(context, air, width, action: airAction);
     if (next != null) {
       h += _Idle.nextGap +
           _NextRunLine.heightFor(context, next, width, withButton: onToggle != null, notice: notice);
@@ -532,9 +520,12 @@ class KioskIdleView extends StatelessWidget {
           const TextStyle(fontSize: _Idle.greeting, height: 1.25), width);
     }
     // 날씨 안내가 있으면 예보는 그 카드 안 아래 줄(평가 12차 10/18 — 카드 둘의 여백·사이 간격만큼 예보가 접혔다).
-    if (tip != null) {
+    if (tip != null && isWeatherTip(tip)) {
       h += _TipCard.heightFor(context, tip, width,
           compact: large, hours: hours, hoursCompact: !roomyHours);
+    } else if (tip != null) {
+      h += _TipCard.heightFor(context, tip, width, compact: large);
+      if (hours.isNotEmpty) h += _Idle.hoursGap + _Hours.heightFor(context, hours, compact: false);
     } else if (hours.isNotEmpty) {
       h += _Idle.hoursGap + _Hours.heightFor(context, hours, compact: false);
     }
@@ -612,14 +603,20 @@ abstract final class _Idle {
   static const double clockGrow = 24; // 남는 높이로 시계를 키울 수 있는 한도
   // 시계 아래 다음 루틴·나쁜 공기가 다 들어가지 않을 때 시계를 줄이는 하한(2026-10-18) — 그래도 화면에서 가장 큰 글이다.
   static const double clockMin = 72;
+  // 시계 아래(공기 할 일·다음 루틴)가 다 들어가지 않을 때만 더 줄이는 시계 하한(평가 15차 10/18) — 그래도 핵심 글자(40)보다 크다.
+  static const double clockTightMin = 48;
   static const double clockLarge = 84; // 큰 글씨 시계
   static const double clockLargeSoftMin = 60; // 큰 글씨: 타일 줄을 낮추기 전에 시계를 줄이는 한도
   // 큰 글씨 시계 하한 — 다음 루틴 머리말('자동 루틴', 10/18) 한 줄만큼 낮췄다. 그래도 상태 글자(30)보다 크다.
   static const double clockLargeMin = 44;
   static const double nextGap = KioskSpace.sm; // 시계·온습도·공기와 다음 루틴 사이
   static const double airGap = 14; // 시계·온습도와 공기 줄 사이
+  /// 공기 할 일까지 두면 시계와 공기 줄 사이를 간격 토큰 xs로 좁힌다(평가 15차 10/18 — 할 일 자리를 시계 아래에서 찾는다).
+  static double airGapFor(bool withAction) => withAction ? KioskSpace.xs : airGap;
   static const double strip = 128; // 가전 줄 최소 높이(전 158) — 남는 높이가 있으면 [stripMax]까지 키운다(평가 4차 10/18)
-  static const double stripMax = 164; // 가전 줄 최대 높이 — 타일이 너무 커져 시계보다 무거워지지 않게
+  static const double stripMax = 164;
+  // 시계 아래 자리가 모자랄 때만 낮추는 가전 줄 하한(평가 15차 10/18) — 타일 높이 102(실패널 약 209px)이라 이름·상태가 다 보인다.
+  static const double stripTightMin = 118; // 가전 줄 최대 높이 — 타일이 너무 커져 시계보다 무거워지지 않게
   static const double stripLarge = 156; // 큰 글씨 가전 줄 높이
   static const double stripLargeMin = 128; // 큰 글씨에서 시계 아래가 붐빌 때 낮출 수 있는 하한(2026-10-18)
   static const double stripPad = 16; // 줄 높이 − 타일 높이
@@ -1061,18 +1058,14 @@ class _AirLine extends StatelessWidget {
     final sub = _subOf(air);
     if (sub.isNotEmpty) h += _textHeight(context, keepWords(sub.join('   ')), _subStyle, w);
     if (action != null) {
-      final t = _textHeight(context, action, _NextRunLine._buttonStyle, double.infinity);
-      h += t > _actionMin ? t : _actionMin;
+      h += _actionGap + _textHeight(context, action, _NextRunLine._buttonStyle, w);
+      if (h < _actionMin) h = _actionMin;
     }
     return h;
   }
 
-  /// 단추 폭 — 글자 + 오른쪽 여백, 왼쪽 글 칸을 넘지 않게.
-  static double _actionWidth(BuildContext context, String action, double max) {
-    final w = _textWidth(context, action, _NextRunLine._buttonStyle) + 2 * _NextRunLine._buttonPadH + 2;
-    final at = w > _actionMin ? w : _actionMin;
-    return at > max ? max : at;
-  }
+  /// 공기 말과 할 일 글 사이.
+  static const double _actionGap = 2;
 
   @override
   Widget build(BuildContext context) {
@@ -1120,26 +1113,37 @@ class _AirLine extends StatelessWidget {
     );
     final action = this.action;
     if (action == null || onAction == null) return line;
-    // 할 일은 공기 말 바로 아래, 글자 선(아이콘 오른쪽)에 맞춘다 — '오늘은 건너뛰기'와 같은 작은 글자 단추.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        line,
-        Padding(
-          padding: const EdgeInsets.only(left: _Idle.airIcon + KioskSpace.sm),
-          child: LayoutBuilder(
-            builder: (context, box) => _SkipButton(
-              key: const ValueKey('idle-air-action'),
-              label: action,
-              width: _actionWidth(context, action, box.maxWidth),
-              minHeight: _actionMin,
-              busy: false,
-              onTap: onAction!,
+    // 할 일은 공기 말 바로 아래, 글자 선(아이콘 오른쪽)에 맞춘다 — '오늘은 건너뛰기'와 같은 작은 회색 굵은 글자(평가 14차).
+    // 공기 말과 할 일 글을 **한 덩어리 누르는 자리**로 묶는다(평가 15차 10/18) — 할 일 글만 48 높이 단추로 두면 시계 아래가
+    // 모자라 할 일이 오른쪽 예보 아래로 떨어져 혼자 떠 있었다. 덩어리 전체가 48 이상이고 누르면 그 가전 화면이 열린다.
+    // 화면 읽기: 누르는 자리는 할 일 이름, 공기 말은 그 안에 따로 그대로 읽힌다.
+    return Semantics(
+      button: true,
+      label: action,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          key: const ValueKey('idle-air-tap'),
+          onTap: onAction,
+          borderRadius: BorderRadius.circular(8),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: _actionMin),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                line,
+                Padding(
+                  key: const ValueKey('idle-air-action'),
+                  padding: const EdgeInsets.only(left: _Idle.airIcon + KioskSpace.sm, top: _actionGap),
+                  child: ExcludeSemantics(
+                      child: Text(action, style: _NextRunLine._buttonStyle.copyWith(color: KioskColors.muted))),
+                ),
+              ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -1271,6 +1275,14 @@ class _TipCard extends StatelessWidget {
   }
 }
 
+/// 날씨 안내인가(비·눈·더위·추위) — 예보 줄을 카드 안에 품는다. 알림(루틴 안내·확인 필요 가전·위험 소리)은 아니다(평가 15차 10/18).
+/// 종류(kind)를 모르는 옛 서버면 아이콘으로 본다.
+bool isWeatherTip(AmbientTip tip) {
+  const kinds = {'rain', 'snow', 'heat', 'cold'};
+  if (tip.kind.isNotEmpty) return kinds.contains(tip.kind);
+  return const {'rain', 'snow', 'hot', 'cold'}.contains(tip.icon);
+}
+
 /// 예보 줄의 한 칸(사용자 요청 10/18) — 맨 앞 '지금' 칸 또는 서버 3시간 칸.
 class ForecastSlot {
   const ForecastSlot({required this.label, required this.hour, required this.night, this.isNow = false});
@@ -1305,7 +1317,13 @@ List<ForecastSlot> forecastSlots(AmbientInfo? ambient, DateTime now, {int max = 
 /// 먼 칸의 값을 지금 날씨처럼 보이지 않는다. 없으면 null(지금 칸을 두지 않는다).
 AmbientHour? outsideNowSlot(AmbientInfo? ambient, DateTime now) {
   if (ambient == null) return null;
-  // 서버가 지금 칸을 주면 그것을 쓴다 — 3시간 칸만으로는 하루 절반쯤 비었다(10/18).
+  // 서버가 `now` 키를 보내면 그 값만 쓴다(평가 15차 10/18) — 서버 '지금'은 날씨 안내 문장과 같은 정의(지난 정시 칸, 없으면
+  // 앞뒤 30분 안)다. null이면 '지금' 칸을 두지 않는다: 여기서 3시간 칸을 대신 고르면 오후 2:21에 3시 칸(비)이 '지금'으로
+  // 그려져 '오후 3시부터 비' 안내와 엇갈렸다. 키가 없는 옛 서버일 때만 아래 대체(앞뒤 90분 안 3시간 칸).
+  if (ambient.nowKnown) {
+    final n = ambient.now;
+    return n != null && n.temp != null ? n : null;
+  }
   if (ambient.now case final n? when n.temp != null) return n;
   final minutes = now.hour * 60 + now.minute;
   for (final h in ambient.hourly) {
@@ -1617,7 +1635,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
 
 /// 조용한 시간 어둡게의 막 짙기(사용자 결정 10/18) — 흰 시계가 검은 바탕 위 약 5:1로 남는 정도. 앱 안에서만 어둡게 한다
 /// (패널 밝기 장치는 건드리지 않는다). 값은 추측이다 — 실패널에서 밤에 1~2 m로 보고 고친다(실패널에서 측정 필요).
-const double kQuietDimAlpha = 0.5;
+const double kQuietDimAlpha = KioskCanvas.dimAlpha;
 
 /// 조용한 시간의 처음 화면 — 위 줄(날짜·조용한 시간·문제 칩·메뉴) · 큰 시계 · (나쁘면) 공기 · 다음 루틴만. 예보·인사말·온습도·
 /// 가전 줄은 접는다. 전체에 어두운 막을 얹고, 막을 누르면 그 아래 단추는 눌리지 않는다(깨우는 손길 — 다시 밝아지면 고른다).
@@ -1681,12 +1699,17 @@ class _QuietIdle extends StatelessWidget {
             ),
           ]),
         ),
+        // 막은 패널 전체에(평가 15차 10/18 — KioskCanvas가 가장자리 여백까지 덮는다). 캔버스가 막을 얹지 않을 때만(시험·옛 틀)
+        // 여기서 얹는다. 누름을 받는 자리는 늘 여기다 — 그 아래 단추는 눌리지 않는다(깨우는 손길).
         Positioned.fill(
           child: GestureDetector(
             key: const ValueKey('idle-quiet-dim'),
             behavior: HitTestBehavior.opaque,
             onTap: () {},
-            child: ColoredBox(color: Colors.black.withValues(alpha: kQuietDimAlpha)),
+            child: ColoredBox(
+                color: KioskCanvas.dimsPanelOf(context)
+                    ? Colors.transparent
+                    : Colors.black.withValues(alpha: kQuietDimAlpha)),
           ),
         ),
       ]),

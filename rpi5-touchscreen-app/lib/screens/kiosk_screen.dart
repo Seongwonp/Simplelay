@@ -224,6 +224,9 @@ class _KioskScreenState extends State<KioskScreen> {
   String? _doneStopLevel;
   int? _doneStopAckMs;
 
+  /// 결과 화면 '다시 멈추기'(작은 팔이 멈췄는지 모르는 정지, 평가 15차 10/18)를 누른 결과 — 'sent' | 'failed' | null.
+  String? _doneStopAgain;
+
   /// 결과가 먼저 오고 정지 보고가 늦게 올 때의 짧은 후속 조회(평가 2026-10-13 M1). 화면 문구만 고친다.
   Timer? _stopFollowTimer;
 
@@ -1397,6 +1400,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneAbortReason = null;
     _doneStopLevel = null;
     _doneStopAckMs = null;
+    _doneStopAgain = null;
     _stopFollowTimer?.cancel();
     _stopPending = false;
     _doneOperationDetail = null;
@@ -1625,6 +1629,19 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
+  /// 결과 화면의 '다시 멈추기'(평가 15차 10/18) — 정지 대기 화면의 '다시 멈추기'와 같은 정지 경로(/stop). 판정은 하지 않는다:
+  /// 본체가 받았는지만 화면에 말하고, 멈췄는지는 사람이 작은 팔을 본다.
+  Future<void> _onDoneStopAgain() async {
+    try {
+      await _api.stop();
+      if (!mounted || _phase != KioskPhase.done) return;
+      setState(() => _doneStopAgain = 'sent');
+    } catch (_) {
+      if (!mounted || _phase != KioskPhase.done) return;
+      setState(() => _doneStopAgain = 'failed');
+    }
+  }
+
   Future<void> _onStop() async {
     // 정지 "요청"만 보낸다 — 화면 전환은 폴링이 safety_stopped 완료를 받은 뒤.
     // 하드웨어가 멈추기 전에 '정지됨' 화면부터 띄우면 실제 상태와 어긋난다.
@@ -1693,7 +1710,7 @@ class _KioskScreenState extends State<KioskScreen> {
       data: media.copyWith(
         textScaler: TextScaler.linear(_largeText ? 1.22 : 1.0),
       ),
-      child: Theme(data: theme, child: KioskCanvas(child: _buildScaffold())),
+      child: Theme(data: theme, child: KioskCanvas(dim: _quietDim, child: _buildScaffold())),
     );
   }
 
@@ -1870,6 +1887,9 @@ class _KioskScreenState extends State<KioskScreen> {
             : _onRetryFailed,
         // ThinQ 명령에는 누를 조작판이 없다.
         onManual: _doneRoute == 'thinq' ? null : _onManualFromFailure,
+        // 작은 팔이 멈췄는지 모르는 정지 결과에만 그려진다(화면이 가른다). 연습은 실제로 움직인 것이 없다.
+        onStopAgain: _executionMode == 'mock' ? null : _onDoneStopAgain,
+        stopAgain: _doneStopAgain,
         onDismiss: _toIdle,
       );
 

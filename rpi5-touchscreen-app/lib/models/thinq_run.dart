@@ -7,9 +7,9 @@
 ///   평가 14차 10/18).
 /// - `state_confirmed_unknown_before`(보낸 뒤 목표값, 전 값 모름): 본 상태('공기청정기가 켜져 있어요') — '바꿨어요'라고 하지 않는다.
 /// - `already_at_target`(이미 목표값, 보내지 않음): '이미 켜져 있어요' + '그대로 두었어요'.
-/// - 확인 못 함(`unconfirmed`): 체크 없이 '공기청정기에 켜기를 보냈어요' + '켜졌는지는 아직 몰라요 / 가전을 봐 주세요'
-///   (평가 11차 10/18 — '켜 달라고 했어요'는 누가 누구에게인지 몰랐고 가전 이름이 맨 아래 작은 회색이었다. 성공
-///   '공기청정기가 켜졌어요'와 같은 꼴로 제목에 가전 이름).
+/// - 확인 못 함(`unconfirmed`): 체크 없이 '공기청정기에 켜 달라고 했어요' + '켜졌는지는 아직 몰라요'
+///   (평가 11차 10/18 — 누가 누구에게인지 알게 제목에 가전 이름. 평가 15차 10/18 — '켜기를 보냈어요'는 기계가 한 일이었다.
+///   무엇을 볼지는 결과 화면의 번호 안내가 한 번만 말한다).
 /// 실패·정지는 이 화면이 아니라 기존 결과 화면이 말한다.
 ///
 /// 어느 설정인지는 승인에 묶인 명령의 서버 문장(`commands[].summary` — '공기청정기 전원 켜기'), LG 가전 상세에서 고른
@@ -80,12 +80,13 @@ class ThinqAction {
         ThinqActionKind.other => '$applianceName 설정을 바꾸고 있어요',
       };
 
-  /// 확인 못 함 결과의 큰 글자 — 어느 가전에 무엇을 보냈는지(평가 11차 10/18). '명령'은 쓰지 않는다(평가 10차).
+  /// 확인 못 함 결과의 큰 글자 — 어느 가전에 무엇을 부탁했는지(평가 11차 10/18, 가전 이름 포함). '명령'(평가 10차)·
+  /// '보냈어요'(기계가 한 일, 평가 15차 10/18)는 쓰지 않는다 — '공기청정기에 켜 달라고 했어요'.
   String get asked => switch (kind) {
-        ThinqActionKind.powerOn => '$applianceName에 켜기를 보냈어요',
-        ThinqActionKind.powerOff => '$applianceName에 끄기를 보냈어요',
-        ThinqActionKind.wind => '$applianceName에 바람 바꾸기를 보냈어요',
-        ThinqActionKind.other => '$applianceName에 설정 바꾸기를 보냈어요',
+        ThinqActionKind.powerOn => '$applianceName에 켜 달라고 했어요',
+        ThinqActionKind.powerOff => '$applianceName에 꺼 달라고 했어요',
+        ThinqActionKind.wind => '$applianceName에 바람을 $windWord 해 달라고 했어요',
+        ThinqActionKind.other => '$applianceName에 설정을 바꿔 달라고 했어요',
       };
 
   /// 확인 못 함 결과의 아래 줄 — 아직 모른다는 것.
@@ -137,10 +138,11 @@ String thinqSendingLine(ThinqAction action, {bool practice = false}) =>
 String thinqSendingSub({bool practice = false}) =>
     practice ? '실제 가전은 그대로예요' : '바뀐 것을 확인하면 알려 드릴게요';
 
-/// 보내는 중 정지 단추 옆 한 문장(평가 10차 10/18, 한 문장은 평가 12차) — 서버 /stop이 실제로 하는 일만: 아직 보내지 않았으면 보내지
-/// 않고(ThinQ 실행기의 보내기 직전 확인), 이미 보냈으면 되돌리지 않고 확인만 그만둔다(취소·반대 명령 없음). 평가 14차(10/18) — '이미 바뀐
-/// 설정은 그대로일 수 있어요'는 엔지니어 설명투였다: 거짓이 되지 않는 가장 짧은 말(되돌린다고 하지 않는다).
-const kThinqStopNote = '정지를 누르면 그 뒤로는 보내지 않아요';
+/// 보내는 중 정지 단추 옆 한 문장(평가 10차 10/18, 한 문장은 평가 12차) — 서버 /stop이 실제로 하는 일만: 아직 가전에 전하지 않았으면
+/// 전하지 않고(ThinQ 실행기의 보내기 직전 확인), 이미 전했으면 되돌리지 않고 확인만 그만둔다(취소·반대 명령 없음). 평가 14차(10/18) —
+/// '이미 바뀐 설정은 그대로일 수 있어요'는 엔지니어 설명투였다. 평가 15차(10/18) — '보내다'는 기계가 한 일이라 '더 하지 않아요'로:
+/// 그 뒤의 일만 말하고, 이미 바뀐 것을 되돌린다고 약속하지 않는다.
+const kThinqStopNote = '정지를 누르면 더 하지 않아요';
 
 String _trimDot(String s) {
   var t = s.trim();
@@ -231,9 +233,10 @@ ThinqResultCopy? thinqResultCopy({
       tone: ThinqResultTone.attention,
     );
   }
+  // 아래 줄은 아직 모른다는 것만(평가 15차 10/18) — 무엇을 볼지는 결과 화면의 번호 안내가 한 번만 말한다('가전을 봐 주세요'를 또 두지 않는다).
   return ThinqResultCopy(
     headline: act.asked,
-    sub: '${act.unknown}\n가전을 봐 주세요',
+    sub: act.unknown,
     tone: ThinqResultTone.attention,
   );
 }

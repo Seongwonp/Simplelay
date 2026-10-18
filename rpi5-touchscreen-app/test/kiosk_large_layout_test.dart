@@ -250,11 +250,12 @@ void main() {
         if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
         await _pump(tester, _userStopSent(), scale: 1.22, panel15: panel15);
         expect(tester.takeException(), isNull);
-        _expectVisible(tester, find.byKey(const ValueKey('done-next-step')), '할 일 줄');
+        // 할 일은 번호 안내(평가 15차 10/18) — 첫 줄이 스크롤 없이 보인다.
+        _expectVisible(tester, find.byKey(const ValueKey('done-recovery-step-0')), '할 일 첫 줄');
         _expectVisible(tester, find.byKey(const ValueKey('done-home')), '처음 화면으로');
-        // 직접 멈춘 결과에는 '다시 시도'가 없다(UI 평가 5차 10/17).
+        // 직접 멈춘 결과에는 '다시 시도'가 없다(UI 평가 5차 10/17). 멈췄는지 모르면 골라 누르기도 없다(평가 15차, 안전).
         expect(find.byKey(const ValueKey('done-retry')), findsNothing);
-        expect(find.byKey(const ValueKey('done-manual')), findsOneWidget);
+        expect(find.byKey(const ValueKey('done-manual')), findsNothing);
       });
     }
   });

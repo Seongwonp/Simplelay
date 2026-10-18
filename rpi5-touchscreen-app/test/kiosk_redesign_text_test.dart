@@ -161,9 +161,9 @@ void main() {
       // 손가락 크기(48 이상).
       expect(tester.getSize(find.byKey(const ValueKey('done-manual'))).height,
           greaterThanOrEqualTo(48));
-      // '가전을 봐 주세요'는 큰 지시(상태 크기).
-      final next = tester.widget<Text>(find.byKey(const ValueKey('done-next-step')));
-      expect(next.style?.fontSize, KioskType.status);
+      // 할 일은 번호 안내가 한 번만 말한다(평가 15차 10/18 — '가전을 봐 주세요' 큰 줄과 번호가 같은 뜻을 되풀이했다).
+      expect(find.byKey(const ValueKey('done-next-step')), findsNothing);
+      expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
     });
 
     testWidgets('앰버 띠(누름 보고만)에서도 처음 화면으로는 골드가 아니다', (tester) async {

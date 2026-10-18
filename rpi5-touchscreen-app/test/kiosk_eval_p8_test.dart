@@ -67,7 +67,8 @@ void main() {
         expect(all, contains('작은 팔이 멈췄는지 몰라요'));
         expect(all, isNot(contains('중이에요')));
         expect(all, isNot(contains('멈췄어요')));
-        expect(find.byIcon(Icons.question_mark), findsOneWidget);
+        // 물음표는 위 띠가 말한다 — 순서 안내가 있으면 큰 원을 두지 않는다(평가 15차 10/18).
+        expect(find.byIcon(Icons.help_outline), findsOneWidget);
         expect(find.byKey(const ValueKey('done-home')), findsOneWidget);
         expect(tester.takeException(), isNull);
       });

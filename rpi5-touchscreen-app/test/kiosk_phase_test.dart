@@ -1748,8 +1748,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.byType(KioskDoneView), findsOneWidget);
     expect(find.textContaining('실행 — '), findsNothing);
-    // 이름은 문장 머리('이름 — ')가 아니라 대상 가전 줄이 말한다(쉬운 말 10/17).
-    expect(find.text('가전을 봐 주세요'), findsOneWidget);
+    // 이름은 문장 머리('이름 — ')가 아니라 위 띠의 가전 줄이 말한다(쉬운 말 10/17, 평가 15차). 할 일은 번호 안내.
+    expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
     expect(find.textContaining('전자레인지'), findsWidgets);
     expect(tts.utterances.last, startsWith('전자레인지, '));
 
@@ -1761,7 +1761,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.textContaining(' — '), findsNothing);
     // 놓친 결과에는 다시 보낼 요청이 없다 — '다시 시도' 단추도, 그 당부도 없다(B2).
-    expect(find.text('가전을 봐 주세요'), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsNothing);
     expect(tts.utterances.last, isNot(startsWith('실행, ')));
     expect(tts.utterances.last, isNot(startsWith(', ')));

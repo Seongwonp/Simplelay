@@ -5,7 +5,7 @@
 //    밑줄·테두리 없음, 누르는 자리 48 이상. 이 항목은 지금 모양을 지키는 시험이라 옛 코드에서도 통과한다.
 // 2. LG 가전 결과(확인됨)는 상자·큰 체크 원 없이 전자레인지 결과와 같은 틀(왼쪽 정렬), 둘째 줄 '가전에서 확인했어요'(이름 두 번 금지).
 // 3. 제안 이유 대체문은 '아침에 3번 하셨어요'(높임·낮춤 섞인 '하셔서 여쭤봐요' 금지).
-// 4. LG 가전 보내는 중 정지 안내는 한 줄 '정지를 누르면 그 뒤로는 보내지 않아요'.
+// 4. LG 가전 보내는 중 정지 안내는 한 줄 — 평가 15차(10/18)에서 '정지를 누르면 더 하지 않아요'로('보내다'는 기계가 한 일).
 // 5. 화면 문구는 '버튼'으로 통일('단추' 금지), 연습을 마친 대기 화면의 정지 안내 문장은 뺀다.
 // 6. 공기 나쁨 줄 아래 할 일 작은 글자 단추(그 공기청정기로), 상태 칩은 모두 괜찮으면 없다(사용자 결정 10/18). 비 확률이 높으면 인사말을 뺀다.
 // 7. 연습 띠 안 테두리 칩 없음(띠 안 글자로), 비상 버튼 띠 아래 글자 없는 '!' 칩 없음.
@@ -209,7 +209,7 @@ void main() {
 
   group('4. LG 가전 보내는 중 — 정지 안내 한 줄', () {
     test('짧은 사실 문장', () {
-      expect(kThinqStopNote, '정지를 누르면 그 뒤로는 보내지 않아요');
+      expect(kThinqStopNote, '정지를 누르면 더 하지 않아요');
     });
 
     testWidgets('화면에 그 한 줄만, 엔지니어 설명 없음', (tester) async {
@@ -230,7 +230,7 @@ void main() {
             onStop: () {},
           ));
       final texts = _texts(tester);
-      expect(texts, contains('정지를 누르면 그 뒤로는 보내지 않아요'));
+      expect(texts, contains('정지를 누르면 더 하지 않아요'));
       expect(texts.where((t) => t.contains('이미 바뀐')), isEmpty);
       expect(tester.takeException(), isNull);
     });
@@ -279,7 +279,8 @@ void main() {
       final text = tester.widget<Text>(find.descendant(of: action, matching: find.byType(Text)));
       expect(text.style?.fontSize, KioskType.caption);
       expect(text.style?.fontWeight, FontWeight.w700);
-      expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+      // 누르는 자리는 공기 말 + 할 일 한 덩어리(평가 15차 10/18) — 48 이상.
+      expect(tester.getSize(find.byKey(const ValueKey('idle-air-tap'))).height, greaterThanOrEqualTo(48));
       await tester.tap(action);
       expect(opened?.id, 'air_purifier');
       expect(tester.takeException(), isNull);
@@ -292,7 +293,7 @@ void main() {
       expect(action, findsOneWidget);
       expect(tester.getRect(action).bottom,
           lessThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('strip-air_purifier'))).top));
-      expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+      expect(tester.getSize(find.byKey(const ValueKey('idle-air-tap'))).height, greaterThanOrEqualTo(48));
       await tester.tap(action);
       expect(opened?.id, 'air_purifier');
       expect(tester.takeException(), isNull);

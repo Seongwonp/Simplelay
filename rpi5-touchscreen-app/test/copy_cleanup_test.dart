@@ -159,11 +159,13 @@ void main() {
       ),
     );
     expect(find.byIcon(Icons.close), findsNothing);
-    expect(find.byIcon(Icons.question_mark), findsOneWidget);
+    // 물음표는 위 띠가 말한다 — 순서 안내가 있으면 큰 원을 두지 않는다(사용자 결정 10/18, 평가 15차).
+    expect(find.byIcon(Icons.help_outline), findsOneWidget);
     // 단계를 모르면 확인하지 못한 정지다 — 결과 화면은 멈췄어요/멈췄는지 몰라요 둘뿐(평가 8차 10/18).
     expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
     expect(find.textContaining('— 정지 요청으로'), findsNothing);
-    expect(find.text('가전을 봐 주세요'), findsOneWidget);
+    expect(find.text('가전을 봐 주세요'), findsNothing);
+    expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
     expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
     // 직접 멈춘 결과에는 '다시 시도'가 없다(UI 평가 5차 10/17 — 다시 누를 위험).
     expect(find.text('한 번 더 하기'), findsNothing);
@@ -184,7 +186,13 @@ void main() {
           ),
         );
         expect(find.text(stopLevelHeadline(level)), findsOneWidget);
-        expect(find.text(stopLevelNextStep(level)), findsOneWidget);
+        if (level == 'verified') {
+          expect(find.text(stopLevelNextStep(level)), findsOneWidget);
+        } else {
+          // 멈췄는지 모르면 할 일은 번호 안내가 한 번만(평가 15차 10/18).
+          expect(find.text(stopLevelNextStep(level)), findsNothing);
+          expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
+        }
         // 예전 말('기계')·응답 시간은 쓰지 않는다.
         expect(find.textContaining('기계'), findsNothing);
         expect(find.textContaining('ms'), findsNothing);
@@ -204,7 +212,7 @@ void main() {
     );
     expect(find.textContaining(' — '), findsNothing);
     // 다시 시도 단추가 없으면 그 단추 이야기(이미 켜졌다면 다시 시도하지 마세요)도 하지 않는다.
-    expect(find.text('가전을 봐 주세요'), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
   });
 
   group('평소 화면 위 줄', () {

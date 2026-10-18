@@ -64,8 +64,8 @@ void main() {
     await _pump(tester, confidence: 0.93, detail: '전류 +14mA · 소리 +9dB');
 
     expect(find.text('제대로 눌렸는지 보는 중'), findsOneWidget);
-    final evidence = tester.widget<Text>(find.text('가전이 켜지는지 보고 있어요'));
-    expect(evidence.style!.fontSize, lessThan(24));
+    // 같은 뜻의 둘째 줄('가전이 켜지는지 보고 있어요')은 두지 않는다(평가 15차 10/18).
+    expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing);
     expect(find.textContaining('mA'), findsNothing);
     expect(find.textContaining('%'), findsNothing);
   });

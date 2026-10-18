@@ -73,21 +73,21 @@ void main() {
     await tester.pumpWidget(_wrap(_stopped(level: 'sent')));
     expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
     expect(find.text('멈추는 중이에요'), findsNothing);
-    expect(find.text('가전을 봐 주세요'), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
     expect(find.textContaining('확인했어요'), findsNothing);
     expect(find.text('실행을 멈췄어요'), findsNothing);
-    expect(find.byIcon(Icons.question_mark), findsOneWidget);
+    expect(find.byIcon(Icons.help_outline), findsOneWidget); // 물음표는 위 띠(순서 안내가 있으면 큰 원 없음)
     expect(find.byIcon(Icons.check), findsNothing);
   });
 
   testWidgets('멈춘 실행 화면 — 모션 보드 받음은 ✓ 없이 물음표, ms 없음', (tester) async {
     await tester.pumpWidget(_wrap(_stopped(level: 'mcu_ack', ackMs: 12)));
     expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
-    expect(find.text('가전을 봐 주세요'), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
     expect(find.textContaining('ms'), findsNothing);
     expect(find.byIcon(Icons.verified_outlined), findsNothing);
     expect(find.byIcon(Icons.check), findsNothing);
-    expect(find.byIcon(Icons.question_mark), findsOneWidget);
+    expect(find.byIcon(Icons.help_outline), findsOneWidget); // 물음표는 위 띠(순서 안내가 있으면 큰 원 없음)
   });
 
   testWidgets('멈춘 실행 화면 — 멈춤 확인은 작은 팔이 멈췄다고, 가전은 직접', (tester) async {
@@ -101,7 +101,7 @@ void main() {
   testWidgets('단계가 없으면 확인하지 못한 정지 — 멈췄는지 몰라요', (tester) async {
     await tester.pumpWidget(_wrap(_stopped()));
     expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
-    expect(find.text('가전을 봐 주세요'), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
     expect(find.text('실행을 멈췄어요'), findsNothing);
   });
 

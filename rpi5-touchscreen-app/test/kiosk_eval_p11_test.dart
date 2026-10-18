@@ -3,7 +3,7 @@
 // 1. 시간대 예보 칸 — 모든 칸이 '아이콘 + 기온' 한 꼴, 강수확률은 작은 둘째 줄('비 70%'가 기온 자리를 차지하지 않는다).
 // 2. 결과 화면 나가는 단추 — LG 가전 결과·작은 팔 결과 모두 '⌂ 처음 화면으로' 한 이름·아이콘·색.
 //    자동으로 닫지 않는 결과(확인 안 됨·실패)에는 카운트다운 문구가 없다.
-// 3. LG 가전 확인 못 함 — 제목에 가전 이름: '공기청정기에 켜기를 보냈어요' / '켜졌는지는 아직 몰라요'('달라고'·'명령' 없이).
+// 3. LG 가전 확인 못 함 — 제목에 가전 이름: '공기청정기에 켜 달라고 했어요'(평가 15차) / '켜졌는지는 아직 몰라요'('명령' 없이).
 // 4. 연습 대기 — 상태 한 문장(정지를 보낸 뒤 '누르기 연습을 마쳤어요' + '멈추는 중이에요'를 함께 두지 않는다),
 //    정지 안내는 고르는 말([kPracticeStopHint] — 평가 13차 10/18에 '정지 단추도 눌러 볼 수 있어요'로 줄였다).
 // 5. LG 가전 조작 — 전원·바람 세기 상태는 단추의 ✓ 하나로(왼쪽 상태 줄 두 번 금지), '자세히' → '미세먼지 보기',
@@ -246,14 +246,15 @@ void main() {
           confirmation: 'none',
           executionMode: 'real',
           action: thinqActionOf('공기청정기', [action]))!;
-      expect(copy('공기청정기 전원 켜기').headline, '공기청정기에 켜기를 보냈어요');
+      // 평가 15차(10/18): '보냈어요'(기계가 한 일) 대신 '해 달라고 했어요' — 가전 이름은 그대로 제목에(평가 11차).
+      expect(copy('공기청정기 전원 켜기').headline, '공기청정기에 켜 달라고 했어요');
       expect(copy('공기청정기 전원 켜기').sub, startsWith('켜졌는지는 아직 몰라요'));
-      expect(copy('공기청정기 전원 끄기').headline, '공기청정기에 끄기를 보냈어요');
-      expect(copy('공기청정기 바람 세기 강').headline, '공기청정기에 바람 바꾸기를 보냈어요');
+      expect(copy('공기청정기 전원 끄기').headline, '공기청정기에 꺼 달라고 했어요');
+      expect(copy('공기청정기 바람 세기 강').headline, '공기청정기에 바람을 세게 해 달라고 했어요');
       expect(copy('공기청정기 바람 세기 강').sub, startsWith('바람이 세게 바뀌었는지는 아직 몰라요'));
       for (final a in ['공기청정기 전원 켜기', '공기청정기 전원 끄기', '공기청정기 바람 세기 강', '']) {
         final c = copy(a);
-        expect('${c.headline} ${c.sub}', isNot(contains('달라고')));
+        expect('${c.headline} ${c.sub}', isNot(contains('보냈')));
         expect('${c.headline} ${c.sub}', isNot(contains('명령')));
         expect(c.headline, startsWith('공기청정기'));
       }
@@ -262,9 +263,9 @@ void main() {
     testWidgets('화면 — 이름이 제목에 있고 아래 작은 회색 이름 줄은 없다', (tester) async {
       await _pumpView(tester, _thinqDone(confirmed: false));
       final texts = _texts(tester);
-      expect(texts, contains('공기청정기에 켜기를 보냈어요'));
+      expect(texts, contains('공기청정기에 켜 달라고 했어요'));
       expect(texts.where((t) => t == '공기청정기'), isEmpty);
-      expect(texts.any((t) => t.contains('달라고')), isFalse);
+      expect(texts.any((t) => t.contains('보냈')), isFalse);
     });
   });
 
@@ -343,7 +344,8 @@ void main() {
               label: '즉석밥 데워줘',
               target: kMicrowaveAppliance,
               reason: KioskFailureReason.stopped,
-              stopLevel: 'sent',
+              // 멈춘 것을 확인한 정지만 골라 누르기를 둔다(평가 15차 10/18 — 모르면 '다시 멈추기').
+              stopLevel: 'verified',
               onRetry: _noop,
               onManual: _noop,
               onDismiss: _noop));

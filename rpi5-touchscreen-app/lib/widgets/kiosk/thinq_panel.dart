@@ -230,14 +230,21 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (headline != null) headline,
+                      // 왼쪽 상태 카드와 오른쪽 조작 단추의 아래 끝을 맞춘다(평가 15차 10/18 — 카드 끝과 단추 끝이 어긋났다):
+                      // 한 스크롤 안에서 두 칸을 같은 높이로 세운다(카드가 오른쪽 높이만큼 늘어난다).
                       Expanded(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 5, child: KioskScrollArea(child: left)),
-                            const SizedBox(width: 20),
-                            Expanded(flex: 6, child: KioskScrollArea(child: right)),
-                          ],
+                        child: KioskScrollArea(
+                          key: const ValueKey('thinq-panel-columns'),
+                          child: IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(flex: 5, child: left),
+                                const SizedBox(width: 20),
+                                Expanded(flex: 6, child: right),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -331,22 +338,28 @@ class _StateCardState extends State<_StateCard> {
           for (final row in rows) _StateRowView(row: row),
         if (dust.isNotEmpty) ...[
           const SizedBox(height: KioskSpace.xs),
-          Row(children: [
-            Icon(Icons.air, size: 26, color: airGradeColor(grade)),
-            const SizedBox(width: KioskSpace.xs),
-            Expanded(
-              child: KioskText(grade == null ? '공기' : airSentence(grade),
-                  textKey: const ValueKey('thinq-air-summary'),
-                  style: TextStyle(
-                      fontSize: KioskType.body,
-                      fontWeight: FontWeight.w800,
-                      color: grade == null ? Colors.white : airGradeColor(grade))),
-            ),
-          ]),
+          // 공기 아이콘 오른쪽 한 글 선에 공기 한 줄·할 일·'미세먼지 보기'를 모두 둔다(평가 15차 10/18 — 할 일만 들여 쓰고
+          // 단추는 카드 왼쪽 끝이라 들여쓰기가 어긋났다).
+          Row(
+            key: const ValueKey('thinq-air-block'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.air, size: 26, color: airGradeColor(grade)),
+              const SizedBox(width: KioskSpace.xs),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+          KioskText(grade == null ? '공기' : airSentence(grade),
+              textKey: const ValueKey('thinq-air-summary'),
+              style: TextStyle(
+                  fontSize: KioskType.body,
+                  fontWeight: FontWeight.w800,
+                  color: grade == null ? Colors.white : airGradeColor(grade))),
           // 공기가 나쁠 때만 할 일 한 줄(평가 12차 10/18).
           if (thinqAirHint(grade, map) case final hint?)
             Padding(
-              padding: const EdgeInsets.only(top: 4, left: 26 + KioskSpace.xs),
+              padding: const EdgeInsets.only(top: 4),
               child: KioskText(hint,
                   textKey: const ValueKey('thinq-air-hint'),
                   style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
@@ -367,6 +380,11 @@ class _StateCardState extends State<_StateCard> {
               child: KioskText(_airOpen ? '접기' : '미세먼지 보기',
                   style: const TextStyle(fontSize: KioskType.caption)),
             ),
+          ),
+                  ],
+                ),
+              ),
+            ],
           ),
           if (_airOpen) ...[
             for (final row in dust) _StateRowView(row: row),
@@ -529,11 +547,12 @@ class _Controls extends StatelessWidget {
             textKey: ValueKey('thinq-controls-phone'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted, height: 1.3)));
       }
-      for (final control in controls) {
+      for (final (ci, control) in controls.indexed) {
         final blockedByPower = powerOff && !control.isPower;
         final enabled = !estop && !busy && !blockedByPower;
         children.add(Padding(
-          padding: const EdgeInsets.only(bottom: 14),
+          // 마지막 조작 아래에는 여백을 두지 않는다 — 왼쪽 카드 아래 끝과 단추 아래 끝이 같은 선(평가 15차 10/18).
+          padding: EdgeInsets.only(bottom: ci == controls.length - 1 ? 0 : 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -588,7 +607,7 @@ class _Controls extends StatelessWidget {
     if (sending) {
       children.add(Padding(
         padding: EdgeInsets.only(top: 6),
-        child: KioskText('보내는 중…',
+        child: KioskText('가전에 전하는 중…',
             textKey: ValueKey('thinq-sending'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
       ));

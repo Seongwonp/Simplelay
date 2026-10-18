@@ -357,27 +357,15 @@ class KioskHoldView extends StatelessWidget {
                   const SizedBox(height: 10),
                 ],
                 _Lines(lines: lines),
-                if (onClose != null && !_practiceExit) ...[
-                  const SizedBox(height: 8),
-                  // 보조 단추(테두리) — 정지 단추·할 일과 주인공을 다투지 않게(§1-5).
-                  OutlinedButton(
-                    onPressed: onClose,
-                    style: KioskButtons.secondary(
-                        foreground: Colors.white, border: KioskColors.muted),
-                    child: const Text('처음 화면으로',
-                        style: TextStyle(
-                            fontSize: KioskType.body,
-                            fontWeight: FontWeight.w700)),
-                  ),
-                ],
               ],
             ),
           ),
         ),
-        // 연습 대기의 나가는 길(평가 12차 10/18) — 비어 있던 왼쪽 아래, 정지 단추와 떨어진 자리. 정지 단추 자리·이름은 그대로.
-        if (_practiceExit) ...[
+        // 나가는 길은 결과 화면과 같은 모양·같은 자리(왼쪽 아래, 평가 15차 10/18) — 연습 대기는 주 크기(평가 12차), 정지 미확인·
+        // 이상은 정지가 주인공이라 보조 크기(아이콘·글자·색은 같다 — 예전에는 작은 테두리·아이콘 없음이라 모양이 달랐다).
+        if (onClose != null) ...[
           const SizedBox(height: KioskSpace.xs),
-          kioskHomeButton(onClose!, key: const ValueKey('hold-home')),
+          kioskHomeButton(onClose!, key: const ValueKey('hold-home'), compact: !_practiceExit),
         ],
       ],
     );
