@@ -117,6 +117,8 @@ async def thinq_devices(service: SimpleLayService = Depends(get_service),
             "readiness": readiness.state,
             "readiness_reasons": list(readiness.reasons),
             "can_execute": readiness.can_execute,
+            # 가전마다의 실행 환경(2026-10-18) — 실제 모드 안의 연습 기기는 mock.
+            "execution_mode": controller.execution_mode_for(appliance.appliance_id).value,
         })
     return {
         "mode": controller.mode.value,
@@ -191,8 +193,8 @@ async def thinq_status(appliance_id: str, service: SimpleLayService = Depends(ge
         get_power_cache().forget(appliance_id)
         raise HTTPException(503, _reason(exc, "상태를 읽지 못했어요 — 가전·인터넷 연결을 확인해 주세요")) from None
     get_power_cache().observe(appliance_id, appliance.thinq, state)
-    return {"appliance_id": appliance_id, "execution_mode": controller.execution_mode.value,
-            "state": state}
+    return {"appliance_id": appliance_id,
+            "execution_mode": controller.execution_mode_for(appliance_id).value, "state": state}
 
 
 @router.get("/thinq/power")

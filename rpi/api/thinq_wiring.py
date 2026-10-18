@@ -11,6 +11,10 @@
   ``..._WASHER``·``..._DEHUMIDIFIER``로 준다. **SDK·PAT가 없으면 기동을 거절한다**(PAT 값은
   로그에 쓰지 않는다 -- 있는지만 적는다).
 
+연습 기기(2026-10-18): ``SIMPLELAY_THINQ_PRACTICE_DEVICES=washer``면 SDK 모드(real·fake_cloud)에서도 모의 세탁기 한 대를
+'LG 세탁기(연습)'(가전 ID ``thinq_washer``)로 더한다. 그 기기만 모의 클라이언트로 가고(:mod:`rpi.services.thinq.practice`),
+실행 결과·상태 조회의 실행 환경이 mock이라 화면이 '연습'으로 보인다. 세탁기 자리가 이미 있으면(환경 변수·추가) 더하지 않는다.
+
 기기 등록 두 갈래(2026-10-13): 위 환경 변수(서버 설정)와 **발견 → 사용자 확인 후 추가**
 (``GET /thinq/discovered`` → ``POST /thinq/added``). 추가한 기기는 서버 DB에 남아 재시작 뒤에도
 다시 등록된다. 종류마다 가전 ID 자리가 하나라 둘 다 있어도 겹치지 않는다(환경 변수가 먼저).
@@ -34,6 +38,8 @@ WASHER_ID = "thinq_washer"
 WASHER_DEVICE_KEY = "washer"
 DEHUMIDIFIER_ID = "dehumidifier"
 FAN_ID = "fan"
+#: 연습 세탁기 이름 — 사용자 등록 버튼식 '세탁기'(작은 팔용)와 구분한다(2026-10-18).
+PRACTICE_WASHER_NAME = "LG 세탁기(연습)"
 
 
 @lru_cache(maxsize=1)
@@ -135,10 +141,11 @@ def get_thinq_client():
         # 모의 클라우드에는 실제 PAT를 보내지 않는다. 클라이언트 ID도 실행마다 새로(실제 ID 파일 미사용).
         log.info("ThinQ fake_cloud mode: 공식 SDK → 모의 클라우드 %s (실제 클라우드 아님)",
                  config.fake_cloud_url)
-        return SdkThinqClient(access_token=FAKE_CLOUD_TOKEN, country=config.country,
-                              client_id=str(uuid.uuid4()), execution_mode=ExecutionMode.MOCK,
-                              base_url=config.fake_cloud_url,
-                              max_calls_per_minute=config.max_calls_per_minute)
+        return _with_practice(
+            SdkThinqClient(access_token=FAKE_CLOUD_TOKEN, country=config.country,
+                           client_id=str(uuid.uuid4()), execution_mode=ExecutionMode.MOCK,
+                           base_url=config.fake_cloud_url,
+                           max_calls_per_minute=config.max_calls_per_minute), config)
     token = load_access_token()
     if not token:
         raise RuntimeError(
@@ -149,7 +156,35 @@ def get_thinq_client():
                             max_calls_per_minute=config.max_calls_per_minute)
     del token
     log.info("ThinQ real mode: 공식 SDK, PAT 설정됨, country %s", config.country)
-    return client
+    return _with_practice(client, config)
+
+
+def _with_practice(client, config):
+    """연습 기기를 섞는다(SDK 모드만, 2026-10-18). 없으면 클라이언트 그대로."""
+    if not config.practice_devices or not config.mode.uses_sdk:
+        return client
+    from rpi.services.thinq.practice import (  # noqa: PLC0415
+        PRACTICE_DEVICE_IDS,
+        PracticeMixClient,
+        practice_washer_client,
+    )
+
+    ids = [PRACTICE_DEVICE_IDS[kind] for kind in config.practice_devices]
+    log.info("ThinQ 연습 기기(모의) 함께 사용: %s", ", ".join(config.practice_devices))
+    return PracticeMixClient(client, practice_washer_client(), ids)
+
+
+def _register_practice(registry, config) -> None:
+    """연습 기기를 서버 구성 가전으로 등록한다 — 환경 변수·추가 기기 뒤(실제가 자리를 먼저 갖는다)."""
+    if not config.practice_devices or not config.mode.uses_sdk:
+        return
+    from rpi.services.thinq.practice import PRACTICE_DEVICE_IDS  # noqa: PLC0415
+
+    for kind in config.practice_devices:
+        if _slot_taken(registry, kind):
+            log.info("ThinQ 연습 %s는 같은 자리에 실제 가전이 있어 더하지 않았어요", kind)
+            continue
+        registry.register_system(appliance_for(kind, PRACTICE_DEVICE_IDS[kind], PRACTICE_WASHER_NAME))
 
 
 def build_command_paths(registry):
@@ -164,6 +199,7 @@ def build_command_paths(registry):
     for appliance in _thinq_appliances(config):
         registry.register_system(appliance)
     _restore_added(registry, config)
+    _register_practice(registry, config)
     system = {}
     if config.mode is ThinqMode.MOCK:
         registry.register_system(_mock_fan())

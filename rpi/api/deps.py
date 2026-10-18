@@ -534,6 +534,18 @@ def _local_appliance_ids() -> frozenset[str]:
     return frozenset(part.strip() for part in raw.split(",") if part.strip())
 
 
+def _gantry_appliance_ids() -> frozenset[str]:
+    """작은 팔(로컬 갠트리)이 올라가 있는 기본 가전 id (쉼표 구분, 기본 ``microwave`` — 2026-10-18).
+
+    실물 갠트리는 1대이고 전자레인지 위에만 있다. 여기 없는 기본 가전(인덕션)은 '설정이 필요해요'로 보이고
+    실행을 거절한다. 빈 값(``SIMPLELAY_GANTRY_APPLIANCES=``)이면 작은 팔로 누르는 기본 가전이 없다.
+    """
+    raw = os.environ.get("SIMPLELAY_GANTRY_APPLIANCES")
+    if raw is None:
+        raw = "microwave"
+    return frozenset(part.strip() for part in raw.split(",") if part.strip())
+
+
 def get_clock():
     """서버 시계 — 준비 상태 보고에 확인 시각을 찍을 때 쓴다."""
     return _clock
@@ -720,6 +732,7 @@ def get_service() -> SimpleLayService:
         appliance_registry=get_appliance_registry(),
         readiness_registry=get_readiness_registry(),
         local_appliance_ids=_local_appliance_ids(),
+        gantry_appliance_ids=_gantry_appliance_ids(),
         history_store=get_job_history(),
         care_events=get_care_events(),
         control_arbiter=get_control_arbiter(),

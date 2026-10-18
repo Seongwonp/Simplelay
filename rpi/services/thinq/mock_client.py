@@ -182,6 +182,13 @@ class MockThinqClient:
             self._state[MOCK_WASHER_ID].setdefault("remoteControlEnable", {})[
                 "remoteControlEnabled"] = bool(enabled)
 
+    def set_state(self, device_id: str, state: dict) -> None:
+        """그 기기의 모의 상태를 통째로 바꾼다(연습 기기의 처음 상태 — 2026-10-18)."""
+        with self._lock:
+            if device_id not in self._devices:
+                raise KeyError(device_id)
+            self._state[device_id] = copy.deepcopy(state)
+
     def set_air_quality(self, sensor: dict | None) -> dict | None:
         """모의 공기청정기 센서 칸을 바꾼다(모의). None이면 칸을 지운다. 전원이 꺼져 있으면 ``air_sensor_always``일 때만 실린다."""
         with self._lock:

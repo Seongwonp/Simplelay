@@ -19,6 +19,9 @@
 - ``SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER`` · ``..._WASHER`` · ``..._DEHUMIDIFIER`` —
   real 모드에서 가전 ID에 묶을 ThinQ 기기 ID(없으면 그 가전을 등록하지 않는다).
   실제 기기 ID는 저장소에 적지 않는다.
+- ``SIMPLELAY_THINQ_PRACTICE_DEVICES`` — SDK 모드(real·fake_cloud)에서 함께 보일 **연습(모의) 기기** 종류(쉼표 목록,
+  지금은 ``washer``만, 2026-10-18). 연습 기기의 실행·상태는 전부 모의(``execution_mode: mock``)이고 이름에 '(연습)'이 붙는다.
+  모르는 값은 기동을 막지 않고 건너뛴다(기록에 남김). mock 모드는 이미 모의 세탁기가 있어 쓰지 않는다.
 
 모르는 모드 값은 조용히 off로 떨어뜨리지 않고 기동 시 실패한다 -- 켰다고 믿는데
 꺼져 있는 상태가 시연장에서 가장 찾기 어렵다(``SIMPLELAY_NODE_TRANSPORT``와 같은 원칙).
@@ -44,6 +47,9 @@ CONFIRM_ENV = "SIMPLELAY_THINQ_CONFIRM_SECONDS"
 FAKE_CLOUD_URL_ENV = "SIMPLELAY_THINQ_FAKE_CLOUD_URL"
 MAX_CALLS_ENV = "SIMPLELAY_THINQ_MAX_CALLS_PER_MINUTE"
 DEVICE_ENV_PREFIX = "SIMPLELAY_THINQ_DEVICE_"
+PRACTICE_ENV = "SIMPLELAY_THINQ_PRACTICE_DEVICES"
+#: 연습 기기로 더할 수 있는 종류(2026-10-18).
+PRACTICE_KINDS = ("washer",)
 
 DEFAULT_CONFIRM_SECONDS = 3.0
 DEFAULT_MAX_CALLS_PER_MINUTE = 30
@@ -83,6 +89,8 @@ class ThinqConfig:
     device_ids: tuple[tuple[str, str], ...] = ()
     fake_cloud_url: str | None = None
     max_calls_per_minute: int = DEFAULT_MAX_CALLS_PER_MINUTE
+    #: SDK 모드에서 함께 보일 연습(모의) 기기 종류(``PRACTICE_KINDS`` 안의 값만).
+    practice_devices: tuple[str, ...] = ()
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "ThinqConfig":
@@ -122,6 +130,18 @@ class ThinqConfig:
             for key, value in sorted(env.items())
             if key.startswith(DEVICE_ENV_PREFIX) and value.strip()
         )
+        practice = []
+        for part in env.get(PRACTICE_ENV, "").split(","):
+            kind = part.strip().lower()
+            if not kind:
+                continue
+            if kind in PRACTICE_KINDS:
+                if kind not in practice:
+                    practice.append(kind)
+            else:
+                import logging  # noqa: PLC0415
+
+                logging.getLogger(__name__).warning("%s: 모르는 연습 기기 종류는 건너뜀 (%s)", PRACTICE_ENV, kind[:20])
         return cls(
             mode=mode,
             country=(env.get(COUNTRY_ENV, "KR").strip().upper() or "KR"),
@@ -130,6 +150,7 @@ class ThinqConfig:
             device_ids=devices,
             fake_cloud_url=fake_url if mode is ThinqMode.FAKE_CLOUD else None,
             max_calls_per_minute=max_calls,
+            practice_devices=tuple(practice),
         )
 
 

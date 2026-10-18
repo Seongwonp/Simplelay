@@ -418,14 +418,14 @@ class CommandExecutionMixin:
                 stop = self._stop_sticky
                 self._current_appliance_id = command.target_id
                 self._current_route = command.route
-                self._execution_mode = _mode(step.controller)
+                self._execution_mode = _thinq_mode(step.controller, command.target_id)
                 self._step_suffix = f"{index + 1}" if multi else None
             halted = results and results[-1].status is not CommandStatus.SUCCEEDED
             if stop or halted:
                 results.append(CommandResult(
                     command=command, status=CommandStatus.STOPPED if stop else CommandStatus.FAILED,
                     receipt=Receipt.NOT_DISPATCHED, confirmation=Confirmation.NONE,
-                    execution_mode=_mode(step.controller),
+                    execution_mode=_thinq_mode(step.controller, command.target_id),
                     detail=("멈추기를 눌러서 하지 않았어요." if stop
                             else "앞의 일이 됐는지 몰라서 하지 않았어요."),
                     observed_at=self._clock.now(), stop_requested=stop,
@@ -478,7 +478,7 @@ class CommandExecutionMixin:
             if blocked is not None:
                 result = CommandResult(
                     command=command, status=CommandStatus.FAILED, receipt=Receipt.NOT_DISPATCHED,
-                    confirmation=Confirmation.NONE, execution_mode=_mode(self._thinq),
+                    confirmation=Confirmation.NONE, execution_mode=_thinq_mode(self._thinq, command.target_id),
                     detail=blocked, observed_at=self._clock.now(),
                 )
             elif dispatch_guard is not None and getattr(self._thinq, "supports_dispatch_guard", False):
@@ -491,7 +491,7 @@ class CommandExecutionMixin:
             log.exception("thinq controller raised")
             result = CommandResult(
                 command=command, status=CommandStatus.UNCONFIRMED, receipt=Receipt.UNKNOWN,
-                confirmation=Confirmation.NONE, execution_mode=_mode(self._thinq),
+                confirmation=Confirmation.NONE, execution_mode=_thinq_mode(self._thinq, command.target_id),
                 detail="실행기 오류로 보냈는지 알 수 없어요 — 자동으로 다시 보내지 않아요",
                 observed_at=self._clock.now(),
             )
@@ -706,6 +706,17 @@ class CommandExecutionMixin:
         if outcome is StopOutcome.SENT_UNCANCELLABLE:
             return (), label
         return (), ()
+
+
+def _thinq_mode(controller, target_id) -> ExecutionMode:
+    """ThinQ 실행기가 그 가전에 대해 밝힌 실행 환경 — 실제 모드 안의 연습 기기는 MOCK(2026-10-18)."""
+    per = getattr(controller, "execution_mode_for", None)
+    if callable(per):
+        try:
+            return per(target_id)
+        except Exception:  # noqa: BLE001 -- 판정 실패는 전체 값으로
+            pass
+    return _mode(controller)
 
 
 def _mode(controller, result=None) -> ExecutionMode:

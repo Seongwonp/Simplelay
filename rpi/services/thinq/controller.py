@@ -206,14 +206,27 @@ class ThinqController:
     def execution_mode(self) -> ExecutionMode:
         return getattr(self._client, "execution_mode", ExecutionMode.UNKNOWN)
 
+    def _client_for(self, device_id: str):
+        """그 기기를 맡은 클라이언트. 연습 기기를 섞은 클라이언트(:mod:`.practice`)면 기기마다 다르다(2026-10-18)."""
+        pick = getattr(self._client, "client_for", None)
+        return pick(device_id) if callable(pick) else self._client
+
+    def execution_mode_for(self, appliance_id: str | None) -> ExecutionMode:
+        """그 가전의 실행 환경 — 연습 기기는 실제 모드 안에서도 MOCK이다(2026-10-18). 모르는 가전이면 전체 값."""
+        binding = self._binding_of(appliance_id) if appliance_id else None
+        if binding is None:
+            return self.execution_mode
+        return getattr(self._client_for(binding.device_id), "execution_mode", ExecutionMode.UNKNOWN)
+
     # ── 준비 상태 ─────────────────────────────────────────────────────────
     def readiness(self, appliance_id: str) -> ThinqReadiness:
         binding = self._binding_of(appliance_id)
         if binding is None:
             return ThinqReadiness(appliance_id, self.mode.value, False, False, False,
                                   ("LG 가전이 등록되지 않았어요.",))
+        client = self._client_for(binding.device_id)
         try:
-            devices = self._client.list_devices()
+            devices = client.list_devices()
         except ThinqClientError as exc:
             return ThinqReadiness(appliance_id, self.mode.value, False, False, False,
                                   (_reason(exc, "LG 가전에 연결되지 않았어요."),))
@@ -225,7 +238,7 @@ class ThinqController:
             return ThinqReadiness(appliance_id, self.mode.value, True, False, False,
                                   ("LG 계정에서 이 가전을 찾지 못했어요.",))
         online = device.online
-        probe = getattr(self._client, "probe_online", None)
+        probe = getattr(client, "probe_online", None)
         if online and probe is not None:
             # SDK 목록에는 온라인 여부가 없다 -- 상태 조회(짧게 캐시)로 본다.
             try:
@@ -265,13 +278,14 @@ class ThinqController:
         return ()
 
     def _status_for_readiness(self, device_id: str):
-        cached = getattr(self._client, "cached_status", None)
-        return cached(device_id) if cached is not None else self._client.get_status(device_id)
+        client = self._client_for(device_id)
+        cached = getattr(client, "cached_status", None)
+        return cached(device_id) if cached is not None else client.get_status(device_id)
 
     # ── 프로필 ────────────────────────────────────────────────────────────
     def _profile(self, device_id: str) -> DeviceProfile | None:
         """기기 프로필. 클라이언트가 프로필을 주지 않으면 None(판정 생략 -- 옛 대역 호환)."""
-        get_profile = getattr(self._client, "get_profile", None)
+        get_profile = getattr(self._client_for(device_id), "get_profile", None)
         if get_profile is None:
             return None
         return DeviceProfile(get_profile(device_id))
@@ -329,7 +343,7 @@ class ThinqController:
                 accepted_at=None, confirmed_at=None, provider_ref=None, stop_requested=False):
         return CommandResult(
             command=command, status=status, receipt=receipt, confirmation=confirmation,
-            execution_mode=self.execution_mode, detail=detail, requested_at=requested_at,
+            execution_mode=self.execution_mode_for(command.target_id), detail=detail, requested_at=requested_at,
             accepted_at=accepted_at, confirmed_at=confirmed_at, observed_at=self._now(),
             provider_ref=provider_ref, stop_requested=stop_requested,
         )
