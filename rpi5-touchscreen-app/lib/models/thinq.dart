@@ -184,6 +184,21 @@ const _power = {'POWER_ON': '켜짐', 'POWER_OFF': '꺼짐'};
 const _jobMode = {'CLEAN': '공기 깨끗하게', 'SLEEP': '잘 때 모드', 'AUTO': '자동으로', 'SILENT': '조용히'};
 // 바람 세기 이름은 조작 단추와 같은 말(2차 평가 10/18 — 상태는 '약풍', 단추는 '약'이라 다른 것처럼 읽혔다).
 const _wind = {'LOW': '약', 'MID': '중', 'HIGH': '강', 'AUTO': '자동', 'POWER': '파워'};
+// 세탁기 운전 상태(2026-10-18 연습 세탁기). 서버 모의·SDK 상태 이름(runState.currentState) — 모르는 값은 그대로 보인다.
+const _washState = {
+  'POWER_OFF': '꺼짐',
+  'INITIAL': '기다리는 중',
+  'DETECTING': '빨래 양 보는 중',
+  'RUNNING': '빨래하는 중',
+  'RINSING': '헹구는 중',
+  'SPINNING': '탈수하는 중',
+  'PAUSE': '잠시 멈춤',
+  'END': '다 됐어요',
+  'ERROR': '오류',
+};
+
+/// 세탁기 '시작'으로 칠 운전 상태(서버 `WASHER_RUNNING_STATES`와 같은 뜻).
+const _washRunning = {'DETECTING', 'RUNNING', 'RINSING', 'SPINNING', 'PREWASH', 'SOAKING'};
 
 /// ThinQ 상태 → 줄. 아는 칸만 사람 말로, 없는 칸은 줄을 만들지 않는다(폰 `thinqStateRows`와 같은 칸·순서).
 List<ThinqStateRow> thinqStateRows(Map<String, dynamic> state) {
@@ -222,7 +237,25 @@ List<ThinqStateRow> thinqStateRows(Map<String, dynamic> state) {
   dust('미세먼지', 'PM10', 'PM10Level');
   final filter = at('filterInfo', 'filterRemainPercent');
   if (filter != null) rows.add(ThinqStateRow('필터 남은 양', '$filter%'));
+  // 세탁기(2026-10-18 연습 세탁기) — 운전 상태·남은 시간·원격 시작(폰과 같은 칸·말).
+  final wash = at('runState', 'currentState');
+  if (wash != null) rows.add(ThinqStateRow('빨래', word(_washState, wash)));
+  final left = thinqRemainText(at('timer', 'remainHour'), at('timer', 'remainMinute'));
+  if (left != null) rows.add(ThinqStateRow('남은 시간', left));
+  final remote = at('remoteControlEnable', 'remoteControlEnabled');
+  if (remote is bool) rows.add(ThinqStateRow('휴대폰으로 시작', remote ? '켜져 있어요' : '꺼져 있어요'));
   return rows;
+}
+
+/// 세탁기 남은 시간 — '45분'·'1시간 5분'. 둘 다 없으면 null(지어내지 않는다).
+String? thinqRemainText(Object? hour, Object? minute) {
+  final h = hour is num ? hour.toInt() : null;
+  final m = minute is num ? minute.toInt() : null;
+  if (h == null && m == null) return null;
+  final hh = h ?? 0;
+  final mm = m ?? 0;
+  if (hh <= 0) return '$mm분';
+  return mm <= 0 ? '$hh시간' : '$hh시간 $mm분';
 }
 
 /// 공기청정기 전원이 꺼져 있다고 읽혔는가. 전원 칸이 없으면(모름) false.
@@ -278,15 +311,22 @@ class ThinqControl {
 
   bool get isPower => action == 'set_power';
 
-  /// 확인 질문 — '공기청정기 풍량을 강으로 바꿀까요?' · '공기청정기 전원을 켤까요?'.
+  /// 세탁기 시작·잠시 멈춤(2026-10-18 연습 세탁기).
+  bool get isWashOperation => action == 'set_operation';
+
+  /// 확인 질문 — '공기청정기 풍량을 강으로 바꿀까요?' · '공기청정기 전원을 켤까요?' · 'LG 세탁기 빨래를 시작할까요?'.
   String question(String applianceName, String value, String word) => isPower
       ? '$applianceName 전원을 ${value == 'POWER_OFF' ? '끌까요' : '켤까요'}?'
-      : '$applianceName $label${_eulReul(label)} $word${_ro(word)} 바꿀까요?';
+      : isWashOperation
+          ? '$applianceName 빨래를 ${value == 'STOP' ? '잠시 멈출까요' : '시작할까요'}?'
+          : '$applianceName $label${_eulReul(label)} $word${_ro(word)} 바꿀까요?';
 
-  /// 실행 화면 제목 — '공기청정기 풍량 강으로 바꾸기' · '공기청정기 전원 켜기'.
+  /// 실행 화면 제목 — '공기청정기 풍량 강으로 바꾸기' · '공기청정기 전원 켜기' · 'LG 세탁기 빨래 시작'.
   String doneLabel(String applianceName, String word) => isPower
       ? '$applianceName 전원 $word'
-      : '$applianceName $label $word${_ro(word)} 바꾸기';
+      : isWashOperation
+          ? '$applianceName 빨래 $word'
+          : '$applianceName $label $word${_ro(word)} 바꾸기';
 }
 
 int? _jong(String word) {
@@ -322,11 +362,31 @@ const kKioskAirPurifierControls = <ThinqControl>[
   ),
 ];
 
-/// 공기청정기 상태일 때만 조작 줄을 만든다(전원 칸이 없으면 지금 값을 모른다 — 빈 목록).
+/// 세탁기 조작(2026-10-18 연습 세탁기) — 서버 대응표 `WASHER_CAPABILITIES`(시작·일시정지)와 같다(폰 `kWasherControls`).
+const kKioskWasherControls = <ThinqControl>[
+  ThinqControl(
+    label: '빨래',
+    action: 'set_operation',
+    arg: 'operation',
+    choices: [('START', '시작'), ('STOP', '잠시 멈춤')],
+  ),
+];
+
+/// 공기청정기·세탁기 상태일 때만 조작 줄을 만든다(지금 값 칸이 없으면 모른다 — 빈 목록).
 List<ThinqControl> thinqControlsFor(Map<String, dynamic> state) {
   final op = state['operation'];
   final power = op is Map ? op['airPurifierOperationMode']?.toString() : null;
-  if (power == null) return const [];
+  if (power == null) {
+    final run = state['runState'];
+    final current = run is Map ? run['currentState']?.toString() : null;
+    if (current == null) return const [];
+    final picked = _washRunning.contains(current)
+        ? 'START'
+        : current == 'PAUSE'
+            ? 'STOP'
+            : null;
+    return [for (final c in kKioskWasherControls) c.withCurrent(picked)];
+  }
   final flow = state['airFlow'];
   final wind = flow is Map ? (flow['windStrengthDetail'] ?? flow['windStrength'])?.toString() : null;
   final current = {'set_power': power, 'set_wind_strength': wind};

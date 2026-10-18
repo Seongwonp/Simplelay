@@ -525,7 +525,15 @@ class _StripItemState extends State<_StripItem>
                                   .toDouble(),
                               color: widget.unavailable ? KioskColors.muted : Colors.white),
                           const Spacer(),
-                          if (a.isThinq)
+                          // 연습 가전(서버 이름 표기 '(연습)')은 'LG 가전' 대신 '연습' — 이름에서 뺀 표기를 여기서 말한다(2026-10-18).
+                          if (a.isPractice)
+                            const Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: KioskRouteBadge(key: ValueKey('tile-practice'), label: '연습'),
+                              ),
+                            )
+                          else if (a.isThinq)
                             const Flexible(
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
@@ -535,7 +543,7 @@ class _StripItemState extends State<_StripItem>
                         ])),
                         const Spacer(),
                         Text(
-                          a.name,
+                          a.tileName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

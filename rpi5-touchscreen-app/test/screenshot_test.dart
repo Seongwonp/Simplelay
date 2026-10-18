@@ -130,7 +130,11 @@ const _ambient = AmbientInfo(
 /// 서버 `/appliances` 꼴 — 평가 6차(10/18): 상태 띠는 서버 판정(readiness·is_custom·panel_mapping)을 따르므로 골든도
 /// 서버가 실제로 주는 값으로 그린다(판정 없는 하드코딩 가전은 '확인 전이에요').
 ApplianceMap _served(String id, String name, String category,
-        {bool custom = false, List<ApplianceButton> buttons = const [], String control = 'physical'}) =>
+        {bool custom = false,
+        List<ApplianceButton> buttons = const [],
+        String control = 'physical',
+        String readiness = 'operable',
+        List<String> reasons = const []}) =>
     ApplianceMap(
       id: id,
       name: name,
@@ -138,13 +142,19 @@ ApplianceMap _served(String id, String name, String category,
       rows: 1,
       cols: 1,
       buttons: buttons,
-      readiness: 'operable',
+      readiness: readiness,
+      readinessReasons: reasons,
       controlPath: control,
       isCustom: custom,
     );
 
 final _mw = _served('microwave', '전자레인지', 'microwave', buttons: kMicrowaveAppliance.buttons);
-final _ind = _served('induction', '인덕션', 'induction', buttons: kInductionAppliance.buttons);
+/// 인덕션 — 작은 팔이 전자레인지 위에만 있어(갠트리 1대) 서버가 '설정이 필요해요'로 준다(2026-10-18,
+/// `SIMPLELAY_GANTRY_APPLIANCES` 기본 microwave).
+final _ind = _served('induction', '인덕션', 'induction',
+    buttons: kInductionAppliance.buttons,
+    readiness: 'needs_setup',
+    reasons: const ['작은 팔이 이 가전 위에 없어서 누를 수 없어요']);
 final _washer = _served('washer', '세탁기', 'washing_machine');
 
 /// 휴대폰 앱에서 등록하고 사진 위 버튼 자리를 아직 맞추지 않은 가전 — 폰과 같이 '설정이 필요해요'.
@@ -208,6 +218,36 @@ KioskNextRun _nextRun({bool skipped = false}) => KioskNextRun(
       skipped: skipped,
       skipLabel: skipped ? '오늘은 건너뛰어요' : null,
       skipActionLabel: '오늘은 건너뛰기',
+    );
+
+/// 연습용 LG 세탁기(2026-10-18) — 서버 `SIMPLELAY_THINQ_PRACTICE_DEVICES=washer`가 세우는 모의 세탁기.
+final _practiceWasher = applianceFromServerJson({
+  'id': 'thinq_washer',
+  'name': 'LG 세탁기(연습)',
+  'category': 'washing_machine',
+  'rows': 0,
+  'cols': 0,
+  'buttons': <dynamic>[],
+  'control_path': 'thinq',
+  'can_execute': true,
+  'readiness': 'operable',
+});
+
+KioskManualView _washerDetail() => KioskManualView(
+      appliance: _practiceWasher,
+      onExecute: (_) {},
+      onCancel: () {},
+      thinqRead: () async => KioskThinqStatus(
+        executionMode: 'mock',
+        readAt: DateTime(2026, 10, 18, 9, 7),
+        state: const {
+          'runState': {'currentState': 'RUNNING'},
+          'remoteControlEnable': {'remoteControlEnabled': true},
+          'timer': {'remainHour': 0, 'remainMinute': 45},
+        },
+      ),
+      thinqSend: (_, __) async => const KioskJobAccepted(jobId: 'j'),
+      onThinqAccepted: (_, __) {},
     );
 
 final _purifierAppliance = applianceFromServerJson({
@@ -732,6 +772,22 @@ void main() {
             air: const KioskAirReading(
                 applianceId: 'air_purifier', grade: 'VERY_BAD', pm25: 120, power: 'on')),
         textScale: 1.22);
+  });
+
+  // 2026-10-18 — 실제 공기청정기 옆 연습 LG 세탁기 타일(세탁기 그림·이름의 '(연습)'), 인덕션은 '설정이 필요해요'.
+  testWidgets('15인치 미리보기 — 평소, LG 세탁기(연습)·인덕션 설정 필요', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_idle_practice_washer',
+        _idle(
+            appliances: [_purifierAppliance, _mw, _practiceWasher, _ind],
+            running: const {},
+            on: const {'air_purifier'},
+            nextRun: _nextRun()));
+  });
+
+  testWidgets('15인치 미리보기 — LG 세탁기(연습) 상세', (t) async {
+    await _shoot15(t, 'kiosk15_thinq_washer_practice', _washerDetail());
   });
 
   testWidgets('15인치 미리보기 — ThinQ 공기청정기 상세(연습)', (t) async {

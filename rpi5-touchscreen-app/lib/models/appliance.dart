@@ -54,6 +54,13 @@ class ApplianceMap {
   /// ThinQ(클라우드) 경로 가전인가.
   bool get isThinq => controlPath == 'thinq';
 
+  /// 서버가 이름에 '(연습)'을 붙인 연습 가전인가(예: 실제 모드 안의 'LG 세탁기(연습)' — 2026-10-18 연습 세탁기).
+  /// 서버 구성 가전의 이름 표기가 근거다. 모의 모드 이름의 '(모의)'는 종전 그대로 둔다(타일 배지 'LG 가전').
+  bool get isPractice => name.contains('(연습)');
+
+  /// 타일에 쓰는 짧은 이름 — 연습 표기를 뺀다. 연습은 타일의 '연습' 배지가 말한다(이름이 길어 '(연…'으로 잘렸다).
+  String get tileName => isPractice ? name.replaceAll('(연습)', '').trim() : name;
+
   /// 이 기기의 **종류**. 서버가 준 값을 그대로 보관한다.
   ///
   /// 아이콘만 뽑고 버리면 파서 밖에서 종류를 다시 볼 수 없어서, 폰에서
