@@ -61,7 +61,7 @@
   <!-- notes -->
   <rect x="30" y="305" width="940" height="100" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
   <text x="46" y="330" font-size="12" font-weight="700" fill="#111827">별개 경로</text>
-  <text x="46" y="352" font-size="12" fill="#1f2937">· 화면 정지: 폰·키오스크의 정지 → POST /stop. "정지를 요청했어요. 장치를 확인해 주세요" — 물리 정지 확인(엔코더 속도 0)은 없다.</text>
+  <text x="46" y="352" font-size="12" fill="#1f2937">· 화면 정지: 폰·키오스크의 정지 → POST /stop. 결과는 보냄 → 모션 보드 확인 → 멈춤 확인(엔코더) 중 확인한 단계까지만 말한다.</text>
   <text x="46" y="374" font-size="12" fill="#1f2937">· 콘센트 릴레이는 전자레인지 전원을 끊는다. 갠트리가 계속 움직일 때의 마지막 수단은 별도 모터 전원 스위치다.</text>
-  <text x="46" y="396" font-size="12" fill="#1f2937">· 버튼 → 릴레이 차단 지연, 실제 모터 정지 시간은 【실측 후 기입】.</text>
+  <text x="46" y="396" font-size="12" fill="#1f2937">· 버튼 → 릴레이 차단 지연, 캐리지 정지 시간은 미측정(회로 제작·실물 시험 뒤 기입).</text>
 </svg>
