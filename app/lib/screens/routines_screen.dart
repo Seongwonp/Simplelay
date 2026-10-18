@@ -33,8 +33,8 @@ export '../models/clock_text.dart' show ampmClock, withAmPm;
 
 /// 루틴 탭 — 세그먼트 [내 루틴 | 자동 규칙](UI 개편안 §4, 2026-10-18).
 ///
-/// 내 루틴: 사용 기록으로 만든 초안 · 루틴 줄(가전 아이콘 · 이름 · 오른쪽 스위치(정해진 시각) 또는 >, 이름 아래
-/// '지금 하기'(먼저 묻는다)·'고치기' 작은 단추, 줄을 누르면 고치기·지우기). 다음에 할 줄에는 '다음' 배지.
+/// 내 루틴: 표지 뜻 한 줄 · 사용 기록으로 만든 초안 · 루틴 줄(가전 아이콘 · 이름 · 오른쪽 스위치(정해진 시각)와 >, 이름 아래
+/// '지금 하기'(먼저 묻는다) 작은 단추, 줄을 누르면 고치기·지우기 — '고치기' 단추는 없다, 결선 모의 평가 10/18). 다음에 할 줄에는 '다음' 배지.
 /// 시각 루틴에 붙은 자동 규칙은 그 루틴 줄의 '자동'(꺼져 있으면 '자동 꺼짐')을 누르면 스위치가 나온다.
 /// 자동 규칙: 루틴이 아닌 규칙 카드(가전 알림으로 하는 일 — 예: 전자레인지가 멈추면 공기청정기 세게), 스위치·최근 결과.
 ///
@@ -178,6 +178,34 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                         const _Note('아직 만든 루틴이 없어요. 가전 화면의 "누르는 순서 저장"이나 [+ 새 루틴]의 예시 루틴으로 만들어 보세요.'),
                       ]
                     : [
+                        // 표지 뜻 한 줄(결선 모의 평가 10/18 — '다음'·'자동' 표지가 무슨 뜻인지 몰랐다).
+                        // 줄의 표지와 같은 모양으로 보여 주고 그 옆에 뜻(위 '다음: …' 루틴 이름 줄과 헷갈리지 않게, 평가 6차 10/18).
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                          child: Semantics(
+                            key: const Key('routines-mark-legend'),
+                            container: true,
+                            label: kRoutineMarkLegend,
+                            excludeSemantics: true,
+                            child: Wrap(
+                              spacing: AppSpace.md,
+                              runSpacing: AppSpace.xs,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                for (final (mark, meaning, accent) in kRoutineMarkMeanings)
+                                  Row(mainAxisSize: MainAxisSize.min, children: [
+                                    _LineMark(label: mark, accent: accent),
+                                    const SizedBox(width: AppSpace.xs),
+                                    // 큰 글씨(200%)에서는 뜻이 줄을 바꾼다(넘치지 않게).
+                                    Flexible(
+                                      child: Text(keepWordsTogether(meaning),
+                                          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+                                    ),
+                                  ]),
+                              ],
+                            ),
+                          ),
+                        ),
                         // 시간축 목록(평가 5차 10/18) — 정해진 시각(이른 순, 줄 왼쪽 큰 시각) · 필요할 때 · 이럴 때(가전 알림 등).
                         // 묶음 안에서는 설정이 필요한 가전의 루틴을 아래로 — 홈과 같은 순서(UI 평가 10/17).
                         for (final (groupKey, groupLabel, group) in _routineGroups(
@@ -638,6 +666,15 @@ class _GroupHead extends StatelessWidget {
 /// 어긋나 보였다. '설정 하기'는 맞춤법에 어긋나 '설정 열기' — 누르면 그 가전 설정 화면이 열린다).
 const kSetupActionLabel = '설정 열기';
 
+/// 루틴 목록 위 표지 뜻 한 줄(결선 모의 평가 10/18) — (표지, 뜻, 강조색인가). 줄의 '다음'·'자동' 표지와 같은 모양으로 그린다.
+const kRoutineMarkMeanings = [
+  ('다음', '다음에 할 루틴', false),
+  ('자동', '묻지 않고 해요', true),
+];
+
+/// 표지 뜻 한 줄의 낭독.
+const kRoutineMarkLegend = '다음 표지는 다음에 할 루틴, 자동 표지는 묻지 않고 해요';
+
 /// 손가락이 닿는 칸의 최소 크기(dp).
 const double kMinTouch = 48;
 
@@ -1020,21 +1057,8 @@ class _RoutineRow extends StatelessWidget {
                 ),
               )
             : null;
-    final edit = Semantics(
-      label: '${r.name} 고치기',
-      button: true,
-      excludeSemantics: true,
-      child: TextButton.icon(
-        key: Key('routine-edit-$key'),
-        style: TextButton.styleFrom(
-          minimumSize: const Size(kMinTouch, kMinTouch),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
-        ),
-        onPressed: onEdit,
-        icon: Icon(Icons.edit_outlined, size: AppSpace.xl, color: context.appMuted),
-        label: Text('고치기', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
-      ),
-    );
+    // '고치기' 단추는 두지 않는다(결선 모의 평가 10/18 — 줄마다 '지금 하기 / 고치기'가 같은 무게로 되풀이돼 위계가 평평했다).
+    // 고치기는 줄 누르기 — 모든 줄 오른쪽 끝의 > 가 말한다(스위치가 있는 줄도). 낭독 이름은 줄이 '○○ 고치기'로 읽는다.
     // 정해진 시각 루틴의 켜기·끄기 — 줄 오른쪽(큰 글씨에서는 단추 줄 끝).
     final toggle = onToggle;
     final Widget? switchWidget = toggle == null
@@ -1060,13 +1084,13 @@ class _RoutineRow extends StatelessWidget {
       children: [
         SizedBox(width: leadWidth, child: Align(alignment: Alignment.centerLeft, child: icon)),
         Expanded(child: Semantics(container: true, child: text)),
-        if (inline && switchWidget != null) ...[const SizedBox(width: AppSpace.xs), switchWidget]
-        else if (switchWidget == null) Icon(Icons.chevron_right, color: context.appMuted),
+        if (inline && switchWidget != null) ...[const SizedBox(width: AppSpace.xs), switchWidget],
+        // > 는 줄 누르기(고치기)의 표시 — 큰 글씨에서 스위치가 아래 단추 줄로 내려간 줄은 이름 칸(두 줄)이 모자라 두지 않는다.
+        if (inline || switchWidget == null) Icon(Icons.chevron_right, color: context.appMuted),
       ],
     );
     final actions = [
       if (action != null) action,
-      edit,
       if (!inline && switchWidget != null) switchWidget,
     ];
     return Padding(
@@ -1093,17 +1117,18 @@ class _RoutineRow extends StatelessWidget {
               ),
             ),
           ),
-          // 단추 줄 — 이름 첫 글자와 같은 세로줄.
-          Padding(
-            key: Key('routine-action-box-$key'),
-            padding: EdgeInsets.only(left: leadWidth, bottom: AppSpace.xs),
-            child: Wrap(
-              spacing: AppSpace.sm,
-              runSpacing: AppSpace.xs,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: actions,
+          // 단추 줄 — 이름 첫 글자와 같은 세로줄. 단추가 없으면(알림만 루틴 등) 두지 않는다.
+          if (actions.isNotEmpty)
+            Padding(
+              key: Key('routine-action-box-$key'),
+              padding: EdgeInsets.only(left: leadWidth, bottom: AppSpace.xs),
+              child: Wrap(
+                spacing: AppSpace.sm,
+                runSpacing: AppSpace.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: actions,
+              ),
             ),
-          ),
           // '다음' 줄에만 '오늘은 건너뛰기' / '되돌리기'(2026-10-18) — 그 회차 한 번만. 줄 누름(편집)과 따로 받는다.
           if (n != null && n.canSkip && !r.isTemplate)
             Padding(

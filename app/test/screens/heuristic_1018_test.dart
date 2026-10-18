@@ -645,7 +645,9 @@ void main() {
       await _pump(tester, const RoutinesScreen());
       final run = find.byKey(const Key('routine-run-rt-eve'));
       expect(tester.widget(run), isA<OutlinedButton>());
-      expect(_in(find.byKey(const Key('routine-row-rt-eve')), findPlainText('고치기')), findsOneWidget);
+      // 결선 모의 평가(10/18): '고치기' 단추 대신 줄 오른쪽 > (스위치가 있는 줄도).
+      expect(_in(find.byKey(const Key('routine-row-rt-eve')), findPlainText('고치기')), findsNothing);
+      expect(_in(find.byKey(const Key('routine-rt-eve')), find.byIcon(Icons.chevron_right)), findsOneWidget);
     });
 
     testWidgets("자동 루틴 편집기 스위치 설명 '끄면 때가 되어도 하지 않아요'", (tester) async {

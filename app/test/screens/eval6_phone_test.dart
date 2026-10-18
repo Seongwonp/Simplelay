@@ -273,7 +273,7 @@ void main() {
     });
 
     // 휴리스틱·보호자 과업 평가(10/18): 오른쪽 '지금 하기 >'는 줄 이동처럼 보여 줄 누르기가 겁났다 → '지금 하기'는 이름
-    // 아래 따로 작은 단추(▶, 화살표 없음), 줄 오른쪽 >는 고치기.
+    // 아래 따로 작은 단추(▶, 화살표 없음), 줄 오른쪽 >는 고치기. 결선 모의 평가(10/18): '고치기' 단추는 두지 않는다(줄 누르기만).
     testWidgets("'지금 하기'는 이름 아래 따로 작은 단추 — 줄 오른쪽 >는 고치기", (tester) async {
       await _pump(tester, const RoutinesScreen());
       final run = find.byKey(const Key('routine-run-r-heat'));
@@ -283,8 +283,8 @@ void main() {
       final name = findPlainText('30초 데우기');
       expect(tester.getTopLeft(run).dy, greaterThanOrEqualTo(tester.getBottomLeft(name).dy));
       expect(tester.getSize(run).height, greaterThanOrEqualTo(48));
-      expect(find.descendant(of: find.byKey(const Key('routine-row-r-heat')), matching: findPlainText('고치기')),
-          findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('routine-row-r-heat')), matching: findPlainText('고치기')), // 단추 없음
+          findsNothing);
     });
 
     testWidgets('정해진 시각 줄에도 가전 아이콘 — 왼쪽 열이 맞는다', (tester) async {

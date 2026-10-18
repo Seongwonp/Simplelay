@@ -1300,17 +1300,35 @@ class _ApplianceGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final names = distinctTileNames(appliances);
-    final cards = <Widget>[
-      for (final a in homeApplianceOrder(appliances))
-        _ApplianceCard(
+    final ordered = homeApplianceOrder(appliances);
+    Widget card(ApplianceMap a) => _ApplianceCard(
           appliance: a,
           name: names[a.id] ?? a.name,
           status: statusOf(a),
           verifyNote: verifyNoteOf(a),
           onTap: () => onOpen(a),
-        ),
+        );
+    // 연습 가전은 따로 '연습해 보기' 구역(결선 모의 평가 10/18 — 실제 '세탁기'(누름 장치용)와 'LG 세탁기'(연습)가 나란히 있어
+    // 헷갈렸다). 이름 데이터는 그대로 두고 자리만 나눈다. '가전 추가'는 실제 가전 구역 끝.
+    final practice = [for (final a in ordered) if (isPracticeAppliance(a)) card(a)];
+    final real = <Widget>[
+      for (final a in ordered) if (!isPracticeAppliance(a)) card(a),
       _AddCard(onTap: onAdd),
     ];
+    if (practice.isEmpty) return _grid(context, real);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _grid(context, real),
+        const SizedBox(height: AppSpace.xl),
+        const _SectionTitle('연습해 보기', key: Key('home-practice-section')),
+        _grid(context, practice),
+      ],
+    );
+  }
+
+  /// 칸 묶음 하나 — 보통 글씨는 두 칸씩, 큰 글씨는 한 칸씩.
+  Widget _grid(BuildContext context, List<Widget> cards) {
     // 큰 글씨(120% 넘음)에서는 한 칸씩. 두 칸에 두면 가전 이름(20)이 한 글자씩 꺾인다(평가 5차 10/18: 130%에서 '전자레인|지').
     if (MediaQuery.textScalerOf(context).scale(1) > 1.2) {
       return Column(

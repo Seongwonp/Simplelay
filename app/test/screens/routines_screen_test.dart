@@ -457,12 +457,12 @@ void main() {
 
     final row = find.byKey(const Key('routine-row-rt-1'));
     expect(row, findsOneWidget);
-    // 휴리스틱 평가(10/18): 행 안 단추는 '지금 하기'(작은 테두리 단추)와 '고치기' 둘 — 채운 버튼·⋮ 메뉴는 없다.
+    // 행 안 단추는 '지금 하기'(작은 테두리 단추) 하나 — '고치기'는 줄 누르기(결선 모의 평가 10/18), 채운 버튼·⋮ 메뉴는 없다.
     expect(find.descendant(of: row, matching: runButton('rt-1')), findsOneWidget);
     expect(find.descendant(of: row, matching: find.byType(OutlinedButton)), findsOneWidget);
-    expect(find.descendant(of: row, matching: find.byType(TextButton)), findsOneWidget);
+    expect(find.descendant(of: row, matching: find.byType(TextButton)), findsNothing);
     expect(find.descendant(of: row, matching: find.byType(FilledButton)), findsNothing);
-    expect(editButton('rt-1'), findsOneWidget);
+    expect(editButton('rt-1'), findsNothing);
     expect(menuButton('rt-1'), findsNothing);
     expect(find.descendant(of: row, matching: find.byIcon(Icons.more_vert)), findsNothing);
 
