@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/theme/app_colors.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/providers/care_events_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
@@ -336,8 +337,11 @@ void main() {
       expect(_in(now, findPlainText('켜짐', contains: true)), findsNothing);
       expect(_in(now, findPlainText('켜진 가전', contains: true)), findsNothing);
       expect(_in(now, findPlainText('저녁 공기청정기 켜기')), findsOneWidget);
-      // 전원은 가전 타일 한 곳.
-      expect(_in(find.byKey(const Key('appliance-status-air')), findPlainText('켜져 있어요')), findsOneWidget);
+      // 전원은 가전 타일 한 곳 — 사용자 결정(10/19)부터 아이콘 강조색(글자 없음).
+      final ctx = tester.element(find.byKey(const Key('appliance-icon-air')));
+      expect(
+          tester.widget<Icon>(find.descendant(of: find.byKey(const Key('appliance-icon-air')), matching: find.byType(Icon))).color,
+          ctx.appPrimary);
     });
 
     testWidgets('안 본 알림 줄은 무슨 알림인지 말한다', (tester) async {

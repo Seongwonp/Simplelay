@@ -264,30 +264,32 @@ void main() {
     });
   });
 
-  group('B. 홈 가전 타일 상태 띠 — 문장 하나로', () {
-    Finder band(String id, String text) =>
-        find.descendant(of: find.byKey(Key('appliance-band-$id')), matching: findPlainText(text));
-
-    testWidgets("'켜져 있어요'·'설정이 필요해요'·'준비됐어요' — 명사 '켜짐'·'설정 필요' 없음", (tester) async {
+  // 사용자 결정(10/19): 상태 띠를 없앴다 — 상태 말(문장)은 화면 읽기 이름과 문제 표시 문장이 한다. 명사 꼴은 여전히 쓰지 않는다.
+  group('B. 홈 가전 타일 상태 — 문장 하나로(화면 읽기·표시)', () {
+    testWidgets("'켜져 있어요'·설정 표시 문장·준비는 표시 없음 — 명사 '켜짐'·'설정 필요' 없음", (tester) async {
+      final handle = tester.ensureSemantics();
       await _pump(tester, const HomeScreen());
-      expect(band('air', '켜져 있어요'), findsOneWidget);
-      expect(band('washer', '설정이 필요해요'), findsOneWidget);
-      expect(band('mw', '준비됐어요'), findsOneWidget);
-      expect(band('air', '켜짐'), findsNothing);
-      expect(band('washer', '설정 필요'), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('켜져 있어요')), findsOneWidget);
+      expect(tileMarkText(tester, 'washer'), kTilePanelSetup);
+      expect(tileMarkText(tester, 'mw'), isNull);
+      expect(find.bySemanticsLabel(RegExp('켜짐')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('설정 필요')), findsNothing);
+      handle.dispose();
     });
 
-    testWidgets("꺼진 LG 가전은 '꺼져 있어요'", (tester) async {
+    testWidgets("꺼진 LG 가전은 화면 읽기 '꺼져 있어요'", (tester) async {
+      final handle = tester.ensureSemantics();
       await _pump(tester, const HomeScreen(), power: 'off');
-      expect(band('air', '꺼져 있어요'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('꺼져 있어요')), findsOneWidget);
+      handle.dispose();
     });
 
-    testWidgets('412dp 두 칸에서 띠 글은 한 줄', (tester) async {
+    testWidgets('412dp 두 칸에서 표시는 이름과 겹치지 않는다', (tester) async {
       await _pump(tester, const HomeScreen(), size: const Size(412, 3000), korean: true);
-      for (final (id, text) in [('air', '켜져 있어요'), ('washer', '설정이 필요해요'), ('mw', '준비됐어요')]) {
-        expect(_oneLine(tester, band(id, text)), isTrue,
-            reason: '$text ${tester.getSize(band(id, text))} 띠 ${tester.getSize(find.byKey(Key('appliance-band-$id')))}');
-      }
+      final mark = tester.getRect(find.byKey(const Key('appliance-mark-washer')));
+      final name = tester.getRect(find.descendant(
+          of: find.byKey(const Key('appliance-card-washer')), matching: findPlainText('세탁기', contains: true)).first);
+      expect(mark.overlaps(name), isFalse, reason: '표시 $mark 이름 $name');
     }, skip: _noKoreanFont != null);
   });
 

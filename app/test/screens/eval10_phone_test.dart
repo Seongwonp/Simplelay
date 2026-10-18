@@ -384,14 +384,13 @@ void main() {
   });
 
   group('4. 홈 전자레인지 칸', () {
-    testWidgets("자리 확인을 모르면 띠가 그 한 문장 — '준비됐어요'와 엇갈리지 않는다", (tester) async {
+    // 사용자 결정(10/19): 띠 대신 설정 톱니 표시 — 그 문장이 자리 확인 한 문장. '준비됐어요'와 엇갈리지 않는다.
+    testWidgets("자리 확인을 모르면 표시가 그 한 문장 — '준비됐어요'와 엇갈리지 않는다", (tester) async {
       await _pump(tester, const HomeScreen(), installed: const []);
       final card = find.byKey(const Key('appliance-card-mw'));
       expect(card, findsOneWidget);
-      final band = find.byKey(const Key('appliance-band-mw'));
-      expect(_in(band, findPlainText('버튼 자리를 다시 맞춰 주세요')), findsOneWidget);
+      expect(tileMarkText(tester, 'mw'), '버튼 자리를 다시 맞춰 주세요');
       expect(_in(card, findPlainText('준비됐어요')), findsNothing);
-      expect(_in(card, findPlainText('버튼 자리', contains: true)), findsOneWidget);
     });
   });
 

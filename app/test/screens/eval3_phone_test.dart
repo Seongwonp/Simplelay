@@ -193,38 +193,33 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('홈 — 설정 안내는 확인 카드 한 곳', () {
-    testWidgets('루틴 타일에는 "설정이 필요해요" 글자가 없고, 가전 타일은 아이콘 점 + 띠 문장 + 접근성 이름', (tester) async {
+    // 사용자 결정(10/19): 가전 타일은 띠 문장 대신 오른쪽 위 설정 톱니 표시 + 그 문장을 화면 읽기로.
+    testWidgets('루틴 타일에는 "설정이 필요해요" 글자가 없고, 가전 타일은 설정 표시 + 접근성 문장', (tester) async {
       final handle = tester.ensureSemantics();
       _tall(tester);
       await tester.pumpWidget(_app(_hub(), const HomeScreen(), installed: _installed));
       await _settle(tester);
 
       expect(find.byKey(const Key('home-todo')), findsOneWidget);
-      // 가전 타일 띠 한 곳에만(평가 7차 10/18: 띠는 문장 '설정이 필요해요') — 무엇이 남았는지는 확인 카드가 한 번 말한다.
-      expect(findPlainText('설정이 필요해요', contains: true), findsOneWidget);
-      expect(find.descendant(of: find.byKey(const Key('appliance-band-washer')), matching: findPlainText('설정이 필요해요')),
-          findsOneWidget);
-      final dot = find.byKey(const Key('appliance-setup-dot-washer'));
-      expect(dot, findsOneWidget);
-      expect(find.descendant(of: dot, matching: find.byType(Icon), matchRoot: true), findsOneWidget,
-          reason: '색만이 아니라 아이콘 점');
-      expect(find.bySemanticsLabel(RegExp('^세탁기, .*설정이 필요해요')), findsOneWidget);
+      // 무엇이 남았는지는 확인 카드가 한 번 말한다 — 타일 글자로는 말하지 않는다.
+      expect(findPlainText('설정이 필요해요', contains: true), findsNothing);
+      expect(tileMarkIcon(tester, 'washer'), Icons.settings_rounded, reason: '색만이 아니라 아이콘 모양');
+      expect(find.bySemanticsLabel(kTilePanelSetup), findsOneWidget);
       // 루틴 타일은 경고 문장 대신 무엇을 하는지(평가 5차 10/18: '누를 버튼 N개').
       final tile = find.byKey(const Key('home-routine-tile-r-w'));
       expect(find.descendant(of: tile, matching: findPlainText('세탁기 · 누를 버튼 1개')), findsOneWidget);
       handle.dispose();
     });
 
-    testWidgets('가전 타일은 늘 상태 한 줄 — 모르면 할 일, 높이는 내용대로', (tester) async {
+    // 사용자 결정(10/19): 상태 한 줄은 없앴다 — 평소는 표시 없음, 설정이 남으면 톱니. 높이는 내용대로.
+    testWidgets('가전 타일은 평소 표시 없음·설정 남음은 톱니, 높이는 내용대로', (tester) async {
       _tall(tester);
       await tester.pumpWidget(_app(_hub(), const HomeScreen(), installed: _installed));
       await _settle(tester);
 
-      for (final (id, text) in [('mw', '준비됐어요'), ('mw2', '준비됐어요'), ('washer', '설정이 필요해요')]) {
-        final line = find.byKey(Key('appliance-status-$id'));
-        expect(line, findsOneWidget, reason: id);
-        expect(find.descendant(of: line, matching: findPlainText(text)), findsOneWidget, reason: id);
-      }
+      expect(tileMarkText(tester, 'mw'), isNull);
+      expect(tileMarkText(tester, 'mw2'), isNull);
+      expect(tileMarkText(tester, 'washer'), kTilePanelSetup);
       // 같은 줄의 두 타일(전자레인지·오븐, 내용이 같다) — 마지막 글자 아래에는 안쪽 여백만 남는다.
       final card = find.byKey(const Key('appliance-card-mw'));
       final lastText = find

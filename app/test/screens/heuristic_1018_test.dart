@@ -534,28 +534,24 @@ void main() {
       expect(find.byKey(const Key('appliance-lg-air')), findsOneWidget);
     });
 
-    testWidgets("이름에서 '(연습)'을 빼고 '연습' 표지, 띠는 연습 색 — 손 아이콘 '준비됐어요'가 아니다", (tester) async {
+    // 사용자 결정(10/19): 띠는 없앴다 — '연습' 표지는 그대로, 전원을 모르면 '?' 표시.
+    testWidgets("이름에서 '(연습)'을 빼고 '연습' 표지 — 손 아이콘 '준비됐어요'가 아니다", (tester) async {
       await _pump(tester, const HomeScreen());
       final card = find.byKey(const Key('appliance-card-pwash'));
       expect(_in(card, findPlainText('LG 세탁기(연습)')), findsNothing);
       expect(_in(card, findPlainText('연습 세탁기')), findsOneWidget);
       expect(_in(card, find.byKey(const Key('appliance-practice-pwash'))), findsOneWidget);
-      final band = tester.widget<Container>(find.byKey(const Key('appliance-band-pwash')));
-      final c = (band.color ?? Colors.transparent).withValues(alpha: 1);
-      // 청록 — 초록·파랑이 빨강보다 뚜렷이 높다(회색·주황·초록 확인색과 다르다).
-      expect(c.g - c.r, greaterThan(0.25), reason: '$c');
-      expect(c.b - c.r, greaterThan(0.2), reason: '$c');
-      expect(_in(find.byKey(const Key('appliance-status-pwash')), find.byIcon(Icons.touch_app_outlined)), findsNothing);
-      expect(_in(find.byKey(const Key('appliance-status-pwash')), findPlainText('준비됐어요')), findsNothing);
+      expect(tileMarkText(tester, 'pwash'), kTilePowerUnknown);
+      expect(find.byIcon(Icons.touch_app_outlined), findsNothing);
+      expect(findPlainText('준비됐어요'), findsNothing);
     });
 
-    testWidgets("전원을 모르는 LG 가전은 '확인 전이에요'", (tester) async {
+    testWidgets("전원을 모르는 LG 가전은 '?' — '켜져 있는지 아직 확인하지 못했어요'", (tester) async {
       await _pump(tester, const HomeScreen());
-      final status = find.byKey(const Key('appliance-status-air'));
-      expect(_in(status, findPlainText('확인 전이에요')), findsOneWidget);
-      expect(_in(status, find.byIcon(Icons.touch_app_outlined)), findsNothing);
+      expect(tileMarkText(tester, 'air'), kTilePowerUnknown);
+      expect(tileMarkIcon(tester, 'air'), Icons.question_mark_rounded);
       // 누름 장치 가전은 이 말을 쓰지 않는다(LG 가전만).
-      expect(_in(find.byKey(const Key('appliance-status-mw')), findPlainText('확인 전이에요')), findsNothing);
+      expect(tileMarkText(tester, 'mw'), isNot(kTilePowerUnknown));
     });
 
     testWidgets("설정의 연습 가전 부제 '연습용이라 등록할 필요 없어요'", (tester) async {
@@ -566,15 +562,13 @@ void main() {
   });
 
   group('5. 타일 원인은 짧게, 말줄임 없이', () {
-    testWidgets("인덕션 — '누름 장치가 다른 가전 위에 있어요', 띠 '설정이 필요해요'", (tester) async {
+    // 사용자 결정(10/19): 원인은 타일 글자가 아니라 '!' 표시 문장의 둘째 마디(짧게).
+    testWidgets("인덕션 — '!' 표시 '지금은 쓸 수 없어요. 누름 장치가 다른 가전 위에 있어요'", (tester) async {
       await _pump(tester, const HomeScreen(), size: const Size(360, 3000));
+      expect(tileMarkText(tester, 'ind'), '지금은 쓸 수 없어요. 누름 장치가 다른 가전 위에 있어요');
+      expect(tileMarkIcon(tester, 'ind'), Icons.priority_high_rounded);
       final card = find.byKey(const Key('appliance-card-ind'));
-      final reason = _in(card, findPlainText('누름 장치가 다른 가전 위에 있어요'));
-      expect(reason, findsOneWidget);
-      final t = tester.widget<Text>(reason);
-      expect(t.overflow, isNot(TextOverflow.ellipsis));
       expect(_in(card, findPlainText(_gantryAbsent, contains: true)), findsNothing);
-      expect(_in(find.byKey(const Key('appliance-status-ind')), findPlainText('설정이 필요해요')), findsOneWidget);
     });
 
     test('서버 준비 필요 판정은 키오스크와 같은 말', () {

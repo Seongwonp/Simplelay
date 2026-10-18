@@ -1370,13 +1370,13 @@ class _ApplianceGrid extends StatelessWidget {
 
 }
 
-/// 가전 타일 — 위는 가전(큰 아이콘 · 이름), 아래는 **상태 띠**(아이콘 + 짧은 말 + 면 색).
+/// 가전 타일 — 아이콘 + 이름만(사용자 결정 2026-10-19: 아래 상태 글자 띠가 너무 복잡했다. 키오스크와 같은 규칙).
 ///
-/// 평가 5차(10/18): 흰 카드에 회색 설명 한 줄이라 상태가 한눈에 보이지 않았다. 띠의 색은 세 갈래뿐이다.
-/// - 초록: 본체가 **읽은** 켜짐일 때만(확인 수준을 높여 보이지 않는다).
-/// - 주황: 사람이 할 일이 있다(설정 필요·연결·준비).
-/// - 회색: 그 밖(준비됨·꺼짐·모름·확인 중). 버튼 조작 중은 잉크색 + 진행 막대.
-/// 색만으로 말하지 않는다 — 띠마다 아이콘과 글이 같이 있다.
+/// - LG 가전 전원은 서버가 **읽은** 것만 아이콘 색으로 — 켜짐 강조색(실제 기기 불빛처럼), 꺼짐 흐리게.
+/// - 문제가 있을 때만 오른쪽 위 작은 표시 하나([TileStatus.issue] 또는 자리 확인 보조 줄) — 쓸 수 없음 '!',
+///   확인 전·모름 '?', 설정 남음 톱니. 누르면 말풍선으로 한두 문장, 화면 읽기는 그 문장을 그대로 읽는다.
+/// - 버튼 조작 중은 잉크색 테두리 + 진행 막대(글자 없이 — 화면 읽기 이름이 말한다).
+/// 다른 곳의 상태 안내(홈 '해야 할 일' 등)는 그대로다.
 class _ApplianceCard extends ConsumerWidget {
   const _ApplianceCard({
     required this.appliance,
@@ -1391,10 +1391,10 @@ class _ApplianceCard extends ConsumerWidget {
   /// 타일에 적을 이름([distinctTileNames]) — 같은 이름이 둘이면 " (2)"가 붙는다.
   final String name;
 
-  /// '확인 주행' 보조 줄. 상태 줄과 따로 그리고, 접근성 이름에도 넣는다.
+  /// '확인 주행' 보조 줄. 상태가 평소일 때 설정 톱니 표시의 문장이 된다.
   final String? verifyNote;
 
-  /// 타일 상태 한 줄. "돌아가는 중"은 없다 — 버튼 조작 진행·준비 여부까지만.
+  /// 타일 상태. "돌아가는 중"은 없다 — 버튼 조작 진행·준비 여부까지만.
   final TileStatus status;
   final VoidCallback onTap;
 
@@ -1406,53 +1406,31 @@ class _ApplianceCard extends ConsumerWidget {
     final run = ref.watch(executionStatusProvider);
     final total = run.totalSteps ?? run.steps.length;
     final done = run.completedSteps;
-    final setup = s.text == kSetupNeededText;
-    // 띠의 짧은 말 — 모두 문장(평가 7차 10/18: '준비됐어요'와 '켜짐'·'설정 필요'가 섞였다. 키오스크와 같은 말투).
-    // 평소(실행 가능)는 '준비됐어요' — 서버가 실행 요청을 받아 준다는 뜻이고, 눌림을 확인했다는 말이 아니라 회색이다.
-    // 위치를 맞추지 않은 가전은 '설정이 필요해요'(무엇이 남았는지는 '확인이 필요해요' 카드 한 곳).
-    // 자리 확인 보조 줄이 있으면 띠가 그 한 문장(평가 9차·10차 10/18: 위 '자리 확인을 했는지 몰라요'와 아래 '준비됐어요'가
-    // 엇갈려 읽혔다). 표시만 — 실행을 막지 않는다(판정은 [verifyPassTileNote] 그대로, 회색 '모름' 갈래).
-    final noteInBand = verifyNote != null && !setup && s.text.isEmpty;
-    final line = setup
-        ? kSetupNeededText
-        : s.text.isEmpty
-            ? (noteInBand ? verifyNote! : '준비됐어요')
-            : s.text;
-    // 연습 가전(휴리스틱 평가 10/18): 이름의 '(연습)'은 빼고 오른쪽 위 '연습' 표지, 띠는 연습 색(청록). 할 일이 있는 띠
-    // (설정·연결)와 버튼 조작 중은 그 색 그대로 — 연습이어도 사람이 할 일은 주황이다.
+    // 자리 확인을 실제로 마치지 못한 가전(평가 10차 판정 그대로) — 평소 상태일 때만 설정 톱니로. 실행을 막지 않는다.
+    final note = verifyNote;
+    final issue = s.issue ?? (s.tone == TileTone.ready && note != null ? TileIssue(TileMark.setup, note) : null);
     final practice = isPracticeAppliance(a);
     // 연습 가전 화면 이름은 '연습 세탁기'(접근성 감사 10/18 — 실제 '세탁기'와 헷갈렸다, 본체와 같은 규칙).
     final shownName = practiceDisplayName(name);
-    final practiceBand = practice && !setup && s.tone != TileTone.attention && s.tone != TileTone.active;
-    final (Color color, IconData icon) = setup
-        ? (context.appWarning, Icons.priority_high_rounded)
-        : practiceBand
-            // '확인 전이에요'는 연습 가전이어도 물음표 — 본체 타일과 같은 모양(접근성 감사 10/18). 색은 연습 색 그대로.
-            ? (context.appPractice, s.text == kThinqUncheckedText ? Icons.help_outline : Icons.science_outlined)
-        : noteInBand
-            ? (context.appMuted, Icons.help_outline)
-            : switch (s.tone) {
-            TileTone.active => (context.appInk, AppIcons.running),
-            TileTone.attention => (context.appWarning, Icons.error_outline),
-            TileTone.unknown => (context.appMuted, Icons.help_outline),
-            // 체크는 '됐어요'로 읽힌다 — 준비는 손가락(누를 수 있음) 아이콘.
-            TileTone.ready => (context.appMuted, Icons.touch_app_outlined),
-            // 초록은 본체가 읽은 켜짐일 때만(thinqPower — 서버가 최근에 **읽은** 전원).
-            TileTone.on => (context.appConfirmed, Icons.power_settings_new),
-            TileTone.off => (context.appMuted, Icons.power_settings_new),
-          };
-    final tinted = setup || practiceBand || s.tone == TileTone.attention || s.tone == TileTone.on;
-    return Semantics(
+    final iconColor = s.tone == TileTone.on
+        ? context.appPrimary
+        : s.tone == TileTone.off
+            ? context.appMuted
+            : context.appInk;
+    // 문제가 아닌 상태 말 — 화면 읽기 이름에만(화면 글자는 없다).
+    final word = switch (s.tone) {
+      TileTone.on || TileTone.off || TileTone.active => s.text,
+      _ => null,
+    };
+    final card = Semantics(
       button: true,
-      // excludeSemantics라 아래 글자가 따로 읽히지 않는다 — 상태를 이름에 함께 넣는다.
+      // excludeSemantics라 아래 글자가 따로 읽히지 않는다 — 문제 문장은 오른쪽 위 표시가 따로 읽는다.
       label: [
         if ((a.location ?? '').isNotEmpty) '${a.location} $shownName' else shownName,
         // 연습 가전에는 'LG 가전'을 쓰지 않는다(출시 검토 10/18 — 실제 LG 가전과 헷갈렸다).
         if (a.isThinq && !practice) 'LG 가전',
         if (practice) '연습',
-        if (s.text.isNotEmpty) s.text else line,
-        if (s.detail case final d?) d,
-        if (verifyNote case final v? when !noteInBand) v,
+        if (word != null && word.isNotEmpty) word,
       ].join(', '),
       excludeSemantics: true,
       child: Card(
@@ -1470,34 +1448,35 @@ class _ApplianceCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // 위쪽 빈칸을 한 단계씩 줄인다(평가 6차 10/18: 첫 화면에 가전 두 줄 — 그림 칸 48→40, 안쪽 여백 16→12).
               Padding(
-                padding: const EdgeInsets.fromLTRB(AppSpace.md, AppSpace.md, AppSpace.md, AppSpace.sm),
+                padding: const EdgeInsets.all(AppSpace.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 가전 그림 + 오른쪽 위 '연습' 표지(키오스크 타일과 같은 자리).
+                    // 가전 그림 + 오른쪽 위 '연습' 표지 — 문제 표시가 있으면 그 왼쪽(겹치지 않게 자리를 비운다).
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 가전 그림 — 늘 면 없이 그림만(평가 15차 10/18: 공기청정기·세탁기에만 바탕 칸이 있어 카드마다
-                        // 모양이 달랐다). 상태는 아래 띠의 글·색이 말한다.
                         Container(
                           key: Key('appliance-icon-${a.id}'),
                           width: AppSpace.xxxl + AppSpace.sm,
                           height: AppSpace.xxxl + AppSpace.sm,
                           alignment: Alignment.centerLeft,
-                          child: Icon(a.icon, size: 28, color: context.appInk),
+                          child: Icon(a.icon, size: 28, color: iconColor),
                         ),
-                        const Spacer(),
-                        if (practice)
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.topRight,
-                              child: DemoBadge(key: Key('appliance-practice-${a.id}')),
-                            ),
-                          ),
+                        // 남는 폭은 배지 칸 하나가 가진다(Spacer와 나누면 배지가 반으로 줄었다).
+                        Expanded(
+                          child: practice
+                              ? Align(
+                                  alignment: Alignment.topRight,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: DemoBadge(key: Key('appliance-practice-${a.id}')),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                        if (issue != null) const SizedBox(width: _TileMarkButton.hit - AppSpace.sm),
                       ],
                     ),
                     const SizedBox(height: AppSpace.sm),
@@ -1513,74 +1492,92 @@ class _ApplianceCard extends ConsumerWidget {
                       Text('LG 가전',
                           key: Key('appliance-lg-${a.id}'),
                           style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
-                    // 짧은 원인 한 줄([tileReasonText]) — 말줄임 없이(휴리스틱 평가 10/18: '…누를 수 없…'처럼 원인이
-                    // 잘렸다). 자세한 사정은 가전 상세에서.
-                    if (s.detail case final d?)
-                      Text(
-                        keepWordsTogether(d),
-                        key: Key('appliance-reason-${a.id}'),
-                        semanticsLabel: d,
-                        style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
-                      ),
-                    if (verifyNote case final v? when !noteInBand)
-                      Padding(
-                        padding: const EdgeInsets.only(top: AppSpace.xs),
-                        child: Text(
-                          // 낱말 중간에서 꺾이지 않게("했는 / 지", 평가 3차 골든 10/18).
-                          keepWordsTogether(v),
-                          key: Key('appliance-verify-note-${a.id}'),
-                          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
-                        ),
-                      ),
                   ],
                 ),
               ),
-              // ── 상태 띠(맨 아래 — 같은 줄 두 칸은 높이를 맞추고 띠를 바닥에 붙인다) ──
-              // 띠 안쪽 좌우는 8 — 412dp 두 칸에서 문장 '설정이 필요해요'가 한 줄에 들어가게(평가 7차 10/18).
-              Container(
-                key: Key('appliance-band-${a.id}'),
-                color: color.withValues(alpha: tinted ? 0.14 : 0.08),
-                padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      key: Key('appliance-status-${a.id}'),
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Icon(icon,
-                            key: setup ? Key('appliance-setup-dot-${a.id}') : null,
-                            size: 20,
-                            color: color),
-                        const SizedBox(width: AppSpace.xs + 2),
-                        Flexible(
-                          child: Text(
-                            // "연결을 확인해 주 / 세요"처럼 낱말 중간에서 꺾이지 않게(2026-10-14 발견 7).
-                            keepWordsTogether(line),
-                            style: TextStyle(
-                              fontSize: AppFont.caption,
-                              fontWeight: FontWeight.w700,
-                              // 회색 갈래의 글자는 본문 잉크색 — 회색 면 위 회색 글자는 대비가 모자랐다(배지와 같은 규칙).
-                              color: tinted ? color : context.appInk,
-                            ),
-                          ),
-                        ),
-                      ],
+              if (s.progress)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(AppSpace.md, 0, AppSpace.md, AppSpace.md),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      key: Key('appliance-progress-${a.id}'),
+                      minHeight: 5,
+                      value: total > 0 ? (done / total).clamp(0.0, 1.0) : null,
                     ),
-                    if (s.progress) ...[
-                      const SizedBox(height: AppSpace.sm),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(3),
-                        child: LinearProgressIndicator(
-                          minHeight: 5,
-                          value: total > 0 ? (done / total).clamp(0.0, 1.0) : null,
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
             ],
+          ),
+        ),
+      ),
+    );
+    if (issue == null) return KeyedSubtree(key: Key('appliance-tile-${a.id}'), child: card);
+    return Stack(key: Key('appliance-tile-${a.id}'), fit: StackFit.passthrough, children: [
+      card,
+      // 카드 안 오른쪽 위 — 보이는 원은 작게, 누르는 자리는 48dp.
+      Positioned(
+        top: AppSpace.xs,
+        right: AppSpace.xs,
+        child: _TileMarkButton(key: Key('appliance-mark-${a.id}'), issue: issue),
+      ),
+    ]);
+  }
+}
+
+/// 타일 오른쪽 위 문제 표시(사용자 결정 10/19, 키오스크 `KioskTileMarkButton`과 같은 모양·문장). 누르면 말풍선
+/// (몇 초 뒤 또는 바깥을 누르면 닫힘). 화면 읽기는 문장을 그대로 읽는다(색·모양만으로 말하지 않는다).
+class _TileMarkButton extends StatefulWidget {
+  const _TileMarkButton({super.key, required this.issue});
+
+  final TileIssue issue;
+
+  /// 누르는 자리 한 변(48dp).
+  static const double hit = 48;
+
+  @override
+  State<_TileMarkButton> createState() => _TileMarkButtonState();
+}
+
+class _TileMarkButtonState extends State<_TileMarkButton> {
+  final _tip = GlobalKey<TooltipState>();
+
+  @override
+  Widget build(BuildContext context) {
+    final mark = widget.issue.mark;
+    final unusable = mark == TileMark.unusable;
+    final icon = switch (mark) {
+      TileMark.unusable => Icons.priority_high_rounded,
+      TileMark.unknown => Icons.question_mark_rounded,
+      TileMark.setup => Icons.settings_rounded,
+    };
+    return Semantics(
+      button: true,
+      label: widget.issue.text,
+      onTap: () => _tip.currentState?.ensureTooltipVisible(),
+      excludeSemantics: true,
+      child: Tooltip(
+        key: _tip,
+        message: widget.issue.text,
+        triggerMode: TooltipTriggerMode.tap,
+        showDuration: const Duration(seconds: 4),
+        excludeFromSemantics: true,
+        textStyle: TextStyle(fontSize: AppFont.caption, color: context.appBackground, height: 1.3),
+        decoration: BoxDecoration(color: context.appOnSurfaceSoft, borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
+        child: SizedBox.square(
+          dimension: _TileMarkButton.hit,
+          child: Center(
+            child: Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: unusable ? context.appWarning : Colors.transparent,
+                border: unusable ? null : Border.all(color: context.appMuted, width: 1.5),
+              ),
+              child: Icon(icon, size: 16, color: unusable ? context.appOnAccent : context.appMuted),
+            ),
           ),
         ),
       ),

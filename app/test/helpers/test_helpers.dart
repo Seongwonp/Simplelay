@@ -254,3 +254,26 @@ Finder findPlainText(String text, {bool contains = false}) => find.byWidgetPredi
       if (data == null) return false;
       return contains ? data.contains(text) : data == text;
     }, description: 'plain text "$text"');
+
+/// 가전 타일 오른쪽 위 문제 표시의 문장(사용자 결정 2026-10-19 — 상태 띠 대신 문제가 있을 때만 표시). 표시가 없으면 null.
+String? tileMarkText(WidgetTester tester, String id) {
+  final mark = find.byKey(Key('appliance-mark-$id'));
+  if (mark.evaluate().isEmpty) return null;
+  final sem = find.descendant(
+      of: mark, matching: find.byWidgetPredicate((w) => w is Semantics && w.properties.label != null));
+  return tester.widget<Semantics>(sem.first).properties.label;
+}
+
+/// 가전 타일 문제 표시의 아이콘(문제가 없으면 null).
+IconData? tileMarkIcon(WidgetTester tester, String id) {
+  final mark = find.byKey(Key('appliance-mark-$id'));
+  if (mark.evaluate().isEmpty) return null;
+  return tester.widget<Icon>(find.descendant(of: mark, matching: find.byType(Icon))).icon;
+}
+
+/// 가전 타일(카드 + 문제 표시)이 [text]를 말하는가 — 화면 글자 또는 문제 표시 문장(사용자 결정 10/19).
+Finder findTileSays(String id, String text) => find.descendant(
+    of: find.byKey(Key('appliance-tile-$id')),
+    matching: find.byWidgetPredicate((w) =>
+        (w is Text && (w.data ?? '').replaceAll(kWordJoiner, '') == text) ||
+        (w is Semantics && w.properties.label == text)));

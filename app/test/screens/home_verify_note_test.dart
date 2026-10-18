@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/display_status.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -113,11 +114,8 @@ void _tall(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
-Finder _inTile(String id, String text) => find.descendant(
-    // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자(U+2060)를 넣어 그린다(2026-10-14) — 빼고 비교한다.
-    of: find.byKey(Key('appliance-card-$id')),
-    matching: find.byWidgetPredicate(
-        (w) => w is Text && (w.data ?? '').replaceAll('\u2060', '') == text));
+/// 타일이 그 말을 하는가 — 사용자 결정(10/19)부터 자리 확인 문장은 오른쪽 위 설정 표시의 문장이다.
+Finder _inTile(String id, String text) => findTileSays(id, text);
 
 /// 화면 가운데를 눌렀을 때 [target]의 그림 객체에 닿는가(다른 것에 가리지 않음).
 bool _hits(WidgetTester tester, Finder target) {
@@ -160,14 +158,10 @@ void main() {
     }
     // 평가 10차(10/18): 보조 줄이 있으면 띠가 그 한 문장 — 위 보조 줄과 아래 '준비됐어요'가 엇갈리지 않게.
     expect(_inTile('a', '준비됐어요'), findsNothing);
-    expect(
-        find.descendant(
-            of: find.byKey(const Key('appliance-band-a')),
-            matching: find.byWidgetPredicate(
-                (w) => w is Text && (w.data ?? '').replaceAll('⁠', '') == '연습으로만 자리 확인했어요')),
-        findsOneWidget);
-    // 실제로 자리 확인을 마친 가전은 그대로 '준비됐어요'.
-    expect(_inTile('d', '준비됐어요'), findsOneWidget);
+    // 사용자 결정(10/19): 자리 확인 문장은 오른쪽 위 설정 톱니 표시의 문장 — 띠는 없다.
+    expect(tileMarkIcon(tester, 'a'), Icons.settings_rounded);
+    // 실제로 자리 확인을 마친 가전은 표시 없음(평소).
+    expect(tileMarkText(tester, 'd'), isNull);
     expect(tester.takeException(), isNull);
   });
 
@@ -193,9 +187,8 @@ void main() {
     });
     await tester.pumpWidget(_home(api));
     await _settle(tester);
-    // 타일은 아이콘 점과 띠 문장(평가 7차 10/18).
-    expect(find.byKey(const Key('appliance-setup-dot-w')), findsOneWidget);
-    expect(_inTile('w', '설정이 필요해요'), findsOneWidget);
+    // 사용자 결정(10/19): 위치 미설정은 설정 톱니 표시 하나(자리 확인 문장을 겹치지 않는다).
+    expect(tileMarkText(tester, 'w'), kTilePanelSetup);
     expect(_inTile('w', '연습으로만 자리 확인했어요'), findsNothing);
     expect(_inTile('w', '버튼 자리를 다시 맞춰 주세요'), findsNothing);
   });
@@ -218,7 +211,8 @@ void main() {
       ),
     ));
     await _settle(tester);
-    expect(_inTile('a', '본체 연결을 봐 주세요'), findsOneWidget);
+    // 사용자 결정(10/19): 쓸 수 없음 '!' 표시의 문장.
+    expect(tileMarkText(tester, 'a'), kTileUnusableHub);
     expect(_inTile('a', '버튼 자리를 다시 맞춰 주세요'), findsNothing);
   });
 
@@ -235,16 +229,11 @@ void main() {
     });
     await tester.pumpWidget(_home(api));
     await _settle(tester);
-    // 띠가 보조 줄 한 문장이면 낭독도 그 한 번(평가 10차 10/18).
-    expect(
-        find.bySemanticsLabel(
-            '전자레인지, 연습으로만 자리 확인했어요'),
-        findsOneWidget);
-    expect(
-        find.bySemanticsLabel(
-            '세탁기, 버튼 자리를 다시 맞춰 주세요'),
-        findsOneWidget);
-    expect(find.bySemanticsLabel('밥솥, 준비됐어요'), findsOneWidget);
+    // 사용자 결정(10/19): 타일은 이름, 오른쪽 위 표시가 자리 확인 문장을 그대로 읽는다(한 번씩).
+    expect(find.bySemanticsLabel('전자레인지'), findsOneWidget);
+    expect(find.bySemanticsLabel('연습으로만 자리 확인했어요'), findsOneWidget);
+    expect(find.bySemanticsLabel('버튼 자리를 다시 맞춰 주세요'), findsOneWidget);
+    expect(find.bySemanticsLabel('밥솥'), findsOneWidget);
     handle.dispose();
   });
 

@@ -11,6 +11,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/display_status.dart';
+import 'package:simplelay/theme/app_colors.dart';
 import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
@@ -379,7 +381,8 @@ void main() {
     expect(find.textContaining('공기 '), findsNothing);
   });
 
-  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 "꺼져 있어요", 모르면 "확인 전이에요"(손 아이콘 준비됐어요 아님)', (tester) async {
+  // 사용자 결정(10/19): 글자 띠 대신 — 읽은 꺼짐은 아이콘을 흐리게(표시 없음), 모르면 '?' 표시.
+  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 흐린 아이콘, 모르면 "?" 표시(손 아이콘 준비됐어요 아님)', (tester) async {
     final hub = _Hub(appliances: [_thinq('air', '공기청정기'), _thinq('dh', '제습기')], routines: const [])
       ..power = [
         {'appliance_id': 'air', 'power': 'off', 'age_s': 3},
@@ -387,12 +390,15 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
-    expect(find.descendant(of: find.byKey(const Key('appliance-status-air')), matching: findPlainText('꺼져 있어요')),
-        findsOneWidget);
-    expect(find.descendant(of: find.byKey(const Key('appliance-status-dh')), matching: findPlainText('확인 전이에요')),
-        findsOneWidget);
-    expect(find.descendant(of: find.byKey(const Key('appliance-card-dh')), matching: findPlainText('꺼져 있어요')),
-        findsNothing);
+    expect(tileMarkText(tester, 'air'), isNull);
+    final ctx = tester.element(find.byKey(const Key('appliance-icon-air')));
+    Color? icon(String id) => tester
+        .widget<Icon>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(Icon)))
+        .color;
+    expect(icon('air'), ctx.appMuted);
+    expect(tileMarkText(tester, 'dh'), kTilePowerUnknown);
+    expect(icon('dh'), isNot(ctx.appMuted));
+    expect(find.byIcon(Icons.touch_app_outlined), findsNothing);
   });
 
   testWidgets('확인이 필요해요: 설정이 남은 가전이 있을 때만, 가전 목록 위에', (tester) async {
@@ -411,13 +417,11 @@ void main() {
     expect(find.descendant(of: attention, matching: find.byKey(const Key('setup-summary-card'))), findsOneWidget);
     final lastTile = find.byKey(const Key('appliance-card-w2'));
     expect(tester.getTopLeft(attention).dy, lessThan(tester.getTopLeft(lastTile).dy));
-    // 타일은 아이콘 점 + 띠 문장 '설정이 필요해요'(평가 7차 10/18) — 무엇이 남았는지는 확인 카드 한 곳.
-    expect(find.byKey(const Key('appliance-setup-dot-w2')), findsOneWidget);
-    expect(find.descendant(of: lastTile, matching: find.text(keepWordsTogether('설정이 필요해요'))),
-        findsOneWidget);
-    // 준비된 가전은 할 일만 — '바로 쓸 수 있어요'로 단정하지 않는다.
-    expect(find.descendant(of: find.byKey(const Key('appliance-status-mw')), matching: findPlainText('준비됐어요')),
-        findsOneWidget);
+    // 사용자 결정(10/19): 타일은 설정 톱니 표시 하나 — 무엇이 남았는지는 확인 카드 한 곳.
+    expect(tileMarkIcon(tester, 'w2'), Icons.settings_rounded);
+    // 준비된 가전은 표시 없음 — '바로 쓸 수 있어요'로 단정하지 않는다.
+    expect(tileMarkText(tester, 'mw'), isNull);
+    expect(findPlainText('준비됐어요'), findsNothing);
     expect(find.textContaining('바로 쓸 수 있어요'), findsNothing);
   });
 
@@ -460,7 +464,9 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
-    expect(find.bySemanticsLabel('세탁기, 설정이 필요해요'), findsOneWidget);
+    // 사용자 결정(10/19): 타일 이름과, 오른쪽 위 표시가 상태 문장을 그대로 읽는다.
+    expect(find.bySemanticsLabel('세탁기'), findsOneWidget);
+    expect(find.bySemanticsLabel(kTilePanelSetup), findsOneWidget);
     expect(find.bySemanticsLabel('저녁 데우기 실행하기'), findsOneWidget);
     handle.dispose();
   });
@@ -513,7 +519,8 @@ void main() {
   });
 
   // ── 2026-10-14 보드 날 발견 7: 낱말 중간 줄바꿈 ─────────────────────────────────────
-  testWidgets('루틴 타일 부제와 가전 타일 상태는 낱말 중간에서 꺾이지 않게 그린다', (tester) async {
+  // 사용자 결정(10/19): 가전 타일 상태 글자는 없앴다 — 루틴 타일 부제만 본다.
+  testWidgets('루틴 타일 부제는 낱말 중간에서 꺾이지 않게 그린다', (tester) async {
     final hub = _Hub(routines: [
       _routine('r-a', '아침 데우기'),
       _routine('r-b', '빨래 시작'),
@@ -526,6 +533,5 @@ void main() {
         .evaluate()
         .isNotEmpty;
     expect(shown(keepPhrasesTogether('주방 전자레인지 · 누를 버튼 1개', wholeParts: true)), isTrue);
-    expect(shown(keepWordsTogether('준비됐어요')), isTrue);
   });
 }

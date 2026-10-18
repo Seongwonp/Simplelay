@@ -13,8 +13,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/display_status.dart';
 import 'package:simplelay/models/appliance.dart';
-import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -104,9 +104,9 @@ void main() {
     // 숨기지 않되, 준비가 안 됐다는 사실은 말한다. 위치를 아직 맞추지 않은 사용자 가전은
     // 타일에 아이콘 점 + 띠 문장 '설정이 필요해요'(평가 7차 10/18: 띠는 문장 하나로).
     // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
-    expect(find.text(keepWordsTogether('설정이 필요해요')), findsNWidgets(5));
+    // 사용자 결정(10/19): 띠 대신 오른쪽 위 설정 톱니 표시 하나씩.
     for (final a in kServerFive) {
-      expect(find.byKey(Key('appliance-setup-dot-${a['id']}')), findsOneWidget);
+      expect(tileMarkText(tester, a['id'] as String), kTilePanelSetup);
     }
   });
 

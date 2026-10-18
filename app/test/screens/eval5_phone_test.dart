@@ -210,10 +210,9 @@ Future<void> _pump(WidgetTester tester, Widget screen,
   }
 }
 
-Icon? _bandIcon(WidgetTester tester, String id) {
-  final icons = find.descendant(of: find.byKey(Key('appliance-band-$id')), matching: find.byType(Icon));
-  return icons.evaluate().isEmpty ? null : tester.widget<Icon>(icons.first);
-}
+/// 가전 그림 아이콘(사용자 결정 10/19 — 켜짐·꺼짐은 이 아이콘의 색).
+Icon _tileIcon(WidgetTester tester, String id) => tester
+    .widget<Icon>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(Icon)));
 
 final _koreanFont = File('C:/Windows/Fonts/malgun.ttf');
 final _noKoreanFont = _koreanFont.existsSync() ? null : '맑은 고딕 글꼴이 없어 줄 검사를 건너뛰어요';
@@ -236,22 +235,15 @@ void main() {
       expect(ApplianceCategory.parse('washing_machine').icon, isNot(ApplianceCategory.other.icon));
     });
 
-    testWidgets('켜짐(읽은 값)만 초록, 설정 필요는 주황 + 글, 준비는 회색', (tester) async {
+    // 사용자 결정(10/19): 상태 띠 대신 — 켜짐(읽은 값)만 아이콘 강조색, 설정 남음은 톱니 표시, 준비는 표시 없음.
+    testWidgets('켜짐(읽은 값)만 아이콘 강조색, 설정 남음은 톱니 표시, 준비는 표시 없음', (tester) async {
       await _pump(tester, const HomeScreen());
-      // 켜짐 — 본체가 읽은 전원. 초록 + 전원 아이콘 + '켜져 있어요'(평가 7차 10/18: 띠는 문장).
-      expect(find.descendant(of: find.byKey(const Key('appliance-band-air')), matching: findPlainText('켜져 있어요')),
-          findsOneWidget);
-      final on = _bandIcon(tester, 'air')!;
-      expect(on.icon, Icons.power_settings_new);
-      expect(on.color, AppColors.confirmedLight);
-      // 설정 필요 — 주황 + 느낌표 + '설정이 필요해요'.
-      expect(find.descendant(of: find.byKey(const Key('appliance-band-washer')), matching: findPlainText('설정이 필요해요')),
-          findsOneWidget);
-      expect(_bandIcon(tester, 'washer')!.color, AppColors.warningLight);
-      // 준비 — 회색. 확인한 것이 아니므로 초록이 아니다.
-      expect(find.descendant(of: find.byKey(const Key('appliance-band-mw')), matching: findPlainText('준비됐어요')),
-          findsOneWidget);
-      expect(_bandIcon(tester, 'mw')!.color, isNot(AppColors.confirmedLight));
+      expect(_tileIcon(tester, 'air').color, AppColors.primaryLight);
+      expect(tileMarkText(tester, 'air'), isNull);
+      expect(tileMarkIcon(tester, 'washer'), Icons.settings_rounded);
+      // 준비 — 표시 없음. 확인한 것이 아니므로 강조색이 아니다.
+      expect(tileMarkText(tester, 'mw'), isNull);
+      expect(_tileIcon(tester, 'mw').color, isNot(AppColors.primaryLight));
       // 타일 아이콘은 가전마다 — 공기청정기는 바람.
       expect(find.descendant(of: find.byKey(const Key('appliance-card-air')), matching: find.byIcon(Icons.air)),
           findsOneWidget);

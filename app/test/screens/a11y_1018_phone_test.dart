@@ -198,12 +198,11 @@ void main() {
       expect(find.descendant(of: card, matching: findPlainText('LG 세탁기')), findsNothing);
     });
 
-    testWidgets("연습 가전 '확인 전이에요' 띠는 물음표 아이콘(본체와 같은 모양)", (tester) async {
+    // 사용자 결정(10/19): 띠 대신 같은 '?' 표시(본체와 같은 모양·문장).
+    testWidgets("연습 가전 전원 모름은 '?' 표시(본체와 같은 모양)", (tester) async {
       await _pump(tester, const HomeScreen());
-      final status = find.byKey(const Key('appliance-status-pwash'));
-      expect(find.descendant(of: status, matching: findPlainText(kThinqUncheckedText)), findsOneWidget);
-      expect(find.descendant(of: status, matching: find.byIcon(Icons.help_outline)), findsOneWidget);
-      expect(find.descendant(of: status, matching: find.byIcon(Icons.science_outlined)), findsNothing);
+      expect(tileMarkIcon(tester, 'pwash'), Icons.question_mark_rounded);
+      expect(tileMarkText(tester, 'pwash'), kTilePowerUnknown);
     });
   });
 

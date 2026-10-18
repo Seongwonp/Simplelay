@@ -11,7 +11,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/execution_status.dart';
-import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
@@ -106,7 +105,9 @@ void main() {
       expect(opened, kTestAppliance.id);
     });
 
-    testWidgets('실행 대상 가전 카드는 "버튼 조작 중"을 글자로도 말한다', (tester) async {
+    // 사용자 결정(10/19): 타일 화면 글자는 없앴다 — 색만으로 말하지 않는 것은 화면 읽기 이름과 진행 막대가 맡는다.
+    testWidgets('실행 대상 가전 카드는 "버튼 조작 중"을 화면 읽기로 말한다', (tester) async {
+      final handle = tester.ensureSemantics();
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(
         connected: true,
@@ -123,11 +124,14 @@ void main() {
       // 색만으로 말하지 않는다(UI 확정 §1-4). 가전이 '돌아가는 중'이라고는
       // 하지 않는다 — 아는 것은 우리 누름 장치의 버튼 조작 진행뿐이다(2026-10-13).
       // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
-      expect(find.text(keepWordsTogether('버튼 누르는 중 1/2')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('버튼 누르는 중 1/2')), findsOneWidget);
+      expect(find.byKey(Key('appliance-progress-${kTestAppliance.id}')), findsOneWidget);
       expect(find.textContaining('동작 중'), findsNothing);
+      handle.dispose();
     });
 
     testWidgets('실행 모드를 모르면 실물·모의를 추정하지 않는다', (tester) async {
+      final handle = tester.ensureSemantics();
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(
         connected: true,
@@ -139,7 +143,8 @@ void main() {
       ));
       await tester.pump();
       // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
-      expect(find.text(keepWordsTogether('하는 중이에요')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('하는 중이에요')), findsOneWidget);
+      handle.dispose();
     });
   });
 

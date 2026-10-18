@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/display_status.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -124,18 +125,12 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
-Finder _inTile(String text, [String id = 'a']) => find.descendant(
-    // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자(U+2060)를 넣어 그린다(2026-10-14) — 빼고 비교한다.
-    of: find.byKey(Key('appliance-card-$id')),
-    matching: find.byWidgetPredicate(
-        (w) => w is Text && (w.data ?? '').replaceAll('\u2060', '') == text));
+/// 타일이 그 말을 하는가 — 사용자 결정(10/19)부터 상태 문장은 오른쪽 위 문제 표시의 문장이다.
+Finder _inTile(String text, [String id = 'a']) => findTileSays(id, text);
 
-/// 타일 상태 줄이 **무언가를 말하는가**. 평소(실행 가능)에는 할 일 '준비됐어요'만 적는다(평가 3차 10/18 —
-/// 그 전에는 줄이 없었다). 그 말이면 긍정 상태로 보고 찾지 않는다 — 없으면 긍정, 있으면 무언가를 말한다.
-Finder _statusLine([String id = 'a']) => find.descendant(
-    of: find.byKey(Key('appliance-status-$id')),
-    matching: find.byWidgetPredicate(
-        (w) => w is Text && (w.data ?? '').replaceAll('⁠', '') != '준비됐어요'));
+/// 타일이 **무언가 문제를 말하는가** — 사용자 결정(10/19): 평소(실행 가능)에는 표시가 없고, 문제가 있을 때만 오른쪽 위
+/// 표시 하나. 없으면 긍정, 있으면 무언가를 말한다.
+Finder _statusLine([String id = 'a']) => find.byKey(Key('appliance-mark-$id'));
 
 Future<_Conn> _pumpHome(WidgetTester tester, _Server server) async {
   tester.view.physicalSize = const Size(400, 2400);
@@ -164,7 +159,7 @@ Future<_Conn> _pumpHome(WidgetTester tester, _Server server) async {
 Future<void> _reconnect(WidgetTester tester, _Conn conn) async {
   conn.set(RpiConnectionState.unreachable);
   await _settle(tester);
-  expect(_inTile('본체 연결을 봐 주세요'), findsOneWidget);
+  expect(_inTile(kTileUnusableHub), findsOneWidget); // 쓸 수 없음 '!' 표시(10/19)
   conn.set(RpiConnectionState.connected);
   await _settle(tester);
 }
@@ -245,8 +240,8 @@ void main() {
           reason: '다시 받는 동안 예전 긍정을 쓰지 않는다');
       await tester.pump(const Duration(seconds: 3));
       await _settle(tester);
-      expect(_inTile('설정이 필요해요'), findsOneWidget);
-      expect(_inTile(_estopReason), findsOneWidget, reason: '서버가 준 사유 그대로');
+      // 사용자 결정(10/19): 쓸 수 없음 '!' 표시 — 문장 둘째 마디가 서버가 준 사유 그대로.
+      expect(tileMarkText(tester, 'a'), '지금은 쓸 수 없어요. $_estopReason');
       expect(_statusLine(), findsOneWidget);
       // 걸림의 범위는 서버가 정한다 — 모의 실행기 가전까지 폰이 일괄로 막지 않는다.
       expect(_statusLine('m'), findsNothing);
@@ -257,7 +252,7 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
       await _settle(tester);
       expect(_statusLine(), findsNothing);
-      expect(_inTile('설정이 필요해요'), findsNothing);
+      expect(tileMarkText(tester, 'a'), isNull);
     });
   });
 }

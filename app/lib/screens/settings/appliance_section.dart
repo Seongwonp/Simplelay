@@ -162,7 +162,7 @@ class _ThinqApplianceList extends ConsumerWidget {
                 a.name,
                 'LG 가전',
                 if (mock) '연습',
-                a.canExecute ? '쓸 수 있어요' : '지금은 못 써요',
+                a.canExecute ? '쓸 수 있어요' : '지금은 쓸 수 없어요',
                 ...a.reasons,
               ].join('. '),
               child: ExcludeSemantics(

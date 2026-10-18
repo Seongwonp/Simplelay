@@ -216,8 +216,8 @@ void main() {
   group('3. 홈 가전 칸', () {
     testWidgets("자리 확인을 모르면 '버튼 자리를 다시 맞춰 주세요'", (tester) async {
       await _pump(tester, const HomeScreen(), installed: const []);
-      final band = find.byKey(const Key('appliance-band-mw'));
-      expect(_in(band, findPlainText('버튼 자리를 다시 맞춰 주세요')), findsOneWidget);
+      // 사용자 결정(10/19): 띠 대신 설정 톱니 표시의 문장.
+      expect(tileMarkText(tester, 'mw'), '버튼 자리를 다시 맞춰 주세요');
       expect(findPlainText('자리 확인을 했는지 몰라요'), findsNothing);
       expect(_in(find.byKey(const Key('appliance-card-mw')), findPlainText('준비됐어요')), findsNothing);
     });

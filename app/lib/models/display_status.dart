@@ -41,8 +41,50 @@ enum TileTone {
   off,
 }
 
+/// 타일 오른쪽 위 문제 표시의 모양(사용자 결정 10/19, 키오스크 `KioskTileMark`와 같다) — 문제가 있을 때만 하나.
+enum TileMark {
+  /// 쓸 수 없음(연결 끊김·본체 연결) — '!'.
+  unusable,
+
+  /// 확인 전·모름 — '?'.
+  unknown,
+
+  /// 설정이 남음 — 톱니.
+  setup,
+}
+
+/// 문제 표시 하나 — 모양과, 누르면 말풍선·화면 읽기로 말할 부드러운 한두 문장.
+class TileIssue {
+  const TileIssue(this.mark, this.text);
+  final TileMark mark;
+  final String text;
+
+  @override
+  bool operator ==(Object other) => other is TileIssue && other.mark == mark && other.text == text;
+
+  @override
+  int get hashCode => Object.hash(mark, text);
+
+  @override
+  String toString() => 'TileIssue($mark, $text)';
+}
+
+/// 표시 문장 — 키오스크 `appliance_strip.dart`의 같은 이름 상수와 **같은 말**(10/19).
+const kTileUnusableLink = '지금은 쓸 수 없어요. 연결을 확인해 주세요';
+const kTileUnusableHub = '지금은 쓸 수 없어요. 본체 연결을 확인해 주세요';
+const kTileUnusableHubSetup = '지금은 쓸 수 없어요. 본체 연결 설정을 마쳐 주세요';
+const kTilePanelSetup = '버튼 자리를 아직 맞추지 않았어요. 가족이 휴대폰에서 설정해요';
+const kTileSetupLeft = '아직 설정이 남았어요. 가족이 휴대폰에서 설정해요';
+const kTilePowerUnknown = '켜져 있는지 아직 확인하지 못했어요';
+const kTileReadyUnknown = '쓸 수 있는지 아직 확인하지 못했어요';
+const kTileRunUnknown = '지금 어떻게 되고 있는지 아직 확인하지 못했어요';
+const kTileChecking = '본체에 물어보는 중이에요. 잠시 기다려 주세요';
+
 class TileStatus {
-  const TileStatus(this.text, this.tone, {this.detail, this.progress = false});
+  const TileStatus(this.text, this.tone, {this.detail, this.progress = false, this.issue});
+
+  /// 문제 표시(사용자 결정 10/19). 평소(실행 가능·읽은 켜짐/꺼짐·버튼 조작 중)는 null — 표시 없음.
+  final TileIssue? issue;
 
   /// 타일에 보일 한 줄. Semantics 이름에도 그대로 넣는다.
   final String text;
@@ -60,10 +102,11 @@ class TileStatus {
       other.text == text &&
       other.tone == tone &&
       other.detail == detail &&
-      other.progress == progress;
+      other.progress == progress &&
+      other.issue == issue;
 
   @override
-  int get hashCode => Object.hash(text, tone, detail, progress);
+  int get hashCode => Object.hash(text, tone, detail, progress, issue);
 
   @override
   String toString() => 'TileStatus($text, $tone, detail: $detail)';
@@ -140,7 +183,8 @@ TileStatus applianceTileStatus({
     final thinq = appliance.isThinq;
     switch (execution.phase) {
       case ExecutionPhase.unknown:
-        return const TileStatus('지금 상태를 몰라요', TileTone.attention);
+        return const TileStatus('지금 상태를 몰라요', TileTone.attention,
+            issue: TileIssue(TileMark.unknown, kTileRunUnknown));
       case ExecutionPhase.waiting:
         return const TileStatus('차례를 기다려요', TileTone.active);
       case ExecutionPhase.running:
@@ -168,20 +212,25 @@ TileStatus applianceTileStatus({
   // 2. 허브 장애가 가전 판정보다 앞선다 — 옛 '준비됨'을 지금의 사실로 쓰지 않는다.
   switch (hub) {
     case RpiConnectionState.unreachable:
-      return const TileStatus('본체 연결을 봐 주세요', TileTone.attention);
+      return const TileStatus('본체 연결을 봐 주세요', TileTone.attention,
+          issue: TileIssue(TileMark.unusable, kTileUnusableHub));
     case RpiConnectionState.keyRequired:
     case RpiConnectionState.unconfigured:
-      return const TileStatus('본체 연결 설정이 필요해요', TileTone.attention);
+      return const TileStatus('본체 연결 설정이 필요해요', TileTone.attention,
+          issue: TileIssue(TileMark.unusable, kTileUnusableHubSetup));
     case RpiConnectionState.checking:
-      return const TileStatus('확인하는 중이에요', TileTone.unknown);
+      return const TileStatus('확인하는 중이에요', TileTone.unknown,
+          issue: TileIssue(TileMark.unknown, kTileChecking));
     case RpiConnectionState.connected:
       break;
   }
   switch (catalog) {
     case ServerCatalogStatus.loading:
-      return const TileStatus('확인하는 중이에요', TileTone.unknown);
+      return const TileStatus('확인하는 중이에요', TileTone.unknown,
+          issue: TileIssue(TileMark.unknown, kTileChecking));
     case ServerCatalogStatus.failed:
-      return const TileStatus('본체 연결을 봐 주세요', TileTone.attention);
+      return const TileStatus('본체 연결을 봐 주세요', TileTone.attention,
+          issue: TileIssue(TileMark.unusable, kTileUnusableHub));
     case ServerCatalogStatus.unconfigured: // 허브 상태가 이미 위에서 말했다 — 아래 판정(미확인)으로
     case ServerCatalogStatus.loaded:
       break;
@@ -189,42 +238,60 @@ TileStatus applianceTileStatus({
 
   // 3. 위치를 아직 맞추지 않은 가전 — 설치 근거가 있는 '설정'.
   if (needsPanelMapping(appliance)) {
-    return const TileStatus(kSetupNeededText, TileTone.attention);
+    return const TileStatus(kSetupNeededText, TileTone.attention,
+        issue: TileIssue(TileMark.setup, kTilePanelSetup));
   }
 
   // 4. 서버 판정. 들은 적이 없으면 canExecute 기본값(true)으로 긍정하지 않는다.
   final r = readinessSource;
   if (r == null || !r.readinessKnown) {
-    return const TileStatus('준비됐는지 몰라요', TileTone.unknown);
+    return const TileStatus('준비됐는지 몰라요', TileTone.unknown,
+        issue: TileIssue(TileMark.unknown, kTileReadyUnknown));
   }
   final reason = r.readinessReasons.isEmpty ? null : r.readinessReasons.first;
   switch (r.readiness) {
     case 'operable':
       // 평소(실행 가능)는 말하지 않는다 — 빈 상태 줄(2026-10-14 UX). 문제 상태만 적는다.
       if (!r.canExecute) {
-        return const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown);
+        return const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown,
+            issue: TileIssue(TileMark.unknown, kTileReadyUnknown));
       }
       // 켜진 ThinQ 가전만 말한다(서버가 최근 10분 안에 읽은 전원). 모르면 비운다 — 꺼짐이라 단정하지 않는다.
       if (appliance.isThinq && thinqOn) return const TileStatus('켜져 있어요', TileTone.on);
       if (appliance.isThinq && thinqOff) return const TileStatus('꺼져 있어요', TileTone.off);
       // 전원을 모르는 LG 가전은 '확인 전이에요'(휴리스틱 평가 10/18: 누름 장치용 손 아이콘 '준비됐어요'가 붙어 누르는
       // 가전처럼 보였다). LG 가전은 누를 버튼이 없다 — 상태는 본체가 읽은 전원으로만 말한다.
-      if (appliance.isThinq) return const TileStatus(kThinqUncheckedText, TileTone.unknown);
+      if (appliance.isThinq) {
+        return const TileStatus(kThinqUncheckedText, TileTone.unknown,
+            issue: TileIssue(TileMark.unknown, kTilePowerUnknown));
+      }
       return const TileStatus('', TileTone.ready);
     case 'needs_setup':
       // 서버는 비상정지 걸림·링크 확인 대기도 needs_setup으로 보낸다 —
       // '설정'이라 단정하지 않고 서버의 이유를 그대로 붙인다.
       // 띠 말은 키오스크와 같은 '설정이 필요해요'(휴리스틱 평가 10/18: 폰만 '준비가 필요해요'였다). 무엇 때문인지는
       // 서버 이유를 짧게 줄인 한 줄([tileReasonText])이 말한다.
+      // 표시(10/19): 서버 이유가 없으면 설정 톱니('아직 설정이 남았어요…', 키오스크와 같은 말). 이유가 있으면(비상정지 걸림·
+      // 누름 장치 위치 등 — 설정이 아닐 수 있다) '!' 쓸 수 없음 + 그 이유를 짧게.
       return r.canExecute
-          ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown)
-          : TileStatus(kSetupNeededText, TileTone.attention, detail: reason == null ? null : tileReasonText(reason));
+          ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown,
+              issue: TileIssue(TileMark.unknown, kTileReadyUnknown))
+          : TileStatus(kSetupNeededText, TileTone.attention,
+              detail: reason == null ? null : tileReasonText(reason),
+              issue: reason == null
+                  ? const TileIssue(TileMark.setup, kTileSetupLeft)
+                  : TileIssue(TileMark.unusable, '지금은 쓸 수 없어요. ${tileReasonText(reason)}'));
     case 'disconnected':
       return r.canExecute
-          ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown)
-          : TileStatus('연결이 필요해요', TileTone.attention, detail: reason == null ? null : tileReasonText(reason));
+          ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown,
+              issue: TileIssue(TileMark.unknown, kTileReadyUnknown))
+          : TileStatus('연결이 필요해요', TileTone.attention,
+              detail: reason == null ? null : tileReasonText(reason),
+              issue: TileIssue(TileMark.unusable,
+                  reason == null ? kTileUnusableLink : '지금은 쓸 수 없어요. ${tileReasonText(reason)}'));
     default:
-      return const TileStatus('준비됐는지 몰라요', TileTone.unknown);
+      return const TileStatus('준비됐는지 몰라요', TileTone.unknown,
+          issue: TileIssue(TileMark.unknown, kTileReadyUnknown));
   }
 }
 
