@@ -20,6 +20,7 @@ class KioskPalette {
     required this.border,
     required this.panelText,
     required this.onAccent,
+    required this.tileDim,
   });
 
   final Color primary;
@@ -38,6 +39,10 @@ class KioskPalette {
   final Color border;
   final Color panelText;
   final Color onAccent;
+
+  /// 가전 타일의 흐린 모양(꺼짐·아무 작동 없음) 아이콘·이름 색(사용자 결정 10/19, 두 번째). 밝은 모양은 흰색.
+  /// 타일 면 위 4.5:1 이상이면서 흰색과 눈으로 구분되는 회색 — 대비 값은 `test/kiosk_tile_power_1019_test.dart`가 지킨다.
+  final Color tileDim;
 }
 
 // 앱(AppColors)과 동일한 골드 팔레트 — 두 화면 간 시각적 통일감 유지.
@@ -79,6 +84,8 @@ class KioskColors {
     // 채도 있는 색을 **면으로** 쓸 때 얹는 글자색 (앱 AppColors.onAccent와 동일).
     // 초록 위 흰 글자는 2.25:1로 큰 글씨여도 미달이었다 — 검정이면 9.34:1이다.
     onAccent: Color(0xFF000000),
+    // 흐린 타일(꺼짐) — 면(surface) 위 5.5:1 언저리. muted(#AEB3C0)는 흰색과 너무 비슷해 켜짐·꺼짐이 갈리지 않는다.
+    tileDim: Color(0xFF8E93A0),
   );
 
   /// 고대비 색(사용자 결정 10/18). 값은 출발값이다 — 실패널에서 보고 고친다(추측/실패널에서 측정 필요).
@@ -100,6 +107,8 @@ class KioskColors {
     border: Color(0xFFE6E6E6),
     panelText: Color(0xFFFFFFFF),
     onAccent: Color(0xFF000000),
+    // 고대비의 muted는 흰색이라 흐린 타일이 켜진 타일과 같아진다 — 검정 위 8:1 언저리 회색(너무 어둡지 않게).
+    tileDim: Color(0xFFA0A0A0),
   );
 
   static KioskPalette _p = standard;
@@ -129,4 +138,5 @@ class KioskColors {
   static Color get border => _p.border;
   static Color get panelText => _p.panelText;
   static Color get onAccent => _p.onAccent;
+  static Color get tileDim => _p.tileDim;
 }

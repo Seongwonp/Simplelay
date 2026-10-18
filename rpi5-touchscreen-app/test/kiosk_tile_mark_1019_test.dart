@@ -1,7 +1,7 @@
 // 가전 타일 단순화(사용자 결정 2026-10-19) — 옛 코드(상태 띠)에서 실패하는 것을 확인한 시험.
 //
 // 1. 평소 타일은 아이콘 + 이름만 — 아래 상태 글자 띠('준비됐어요'·'꺼져 있어요'·'확인 전이에요' 등) 없음.
-//    LG 가전 전원은 아이콘 자체로: 켜짐 = 강조색(밝게), 꺼짐 = 흐리게. 연습 배지는 그대로.
+//    LG 가전 전원은 아이콘 자체로: 켜짐 = 밝게, 꺼짐 = 흐리게(10/19 두 번째: 강조색 대신 흰색 — kiosk_tile_power_1019_test). 연습 배지는 그대로.
 // 2. 문제가 있을 때만 오른쪽 위 작은 표시 하나: 쓸 수 없음 '!', 확인 전·모름 '?', 설정 남음 톱니.
 // 3. 표시를 누르면 말풍선(부드러운 한두 문장), 몇 초 뒤 닫힘. 타일 본체를 누르면 지금처럼 가전 화면.
 //    누르는 자리 60px 이상. 화면 읽기는 표시에서 상태 문장을 그대로 읽는다.
@@ -89,11 +89,12 @@ void main() {
     expect(texts, contains('전자레인지'));
   });
 
-  testWidgets('1. LG 가전 전원은 아이콘 색 — 켜짐 강조색, 꺼짐 흐리게', (tester) async {
+  // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐은 흰 아이콘(밝게), 꺼짐·모름·쉬는 중은 tileDim(흐리게). 강조색은 쓰지 않는다.
+  testWidgets('1. LG 가전 전원은 아이콘 밝기 — 켜짐 밝게, 꺼짐 흐리게', (tester) async {
     await _pump(tester, _strip([_air], on: {'air'}));
-    expect(_iconColor(tester, 'air', _air.icon), KioskColors.primary);
+    expect(_iconColor(tester, 'air', _air.icon), Colors.white);
     await _pump(tester, _strip([_air], off: {'air'}));
-    expect(_iconColor(tester, 'air', _air.icon), KioskColors.muted);
+    expect(_iconColor(tester, 'air', _air.icon), KioskColors.tileDim);
   });
 
   testWidgets("2. 전원을 모르는 LG 가전은 '?' — 화면 읽기는 문장 그대로", (tester) async {

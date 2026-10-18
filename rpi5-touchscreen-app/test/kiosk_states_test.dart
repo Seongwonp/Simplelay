@@ -392,15 +392,16 @@ void main() {
       final first = tester.getRect(find.byKey(const ValueKey('strip-intercom')));
       final second = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(first.left, lessThan(second.left));
-      // 사용자 결정(10/19): 글자 대신 아이콘 강조색.
-      expect(tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-intercom'))).color, KioskColors.primary);
+      // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐은 흰 아이콘(밝게), 꺼짐·모름·쉬는 중은 tileDim(흐리게). 강조색은 쓰지 않는다.
+      expect(tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-intercom'))).color, Colors.white);
     });
 
     testWidgets('전원 상태를 모르면 "켜져 있어요"을 달지 않고 순서도 등록 순서 그대로', (tester) async {
       final api = FakeKioskApi()..applianceList = _six;
       await _pump(tester, api);
       expect(find.text('켜져 있어요'), findsNothing);
-      expect(tester.widgetList<Icon>(find.byType(Icon)).where((i) => i.color == KioskColors.primary && i.key is ValueKey && '${(i.key as ValueKey).value}'.startsWith('tile-icon-')), isEmpty);
+      // 10/19 두 번째: 모르면 밝게 그리지 않는다 — 켜짐·실행 중이 없으니 모든 타일 아이콘이 흐리다.
+      expect(tester.widgetList<Icon>(find.byType(Icon)).where((i) => i.color == Colors.white && i.key is ValueKey && '${(i.key as ValueKey).value}'.startsWith('tile-icon-')), isEmpty);
       expect(find.byKey(const ValueKey('strip-intercom')), findsNothing);
       expect(find.byKey(const ValueKey('strip-microwave')), findsOneWidget);
     });
@@ -414,13 +415,13 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('strip-intercom')), findsOneWidget);
       Color? icon() => tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-intercom'))).color;
-      expect(icon(), KioskColors.primary);
+      expect(icon(), Colors.white); // 10/19 두 번째: 켜짐 = 밝게
       // 다시 모르게 되면 표시를 내린다(지어내지 않는다).
       api.powerOn = {};
       await tester.pump(const Duration(seconds: 10));
       await tester.pump();
       final f = find.byKey(const ValueKey('tile-icon-intercom'));
-      expect(f.evaluate().isEmpty || icon() != KioskColors.primary, isTrue);
+      expect(f.evaluate().isEmpty || icon() == KioskColors.tileDim, isTrue);
     });
   });
 

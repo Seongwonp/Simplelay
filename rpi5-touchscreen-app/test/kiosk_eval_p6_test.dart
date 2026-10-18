@@ -136,12 +136,14 @@ void main() {
       expect(_air.needsPanelMapping, isFalse, reason: 'LG 가전은 누를 자리가 없다');
     });
 
-    testWidgets('켜짐은 아이콘 강조색 — 작동 중·준비와 갈린다', (tester) async {
+    // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐은 흰 아이콘(밝게), 꺼짐·모름·쉬는 중은 tileDim(흐리게). 강조색은 쓰지 않는다.
+    // 누름 장치 가전은 켜짐을 읽을 수 없어 실행 중일 때만 밝다 — 준비된 전자레인지는 흐리다.
+    testWidgets('켜짐은 아이콘 밝게 — 쉬는 누름 장치 가전과 갈린다', (tester) async {
       await _pump(tester, _idle([_microwave, _air, _mapped], running: {'rice'}, on: {'air_purifier'}));
-      expect(_icon(tester, 'air_purifier'), KioskColors.primary);
+      expect(_icon(tester, 'air_purifier'), Colors.white);
       expect(_issue(tester, 'air_purifier'), isNull);
-      expect(_icon(tester, 'microwave'), isNot(KioskColors.primary));
-      expect(_icon(tester, 'rice'), isNot(KioskColors.primary));
+      expect(_icon(tester, 'microwave'), KioskColors.tileDim);
+      expect(_icon(tester, 'rice'), Colors.white, reason: '지금 실행 중인 누름 장치 가전은 밝다');
     });
 
     // 출시 검토(10/18): 쓸 수 없음은 이유와 상관없이 한 모양 — 이제 '!' 표시(10/19), 이유는 문장.

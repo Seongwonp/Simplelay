@@ -6,7 +6,6 @@ import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
-import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/route_badge.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/thinq_panel.dart';
 
@@ -132,8 +131,9 @@ void main() {
       final purifier = tester.getRect(find.byKey(const ValueKey('strip-air_purifier')));
       final microwave = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(purifier.left, lessThan(microwave.left));
-      // 사용자 결정(10/19): 글자 대신 아이콘 강조색, 화면 읽기는 그대로 '켜져 있어요'.
-      expect(tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-air_purifier'))).color, KioskColors.primary);
+      // 사용자 결정(10/19): 글자 대신 아이콘, 화면 읽기는 그대로 '켜져 있어요'.
+      // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐은 흰 아이콘(밝게), 꺼짐·모름·쉬는 중은 tileDim(흐리게). 강조색은 쓰지 않는다.
+      expect(tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-air_purifier'))).color, Colors.white);
       expect(find.bySemanticsLabel(RegExp(r'LG 가전, 켜져 있어요, 자세히 보기')), findsOneWidget);
       expect(tester.takeException(), isNull);
     }

@@ -46,7 +46,8 @@ bool _notReadyYet(ApplianceMap a) =>
 /// 등록된 가전 타일 줄 — 한 번에 [perPage]개, 화살표·손가락 밀기로 넘긴다.
 ///
 /// 타일은 아이콘 + 이름만(사용자 결정 2026-10-19 — 아래 상태 글자 띠를 없앴다). 상태는 색만으로 말하지 않는다:
-/// - LG 가전·연습 가전 전원은 서버가 **읽은** 것만 아이콘 색으로 — 켜짐 강조색, 꺼짐 흐리게. 모르면 '?' 표시.
+/// - 밝기 = 켜짐·작동 중(사용자 결정 10/19, 두 번째): 밝게(흰 아이콘·흰 이름)는 [kioskTileLit]일 때만, 그 밖은 흐리게
+///   ([KioskColors.tileDim]). 카드 면은 바꾸지 않는다. LG 가전 전원을 모르면 흐리게 + '?' 표시.
 /// - 문제가 있을 때만 오른쪽 위 작은 표시 하나 — 쓸 수 없음 '!', 확인 전·모름 '?', 설정 남음 톱니.
 ///   누르면 말풍선으로 한두 문장, 화면 읽기는 그 문장을 그대로 읽는다([KioskTileMarkButton]).
 /// - 작동 중은 흰 테, 지난 실행 확인 필요는 노란 테에 느린 숨쉬기 3번(동작 줄이기 설정이면 멈춘 테).
@@ -105,8 +106,7 @@ class KioskApplianceStrip extends StatefulWidget {
   /// 가전 타일 높이(화면 구조 개편 10/18 — 큰 사각 타일).
   final double tileHeight;
 
-  /// 지금 쓸 수 없는 가전(평가 3차 10/18) — 누름 장치 연결이 끊기면 누름 장치가 누르는 가전. 타일을 흐리게 하고
-  /// 오른쪽 위 '!' 표시('지금은 쓸 수 없어요…')를 단다. 누르면 무엇을 할지는 평소 화면이 정한다(연결 창). LG 가전은 넣지 않는다.
+  /// 지금 쓸 수 없는 가전(평가 3차 10/18) — 누름 장치 연결이 끊기면 누름 장치가 누르는 가전. 오른쪽 위 '!' 표시('지금은 쓸 수 없어요…')를 단다. 누르면 무엇을 할지는 평소 화면이 정한다(연결 창). LG 가전은 넣지 않는다.
   final Set<String> unavailable;
 
   /// [unavailable]이 비상 버튼 때문인가 — 표시 문장이 그 이유를 말한다(10/19).
@@ -433,7 +433,7 @@ class _StripItemState extends State<_StripItem>
     final a = widget.appliance;
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     // 큰 사각 타일 — 평소에는 아이콘 + 이름만(사용자 결정 10/19: 아래 상태 글자 띠가 너무 복잡했고 '못 써요'는 무례하게
-    // 들렸다). LG 가전 전원은 아이콘 자체로 — 읽은 켜짐 = 강조색(실제 기기 불빛처럼), 읽은 꺼짐 = 흐리게. 문제가 있을 때만
+    // 들렸다). 켜짐·작동 중은 아이콘·이름을 밝게, 꺼짐·모름·쉬는 중은 흐리게([kioskTileLit]). 문제가 있을 때만
     // 오른쪽 위 작은 표시 하나([KioskTileMarkButton]), 누르면 부드러운 한두 문장. 상태를 지어내지 않는다.
     final issue = kioskTileIssue(
       a,
@@ -445,13 +445,11 @@ class _StripItemState extends State<_StripItem>
       off: widget.off,
     );
     final word = kioskTileStateWord(a, running: widget.running, on: widget.on, off: widget.off);
-    final lit = !widget.running && !widget.unavailable && widget.on;
-    final dark = !widget.running && !widget.on && widget.off && a.isThinq;
-    final iconColor = widget.unavailable || dark
-        ? KioskColors.muted
-        : lit
-            ? KioskColors.primary
-            : Colors.white;
+    // 밝기 = 켜짐·작동 중(사용자 결정 10/19, 두 번째) — 밝게(흰 아이콘·흰 이름)는 [kioskTileLit]일 때만, 그 밖은 흐리게.
+    // 문제('!'·'?'·톱니)라고 따로 흐리게 하지 않는다(옛 규칙: 쓸 수 없으면 반투명 — 실패널에서 '흐림 = 문제'로 읽혔다).
+    final fg = kioskTileLit(a, running: widget.running, on: widget.on, off: widget.off)
+        ? Colors.white
+        : KioskColors.tileDim;
     final edge = widget.attention
         ? KioskColors.warning
         : widget.running
@@ -494,12 +492,8 @@ class _StripItemState extends State<_StripItem>
           },
           child: Material(
             clipBehavior: Clip.antiAlias,
-            // 지금 쓸 수 없으면 바탕을 꺼진 것처럼 어둡게 — 무엇 때문인지는 오른쪽 위 표시와 누르면 여는 창이 말한다.
-            color: widget.unavailable
-                ? KioskColors.bg
-                : widget.running
-                    ? KioskColors.surface2
-                    : KioskColors.surface,
+            // 카드 면은 밝기 규칙과 상관없다(사용자 결정 10/19, 두 번째 — 쓸 수 없을 때 어둡게 하던 면을 없앴다).
+            color: widget.running ? KioskColors.surface2 : KioskColors.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(color: edge, width: widget.attention || widget.running ? 2 : 1),
@@ -511,14 +505,14 @@ class _StripItemState extends State<_StripItem>
                 height: widget.tileHeight,
                 child: Padding(
                   padding: const EdgeInsets.all(KioskSpace.sm),
-                  child: Opacity(
+                  // 쓸 수 없음 표지(시험·평소 화면이 찾는 열쇠)만 남기고 반투명은 없앴다(10/19, 두 번째).
+                  child: KeyedSubtree(
                     key: widget.unavailable ? ValueKey('tile-unavailable-${a.id}') : null,
-                    opacity: widget.unavailable ? 0.5 : 1,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          Icon(a.icon, key: ValueKey('tile-icon-${a.id}'), size: iconSize, color: iconColor),
+                          Icon(a.icon, key: ValueKey('tile-icon-${a.id}'), size: iconSize, color: fg),
                           // 연습 가전(서버 이름 표기 '(연습)')은 '연습' 배지 그대로(정직성) — 문제 표시가 있으면 그 왼쪽.
                           // 남는 폭은 배지 칸 하나가 가진다(Spacer와 나누면 배지가 반으로 줄었다).
                           Expanded(
@@ -544,7 +538,7 @@ class _StripItemState extends State<_StripItem>
                               fontSize: widget.labelSize,
                               height: 1.15,
                               fontWeight: FontWeight.w700,
-                              color: widget.unavailable ? KioskColors.muted : Colors.white),
+                              color: fg),
                         ),
                         // 'LG 가전'은 오른쪽 위 배지가 아니라 이름 아래 작은 글자(10/19 — 오른쪽 위는 문제 표시 자리).
                         if (a.isThinq && !a.isPractice)
@@ -654,13 +648,26 @@ KioskTileIssue? kioskTileIssue(
 }
 
 /// 문제가 아닌 상태 말 — 타일 화면 읽기 이름에만 넣는다(화면 글자는 없다, 10/19). 없으면 null.
+///
+/// 밝기(색)만으로 말하지 않는다(10/19, 두 번째): 누름 장치 가전이 흐린 것은 '작동 중 아님' — 허브가 지금 누르고 있지 않다는
+/// 뜻까지만(가전이 꺼졌다고 단정하지 않는다). LG 가전 전원을 모르면 null — '?' 표시 문장이 말한다.
 String? kioskTileStateWord(ApplianceMap a, {bool running = false, bool on = false, bool off = false}) {
   // ThinQ는 허브가 설정을 보냈을 뿐 가전이 도는 것을 본 게 아니다(2026-10-15 외부 검토 L2) — '바꾸는 중'.
   if (running) return a.isThinq ? '바꾸는 중' : '작동 중';
   if (on) return '켜져 있어요';
   if (off && a.isThinq) return '꺼져 있어요';
+  if (!a.isThinq) return '작동 중 아님';
   return null;
 }
+
+/// 타일을 밝게(흰 아이콘·흰 이름) 그릴지 — 켜짐·작동 중일 때만(사용자 결정 10/19, 두 번째). 폰 `tileLit`과 같은 규칙.
+///
+/// - 지금 이 가전에서 실행 중([running]) → 밝게. 누름 장치 가전은 켜짐을 읽을 수 없으니 이것뿐이다.
+/// - LG 가전(연습 포함)은 본체가 **읽은** 켜짐([on])만 밝게 — 읽은 꺼짐·모름은 흐리게.
+/// - 가열 감지(CT)로 켜짐을 아는 길은 아직 이 화면에 오지 않는다(콘센트 모듈 미제작) — 근거가 없으니 짐작하지 않는다.
+/// - 문제 표시('!'·'?'·톱니)는 밝기와 별개다.
+bool kioskTileLit(ApplianceMap a, {bool running = false, bool on = false, bool off = false}) =>
+    running || (on && !off);
 
 /// 타일 오른쪽 위 문제 표시 — 보이는 원은 작게, 누르는 자리는 [KioskTileMarkButton.hit](60px) 정사각형.
 /// 누르면 말풍선(몇 초 뒤 또는 바깥을 누르면 닫힘). 화면 읽기는 문장을 그대로 읽는다(색·모양만으로 말하지 않는다).
