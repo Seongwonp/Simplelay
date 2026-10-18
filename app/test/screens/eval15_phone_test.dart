@@ -168,8 +168,8 @@ Map<String, dynamic> _rule(String id, String name, {String kind = 'event', Strin
 
 final _rules = [
   _rule('ar-t', '저녁 공기청정기 켜기', kind: 'time', time: '22:00'),
-  _rule('ar-s', '데우기가 끝나면 공기청정기 세게'),
-  _rule('ar-u', '데우기가 끝나면 공기청정기 켜기'),
+  _rule('ar-s', '전자레인지가 멈추면 공기청정기 세게'),
+  _rule('ar-u', '전자레인지가 멈추면 공기청정기 켜기'),
 ];
 
 http.Response _json(Object body, [int status = 200]) => http.Response.bytes(

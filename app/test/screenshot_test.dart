@@ -212,6 +212,51 @@ void main() {
     });
   });
 
+  // ── 제출용 장면(심사위원 시각 평가 10/18 §3-5) ─────────────────────────────────────────────
+  // 다른 골든의 세탁기 등은 화면 시험용 예시다. 제출 서류·발표 그림에는 지금 실물 구성(작은 팔이 누르는 전자레인지 1대 +
+  // LG 공기청정기)으로 만든 아래 장면만 쓴다. 실행 중은 눌림 센서 판정 없이, 결과는 작은 팔 보고(전력 판정 없음)까지만.
+  testWidgets('제출용 — 홈(전자레인지 + 공기청정기)', (t) async {
+    await _shoot(t, 'submission_home', const HomeScreen(),
+        light: true, installed: _submissionInstalled, hub: _demoHub(submission: true));
+  });
+
+  testWidgets('제출용 — 전자레인지 실행 중', (t) async {
+    await _shoot(t, 'submission_status_running', const StatusScreen(),
+        light: true,
+        installed: _submissionInstalled,
+        settle: false,
+        executionStatus: const ExecutionStatus(
+          phase: ExecutionPhase.running,
+          label: '즉석밥 데워줘',
+          sequenceId: 'sub-1',
+          executionMode: 'real',
+          route: 'physical',
+          applianceId: 'mine_microwave',
+          currentButton: '시작',
+          totalSteps: 2,
+          completedSteps: 1,
+        ));
+  });
+
+  testWidgets('제출용 — 전자레인지 결과(작은 팔 보고)', (t) async {
+    await _shoot(t, 'submission_status_done', const StatusScreen(),
+        light: true,
+        installed: _submissionInstalled,
+        settle: false,
+        executionStatus: const ExecutionStatus(
+          phase: ExecutionPhase.completed,
+          label: '즉석밥 데워줘',
+          sequenceId: 'sub-2',
+          executionMode: 'real',
+          route: 'physical',
+          receipt: 'accepted',
+          confirmation: 'reported',
+          applianceId: 'mine_microwave',
+          totalSteps: 2,
+          completedSteps: 2,
+        ));
+  });
+
   testWidgets('홈 — 큰 글씨 (200%)', (t) async {
     await _shoot(t, 'home_large', const HomeScreen(),
         suggestions: suggestions, textScale: 2.0);
@@ -275,6 +320,8 @@ void main() {
   });
 
   // 폐루프 증거가 표시되는 실행 화면 -- HTTP 경로(원시 mA/dB 없음)라
+  // (10/18 §3-5) 눌림 센서(L1)를 단 구성을 가정한 장면이다 — 지금 실물 구성은 이 판정을 보내지 않으므로 제출 그림에 쓰지
+  // 않는다(제출용은 아래 'submission_*').
   // 센서 차트 대신 "무슨 버튼을 누르고 어떻게 확인했는지"가 자리를 차지한다.
   const runningWithEvidence = ExecutionStatus(
     phase: ExecutionPhase.running,
@@ -930,8 +977,12 @@ final _homeInstalled = <ApplianceMap>[
   }),
 ];
 
+/// 제출용 집 — 지금 실물 구성 그대로: 전자레인지(사진 등록) + 공기청정기(LG).
+final _submissionInstalled = <ApplianceMap>[_homeInstalled[0], _homeInstalled[1]];
+
 /// 골든용 가짜 본체 — 실행 경로는 없다(찍기만 한다).
-RpiApiService _demoHub() {
+/// [submission]이면 지금 실물 구성(전자레인지 + LG 공기청정기)만 — 등록 안 된 세탁기 루틴·알림을 뺀다(10/18 §3-5).
+RpiApiService _demoHub({bool submission = false}) {
   http.Response json(Object body, [int status = 200]) => http.Response.bytes(
       utf8.encode(jsonEncode(body)), status,
       headers: {'content-type': 'application/json'});
@@ -955,6 +1006,10 @@ RpiApiService _demoHub() {
       };
   return RpiApiService('http://hub.test', client: MockClient((req) async {
     final path = req.url.path;
+    // 제출용: 실물 캐리지 이동이 아직 검증되지 않아 실제 확인 주행 기록이 없다 — 있는 척하지 않는다(10/18 §3-5).
+    if (submission && path.endsWith('/verify-pass')) {
+      return json({'detail': VerifyPassLookup.noRecordDetail}, 404);
+    }
     switch (path) {
       case '/appliances':
         return json([
@@ -978,7 +1033,7 @@ RpiApiService _demoHub() {
           },
         ]);
       case '/routines':
-        return json([
+        return json(<Map<String, dynamic>>[
           routine('r-1', '30초 데우기', 'mine_microwave', 2),
           routine('r-2', '아침 데우기', 'mine_microwave', 3),
           routine('r-3', '빨래 시작', 'washer', 1),
@@ -1033,7 +1088,7 @@ RpiApiService _demoHub() {
             'mode': 'approve',
             'enabled': true,
           },
-        ]);
+        ].where((r) => !submission || !const {'r-3', 'r-5'}.contains(r['id'])).toList());
       case '/routines/next':
         return json([
           {
@@ -1066,7 +1121,7 @@ RpiApiService _demoHub() {
           },
           {
             'id': 'ar-2',
-            'name': '데우기가 끝나면 공기청정기 세게',
+            'name': '전자레인지가 멈추면 공기청정기 세게',
             'condition_text': '전자레인지가 데우기를 멈추면',
             'action_text': '공기청정기 바람을 세게 해요',
             'enabled': false,

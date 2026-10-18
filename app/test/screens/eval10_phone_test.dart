@@ -126,7 +126,7 @@ final _rules = [
   },
   {
     'id': 'ar-heat',
-    'name': '데우기가 끝나면 공기청정기 세게',
+    'name': '전자레인지가 멈추면 공기청정기 세게',
     'condition_text': '전자레인지가 데우기를 멈추면',
     'action_text': '공기청정기 바람을 세게 해요',
     'enabled': false,

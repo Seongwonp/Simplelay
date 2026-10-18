@@ -114,7 +114,8 @@ void main() {
       expect(headline.semanticsLabel, '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.');
     });
 
-    testWidgets('검증 결과가 아직 없으면 확인 중임을 알린다', (tester) async {
+    // 10/18 §3-5: 판정이 없으면(지금 실물 구성) 보고 있다고 하지 않는다 — 다음에 무엇이 오는지만.
+    testWidgets('검증 결과가 없으면 확인한다고 하지 않고 결과가 온다고 알린다', (tester) async {
       await _pumpStatus(
         tester,
         const ExecutionStatus(
@@ -124,7 +125,8 @@ void main() {
         ),
       );
       expect(findPlainText('누르는 중'), findsOneWidget);
-      expect(find.text('버튼이 눌렸는지 보고 있어요.'), findsOneWidget);
+      expect(find.text('버튼이 눌렸는지 보고 있어요.'), findsNothing);
+      expect(find.text('다 누르면 결과를 알려 드려요.'), findsOneWidget);
     });
 
     testWidgets('실행 중에는 idle 안내 문구를 쓰지 않는다', (tester) async {

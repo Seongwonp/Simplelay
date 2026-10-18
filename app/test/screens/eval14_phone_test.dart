@@ -129,7 +129,7 @@ Map<String, dynamic> _rule(String id, String name,
 class _Hub {
   List<Map<String, dynamic>> rules = [
     _rule('ar-t', '저녁 공기청정기 켜기', time: '22:00'),
-    _rule('ar-s', '데우기가 끝나면 공기청정기 세게', kind: 'event', value: 'HIGH'),
+    _rule('ar-s', '전자레인지가 멈추면 공기청정기 세게', kind: 'event', value: 'HIGH'),
   ];
   final requests = <String>[];
   final bodies = <String, Map<String, dynamic>>{};
@@ -392,7 +392,7 @@ void main() {
       // 이름은 '세게'인데 값이 중간 — 이름만 보면 틀린다.
       AutoRule wind(String value) => AutoRule(
           id: 'x',
-          name: '데우기가 끝나면 공기청정기 세게',
+          name: '전자레인지가 멈추면 공기청정기 세게',
           conditionText: '전자레인지가 데우기를 멈추면',
           actionText: '공기청정기 바람을 ${value == 'MID' ? '중간으로' : '세게'} 해요',
           enabled: true,

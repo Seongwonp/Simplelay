@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/providers/care_events_provider.dart';
 import 'package:simplelay/providers/hub_provider.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -93,6 +94,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(buildScreen(const SettingsScreen(), overrides: [
       ...installedOverrides([kTestAppliance]),
+      rpiServerOverride(RpiConnectionState.connected),
       _care(s),
     ]));
     await tester.pump();
@@ -108,7 +110,9 @@ void main() {
   testWidgets('설정 안에서도 조회 실패를 "아무 일 없음"처럼 말하지 않는다', (tester) async {
     await pumpSettings(
         tester, const CareEventsState(events: [], status: CareInboxStatus.failed));
-    expect(findPlainText('알림을 불러오지 못했어요'), findsOneWidget);
+    // 10/18 §3-5: LG 가전 줄과 같은 '못 불러왔어요'.
+    expect(findPlainText('새 알림이 없어요'), findsNothing);
+    expect(findPlainText('못 불러왔어요'), findsWidgets);
     expect(find.text('확인이 없으면 알림을 보내요'), findsNothing);
   });
 }

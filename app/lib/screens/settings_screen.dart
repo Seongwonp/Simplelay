@@ -150,11 +150,17 @@ class SettingsScreen extends ConsumerWidget {
               title: '보호자 알림',
               // 조회 실패를 '아무 일 없음'(0건)처럼 말하지 않는다(2026-10-13).
               // 평가 13차(10/18): 홈 줄과 같은 이름 '안 본 알림 N건'. 빨간 배지는 실패·정지 같은 볼 것이 섞였을 때만.
+              // 10/18 §3-5: '새 알림이 없어요'(0건 단정)는 본체에 닿고 조회가 성공했을 때만. 본체와 끊겼거나(전에 받은 0건이
+              // 남아 있어도) 조회가 실패했으면 모르는 것이다 — LG 가전 줄과 같은 '못 불러왔어요'.
               subtitle: unread > 0
                   ? '안 본 알림 $unread건'
-                  : care.status == CareInboxStatus.failed
-                      ? '알림을 불러오지 못했어요'
-                      : '새 알림이 없어요',
+                  : care.status == CareInboxStatus.failed ||
+                          care.status == CareInboxStatus.unconfigured ||
+                          hubReadFailReason(rpi) != null
+                      ? readFailText(rpi)
+                      : care.status == CareInboxStatus.loading
+                          ? '알아보고 있어요'
+                          : '새 알림이 없어요',
               // 평가 15차(10/18): 빨간 숫자 칩과 '안 본 알림 7건' 글자가 같은 말을 두 번 했다 → 글자 하나, 볼 것(실패·정지
               // 같은)이 섞였을 때만 그 글자를 경고색으로. 탭 막대의 점은 그대로 알린다.
               valueColor: unread > 0 && careNeedsLook(care.unreadEvents) ? context.appWarning : null,
