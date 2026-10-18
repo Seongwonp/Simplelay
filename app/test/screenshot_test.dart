@@ -1045,6 +1045,10 @@ RpiApiService _demoHub() {
             'mode_label': '자동 실행',
             'auto': true,
             'day_label': '오늘',
+            // 한 번 건너뛰기(2026-10-18) — 건너뛰지 않은 회차에는 '오늘은 건너뛰기' 단추.
+            'skipped': false,
+            'skip_label': null,
+            'skip_action_label': '오늘은 건너뛰기',
           },
         ]);
       case '/routines/auto-rules':

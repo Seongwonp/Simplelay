@@ -41,6 +41,9 @@ class AppIcons {
   /// 꺼 둔 규칙(자동으로 하기 '지금은 안 해요') — 스위치 꺼짐. 일시정지는 잠시 쉬기만 쓴다.
   static const off = Icons.toggle_off_outlined;
 
+  /// 다음 루틴 한 번 건너뛰기(이 회차만 안 해요) — 엑스 표시 달력. 조용한 시간(달)·꺼 둔 규칙(스위치)과 갈린다.
+  static const skipOnce = Icons.event_busy_outlined;
+
   /// 출처 문자열('직접'·'루틴'·'자동'·'음성') → 아이콘.
   static IconData source(String source) => switch (source) {
         '자동' => auto,

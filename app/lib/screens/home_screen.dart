@@ -30,6 +30,7 @@ import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../theme/app_icons.dart';
+import '../widgets/skip_next_control.dart';
 import '../widgets/status_badge.dart';
 import '../models/execution_status.dart';
 import '../theme/app_tokens.dart';
@@ -447,8 +448,11 @@ class _NextUp extends StatelessWidget {
       if (repeat.isNotEmpty) repeat,
     ].join(' · ');
     // 루틴 탭 다음 실행 줄과 같은 말(평가 4차 10/18: 여기는 '자동', 루틴 탭은 '자동 실행'이었다).
+    // 한 번 건너뛴 회차(2026-10-18)는 본체 말 '오늘은 건너뛰어요' — 중립색(초록·실패 색 아님), '자동으로 해요'는 함께 말하지 않는다.
     final badge = n.quietSkip
         ? StatusBadge(icon: AppIcons.quietHours, label: n.modeText)
+        : n.skipped
+            ? StatusBadge(key: const Key('home-next-skipped'), icon: AppIcons.skipOnce, label: n.skipText)
         : n.auto
             ? StatusBadge(icon: AppIcons.auto, label: n.modeText, tone: BadgeTone.accent)
             : n.mode == RoutineMode.notify.value || n.modeLabel == RoutineMode.notify.label
@@ -498,6 +502,11 @@ class _NextUp extends StatelessWidget {
             badge,
           ],
         ),
+        // '오늘은 건너뛰기' / '되돌리기' — 이 회차 한 번만(본체가 단추 말을 줄 때만, 조용한 시간 회차는 없음).
+        if (n.canSkip) ...[
+          const SizedBox(height: AppSpace.xs),
+          SkipNextControl(next: n),
+        ],
       ],
     );
     // 큰 글씨에서는 시각을 위에, 설명을 아래에 — 한 줄에 두면 이름이 한 글자씩 꺾인다.

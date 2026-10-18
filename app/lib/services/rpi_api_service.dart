@@ -1855,6 +1855,26 @@ class RpiApiService {
     return _decodeList(res).map(RoutineNextRun.fromJson).toList();
   }
 
+  /// 다음 루틴 그 회차 한 번만 건너뛰기(2026-10-18) — 본문은 `/routines/next` 항목의 `routine_id`·`at` 그대로.
+  /// 응답은 바뀐 다음 예정 항목. 409(지났거나 다음 회차가 아님)·404·422 detail은 화면에 그대로 보여도 되는 문장.
+  /// 건너뛰기는 실행을 멈추지 않는다(정지는 `/stop`).
+  Future<RoutineNextRun> skipNextRoutine(RoutineNextRun run) => _setSkip(run, 'skip');
+
+  /// 건너뛰기 되돌리기 — 본문·거절은 [skipNextRoutine]과 같다.
+  Future<RoutineNextRun> unskipNextRoutine(RoutineNextRun run) => _setSkip(run, 'unskip');
+
+  Future<RoutineNextRun> _setSkip(RoutineNextRun run, String action) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/routines/next/$action'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'routine_id': run.routineId, 'at': run.atText}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return RoutineNextRun.fromJson(_decodeMap(res));
+  }
+
   /// 새 루틴(id 없음)은 POST, 있으면 PUT(전체 교체). 422 detail은 화면에
   /// 그대로 보여도 되는 문장이다.
   Future<Routine> saveRoutine(Routine routine) async {

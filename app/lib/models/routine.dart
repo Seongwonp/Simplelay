@@ -398,7 +398,27 @@ class RoutineNextRun {
     this.atText = '',
     this.mode = '',
     this.quietSkip = false,
+    this.skipped = false,
+    this.skipLabel,
+    this.skipActionLabel = '',
   });
+
+  /// '오늘은 건너뛰기'로 이 회차 한 번만 하지 않는다(서버 `skipped`, 2026-10-18). 옛 서버는 false.
+  final bool skipped;
+
+  /// 건너뛸 때 표시 말('오늘은 건너뛰어요'·'내일은 건너뛰어요'·'○요일은 건너뛰어요') — 본체 말 그대로(폰이 날짜 말을
+  /// 만들지 않는다). 건너뛰지 않으면 null.
+  final String? skipLabel;
+
+  /// 건너뛰기 단추 말('오늘은 건너뛰기' 등) — 본체 말 그대로. 옛 서버는 빈 문자열(단추를 두지 않는다).
+  final String skipActionLabel;
+
+  /// 건너뛰기·되돌리기 단추를 둘 수 있는 회차 — 본체가 단추 말을 주고, 조용한 시간이라 어차피 하지 않는 회차가 아닐 때.
+  bool get canSkip =>
+      !quietSkip && routineId.isNotEmpty && atText.isNotEmpty && skipActionLabel.isNotEmpty;
+
+  /// 건너뛴 회차의 표시 말. 본체가 말을 주지 않았으면 날짜를 지어내지 않고 '이번엔 건너뛰어요'.
+  String get skipText => (skipLabel ?? '').isNotEmpty ? skipLabel! : '이번엔 건너뛰어요';
 
   /// 루틴 실행 방식 값('approve'·'notify'). 옛 서버는 빈 문자열.
   final String mode;
@@ -410,6 +430,7 @@ class RoutineNextRun {
   /// 서버 표시 말(`mode_label`)은 문장이 바뀌어 와도 화면 말이 흔들리지 않게 값으로 가른다.
   String get modeText {
     if (quietSkip) return '조용한 시간이라 안 해요';
+    if (skipped) return skipText;
     if (auto) return '자동으로 해요';
     if (mode == RoutineMode.notify.value || modeLabel == RoutineMode.notify.label) return '알려 드려요';
     if (mode == RoutineMode.approve.value || modeLabel == '승인 후 실행') return '물어보고 해요';
@@ -450,6 +471,9 @@ class RoutineNextRun {
         atText: json['at'] as String? ?? '',
         mode: json['mode'] as String? ?? '',
         quietSkip: json['quiet_skip'] == true,
+        skipped: json['skipped'] == true,
+        skipLabel: json['skip_label'] as String?,
+        skipActionLabel: json['skip_action_label'] as String? ?? '',
       );
 }
 

@@ -23,6 +23,7 @@ import '../widgets/routine_candidate_sheet.dart';
 import '../widgets/routine_icon.dart';
 import '../widgets/routine_run.dart';
 import '../widgets/row_menu.dart';
+import '../widgets/skip_next_control.dart';
 import '../widgets/status_badge.dart';
 import '../theme/app_tokens.dart';
 
@@ -649,11 +650,12 @@ class _RoutineRow extends StatelessWidget {
       if (n != null)
         _LineMark(
           key: Key('routine-next-badge-$key'),
-          label: n.quietSkip ? n.modeText : '다음',
+          // 한 번 건너뛴 회차(2026-10-18)는 본체 말 '오늘은 건너뛰어요'(modeText) — 아래 '되돌리기'와 짝.
+          label: n.quietSkip || n.skipped ? n.modeText : '다음',
         ),
       // 홈 '다음' 카드의 '자동으로 해요'와 같은 뜻(본체가 auto라고 한 루틴만) — 줄 끝에서는 짧게 '자동', 낭독은 문장.
       // 조용한 시간이라 건너뛰는 회차는 위 표시가 말한다.
-      if (auto && !r.isTemplate && !(n?.quietSkip ?? false))
+      if (auto && !r.isTemplate && !(n?.quietSkip ?? false) && !(n?.skipped ?? false))
         _LineMark(
           key: Key('routine-auto-badge-$key'),
           label: '자동',
@@ -799,6 +801,12 @@ class _RoutineRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: leadWidth, bottom: AppSpace.xs),
               child: action,
+            ),
+          // '다음' 줄에만 '오늘은 건너뛰기' / '되돌리기'(2026-10-18) — 그 회차 한 번만. 줄 누름(편집)과 따로 받는다.
+          if (n != null && n.canSkip && !r.isTemplate)
+            Padding(
+              padding: const EdgeInsets.only(left: leadWidth, bottom: AppSpace.xs),
+              child: SkipNextControl(next: n),
             ),
           if (error case final message?)
             Padding(
