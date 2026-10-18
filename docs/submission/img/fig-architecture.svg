@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="810" viewBox="0 0 1120 810" font-family="'Noto Sans KR','Malgun Gothic',sans-serif">
   <title>SimpleLay 구성도 (2026-10-18)</title>
-  <desc>폰 앱, RPi5 본체(백엔드·터치 화면), RPi4 실행기, ESP32 모션(작은 팔), ESP32 콘센트 모듈, 전자레인지, LG 가전 클라우드와 공기청정기, 기상청 날씨 사이에 오가는 것을 보인다. 선 색·모양은 검증 수준을 뜻하지 않는다.</desc>
+  <desc>폰 앱, RPi5 본체(백엔드·터치 화면), RPi4 실행기, ESP32 모션(버튼 누름 장치), ESP32 콘센트 모듈, 전자레인지, LG 가전 클라우드와 공기청정기, 기상청 날씨 사이에 오가는 것을 보인다. 선 색·모양은 검증 수준을 뜻하지 않는다.</desc>
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#111827"/>
@@ -10,7 +10,7 @@
 
   <!-- 제목 -->
   <text x="24" y="38" font-size="22" font-weight="700" fill="#111827">SimpleLay 구성도 — 보드 역할과 오가는 것 (2026-10-18)</text>
-  <text x="24" y="64" font-size="14" fill="#1f2937">폰이나 본체 화면에서 승인하면 본체가 실행기에 명령을 보내고, 작은 팔이 버튼을 누른다. LG 공기청정기는 클라우드로 직접 제어한다.</text>
+  <text x="24" y="64" font-size="14" fill="#1f2937">폰이나 본체 화면에서 승인하면 본체가 실행기에 명령을 보내고, 버튼 누름 장치가 버튼을 누른다. LG 공기청정기는 클라우드로 직접 제어한다.</text>
 
   <!-- 폰 앱 -->
   <rect x="24" y="110" width="190" height="150" rx="10" fill="#f3f4f6" stroke="#111827" stroke-width="2.5"/>
@@ -51,7 +51,7 @@
   <rect x="880" y="400" width="216" height="100" rx="10" fill="#f3f4f6" stroke="#111827" stroke-width="2.5"/>
   <text x="988" y="430" font-size="16" font-weight="700" fill="#111827" text-anchor="middle">LG 공기청정기</text>
   <text x="988" y="455" font-size="14" fill="#1f2937" text-anchor="middle">클라우드로 직접 제어</text>
-  <text x="988" y="477" font-size="14" fill="#1f2937" text-anchor="middle">(작은 팔 필요 없음)</text>
+  <text x="988" y="477" font-size="14" fill="#1f2937" text-anchor="middle">(누름 장치 필요 없음)</text>
 
   <!-- RPi4 실행기 -->
   <rect x="372" y="400" width="400" height="120" rx="12" fill="#e5e7eb" stroke="#111827" stroke-width="3"/>
@@ -62,7 +62,7 @@
 
   <!-- 아래: 장치와 가전 -->
   <rect x="24" y="600" width="330" height="130" rx="10" fill="#f3f4f6" stroke="#111827" stroke-width="2.5"/>
-  <text x="189" y="630" font-size="17" font-weight="700" fill="#111827" text-anchor="middle">ESP32 모션 = 작은 팔</text>
+  <text x="189" y="630" font-size="17" font-weight="700" fill="#111827" text-anchor="middle">ESP32 모션 = 버튼 누름 장치</text>
   <text x="189" y="656" font-size="14" fill="#1f2937" text-anchor="middle">CoreXY 갠트리, 엔코더 모터 2개</text>
   <text x="189" y="680" font-size="14" fill="#1f2937" text-anchor="middle">+ 솔레노이드로 버튼 누름</text>
   <text x="189" y="704" font-size="14" fill="#1f2937" text-anchor="middle">걸림 감지 · 멈춤 확인</text>
@@ -104,7 +104,7 @@
   <line x1="630" y1="400" x2="630" y2="342" stroke="#111827" stroke-width="2.5" marker-end="url(#arr)"/>
   <text x="640" y="375" font-size="14" font-weight="700" fill="#111827">결과 · 정지 보고</text>
 
-  <!-- 실행기 ↔ 작은 팔 -->
+  <!-- 실행기 ↔ 버튼 누름 장치 -->
   <line x1="420" y1="520" x2="252" y2="598" stroke="#111827" stroke-width="2.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
   <text x="290" y="546" font-size="14" font-weight="700" fill="#111827" text-anchor="end">이동·누름 명령 (USB)</text>
   <text x="290" y="566" font-size="14" fill="#1f2937" text-anchor="end">엔코더 위치·멈춤 확인</text>
@@ -114,7 +114,7 @@
   <text x="854" y="546" font-size="14" font-weight="700" fill="#111827">전력 측정값 (USB)</text>
   <text x="854" y="566" font-size="14" fill="#1f2937">비상정지·릴레이 상태</text>
 
-  <!-- 작은 팔 → 전자레인지 -->
+  <!-- 버튼 누름 장치 → 전자레인지 -->
   <line x1="354" y1="660" x2="428" y2="660" stroke="#111827" stroke-width="2.5" marker-end="url(#arr)"/>
   <text x="392" y="650" font-size="14" font-weight="700" fill="#111827" text-anchor="middle">누름</text>
 
@@ -125,5 +125,5 @@
   <!-- 아래 설명 -->
   <line x1="24" y1="748" x2="1096" y2="748" stroke="#9ca3af" stroke-width="1"/>
   <text x="24" y="772" font-size="15" font-weight="700" fill="#111827">선 색·모양은 검증 수준을 뜻하지 않는다. 실물로 확인한 범위는 본문 검증 표가 말한다.</text>
-  <text x="24" y="796" font-size="13" fill="#374151">작은 팔 = 갠트리(CoreXY)와 솔레노이드. CT = 전원선에 거는 전류 센서. 정지는 폰·터치 화면·음성 "멈춰", 콘센트 모듈 비상정지 버튼(설계)에서 건다.</text>
+  <text x="24" y="796" font-size="13" fill="#374151">버튼 누름 장치 = 갠트리(CoreXY)와 솔레노이드(화면 이름은 '누름 장치'). CT = 전원선에 거는 전류 센서. 정지는 폰·터치 화면·음성 "멈춰", 콘센트 모듈 비상정지 버튼(설계)에서 건다.</text>
 </svg>
