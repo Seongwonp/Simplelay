@@ -10,7 +10,6 @@ import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
-import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_text.dart';
 
 Future<void> _pumpIdle(WidgetTester tester, KioskNextRun? next,
     {Size size = const Size(1920, 1080)}) async {
@@ -96,7 +95,7 @@ void main() {
     final line = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-text')));
     // 어절 단위로 줄을 바꾼다 — 실패널에서 '공기청/정기'처럼 낱말 가운데서 끊겼다(10/16 밤).
     expect(line.textSpan!.toPlainText(includeSemanticsLabels: false),
-        '내일 오전 7:00 · ${keepWords('아침 공기청정기 끄기')}');
+        '내일 오전 7:00 · 아침 공기청정기 끄기');
     expect(find.text('자동 루틴'), findsOneWidget);
     expect(find.text('자동으로 해요'), findsNothing);
     expect(tester.takeException(), isNull);

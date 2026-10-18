@@ -59,12 +59,12 @@ void main() {
     // 제목은 명령문이 아니라 행동 이름(평가 4차 10/18).
     expect(find.text('즉석밥 데우기'), findsOneWidget);
     expect(find.textContaining('누름 장치'), findsNothing);
-    expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
+    expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsOneWidget);
     // 가전이 조리·세탁을 끝냈다고 말하지 않는다.
     expect(find.textContaining('완료되었'), findsNothing);
 
     await tester.pump(const Duration(seconds: 4));
-    expect(find.text('6초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
+    expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsOneWidget);
     await tester.tap(find.text('처음 화면으로'));
     expect(dismissed, 1);
   });
@@ -82,10 +82,10 @@ void main() {
     );
 
     // 기계 말투('작은 팔이 다 눌렀다고 알려 왔어요') 대신 같은 말 하나로(평가 4차 10/18). 확인 수준은 띠가 지킨다 —
-    // 실제 확인이 아니므로 '됐어요'가 아니라 '확인해 주세요', 할 일은 '가전이 움직이는지 봐 주세요'.
+    // 실제 확인이 아니므로 '됐어요'가 아니라 '확인 필요', 할 일은 '가전이 움직이는지 봐 주세요'.
     expect(find.textContaining('알려 왔어요'), findsNothing);
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
-    expect(find.text('확인해 주세요'), findsOneWidget);
+    expect(find.text('확인 필요'), findsOneWidget);
     expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
   });
 
@@ -149,10 +149,10 @@ void main() {
     expect(find.text('처음 화면으로'), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsOneWidget);
     expect(find.text('작은 팔로 골라 누르기'), findsOneWidget);
-    expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
+    expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsNothing);
     // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
-    // '확인해 주세요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 몰라요').
-    expect(find.text('확인해 주세요'), findsOneWidget);
+    // '확인 필요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 몰라요').
+    expect(find.text('확인 필요'), findsOneWidget);
     expect(find.text('주의'), findsNothing);
     expect(find.text('실패'), findsNothing);
     // 순서 안내가 있으면 큰 결과 원은 뺀다(사용자 결정 10/18) — 물음표는 위 띠가 말한다.
@@ -497,7 +497,7 @@ void main() {
         onStop: () {},
       ),
     );
-    expect(find.text('작은 팔도 취소 버튼을 눌렀지만 눌렸는지 확인이 안 됐어요'), findsOneWidget);
+    expect(find.text('취소 버튼이 눌렸는지 확인이 안 됐어요'), findsOneWidget);
     expect(find.textContaining('정지 버튼을 눌렀지만'), findsNothing);
     expect(find.textContaining('대신 눌렀어요'), findsNothing);
   });

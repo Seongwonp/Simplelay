@@ -358,8 +358,8 @@ void main() {
   });
 
   group('7·8·9. 대기·정지·큰 글씨 단추', () {
-    // 평가 11차(10/18): 상태 한 문장 — 제목이 '연습으로 멈추는 중이에요'(아래 줄로 또 말하지 않는다).
-    testWidgets('연습 중 대기에서 정지 — 연습으로 멈추는 중이에요(가전을 봐 주세요 없음)', (tester) async {
+    // 평가 11차(10/18): 상태 한 문장 — 제목이 '연습을 끝내는 중이에요'(아래 줄로 또 말하지 않는다).
+    testWidgets('연습 중 대기에서 정지 — 연습을 끝내는 중이에요(가전을 봐 주세요 없음)', (tester) async {
       await _pumpView(
           tester,
           const KioskHoldView(
@@ -371,7 +371,7 @@ void main() {
             stopRequested: true,
             onStop: _noop,
           ));
-      expect(find.text('연습으로 멈추는 중이에요'), findsOneWidget);
+      expect(find.text('연습을 끝내는 중이에요'), findsOneWidget);
       expect(_texts(tester).where((t) => t.contains('가전을 봐 주세요')), isEmpty);
     });
 

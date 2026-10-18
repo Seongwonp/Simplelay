@@ -132,7 +132,7 @@ String estopConfirmFor(String? detail) => estopIsPowerLoss(detail)
     : kEstopConfirmQuestion;
 
 /// 띠의 단추 — 바로 해제가 아니라 안내를 먼저 연다. 해제는 안내 안의 '해제하기'로만.
-const kEstopAckLabel = '풀기 안내';
+const kEstopAckLabel = '푸는 방법 보기';
 const kEstopConfirmLabel = '풀기';
 
 /// 걸림이 새로 생길 때 한 번 말하는 안내(키오스크 음성).

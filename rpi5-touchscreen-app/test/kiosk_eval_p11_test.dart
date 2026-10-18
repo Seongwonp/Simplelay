@@ -4,7 +4,7 @@
 // 2. 결과 화면 나가는 단추 — LG 가전 결과·작은 팔 결과 모두 '⌂ 처음 화면으로' 한 이름·아이콘·색.
 //    자동으로 닫지 않는 결과(확인 안 됨·실패)에는 카운트다운 문구가 없다.
 // 3. LG 가전 확인 못 함 — 제목에 가전 이름: '공기청정기에 켜 달라고 했어요'(평가 15차) / '켜졌는지는 아직 몰라요'('명령' 없이).
-// 4. 연습 대기 — 상태 한 문장(정지를 보낸 뒤 '누르기 연습을 마쳤어요' + '멈추는 중이에요'를 함께 두지 않는다),
+// 4. 연습 대기 — 상태 한 문장(정지를 보낸 뒤 '연습이 끝났어요' + '멈추는 중이에요'를 함께 두지 않는다),
 //    정지 안내는 고르는 말([kPracticeStopHint] — 평가 13차 10/18에 '정지 단추도 눌러 볼 수 있어요'로 줄였다).
 // 5. LG 가전 조작 — 전원·바람 세기 상태는 단추의 ✓ 하나로(왼쪽 상태 줄 두 번 금지), '자세히' → '미세먼지 보기',
 //    큰 상태 한 줄('공기청정기가 켜져 있어요 · 바람 약').
@@ -190,7 +190,7 @@ void main() {
     testWidgets('LG 가전 결과(확인됨)', (tester) async {
       await _pumpView(tester, _thinqDone(confirmed: true));
       _expectHomeButton(tester, 'LG 가전 확인됨');
-      expect(find.textContaining('초 뒤 처음 화면으로'), findsOneWidget, reason: '자동으로 닫히는 결과는 카운트다운');
+      expect(find.textContaining('뒤 처음 화면으로'), findsOneWidget, reason: '자동으로 닫히는 결과는 카운트다운');
     });
 
     testWidgets('LG 가전 결과(확인 못 함) — 자동으로 닫지 않아 카운트다운 없음', (tester) async {
@@ -273,7 +273,7 @@ void main() {
     testWidgets('정지 전', (tester) async {
       await _pumpView(tester, _practiceHold());
       final texts = _texts(tester);
-      expect(texts, contains('누르기 연습을 마쳤어요'));
+      expect(texts, contains('연습이 끝났어요'));
       // 평가 14차(10/18): 연습을 마친 대기에는 정지 안내 문장을 두지 않는다.
       expect(texts.any((t) => t.contains('눌러 볼 수')), isFalse);
       expect(texts.any((t) => t.contains('빨간 정지를 눌러 보세요')), isFalse);
@@ -283,9 +283,9 @@ void main() {
       testWidgets('정지를 보낸 뒤(글씨 $scale) — 마쳤어요와 멈추는 중을 함께 두지 않는다', (tester) async {
         await _pumpView(tester, _practiceHold(stopRequested: true), scale: scale);
         final texts = _texts(tester);
-        expect(texts, contains('연습으로 멈추는 중이에요'));
+        expect(texts, contains('연습을 끝내는 중이에요'));
         expect(texts.any((t) => t.contains('마쳤어요')), isFalse);
-        expect(texts.where((t) => t.contains('멈추는 중')), hasLength(1), reason: '한 문장');
+        expect(texts.where((t) => t.contains('끝내는 중')), hasLength(1), reason: '한 문장');
         expect(tester.takeException(), isNull);
       });
     }

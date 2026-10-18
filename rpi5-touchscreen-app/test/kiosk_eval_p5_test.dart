@@ -131,7 +131,7 @@ void main() {
       final chip = find.byKey(const ValueKey('idle-status-chip'));
       // 평가 14차(10/18): 글자 없는 '!' 원은 뜻 없는 장식이었다 — 연결이 괜찮으면 칩을 두지 않는다. 같은 말은 위 띠 한 곳.
       expect(chip, findsNothing);
-      // 띠 제목은 그대로 한 번. 풀기 안내는 띠의 '풀기 안내'가 연다.
+      // 띠 제목은 그대로 한 번. 풀기 안내는 띠의 '푸는 방법 보기'가 연다.
       expect(find.text('비상 버튼이 눌려 있어요'), findsOneWidget);
       expect(guide, 0);
     });

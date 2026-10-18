@@ -42,7 +42,7 @@ void main() {
     expect(button.onPressed, isNull);
     expect(find.textContaining('정지를 누르면'), findsNothing);
     expect(find.text('가전이 켜졌어요'), findsNothing);
-    expect(find.textContaining('취소 버튼을 직접 눌러 주세요'), findsOneWidget);
+    expect(find.textContaining('취소 버튼을 손으로 눌러 주세요'), findsOneWidget);
     expect(calls, 0);
   });
   testWidgets('비상 걸림에서도 정지 영역 위치와 크기는 그대로다', (t) async {
@@ -133,7 +133,7 @@ void main() {
   });
   testWidgets('환경 미상 성공은 회색 완료가 아니라 앰버 확인 필요다', (t) async {
     await show(t, const KioskDoneView(success: true, label: '데우기'));
-    expect(find.text('확인해 주세요'), findsOneWidget); // 결과 띠 말은 됐어요·확인해 주세요 두 가지(평가 3차 10/18)
+    expect(find.text('확인 필요'), findsOneWidget); // 결과 띠 말은 됐어요·확인해 주세요 두 가지(평가 3차 10/18)
     final c =
         t.widget<Icon>(find.byKey(const ValueKey('status-band-icon'))).color!;
     expect(HSVColor.fromColor(c).hue, inInclusiveRange(25, 55));
@@ -146,7 +146,7 @@ void main() {
             detail: "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요",
             onRequest: noop));
     expect(find.textContaining("'해제하기'"), findsNothing);
-    expect(find.textContaining('풀기 안내'), findsWidgets);
+    expect(find.textContaining('푸는 방법 보기'), findsWidgets);
   });
   testWidgets('위험 안내는 본문 21 이상 흰 글자와 채운 확인 단추다', (t) async {
     await show(t, DangerAlertOverlay(onAcknowledge: noop));

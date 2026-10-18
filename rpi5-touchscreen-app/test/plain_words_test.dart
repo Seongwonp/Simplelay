@@ -17,7 +17,8 @@ import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 
 /// 사전에서 뺀 말. '본체 화면'은 허용이고 'SimpleLay 본체'는 금지다.
-const _banned = ['SimpleLay 본체', '작은 팔 장치', '가전 콘센트', 'ThinQ', '짚', '—', '확인 필요', '확인 불가', '해제'];
+// '확인 필요'는 뺐다(평가 16차 10/18) — 상태 칩 '확인 필요 N'(사용자 결정 10/18)과 같은 짧은 띠 말로 쓴다.
+const _banned = ['SimpleLay 본체', '작은 팔 장치', '가전 콘센트', 'ThinQ', '짚', '—', '확인 불가', '해제'];
 
 void _noop() {}
 

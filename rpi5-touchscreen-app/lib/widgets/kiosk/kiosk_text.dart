@@ -10,13 +10,18 @@ import 'package:flutter/widgets.dart';
 String keepWords(String text) =>
     text.split('\n').map((p) => _joinWords(_tieLastWord(p))).join('\n');
 
+/// 낱말마다 글자를 묶되 낱말 사이 띄어쓰기는 줄바꿈 자리로 남긴다(평가 16차 10/18 — 정지 단추 '다시 멈추기'가 끝 두 낱말
+/// 묶음 때문에 큰 글씨에서 '다시 멈추 / 기'로 끊겼다).
+String keepEachWord(String text) => _joinWords(text);
+
 /// 어구 묶기(평가 5차 10/18) — 두 글자 이하 낱말('같이'·'냉동'·'지금')은 뒤 낱말과 줄 바꾸지 않는 띄어쓰기(U+00A0)로 잇는다.
 /// 큰 글씨 제안 제목이 '라면이랑 같이 / 먹을 준비,'처럼 꾸미는 말과 꾸밈 받는 말 사이에서 끊겼다. 묶음은 [maxGroup]자
 /// (띄어쓰기 포함)까지만 — 너무 긴 덩어리는 오히려 낱말 가운데에서 끊긴다. 끝에 쉼표·마침표가 붙은 낱말은 뒤와 잇지 않는다.
 String keepPhrases(String text, {int maxGroup = 10}) => text.split('\n').map((p) {
       final words = p.split(' ');
       if (words.length < 2) return p;
-      final out = StringBuffer(words.first);
+      // seps[i]는 words[i] 앞의 띄어쓰기.
+      final seps = List<String>.filled(words.length, ' ');
       var group = words.first.runes.length;
       for (var i = 1; i < words.length; i++) {
         final prev = words[i - 1];
@@ -25,13 +30,24 @@ String keepPhrases(String text, {int maxGroup = 10}) => text.split('\n').map((p)
             prev.runes.length <= 2 &&
             !RegExp(r'[,.?!·]$').hasMatch(prev);
         if (short && w.isNotEmpty && group + 1 + w.runes.length <= maxGroup) {
-          out.write('\u00A0');
+          seps[i] = '\u00A0';
           group += 1 + w.runes.length;
+        } else if (short && w.isNotEmpty && seps[i - 1] == '\u00A0' &&
+            prev.runes.length + 1 + w.runes.length <= maxGroup) {
+          // 묶음이 넘치면 짧은 낱말은 앞이 아니라 뒤 낱말과 묶는다(평가 16차 10/18 — '나갈 때 우산 / 챙기세요'처럼
+          // 목적어와 서술어 사이에서 끊겼다).
+          seps[i - 1] = ' ';
+          seps[i] = '\u00A0';
+          group = prev.runes.length + 1 + w.runes.length;
         } else {
-          out.write(' ');
           group = w.runes.length;
         }
-        out.write(w);
+      }
+      final out = StringBuffer(words.first);
+      for (var i = 1; i < words.length; i++) {
+        out
+          ..write(seps[i])
+          ..write(words[i]);
       }
       return out.toString();
     }).join('\n');

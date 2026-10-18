@@ -123,7 +123,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                           ),
                           if (!appliance.isThinq && appliance.canExecute)
                             KioskText(
-                              '화면의 버튼을 누르면 작은 팔이 ${appliance.name} 버튼을 대신 눌러요',
+                              '화면 버튼을 누르면 작은 팔이 ${appliance.name} 버튼을 대신 눌러요',
                               textKey: const ValueKey('manual-explain'),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -240,7 +240,7 @@ class _RoutinePanel extends StatelessWidget {
           Expanded(
             child: routines.isEmpty
                 ? KioskText(
-                    '아직 이 가전의 루틴이 없어요',
+                    '이 가전에는 아직 루틴이 없어요',
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                   )
                 : ListView.separated(
@@ -470,13 +470,13 @@ class _NotReadyNotice extends StatelessWidget {
 String? readinessTodo(ApplianceMap appliance) {
   final reasons = appliance.readinessReasons.join(' ');
   if (appliance.readiness == 'disconnected' || reasons.contains('연결되지 않았')) {
-    return '처음 화면 위쪽의 연결 표시를 눌러 봐 주세요';
+    return '처음 화면 위쪽 연결 표시를 눌러 봐 주세요';
   }
   if (reasons.contains('좌표') ||
       reasons.contains('자리') ||
       reasons.contains('보정') ||
       reasons.contains('오래돼')) {
-    return '휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요';
+    return '휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요';
   }
   if (reasons.contains('모터') || reasons.contains('센서')) {
     return '잠시 기다려 주세요. 계속되면 작은 팔을 다시 켜 주세요';

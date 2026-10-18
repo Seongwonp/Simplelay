@@ -47,7 +47,7 @@ void main() {
       expect(stopLevelHeadline(level), isNot(contains('가전이 멈췄')));
       expect(stopLevelHeadline(level), isNot(contains('ms')));
     }
-    expect(stopLevelNextStep('verified'), '가전이 켜져 있으면 가전의 정지 버튼을 직접 눌러 주세요');
+    expect(stopLevelNextStep('verified'), '가전이 켜져 있으면 가전 정지 버튼을 손으로 눌러 주세요');
     expect(stopLevelNextStep('mcu_ack'), '가전을 봐 주세요');
     expect(stopLevelNextStep('sent'), '가전을 봐 주세요');
     // 확인은 엔코더 확인(verified)뿐 — 모션 보드가 받음(mcu_ack)은 확인이 아니다.
@@ -93,7 +93,7 @@ void main() {
   testWidgets('멈춘 실행 화면 — 멈춤 확인은 작은 팔이 멈췄다고, 가전은 직접', (tester) async {
     await tester.pumpWidget(_wrap(_stopped(level: 'verified', ackMs: 9)));
     expect(find.text('작은 팔이 멈췄어요'), findsOneWidget);
-    expect(find.text('가전이 켜져 있으면 가전의 정지 버튼을 직접 눌러 주세요'), findsOneWidget);
+    expect(find.text('가전이 켜져 있으면 가전 정지 버튼을 손으로 눌러 주세요'), findsOneWidget);
     expect(find.textContaining('ms'), findsNothing);
     expect(find.byIcon(Icons.check), findsOneWidget);
   });

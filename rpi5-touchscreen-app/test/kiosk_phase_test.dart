@@ -671,7 +671,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.byType(KioskDoneView), findsOneWidget);
-    expect(find.text('20초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
+    expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsOneWidget);
 
     await tester.pump(KioskTimings.doneReturn + const Duration(seconds: 1));
     expect(find.byType(KioskDoneView), findsOneWidget, reason: '큰 글씨는 10초에 닫히지 않는다');
@@ -699,7 +699,7 @@ void main() {
     await tester.pump();
     await tester.pump(KioskTimings.doneReturn * 2);
     expect(find.byType(KioskDoneView), findsOneWidget, reason: '만진 뒤에는 저절로 닫히지 않는다');
-    expect(find.textContaining('초 뒤 처음 화면으로'), findsNothing);
+    expect(find.textContaining('뒤 처음 화면으로'), findsNothing);
     expect(find.text('자동으로 닫지 않아요'), findsOneWidget);
 
     await tester.tap(find.text('처음 화면으로'));
@@ -2305,9 +2305,9 @@ void main() {
           lastConfirmation: 'none'),
     );
     expect(find.text('다 눌렀어요'), findsNothing);
-    // 실행 환경을 몰라도 같은 말 하나(평가 4차 10/18) — 확인 수준은 띠 '확인해 주세요'가 지킨다.
+    // 실행 환경을 몰라도 같은 말 하나(평가 4차 10/18) — 확인 수준은 띠 '확인 필요'가 지킨다.
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
-    expect(find.text('확인해 주세요'), findsOneWidget);
+    expect(find.text('확인 필요'), findsOneWidget);
     expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());

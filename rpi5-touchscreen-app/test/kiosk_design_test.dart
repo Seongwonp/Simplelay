@@ -93,7 +93,7 @@ KioskHoldView _hold({
     );
 
 KioskHoldView _holdUnconfirmed({String mode = 'real'}) =>
-    _hold(holdState: 'parked', outcome: 'requested_unconfirmed', mode: mode);
+    _hold(holdState: 'hovering_stop', outcome: 'requested_unconfirmed', mode: mode);
 
 KioskSuggestionView _suggestion() => KioskSuggestionView(
       suggestion: const KioskSuggestion(
@@ -474,7 +474,7 @@ void main() {
     for (final (name, view, fill) in [
       ('누름 보고만(확인 필요)', _done(), KioskColors.neutralFill),
       ('실패', _done(success: false), KioskColors.neutralFill),
-      // 멈춤을 확인해도 가전은 사람이 봐야 한다 — 띠 '확인해 주세요'라 중립 채움(평가 3차 10/18).
+      // 멈춤을 확인해도 가전은 사람이 봐야 한다 — 띠 '확인 필요'라 중립 채움(평가 3차 10/18).
       ('사용자 정지(멈춤 확인)', _done(success: false, reason: KioskFailureReason.stopped, stopLevel: 'verified'),
           KioskColors.neutralFill),
     ]) {

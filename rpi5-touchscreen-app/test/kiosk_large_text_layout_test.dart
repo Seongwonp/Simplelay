@@ -177,7 +177,7 @@ void main() {
       expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
       // 첫 장 맨 앞: 확인 필요(인덕션) → 동작 중(세탁기)
       _expectFullyVisible(tester, find.text('인덕션'));
-      _expectFullyVisible(tester, find.text('확인해 주세요'));
+      _expectFullyVisible(tester, find.text('확인 필요'));
       _expectFullyVisible(tester, find.text('세탁기'));
       _expectFullyVisible(tester, find.text('작동 중'));
       // 다음 장으로 넘기는 수단은 남는다.
@@ -222,7 +222,7 @@ void main() {
       _expectFullyVisible(tester, find.text('정지'));
       // 정지 상태 줄은 정지 버튼과 함께 스크롤 없이 보인다(10/5 수리). '보냈어요' 대신 사람이 볼 상태(평가 4차 10/18).
       // 연습은 제목 한 문장이 상태를 말한다(평가 11차 10/18 — '마쳤어요' 아래 '멈추는 중이에요'가 부딪혔다).
-      _expectFullyVisible(tester, find.text('연습으로 멈추는 중이에요'));
+      _expectFullyVisible(tester, find.text('연습을 끝내는 중이에요'));
     });
 
     testWidgets('$where 큰 글씨 동작 중 — 정지를 못 보냈다는 줄도 스크롤 없이 보여요',
@@ -239,14 +239,14 @@ void main() {
     for (final (outcome, line, stopLabel) in [
       ('stopped', '전자레인지가 멈췄어요', '정지'),
       // 멈췄는지 모르면 가장 큰 글자가 할 일이고, 정지 단추 이름이 '다시 정지 시도'(자리·크기 그대로).
-      ('requested_unconfirmed', '지금 전자레인지의 취소 버튼을 직접 눌러 주세요', '다시 멈추기'),
+      ('requested_unconfirmed', '지금 전자레인지 취소 버튼을 손으로 눌러 주세요', '다시 멈추기'),
     ]) {
       testWidgets('$where 큰 글씨 정지 결과($outcome) — 결과 줄이 스크롤 없이 보여요',
           (tester) async {
         if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
         await _pump(
             tester,
-            _hold(holdState: 'parked', stopOutcome: outcome, stopRequested: false),
+            _hold(holdState: outcome == 'stopped' ? 'parked' : 'hovering_stop', stopOutcome: outcome, stopRequested: false),
             scale: 1.22,
             panel15: panel15);
         expect(tester.takeException(), isNull);

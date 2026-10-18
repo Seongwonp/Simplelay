@@ -362,7 +362,7 @@ void main() {
       final first = tester.getRect(find.byKey(const ValueKey('strip-intercom')));
       final second = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(first.left, lessThan(second.left));
-      expect(find.text('확인해 주세요'), findsOneWidget);
+      expect(find.text('확인 필요'), findsOneWidget);
     });
 
     testWidgets('정지 버튼 대기 중인 가전은 "동작 중"으로 맨 앞에 선다', (tester) async {
@@ -482,8 +482,8 @@ void main() {
 
       expect(find.byType(KioskHoldView), findsOneWidget);
       // 연습이면 제목이 가전이 돈다고 말하지 않는다 — 연습은 맨 위 띠로(2026-10-15).
-      // 평가 6차(10/18): 제목이 상태('누르기 연습을 마쳤어요'), 할 일은 한 줄 — '…연습 중' 제목과 '…마쳤어요' 본문이 부딪혔다.
-      expect(find.text('누르기 연습을 마쳤어요'), findsOneWidget);
+      // 평가 6차(10/18): 제목이 상태('연습이 끝났어요'), 할 일은 한 줄 — '…연습 중' 제목과 '…마쳤어요' 본문이 부딪혔다.
+      expect(find.text('연습이 끝났어요'), findsOneWidget);
       expect(find.text('전자레인지 연습 중'), findsNothing);
       // 정지 안내는 고르는 말(평가 11차 10/18).
       // 평가 14차(10/18): 연습을 마친 대기에는 정지 안내 문장을 두지 않는다.
@@ -500,9 +500,9 @@ void main() {
       await tester.pump();
       expect(api.stopCalls, 1);
       // '보냈어요' 대신 사람이 볼 상태(평가 4차 10/18). 연습은 실제 가전이 그대로라 '가전을 봐 주세요'를 붙이지 않는다(평가 10차 10/18).
-      // 평가 11차(10/18): 상태 한 문장 — 제목이 '연습으로 멈추는 중이에요', '마쳤어요'는 남기지 않는다.
-      expect(find.text('연습으로 멈추는 중이에요'), findsOneWidget);
-      expect(find.text('누르기 연습을 마쳤어요'), findsNothing);
+      // 평가 11차(10/18): 상태 한 문장 — 제목이 '연습을 끝내는 중이에요', '마쳤어요'는 남기지 않는다.
+      expect(find.text('연습을 끝내는 중이에요'), findsOneWidget);
+      expect(find.text('연습이 끝났어요'), findsNothing);
 
       api.statusResult = _hovering(state: 'stopping');
       await tester.pump(const Duration(seconds: 2));
@@ -541,8 +541,9 @@ void main() {
       // 상태 영역은 짧게(2026-10-16 디자인 규격 §1-2) — 무엇을 했는지는 할 일 아래 작은 줄이 말한다.
       expect(find.text('가전이 멈췄는지 몰라요'), findsOneWidget);
       // 가장 큰 글자는 할 일 한 가지 — 정지 버튼은 자리·크기·색 그대로 이름만 바뀐다(2026-10-15).
-      expect(find.text('지금 전자레인지의 취소 버튼을 직접 눌러 주세요'), findsOneWidget);
-      expect(find.text('다시 멈추기'), findsOneWidget);
+      expect(find.text('지금 전자레인지 취소 버튼을 손으로 눌러 주세요'), findsOneWidget);
+      // 작은 팔이 제자리로 돌아갔으면 다시 멈출 것이 없다 — 이름은 '정지' 그대로(평가 16차 10/18).
+      expect(find.text('다시 멈추기'), findsNothing);
       await tester.pump(const Duration(seconds: 10));
       await _settle(tester);
       expect(find.byType(KioskHoldView), findsOneWidget);

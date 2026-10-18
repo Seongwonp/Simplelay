@@ -62,7 +62,7 @@ KioskHoldView _hold({String mode = 'real', String? estopTitle}) => KioskHoldView
 
 KioskHoldView _holdUnconfirmed() => KioskHoldView(
       appliance: kMicrowaveAppliance,
-      holdState: 'parked',
+      holdState: 'hovering_stop',
       stopOutcome: 'requested_unconfirmed',
       stopButton: '취소',
       elapsed: const Duration(minutes: 1),

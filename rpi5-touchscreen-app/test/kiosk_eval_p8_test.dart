@@ -116,11 +116,11 @@ void main() {
             onClose: _noop,
           ));
       final all = _texts(tester).join('\n');
-      expect(all, contains('지금 전자레인지의 취소 버튼을 직접 눌러 주세요'));
+      expect(all, contains('지금 전자레인지 취소 버튼을 손으로 눌러 주세요'));
       expect(all, contains('직접 누를 버튼이에요'));
       expect(all, isNot(contains(kPanelCaption)));
       expect(all, isNot(contains('대신 눌렀어요')));
-      expect(all, contains('작은 팔도 취소 버튼을 눌렀지만 눌렸는지 확인이 안 됐어요'));
+      expect(all, contains('취소 버튼이 눌렸는지 확인이 안 됐어요'));
       final picture = tester.widget<KioskPanelPicture>(find.byType(KioskPanelPicture));
       expect(picture.caution, isTrue);
       expect(picture.current?.label, '취소');

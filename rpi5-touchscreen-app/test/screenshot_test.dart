@@ -956,6 +956,9 @@ void main() {
         target: kMicrowaveAppliance,
         reason: KioskFailureReason.stopped,
         stopLevel: 'sent',
+        executionMode: 'real',
+        // 평가 16차(10/18) — 실제 화면처럼 '다시 멈추기'를 넘긴다(큰 글씨에서도 정지 자리에 보인다).
+        onStopAgain: () {},
         onRetry: () {},
         onManual: () {},
         onDismiss: () {},

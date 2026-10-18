@@ -366,7 +366,7 @@ void main() {
         tester,
         const KioskHoldView(
           appliance: kMicrowaveAppliance,
-          holdState: 'parked',
+          holdState: 'hovering_stop',
           stopOutcome: 'requested_unconfirmed',
           stopButton: '취소',
           executionMode: 'real',
@@ -375,7 +375,7 @@ void main() {
           onClose: _noop,
         ),
       );
-      const todo = '지금 전자레인지의 취소 버튼을 직접 눌러 주세요';
+      const todo = '지금 전자레인지 취소 버튼을 손으로 눌러 주세요';
       expect(find.text(todo), findsOneWidget);
       // 정지 단추 이름(단추 크기는 원칙 0-4로 고정)을 뺀 안내 글자 중에서 가장 크다.
       final inStop = find
@@ -470,8 +470,8 @@ void main() {
       expect(find.descendant(of: chip, matching: find.text('기기 모두 정상')), findsNothing);
       expect(chip, findsNothing); // 평가 14차(10/18): 연결이 괜찮으면 칩 없음(글자 없는 '!' 원은 장식)
       expect(find.text('비상 버튼이 눌려 있어요'), findsOneWidget);
-      expect(find.text('비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요'), findsOneWidget);
-      expect(find.text('풀기 안내'), findsOneWidget);
+      expect(find.text('빨간 비상 버튼을 돌려서 풀어 주세요'), findsOneWidget);
+      expect(find.text('푸는 방법 보기'), findsOneWidget);
       await tester.tap(find.byKey(_ack));
       await _settle(tester);
       expect(find.textContaining('빨간 비상 버튼을 돌려서 풀어 주세요'), findsOneWidget);
@@ -757,7 +757,7 @@ void main() {
         scale: 1.22,
         malgun: true,
       );
-      const explain = '화면의 버튼을 누르면 작은 팔이 전자레인지 버튼을 대신 눌러요';
+      const explain = '화면 버튼을 누르면 작은 팔이 전자레인지 버튼을 대신 눌러요';
       expect(find.text(explain), findsOneWidget);
       expect(tester.renderObject<RenderParagraph>(find.text(explain)).didExceedMaxLines, isFalse);
       expect(tester.renderObject<RenderParagraph>(find.text('내 전자레인지')).didExceedMaxLines, isFalse);
@@ -765,10 +765,10 @@ void main() {
     });
 
     for (final (reason, readiness, todo) in [
-      ('버튼 자리를 아직 맞추지 않았어요', 'needs_setup', '휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요'),
-      ('확인한 지 오래돼 다시 확인해야 해요', 'needs_setup', '휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요'),
+      ('버튼 자리를 아직 맞추지 않았어요', 'needs_setup', '휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요'),
+      ('확인한 지 오래돼 다시 확인해야 해요', 'needs_setup', '휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요'),
       ('모터가 아직 준비되지 않았어요', 'needs_setup', '잠시 기다려 주세요. 계속되면 작은 팔을 다시 켜 주세요'),
-      ('기기와 연결되지 않았어요', 'disconnected', '처음 화면 위쪽의 연결 표시를 눌러 봐 주세요'),
+      ('기기와 연결되지 않았어요', 'disconnected', '처음 화면 위쪽 연결 표시를 눌러 봐 주세요'),
     ]) {
       testWidgets('준비 안 됨 — "$reason"에는 할 일 한 줄', (tester) async {
         await _pumpView(

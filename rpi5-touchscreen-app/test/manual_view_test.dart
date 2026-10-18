@@ -108,7 +108,7 @@ void main() {
     expect(find.text('아직 준비가 끝나지 않았어요'), findsOneWidget);
     expect(find.text('버튼 자리를 아직 맞추지 않았어요'), findsOneWidget);
     // 사유마다 할 일 한 줄(2026-10-15).
-    expect(find.text('휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요'), findsOneWidget);
+    expect(find.text('휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요'), findsOneWidget);
     await tester.tap(find.text('시작'), warnIfMissed: false);
     expect(pressed, isEmpty);
     expect(tester.takeException(), isNull);

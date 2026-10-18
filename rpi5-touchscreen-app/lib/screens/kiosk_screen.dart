@@ -1088,7 +1088,7 @@ class _KioskScreenState extends State<KioskScreen> {
         _holdSpokenKey = key;
         _tts.speak(st.holdState == 'fault' || st.holdStopOutcome == 'drive_fault'
             ? '작은 팔에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
-            : '가전이 멈췄는지 몰라요. 지금 가전의 정지 버튼을 직접 눌러 주세요.');
+            : '가전이 멈췄는지 몰라요. 지금 가전 정지 버튼을 손으로 눌러 주세요.');
       }
       return;
     }

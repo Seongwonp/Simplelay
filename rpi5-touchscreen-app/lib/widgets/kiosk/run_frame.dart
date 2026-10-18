@@ -248,8 +248,10 @@ class KioskStopButton extends StatelessWidget {
                     const Icon(Icons.stop, size: KioskSizes.stopIcon),
                     const SizedBox(width: 12),
                     Flexible(
-                      child: KioskText(
-                        label,
+                      // 낱말 묶기(KioskText)를 쓰지 않는다 — '다시 멈추기'(6자)가 한 덩어리로 묶여 큰 글씨 800x480에서
+                      // '다시 멈추 / 기'로 낱말 가운데서 끊겼다(평가 16차 10/18). 넘치면 띄어쓰기에서 '다시 / 멈추기'.
+                      child: Text.rich(
+                        TextSpan(text: keepEachWord(label), semanticsLabel: label),
                         textAlign: TextAlign.center,
                         textWidthBasis: TextWidthBasis.longestLine,
                         style: const TextStyle(

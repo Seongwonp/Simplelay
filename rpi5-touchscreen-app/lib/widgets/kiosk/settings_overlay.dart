@@ -263,7 +263,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           _toggleRow(
             icon: Icons.text_increase,
             title: '큰 글씨',
-            subtitle: '화면의 글자를 22% 크게 보여 줘요',
+            subtitle: '화면 글자를 22% 크게 보여 줘요',
             value: widget.largeTextEnabled,
             onChanged: widget.onLargeTextChanged,
           ),

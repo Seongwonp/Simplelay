@@ -244,10 +244,8 @@ void main() {
 
     testWidgets('기다리는 칸은 진행색(파랑)으로 채우지 않는다', (tester) async {
       await _pumpView(tester, _hold(onClose: _noop));
-      final cell = tester.widget<DecoratedBox>(find.byKey(const ValueKey('panel-current')));
-      final deco = cell.decoration as BoxDecoration;
-      expect(deco.color, isNot(KioskColors.running));
-      expect(deco.border, isNotNull, reason: '자리는 흰 테로 알린다');
+      // 연습을 마친 대기는 칸을 강조하지 않는다(평가 16차 10/18) — 진행색도 흰 테도 없다.
+      expect(find.byKey(const ValueKey('panel-current')), findsNothing);
     });
 
     testWidgets('화면 — 연습 대기에서 처음 화면으로 나가면 같은 대기로 되돌아오지 않는다', (tester) async {

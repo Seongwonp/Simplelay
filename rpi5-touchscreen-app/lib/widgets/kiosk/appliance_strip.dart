@@ -597,7 +597,7 @@ KioskTileBand kioskTileBand(
   bool on = false,
   bool off = false,
 }) {
-  if (attention) return KioskTileBand('확인해 주세요', Icons.error_outline, KioskColors.warning);
+  if (attention) return KioskTileBand('확인 필요', Icons.error_outline, KioskColors.warning);
   if (unavailable) {
     // 이유는 누르면 연다(비상 버튼 풀기 안내·작은 팔 연결 창).
     return unavailableByEstop

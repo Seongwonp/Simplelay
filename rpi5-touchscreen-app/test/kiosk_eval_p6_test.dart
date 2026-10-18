@@ -6,7 +6,7 @@
 //    is_custom을 서버가 말하지 않으면 단정하지 않는다.
 // 2. 아이콘: 공기청정기(서버 category air_purifier)는 바람, 선풍기(서버 모의 선풍기 id 'fan')는 바람 계열. 앱 모음 격자 없음.
 // 3. 루틴 크기: '버튼 N번' → '누를 버튼 N개', LG 가전 단계는 결과 말('공기청정기 켜기').
-// 4. 연습 동작 중: 제목과 본문이 같은 상태를 말한다('누르기 연습을 마쳤어요'), 할 일은 '빨간 정지를 눌러 보세요' 하나,
+// 4. 연습 동작 중: 제목과 본문이 같은 상태를 말한다('연습이 끝났어요'), 할 일은 '빨간 정지를 눌러 보세요' 하나,
 //    조준경 아이콘 없음.
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -250,7 +250,7 @@ void main() {
         ));
     final all = _allTexts(tester);
     expect(all.join('\n'), isNot(contains('연습 중')), reason: "'연습 중' 제목 + '연습을 마쳤어요' 본문은 서로 다른 말");
-    expect(all.where((t) => t.contains('연습을 마쳤어요')).length, 1);
+    expect(all.where((t) => t.contains('연습이 끝났어요')).length, 1);
     // 평가 14차(10/18): 연습을 마친 대기에는 정지 안내 문장을 두지 않는다.
     expect(all.where((t) => t.contains('눌러 볼 수')), isEmpty);
     expect(all.where((t) => t.contains('눌러')).length, 0, reason: '정지 안내 문장 없음');

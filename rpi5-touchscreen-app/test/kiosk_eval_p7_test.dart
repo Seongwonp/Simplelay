@@ -126,7 +126,7 @@ void main() {
             ),
           ));
       expect(find.byKey(const ValueKey('panel-picture')), findsOneWidget);
-      expect(find.text('전자레인지의 취소 버튼을 직접 눌러 주세요'), findsOneWidget);
+      expect(find.text('전자레인지 취소 버튼을 손으로 눌러 주세요'), findsOneWidget);
       expect(find.textContaining("'취소'"), findsNothing);
       expect(tester.takeException(), isNull);
     });

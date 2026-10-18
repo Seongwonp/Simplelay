@@ -120,8 +120,8 @@ class KioskEstopBanner extends StatelessWidget {
                     ),
                     KioskText(
                         estopIsPowerLoss(detail)
-                            ? '주변을 본 뒤 풀기 안내를 눌러 주세요'
-                            : '비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요',
+                            ? '주변을 살펴봐 주세요'
+                            : '빨간 비상 버튼을 돌려서 풀어 주세요',
                         style: const TextStyle(color: _white, fontSize: KioskType.caption)),
                     if (message != null)
                       KioskText(

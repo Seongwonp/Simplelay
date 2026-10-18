@@ -258,7 +258,7 @@ void main() {
             onClose: () {},
           ));
       final texts = _texts(tester);
-      expect(texts, contains('누르기 연습을 마쳤어요'));
+      expect(texts, contains('연습이 끝났어요'));
       expect(texts.where((t) => t.contains('눌러 볼 수')), isEmpty);
       expect(texts.where((t) => t.contains('단추')), isEmpty);
       expect(tester.takeException(), isNull);

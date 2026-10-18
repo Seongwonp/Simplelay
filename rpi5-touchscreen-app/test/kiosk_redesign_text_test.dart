@@ -222,7 +222,7 @@ void main() {
           tester,
           KioskHoldView(
               appliance: kMicrowaveAppliance,
-              holdState: 'parked',
+              holdState: 'hovering_stop',
               stopOutcome: 'requested_unconfirmed',
               stopButton: '취소',
               executionMode: 'real',

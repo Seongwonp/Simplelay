@@ -145,7 +145,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
                 child: SingleChildScrollView(
                     child: Column(children: [
               if (session != null && state == 'open') ...[
-                const Text('같은 와이파이의 폰 카메라로 QR을 열어 주세요.',
+                const Text('같은 와이파이에 연결된 폰 카메라로 QR을 열어 주세요.',
                     style: TextStyle(fontSize: KioskType.status)),
                 if (session['qr_png'] case final String png)
                   Image.memory(base64Decode(png),
@@ -173,7 +173,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
               if (state == 'consumed')
                 const Text('폰에 연결 정보를 보냈어요.', style: TextStyle(fontSize: KioskType.status)),
               if (state == 'denied')
-                const Text('이 폰의 연결을 닫았어요.', style: TextStyle(fontSize: KioskType.status)),
+                const Text('이 폰 연결을 닫았어요.', style: TextStyle(fontSize: KioskType.status)),
               if (session != null && _deadline != null)
                 Text(
                     '${_deadline!.difference(DateTime.now()).inSeconds.clamp(0, 300)}초 남았어요',

@@ -58,7 +58,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('최근 ${status.windowDays}일의 사용 기록'),
+                        Text('최근 ${status.windowDays}일 사용 기록'),
                         const Divider(height: 28),
                         if (status.routines.isEmpty)
                           const Text('아직 학습할 실제 사용 기록이 없어요. 평소처럼 사용해 주세요.'),

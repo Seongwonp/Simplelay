@@ -531,7 +531,7 @@ class _Controls extends StatelessWidget {
     if (s == null) {
       // 읽는 중 — 조작 칸은 아직 그리지 않는다.
     } else if (!s.ok) {
-      children.add(KioskText('지금 상태를 본 뒤 바꿀 수 있어요. 왼쪽의 새로 보기를 눌러 주세요.',
+      children.add(KioskText('지금 상태를 본 뒤 바꿀 수 있어요. 왼쪽 새로 보기를 눌러 주세요.',
           textKey: ValueKey('thinq-controls-unknown'),
           style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted, height: 1.3)));
     } else {

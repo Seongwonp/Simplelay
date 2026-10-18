@@ -162,7 +162,7 @@ const kPracticeStopHeadline = '연습을 멈췄어요';
 
 /// 정지 제목 아래 할 일 한 가지(원칙 0-3). 작은 팔이 멈춘 것을 확인했어도 가전은 이미 켜졌을 수 있다.
 String stopLevelNextStep(String? level) => stopLevelConfirmed(level)
-    ? '가전이 켜져 있으면 가전의 정지 버튼을 직접 눌러 주세요'
+    ? '가전이 켜져 있으면 가전 정지 버튼을 손으로 눌러 주세요'
     : '가전을 봐 주세요';
 
 /// 작은 팔이 멈춘 것을 **확인한** 단계는 엔코더 확인(verified)뿐이다. 모션 보드가 받음(mcu_ack)은 확인이 아니다

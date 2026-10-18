@@ -1154,6 +1154,9 @@ class _ResultRing extends StatelessWidget {
       );
 }
 
+/// 성공 뒤 자동 복귀 말 — 보통·큰 글씨 같은 말(평가 16차 10/18).
+const kAutoReturnLine = '잠시 뒤 처음 화면으로 돌아가요';
+
 /// 성공 후 자동 복귀를 **글자로도** 말한다. 기다리기 싫은 사람의 길은 옆의 '처음 화면으로'.
 class _AutoReturn extends StatelessWidget {
   const _AutoReturn();
@@ -1165,16 +1168,13 @@ class _AutoReturn extends StatelessWidget {
     return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: total.inSeconds.toDouble(), end: 0),
-            duration: total,
-            builder: (_, seconds, __) => Text(
-              '${seconds.ceil()}초 뒤 처음 화면으로 돌아가요',
-              maxLines: 1,
-              softWrap: false,
-              style: TextStyle(
-                  fontSize: KioskType.caption, color: KioskColors.muted),
-            ),
+          // 초 수 대신 한 말(평가 16차 10/18 — 보통 '10초 뒤'·큰 글씨 '20초 뒤'로 말이 달랐다). 남은 시간은 아래 막대가 보인다.
+          Text(
+            kAutoReturnLine,
+            key: const ValueKey('done-auto-return'),
+            maxLines: 1,
+            softWrap: false,
+            style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
           ),
           const SizedBox(height: 8),
           SizedBox(

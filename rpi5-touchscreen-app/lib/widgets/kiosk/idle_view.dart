@@ -667,25 +667,13 @@ class _NextRunLine extends StatelessWidget {
   static const _noticeStyle = TextStyle(fontSize: KioskType.caption, height: 1.2);
   static const _sep = '·';
 
-  /// '오후 10:00 · 저녁 공기청정기 켜기' — 한 줄에 다 들어가지 않으면 시각 뒤에서 줄을 바꾼다('오후 10:00' / 이름).
-  static InlineSpan _lineSpan(KioskNextRun n, {bool broken = false}) => TextSpan(children: [
+  /// '오후 10:00 · 저녁 공기청정기 켜기' — 늘 한 줄(평가 16차 10/18 — 실패널은 한 줄인데 골든에서는 시각 뒤에서 두 줄로
+  /// 갈렸다). 넘치면 이름 끝만 말줄임 — 시각이 앞이라 잘리지 않는다.
+  static InlineSpan _lineSpan(KioskNextRun n) => TextSpan(children: [
         TextSpan(text: n.whenShort, style: const TextStyle(fontWeight: FontWeight.w700)),
-        TextSpan(text: broken ? '\n' : ' · '),
-        TextSpan(text: keepWords(n.name), semanticsLabel: n.name),
+        const TextSpan(text: ' · '),
+        TextSpan(text: n.name),
       ]);
-
-  /// 한 줄로 다 들어가지 않으면 시각 뒤에서 줄을 바꾼다.
-  static bool _broken(BuildContext context, KioskNextRun n, double width) {
-    final tp = TextPainter(
-      text: TextSpan(style: DefaultTextStyle.of(context).style.merge(_lineStyle), children: [_lineSpan(n)]),
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-      maxLines: 1,
-    )..layout();
-    final w = tp.width;
-    tp.dispose();
-    return w > width;
-  }
 
   /// 단추 말 — 건너뛰었으면 '되돌리기', 아니면 서버 말('오늘은 건너뛰기'). 둘 수 없으면 null.
   static String? _buttonLabel(KioskNextRun n, bool withButton) =>
@@ -721,7 +709,7 @@ class _NextRunLine extends StatelessWidget {
   static double heightFor(BuildContext context, KioskNextRun n, double width,
       {bool withButton = true, String? notice}) {
     var h = _headHeight(context) + _headGap;
-    h += _spanHeight(context, _lineSpan(n, broken: _broken(context, n, width)), _lineStyle, width);
+    h += _textHeight(context, '오후 10:00', _lineStyle, double.infinity);
     final word = keepWords(_wordOf(n, notice));
     final label = _buttonLabel(n, withButton);
     if (label == null) {
@@ -826,10 +814,21 @@ class _NextRunLine extends StatelessWidget {
                       ]),
                     ),
                     const SizedBox(height: _headGap),
-                    Text.rich(_lineSpan(next, broken: _broken(context, next, width)),
-                        key: const ValueKey('idle-next-run-text'),
-                        // 건너뛴 회차는 흐리게 — 무엇을 건너뛰는지는 그대로 읽힌다.
-                        style: _lineStyle.copyWith(color: skipped ? KioskColors.muted : Colors.white)),
+                    // 조금 넘치면(15% 안) 글자를 살짝 줄여 이름 끝('켜기')까지 보이고, 그보다 길면 이름 끝만 말줄임.
+                    () {
+                      final line = Text.rich(_lineSpan(next),
+                          key: const ValueKey('idle-next-run-text'),
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          // 건너뛴 회차는 흐리게 — 무엇을 건너뛰는지는 그대로 읽힌다.
+                          style: _lineStyle.copyWith(color: skipped ? KioskColors.muted : Colors.white));
+                      final natural = _spanWidth(context, _lineSpan(next), _lineStyle);
+                      if (natural <= width || natural * 0.85 > width) return line;
+                      return SizedBox(
+                          width: width,
+                          child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: line));
+                    }(),
                   ]),
             ),
             if (last != null) last,
@@ -910,16 +909,17 @@ double _textWidth(BuildContext context, String text, TextStyle style) {
   return w;
 }
 
-/// 여러 조각 글의 높이 — [Text.rich]와 같은 기본 글꼴·배율로 잰다.
-double _spanHeight(BuildContext context, InlineSpan span, TextStyle style, double maxWidth) {
+/// 여러 조각 글의 한 줄 폭 — [Text.rich]와 같은 기본 글꼴·배율로 잰다.
+double _spanWidth(BuildContext context, InlineSpan span, TextStyle style) {
   final tp = TextPainter(
     text: TextSpan(style: DefaultTextStyle.of(context).style.merge(style), children: [span]),
     textDirection: Directionality.of(context),
     textScaler: MediaQuery.textScalerOf(context),
-  )..layout(maxWidth: maxWidth < 0 ? 0 : maxWidth);
-  final h = tp.height;
+    maxLines: 1,
+  )..layout();
+  final w = tp.width;
   tp.dispose();
-  return h;
+  return w;
 }
 
 /// 한 덩어리 글의 높이 — [Text]와 같은 기본 글꼴·배율로 잰다.

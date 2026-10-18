@@ -31,7 +31,7 @@ import 'kiosk_phase_test.dart' show FakeEventStream, FakeKioskApi, FakeTts;
 
 // RPi4가 실제로 보내는 문장(2bc87e5). 띠는 제목과 겹치는 머리를 떼고 나머지만 보인다.
 const _detail = "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요";
-const _detailShown = '비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요';
+const _detailShown = '빨간 비상 버튼을 돌려서 풀어 주세요';
 const _banner = ValueKey('estop-banner');
 const _ack = ValueKey('estop-ack');
 const _confirm = ValueKey('estop-confirm');

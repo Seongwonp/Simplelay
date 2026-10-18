@@ -91,6 +91,9 @@ class KioskHoldView extends StatelessWidget {
 
   bool get _unconfirmed => stopOutcome == 'requested_unconfirmed';
 
+  /// 작은 팔이 제자리로 돌아갔다고 서버가 알려 왔다(hold_state=parked).
+  bool get _parked => holdState == 'parked';
+
   /// 연습 대기에서 정지를 보냈고 아직 대기 상태가 바뀌지 않았다 — 제목이 이 상태 하나만 말한다.
   bool get _practiceStopping => _mock && stopRequested && !stopFailed && holdState == 'hovering_stop';
 
@@ -126,8 +129,8 @@ class KioskHoldView extends StatelessWidget {
       // 정지를 보낸 뒤에는 상태가 바뀌었다 — '마쳤어요' 아래 '멈추는 중이에요'를 함께 두지 않고 지금 상태 한 문장(평가 11차 10/18).
       _ => _mock
           ? (_practiceStopping
-              ? ('연습으로 멈추는 중이에요', Icons.pan_tool_outlined, Colors.white)
-              : ('누르기 연습을 마쳤어요', Icons.check_circle_outline, Colors.white))
+              ? ('연습을 끝내는 중이에요', Icons.pan_tool_outlined, Colors.white)
+              : ('연습이 끝났어요', Icons.check_circle_outline, Colors.white))
           : _operationReal
               ? (
                   '${withSubject(_name)} 돌아가고 있어요',
@@ -217,8 +220,8 @@ class KioskHoldView extends StatelessWidget {
           children: [
             KioskText(
                 cancel == null
-                    ? '가전의 정지 버튼을 직접 눌러 주세요'
-                    : '$_name의 $cancel 버튼을 직접 눌러 주세요',
+                    ? '가전 정지 버튼을 손으로 눌러 주세요'
+                    : '$_name $cancel 버튼을 손으로 눌러 주세요',
                 style: const TextStyle(
                     fontSize: KioskType.status,
                     color: Colors.white,
@@ -235,7 +238,7 @@ class KioskHoldView extends StatelessWidget {
             label: '정지',
             onPressed: null,
             buttonKey: ValueKey('hold-stop'),
-            semanticsLabel: '정지 버튼을 쓸 수 없어요. 가전의 정지 버튼을 직접 눌러 주세요'),
+            semanticsLabel: '정지 버튼을 쓸 수 없어요. 가전 정지 버튼을 손으로 눌러 주세요'),
       );
     }
     final (headline, headIcon, headColor) = _headline;
@@ -248,8 +251,8 @@ class KioskHoldView extends StatelessWidget {
         (
           Icons.touch_app_outlined,
           cancel == null
-              ? '지금 $_name의 정지 버튼을 직접 눌러 주세요'
-              : '지금 $_name의 $cancel 버튼을 직접 눌러 주세요',
+              ? '지금 $_name 정지 버튼을 손으로 눌러 주세요'
+              : '지금 $_name $cancel 버튼을 손으로 눌러 주세요',
           KioskColors.warning
         ),
       // 가전이 멈췄다는 말은 RPi4가 전력 하강으로 확인한 때만(hold_stop_outcome == stopped).
@@ -280,7 +283,7 @@ class KioskHoldView extends StatelessWidget {
         (
           Icons.info_outline,
           cancel == null
-              ? '정지를 누르면 작은 팔이 가전의 정지 버튼을 대신 눌러요'
+              ? '정지를 누르면 작은 팔이 가전 정지 버튼을 대신 눌러요'
               : '정지를 누르면 작은 팔이 $cancel 버튼을 대신 눌러요',
           KioskColors.muted
         ),
@@ -292,13 +295,16 @@ class KioskHoldView extends StatelessWidget {
           // 확인하지 못했다고 정직하게(가전 전력이 떨어지는 것을 보지 못한 상태다).
           _mock
               ? (cancel == null ? '연습으로 정지 버튼을 눌렀어요' : '연습으로 $cancel 버튼을 눌렀어요')
+              // 주어는 제목과 같은 가전 쪽 하나로(평가 16차 10/18 — '가전이 …' 제목 아래 '작은 팔도 …'가 섞였다).
               : (cancel == null
-                  ? '작은 팔도 정지 버튼을 눌렀지만 눌렸는지 확인이 안 됐어요'
-                  : '작은 팔도 $cancel 버튼을 눌렀지만 눌렸는지 확인이 안 됐어요'),
+                  ? '정지 버튼이 눌렸는지 확인이 안 됐어요'
+                  : '$cancel 버튼이 눌렸는지 확인이 안 됐어요'),
           KioskColors.muted
         ),
-      if (_unconfirmed && holdState == 'parked')
-        (Icons.check, '작은 팔이 제자리로 돌아갔어요', KioskColors.muted),
+      // 작은 팔이 제자리로 돌아간 것은 서버가 알려 온 사실(hold_state=parked — RPi4가 제자리 이동을 모션 보드 응답으로 마친 뒤에만
+      // 보낸다). 그때는 다시 멈출 것이 없다 — 정지 단추는 이름 '정지' 그대로 같은 자리, 할 일은 손으로 누르기(평가 16차 10/18).
+      if (_unconfirmed && _parked)
+        (Icons.check, '작은 팔은 제자리에 있어요', KioskColors.muted),
       if (detail != null && detail!.isNotEmpty && stopOutcome != 'stopped')
         (
           _fault ? Icons.power_settings_new : Icons.info_outline,
@@ -323,7 +329,7 @@ class KioskHoldView extends StatelessWidget {
 
     // 확인 못 함이면 단추 이름이 할 일을 말한다 — 자리·크기·색은 그대로(원칙 0-4).
     // '다시 정지 시도'는 '다시 / 정지 시도'로 꺾였다(2차 평가 10/18) — 한 줄 '다시 멈추기'.
-    final stopLabel = _unconfirmed ? '다시 멈추기' : '정지';
+    final stopLabel = _unconfirmed && !_parked ? '다시 멈추기' : '정지';
 
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -374,7 +380,8 @@ class KioskHoldView extends StatelessWidget {
     // (화면의 빨간 정지 단추와 한 묶음처럼 보이지 않게, §1-1).
     final a = appliance;
     final hovering = holdState == 'hovering_stop' || holdState == 'stopping';
-    final waitCell = a == null || !hovering
+    // 연습을 마친 대기에는 칸을 강조하지 않는다(평가 16차 10/18 — '연습이 끝났어요' 옆 강조된 '취소'가 할 일처럼 보였다).
+    final waitCell = a == null || !hovering || (_mock && holdState == 'hovering_stop')
         ? null
         : a.buttons.where((b) => b.label == stopButton).firstOrNull;
 
@@ -408,7 +415,7 @@ class KioskHoldView extends StatelessWidget {
         label: stopLabel,
         onPressed: onStop,
         buttonKey: const ValueKey('hold-stop'),
-        semanticsLabel: '$stopLabel. 작은 팔이 가전의 정지 버튼을 대신 눌러요',
+        semanticsLabel: '$stopLabel. 작은 팔이 가전 정지 버튼을 대신 눌러요',
       ),
     );
   }
