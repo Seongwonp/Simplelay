@@ -435,6 +435,15 @@ def _node_controller_factory():
 
 
 @lru_cache(maxsize=1)
+def get_person_acks():
+    """사람이 '확인함' — 못 한 일·알림을 봤다는 표시(2026-10-19). 폰·키오스크가 같은 값을 읽는다.
+    SIMPLELAY_DB_PATH가 있으면 재시작에도 남는다."""
+    from rpi.services.person_acks import PersonAckStore  # noqa: PLC0415
+
+    return PersonAckStore(_clock, db=get_db())
+
+
+@lru_cache(maxsize=1)
 def get_care_events():
     """보호자 알림 저장소 — 실패·위험소리·긴급정지·안부 신호가 모인다.
     SIMPLELAY_DB_PATH가 있으면 재시작에도 알림 이력이 유지된다."""

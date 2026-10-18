@@ -984,6 +984,31 @@ class CareEventResponse(BaseModel):
     occurred_at: datetime
 
 
+class AcksResponse(BaseModel):
+    """GET/POST /acks — 사람이 확인한 것(2026-10-19, ``rpi/services/person_acks.py``).
+
+    - care_seen_id: 보호자 알림을 이 번호까지 봤다(모든 기기 공통).
+    - failures_seen_until: 이 시각(본체 시계)까지의 '못 한 일' 알림(execution_failed·appliance_done_undelivered)은 봤다.
+    - job_answers: 실행 하나에 남긴 답(seen·moved·not_moved), 최근 200건."""
+
+    care_seen_id: int
+    failures_seen_until: datetime | None = None
+    job_answers: dict[str, str] = {}
+
+
+class AckRequest(BaseModel):
+    """POST /acks — 하나 이상. 못 한 일 표시(failures_seen·answer)는 본체 시계의 지금까지 올린다.
+
+    - care_seen_id: 알림함을 연 기기가 본 가장 새 알림 번호(본체에 있는 가장 새 번호를 넘지 않게 줄인다).
+    - failures_seen: 못 한 일을 봤다(폰 '기록 보기') — 최근 실행 기록도 모두 '봤다'로.
+    - job_id + answer: 키오스크 지난 일 '확인'(seen)·'움직였어요'(moved)·'안 움직였어요'(not_moved)."""
+
+    care_seen_id: int | None = Field(default=None, ge=0)
+    failures_seen: bool = False
+    job_id: str | None = Field(default=None, min_length=1, max_length=64)
+    answer: Literal["seen", "moved", "not_moved"] | None = None
+
+
 class DemoCareEventRequest(BaseModel):
     """POST /demo/care-event — 보호자 알림을 강제 생성(리허설).
 

@@ -37,7 +37,7 @@ from rpi.services.weather import (
     build_ambient,
 )
 
-from .deps import get_alert_store, get_appliance_registry, get_care_events, get_db, get_service
+from .deps import get_alert_store, get_appliance_registry, get_care_events, get_db, get_person_acks, get_service
 
 log = logging.getLogger(__name__)
 
@@ -207,11 +207,11 @@ def _subject_particle(name: str) -> str:
     return "이"
 
 
-def _attention(service, registry, alerts, care_events=None) -> list[AttentionItem]:
+def _attention(service, registry, alerts, care_events=None, acks=None) -> list[AttentionItem]:
     """확인이 필요한 일 -- 위험 소리 경보, 마지막 실행이 끝까지 되지 않은 가전, 최근 루틴 안내(순서대로).
 
-    마지막 실행 실패는 다음 실행이 시작될 때까지 남는다(실행 기록에 시각이
-    필요 없는 가장 단순한 규칙). 루틴 안내는 ``ROUTINE_TIP_MINUTES`` 동안만 남는다.
+    마지막 실행 실패는 다음 실행이 시작될 때까지, 또는 사람이 확인할 때까지(``acks`` — 키오스크 지난 일 확인·답,
+    폰 '기록 보기', 2026-10-19) 남는다. 루틴 안내는 ``ROUTINE_TIP_MINUTES`` 동안만 남는다.
     """
     items: list[AttentionItem] = []
     try:
@@ -223,7 +223,8 @@ def _attention(service, registry, alerts, care_events=None) -> list[AttentionIte
         log.exception("alert state unavailable for ambient tip")
     try:
         snap = service.status()
-        if not snap.running and snap.last_result is not None and outcome_of(
+        acked = acks is not None and acks.snapshot().job_acked(getattr(snap, "last_job_id", None))
+        if not snap.running and not acked and snap.last_result is not None and outcome_of(
             snap.last_result
         ) in (ExecutionOutcome.FAILED, ExecutionOutcome.SAFETY_STOP):
             appliance = (
@@ -263,11 +264,12 @@ async def ambient(
     alerts=Depends(get_alert_store),
     weather: WeatherService = Depends(get_weather_service),
     care_events=Depends(get_care_events),
+    acks=Depends(get_person_acks),
 ) -> dict:
     now = datetime.now(timezone.utc)
     # 기상청 호출(최대 timeout초)이 이벤트 루프를 막지 않게 스레드로 넘긴다.
     snapshot = await asyncio.to_thread(weather.snapshot, now)
-    return build_ambient(now, snapshot, _attention(service, registry, alerts, care_events), weather.config)
+    return build_ambient(now, snapshot, _attention(service, registry, alerts, care_events, acks), weather.config)
 
 
 # ── /connections ────────────────────────────────────────────────────────────

@@ -44,6 +44,7 @@ from .deps import (
     get_alert_store,
     get_appliance_registry,
     get_care_events,
+    get_person_acks,
     get_actuator_status,
     get_demo_failure_state,
     get_dht22,
@@ -68,6 +69,8 @@ from .schemas import (
     ApplianceButtonModel,
     ApplianceRegisterRequest,
     ApplianceResponse,
+    AckRequest,
+    AcksResponse,
     CareEventResponse,
     DemoCareEventRequest,
     ButtonStep,
@@ -356,6 +359,52 @@ def list_care_events(
         )
         for e in store.recent(limit=max(1, min(limit, 200)))
     ]
+
+
+def _acks_response(snap) -> AcksResponse:
+    return AcksResponse(
+        care_seen_id=snap.care_seen_id,
+        failures_seen_until=snap.failures_seen_until,
+        job_answers=dict(snap.job_answers),
+    )
+
+
+@router.get("/acks", response_model=AcksResponse)
+def get_acks(acks=Depends(get_person_acks)) -> AcksResponse:
+    """사람이 확인한 것(2026-10-19) — 폰 홈 못 한 일 경고·설정 탭 배지·키오스크 지난 일·가전 칸 표시가 같은 값을 읽는다."""
+    return _acks_response(acks.snapshot())
+
+
+@router.post("/acks", response_model=AcksResponse)
+def post_acks(
+    body: AckRequest,
+    acks=Depends(get_person_acks),
+    care=Depends(get_care_events),
+    history=Depends(get_job_history),
+) -> AcksResponse:
+    """사람이 봤다·답했다를 적는다(모든 기기에서 사라지게). 새 실패는 아직 확인 전이라 다시 뜬다."""
+    if body.care_seen_id is None and not body.failures_seen and body.job_id is None:
+        raise HTTPException(status_code=422, detail="확인할 것을 하나 이상 보내 주세요")
+    if body.answer is not None and body.job_id is None:
+        raise HTTPException(status_code=422, detail="답에는 실행 번호(job_id)가 필요해요")
+    seen_id = body.care_seen_id
+    if seen_id is not None:
+        # 아직 없는 번호까지 '봤다'고 하면 앞으로 올 알림이 미리 지워진다 — 본체에 있는 가장 새 번호까지만.
+        newest = care.recent(limit=1)
+        seen_id = min(seen_id, newest[0].event_id) if newest else 0
+    seen_jobs = [e.job_id for e in history.recent(limit=JOB_ACK_SCAN)] if body.failures_seen else []
+    snap = acks.change(
+        care_seen_id=seen_id,
+        failures_seen=body.failures_seen,
+        seen_job_ids=seen_jobs,
+        job_id=body.job_id,
+        answer=body.answer,
+    )
+    return _acks_response(snap)
+
+
+#: '기록 보기'가 '봤다'로 적는 최근 실행 기록 수(``person_acks.JOB_LIMIT``와 같은 폭).
+JOB_ACK_SCAN = 200
 
 
 @router.get("/appliances", response_model=list[ApplianceResponse])
