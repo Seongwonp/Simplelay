@@ -332,10 +332,10 @@ class ProactiveSuggestionService:
                     steps=steps,
                     appliance_id=candidate.appliance_id,
                     expires_at=until,
+                    # 근거는 본 사실만 담담하게(평가 14차 10/18 — '자주 하셔서 여쭤봐요'는 높임·낮춤이 섞인 번역투였다).
                     reason=((f"평소처럼 '{routine[1]}' 할까요? " if routine else "")
-                            + f"{candidate.time_band}에 자주 하셔서 여쭤봐요 · "
-                            f"최근 {candidate.window_days}일 중 "
-                            f"{candidate.distinct_days}일 사용"),
+                            + f"최근 {candidate.window_days}일 중 "
+                            f"{candidate.distinct_days}일, {candidate.time_band}에 하셨어요"),
                     commands=commands,
                     command_summaries=summaries,
                     routine_id=routine[0] if routine else None,

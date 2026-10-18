@@ -34,7 +34,9 @@ def test_counts_and_distinct_days_are_separate_and_reason_matches():
     assert (candidate.occurrences, candidate.distinct_days) == (4, 3)
     service = ProactiveSuggestionService(d, FixedClock(NOW), MockPurposeExecutor())
     suggestion, = service.create_suggestions()
-    assert suggestion.reason == '아침에 자주 하셔서 여쭤봐요 · 최근 28일 중 3일 사용'
+    # 평가 14차(10/18) — 번역투('하셔서 여쭤봐요') 없이 본 사실만.
+    assert suggestion.reason == '최근 28일 중 3일, 아침에 하셨어요'
+    assert '여쭤' not in suggestion.reason
 
 
 def test_old_and_future_records_cannot_supply_missing_days():
