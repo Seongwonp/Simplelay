@@ -259,7 +259,8 @@ void main() {
       await _pump(tester, const HistoryScreen(), _Hub());
       final reason = find.byKey(const Key('history-reason-f-1'));
       expect(reason, findsOneWidget);
-      expect(tester.widget<Text>(reason).semanticsLabel, '가전이 꺼져 있어 이 명령을 받을 수 없어요');
+      // 평가 15차(10/18): 기록 문장의 근거(꺼짐 거절)를 쉬운 말로 — '명령' 없이(eval15_phone_test 4).
+      expect(tester.widget<Text>(reason).semanticsLabel, '꺼져 있을 땐 바람 세기를 바꿀 수 없어요');
       expect(find.byKey(const Key('history-reason-f-bare')), findsNothing);
     });
 

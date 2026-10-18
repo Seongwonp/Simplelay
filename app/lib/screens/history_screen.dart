@@ -27,6 +27,9 @@ final historyProvider =
   return api.history();
 });
 
+/// 기록 묶음은 바로 앞 회차와 이 간격 안일 때만(평가 15차 10/18).
+const kHistoryRunGap = Duration(minutes: 10);
+
 /// 날짜별 로그가 아니라 **무엇을 했고 결과가 어땠는지**가 먼저다.
 ///
 /// 읽는 순서(2026-10-18): 날짜(구획 제목, 눌렸는지 모르는 일 수) → 행 두 줄(무엇을 · 시각·누가)
@@ -126,7 +129,11 @@ class HistoryScreen extends ConsumerWidget {
     String? lastKey;
     for (final e in entries) {
       final key = historyRunKey(e, applianceName: _nameOf(installed, e));
-      if (runs.isNotEmpty && key == lastKey) {
+      // 평가 15차(10/18): '켜기 · 2번'이 '오전 10:51~오후 12:59'로 두 시간에 걸쳐 묶였다 → 바로 앞 회차와
+      // [kHistoryRunGap] 안일 때만 같은 묶음(따로 한 일이 한 번에 한 것처럼 읽히지 않게).
+      if (runs.isNotEmpty &&
+          key == lastKey &&
+          runs.last.last.finishedAt.difference(e.finishedAt).abs() <= kHistoryRunGap) {
         runs.last.add(e);
       } else {
         runs.add([e]);
@@ -346,9 +353,26 @@ String? historyFailReason(RpiHistoryEntry e, {String? applianceName}) {
   if (e.executionMode == 'mock') return null;
   if (resultKindOf(outcome: e.outcome, status: e.status) != ResultKind.failed) return null;
   final first = _detailParts(e.detail).$1;
-  if (first != null) return first;
+  if (first != null) return plainFailReason(first, historyTitle(e, applianceName: applianceName));
   if (e.route == 'thinq') return null;
   return historyResult(e, applianceName: applianceName).sentence;
+}
+
+/// 본체 거절 문장의 첫 문장 → 쉬운 말(평가 15차 10/18: '가전의 지금 모드에서는 이 명령을 받을 수 없어요'의 '모드'·'명령').
+///
+/// **근거가 있는 만큼만** 말한다 — '꺼져 있어'는 본체가 꺼짐 거절 코드로 적었을 때만 쓰고(바람 세기 일이면 '꺼져 있을
+/// 땐 바람 세기를 바꿀 수 없어요'), 모드·상태 거절은 꺼졌다고 하지 않고 '지금은 가전이 바꿀 수 없는 상태였어요'.
+/// 모르는 문장은 그대로 둔다(지어내지 않는다).
+String plainFailReason(String first, String title) {
+  final t = first.trim();
+  if (t.contains('꺼져 있어 이 명령을')) {
+    return title.contains('바람') ? '꺼져 있을 땐 바람 세기를 바꿀 수 없어요' : '가전이 꺼져 있어서 못 했어요';
+  }
+  if (t.contains('지금 모드에서는 이 명령을') || t.contains('지금은 이 명령을')) {
+    return '지금은 가전이 바꿀 수 없는 상태였어요';
+  }
+  if (t == '가전이 이 명령을 받지 않았어요') return '가전이 받지 않았어요';
+  return t;
 }
 
 /// 본체 결과 문장 → (첫 문장(마침표 뺌), 나머지). 비었으면 (null, null).
@@ -497,9 +521,10 @@ class _HistoryRowState extends State<_HistoryRow> {
       children: [
         // 왼쪽 = 누가(직접·루틴·자동). 회색 원 없이 아이콘만(평가 14차 10/18).
         // 사람이 시작한 LG 가전 기록은 손 대신 가전 아이콘(평가 12차 10/18), LG 가전 자동 실행도(평가 13차).
+        // 큰 글씨에서는 아이콘도 글자 배율을 따라(평가 15차 10/18, 상한 있음).
         SizedBox(
-          width: AppSpace.xxxl,
-          height: AppSpace.xxl + AppSpace.xs,
+          width: textScaledIcon(context, AppSpace.xxxl),
+          height: textScaledIcon(context, AppSpace.xxl + AppSpace.xs),
           child: Align(
             alignment: Alignment.centerLeft,
             child: Icon(
@@ -507,7 +532,7 @@ class _HistoryRowState extends State<_HistoryRow> {
                     ? (widget.applianceIcon ?? ApplianceCategory.other.icon)
                     : AppIcons.source(source),
                 key: Key('history-icon-${entry.jobId}'),
-                size: 22,
+                size: textScaledIcon(context, 22),
                 color: context.appMuted),
           ),
         ),
@@ -618,7 +643,10 @@ class _HistoryRowState extends State<_HistoryRow> {
     final look = historyBadgeOf(entry).label == '봐 주세요';
     // 이유 줄이 결과 문장이면 결과 문장을, 본체 문장의 첫 문장이면 그 첫 문장을 빼고 나머지만.
     final sentenceShown = reasonShown && (look || failReason == result.sentence);
-    final detailShown = reasonShown && !look && failReason != null && failReason == detailFirst;
+    final detailFirstShown = detailFirst == null
+        ? null
+        : plainFailReason(detailFirst, historyTitle(entry, applianceName: applianceName));
+    final detailShown = reasonShown && !look && failReason != null && failReason == detailFirstShown;
     final detailText = detailShown ? detailRest : (entry.detail.isEmpty ? null : entry.detail);
     return [
       if (!sentenceShown)
@@ -667,9 +695,12 @@ class _QuietResult extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 16, color: color),
           const SizedBox(width: AppSpace.xs),
-          Text(label,
-              semanticsLabel: semanticLabel ?? label,
-              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+          // 큰 글씨에서 칸보다 길면 낱말 단위로 꺾는다(넘치지 않게).
+          Flexible(
+            child: Text(keepWordsTogether(label),
+                semanticsLabel: semanticLabel ?? label,
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+          ),
         ]),
       );
 }

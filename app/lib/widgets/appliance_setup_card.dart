@@ -144,9 +144,14 @@ class SetupSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 큰 글씨에서는 이름을 늘어놓으면 세 줄로 꺾인다(평가 15차 10/18: '전자레인지, / 세탁기 설정이 / 남았어요') →
+    // 짧게 '설정 2개 남았어요'. 어느 가전인지는 접근성 이름과 누르면 나오는 목록이 말한다.
+    final large = MediaQuery.textScalerOf(context).scale(1) > 1.3;
     final text = appliances.length == 1
         ? '${appliances.single.name}, 설정이 남았어요'
-        : '${setupSummaryNames(appliances)} 설정이 남았어요';
+        : large
+            ? '설정 ${appliances.length}개 남았어요'
+            : '${setupSummaryNames(appliances)} 설정이 남았어요';
     return Semantics(
       key: const Key('setup-summary-card'),
       container: true,

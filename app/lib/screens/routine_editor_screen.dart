@@ -59,6 +59,11 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
         _error = null;
       });
 
+  /// 실행 방식 아래 한 줄 설명.
+  String get _modeNote => _draft.mode == RoutineMode.approve
+      ? '때가 되면 카드로 물어보고, 허락하면 눌러요.'
+      : '알림만 보내요. 가전은 그대로예요.';
+
   @override
   Widget build(BuildContext context) {
     final appliances = ref.watch(installedAppliancesProvider);
@@ -81,7 +86,8 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxl),
+        // 끝 여백을 넉넉히 — 맨 아래 '루틴 켜기' 스위치가 아래 단추 줄에 붙어 가려 보이지 않게(평가 15차 10/18).
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxxl + AppSpace.xxl),
         children: [
           TextField(
             key: const Key('routine-name'),
@@ -194,10 +200,11 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
             onSelectionChanged: (v) => _update(_draft.copyWith(mode: v.first)),
           ),
           const SizedBox(height: AppSpace.sm),
+          // 낱말 단위 줄바꿈 + 짧게 한 줄(평가 15차 10/18: '눌러요'에서 '러요.'만 다음 줄로 갔다).
           Text(
-            _draft.mode == RoutineMode.approve
-                ? '때가 되면 카드로 물어봐요. 허락해야 가전을 눌러요.'
-                : '알림만 보내요. 가전은 그대로예요.',
+            keepWordsTogether(_modeNote),
+            key: const Key('routine-mode-note'),
+            semanticsLabel: _modeNote,
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
           SwitchListTile(

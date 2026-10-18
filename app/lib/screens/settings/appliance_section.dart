@@ -29,7 +29,9 @@ class _ApplianceSection extends ConsumerWidget {
           const Text('홈에서 가전을 추가해 주세요.'),
         // 홈과 같은 목록 — ThinQ 가전도 보인다(UI 평가 10/17: 홈 5대·설정 4대였다). 지울 수 없는 줄은 이유를
         // 부제로, 눌러서 들어간다는 것은 화살표로 말한다.
-        for (final appliance in appliances)
+        // 평가 15차(10/18): 다른 설정 묶음과 같은 문법 — 줄 사이 옅은 구분선.
+        for (final (i, appliance) in appliances.indexed) ...[
+          if (i > 0) Divider(height: 1, color: context.appBorderFaint),
           ListTile(
             leading: Icon(appliance.icon),
             title: Text(appliance.displayName),
@@ -57,6 +59,7 @@ class _ApplianceSection extends ConsumerWidget {
             // 지우기는 줄에 두지 않고 가전 상세 화면 위 ⋮ 한 곳(확인 대화는 그대로).
             trailing: Icon(Icons.chevron_right, color: context.appMuted),
           ),
+        ],
         // 아직 키오스크에 못 보낸 변경이 있으면 **여기서 먼저 말한다.**
         // 평상시에는 아무것도 띄우지 않는다 -- 늘 떠 있는 상태 표시는
         // 읽히지 않고, 정작 문제가 생겼을 때도 눈에 안 들어온다.

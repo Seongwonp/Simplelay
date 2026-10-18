@@ -51,7 +51,7 @@ part 'settings/nav_rows.dart';
 part 'settings/hub_screen.dart';
 part 'settings/developer_tab.dart';
 
-/// 설정 줄 '조용한 시간'의 지금 값 — '오후 10:00~오전 7:00 · 켜짐'. 못 읽었으면 그렇다고 하고 할 일을 붙인다
+/// 설정 줄 '조용한 시간'의 지금 값 — 켜져 있으면 '오후 10:00~오전 7:00', 꺼져 있으면 '꺼짐'. 못 읽었으면 그렇다고 하고 할 일을 붙인다
 /// (꺼짐으로 단정하지 않는다). 예전 '몰라요' 한마디는 무엇을 모르는지·어떻게 하는지 말하지 않았다(평가 3차 10/18).
 /// 줄을 누르면 상세가 다시 읽는다.
 ///
@@ -64,7 +64,9 @@ String quietRowValue(QuietHoursStatus? s,
     if (loading) return '알아보고 있어요';
     return readFailText(hub);
   }
-  return '${ampmRange(s.start, s.end)} · ${s.enabled ? '켜짐' : '꺼짐'}';
+  // 평가 15차(10/18): '오후 10:00~오전 7:00 · 꺼짐'은 이름 옆에 다 들어가지 않아 이 줄만 값이 아랫줄로 내려갔다 →
+  // 다른 두 줄(잠시 쉬기·집 비우는 날)과 같은 꼴: 꺼져 있으면 '꺼짐', 켜져 있으면 언제인지(시각 범위). 시각은 상세에서도 본다.
+  return s.enabled ? ampmRange(s.start, s.end) : '꺼짐';
 }
 
 /// 못 읽은 값의 다시 읽기 단추 이름.
@@ -98,7 +100,10 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       // 탭 제목은 홈('우리 집')과 같은 굵은 큰 제목(UI 평가 10/17).
       appBar: AppBar(title: Text('설정', style: AppText.heading)),
-      body: ListView(
+      // 모든 줄이 같은 아이콘 열·화살표 열(평가 15차 10/18) — [settingsListTileTheme].
+      body: ListTileTheme(
+        data: settingsListTileTheme(context),
+        child: ListView(
         padding: const EdgeInsets.all(AppSpace.xl),
         children: [
           if (ref.watch(demoModeProvider))
@@ -151,9 +156,9 @@ class SettingsScreen extends ConsumerWidget {
                   : care.status == CareInboxStatus.failed
                       ? '알림을 불러오지 못했어요'
                       : '새 알림이 없어요',
-              badge: unread,
-              badgeAlert: careNeedsLook(care.unreadEvents),
-              badgeKey: const Key('settings-care-badge'),
+              // 평가 15차(10/18): 빨간 숫자 칩과 '안 본 알림 7건' 글자가 같은 말을 두 번 했다 → 글자 하나, 볼 것(실패·정지
+              // 같은)이 섞였을 때만 그 글자를 경고색으로. 탭 막대의 점은 그대로 알린다.
+              valueColor: unread > 0 && careNeedsLook(care.unreadEvents) ? context.appWarning : null,
               onTap: () => context.push('/care'),
             ),
             _NavRow(
@@ -269,6 +274,7 @@ class SettingsScreen extends ConsumerWidget {
           ]),
           const SizedBox(height: 40),
         ],
+      ),
       ),
     );
   }

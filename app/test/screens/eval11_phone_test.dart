@@ -276,11 +276,12 @@ void main() {
         expect(_in(line, mark), findsOneWidget, reason: id);
         // 규칙이 꺼져 있으면(비상 정지로 꺼진 아침 규칙) '자동 꺼짐'(평가 14차 10/18 — 규칙 값이 먼저).
         expect(_in(mark, findPlainText(id == 'r-morn' ? '자동 꺼짐' : '자동')), findsOneWidget, reason: id);
-        // 설명 줄은 한 줄 — 표시가 다음 줄로 밀리지 않는다.
+        // 설명 줄은 한 줄 — 표시가 다음 줄로 밀리지 않는다. 평가 15차(10/18): 누를 수 있는 '자동'은 터치 칸이 48dp라
+        // 그 줄 높이는 48까지(글 두 줄이면 그보다 높다).
         if (_noKoreanFont == null) {
           final t = tester.widget<Text>(line);
           final lineH = (t.style?.fontSize ?? 14) * 1.6;
-          expect(tester.getSize(line).height, lessThan(lineH), reason: '$id ${tester.getSize(line)}');
+          expect(tester.getSize(line).height, lessThan(lineH > 48 ? lineH : 49), reason: '$id ${tester.getSize(line)}');
         }
         final r = tester.getRect(line);
         expect(tester.getCenter(mark).dy, inInclusiveRange(r.top, r.bottom), reason: id);
@@ -294,13 +295,13 @@ void main() {
       await _pump(tester, const RoutinesScreen());
       expect(findPlainText('설정 필요'), findsNothing);
       final setup = find.byKey(const Key('routine-setup-r-wash'));
-      expect(_in(setup, findPlainText('설정하기')), findsOneWidget);
+      expect(_in(setup, findPlainText('설정 열기')), findsOneWidget);
       expect(_in(setup, find.byIcon(Icons.chevron_right)), findsOneWidget);
       expect(_in(setup, find.byType(StatusBadge)), findsNothing);
       final run = find.byKey(const Key('routine-run-r-heat'));
       expect(_in(run, findPlainText('지금 하기')), findsOneWidget);
       // 글자 크기·굵기가 같다.
-      final a = tester.widget<Text>(_in(setup, findPlainText('설정하기')));
+      final a = tester.widget<Text>(_in(setup, findPlainText('설정 열기')));
       final b = tester.widget<Text>(_in(run, findPlainText('지금 하기')));
       expect(a.style?.fontSize, b.style?.fontSize);
       expect(a.style?.fontWeight, b.style?.fontWeight);
@@ -352,8 +353,10 @@ void main() {
         _ev(2, 'execution_failed'),
         _ev(1, 'quiet_routine'),
       ]);
-      final row = find.byKey(const Key('home-attention-care'));
-      expect(_in(row, findPlainText('안 본 알림 4건, 못 한 일이 있어요')), findsOneWidget);
+      // 평가 15차(10/18): 볼 것(못 한 일)은 그 갈래만 한 줄, 나머지 알림은 따로 한 줄(eval15_phone_test 5).
+      final row = find.byKey(const Key('home-attention-care-look'));
+      expect(_in(row, findPlainText('못 한 일 2건')), findsOneWidget);
+      expect(_in(find.byKey(const Key('home-attention-care')), findPlainText('안 본 알림 2건')), findsOneWidget);
       expect(_in(row, findPlainText('읽지 않은', contains: true)), findsNothing);
       await tester.tap(row);
       await tester.pumpAndSettle();
@@ -362,9 +365,10 @@ void main() {
 
     test('알림 줄 말 — 종류 수에 따라', () {
       // 평가 13차(10/18): 이름은 '안 본 알림 N건' 하나, 볼 것이 섞이면 가장 무거운 것 한 마디(eval13_phone_test 1).
-      expect(careAttentionText([_ev(1, 'quiet_routine')]), '안 본 알림 1건, 안부 신호가 있어요');
+      // 평가 15차(10/18): 볼 것은 그 갈래와 건수, 나머지는 '안 본 알림 N건'(eval15_phone_test 5).
+      expect(careAttentionText([_ev(1, 'quiet_routine')]), '안부 신호 1건');
       expect(careAttentionText([_ev(2, 'danger_sound'), _ev(1, 'execution_failed')]),
-          '안 본 알림 2건, 위험 소리가 났어요');
+          '위험 소리 1건, 안 본 알림 1건');
       expect(careAttentionText([_ev(1, 'something_new')]), '안 본 알림 1건');
     });
   });

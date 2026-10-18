@@ -2,17 +2,27 @@ part of '../settings_screen.dart';
 
 // ── 설정 탭 첫 묶음(UI 확정 §2) ──────────────────────────────────────────────
 
-/// 행 여러 개를 한 묶음으로. 카드 더미가 되지 않게 얇은 테두리 하나만 쓴다.
+/// 설정 한 화면의 줄 문법 하나(평가 15차 10/18: 테두리 묶음·면 없는 목록·구분선 목록이 한 화면에 섞였고, 왼쪽 아이콘·
+/// 오른쪽 화살표 열이 줄마다 어긋났다). 모든 줄 = 안쪽 여백 [kSettingsRowInset] · 아이콘 24 · 간격 [kSettingsRowInset] ·
+/// 이름(+값 오른쪽) · 화살표. 묶음은 테두리 없이 줄 사이 옅은 구분선만.
+const kSettingsRowInset = AppSpace.lg;
+
+/// 설정 첫 화면의 [ListTile]·[SwitchListTile]이 [_ValueRow]와 같은 열에 서게 하는 테마.
+ListTileThemeData settingsListTileTheme(BuildContext context) => ListTileThemeData(
+      contentPadding: const EdgeInsets.symmetric(horizontal: kSettingsRowInset),
+      minLeadingWidth: 24,
+      horizontalTitleGap: kSettingsRowInset,
+      iconColor: context.appInk,
+    );
+
+/// 행 여러 개를 한 묶음으로 — 테두리·면 없이 줄 사이 구분선만(평가 15차 10/18).
 class _NavGroup extends StatelessWidget {
   const _NavGroup({required this.children});
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: context.appBorderSubtle),
-        ),
+        key: const Key('settings-nav-group'),
         child: Column(
           children: [
             for (var i = 0; i < children.length; i++) ...[
@@ -32,54 +42,33 @@ class _NavRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.badge = 0,
-    this.badgeAlert = true,
-    this.badgeKey,
+    this.valueColor,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  final int badge;
 
-  /// 배지를 경고(빨강)로 칠하는가. 볼 것이 없는 건수(자동으로 한 일·루틴 안내뿐)는 중립색(평가 13차 10/18).
-  final bool badgeAlert;
-  final Key? badgeKey;
+  /// 값 글자 색 — 볼 것이 있을 때만 경고색(평가 15차 10/18: 빨간 숫자 칩과 '안 본 알림 7건' 글자가 같은 말을 두 번 했다 →
+  /// 칩 없이 글자 하나, 색은 그 글자에).
+  final Color? valueColor;
 
   // 한 줄 = 이름 + 오른쪽 지금 값(2026-10-18). [subtitle]은 그 값이다(설명 문장을 두지 않는다).
   @override
   Widget build(BuildContext context) => ListTile(
         minVerticalPadding: 12,
-        leading: Icon(icon, color: context.appPrimary),
+        contentPadding: const EdgeInsets.symmetric(horizontal: kSettingsRowInset),
+        minLeadingWidth: 24,
+        horizontalTitleGap: kSettingsRowInset,
+        leading: Icon(icon, color: context.appInk),
         title: _NameValue(
           name: title,
           // 어절 단위 줄바꿈('키오스크에서/는' 방지, UI 평가 10/17). 낭독은 원문.
           value: subtitle,
+          valueColor: valueColor,
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (badge > 0)
-              Container(
-                key: badgeKey,
-                padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
-                decoration: BoxDecoration(
-                  color: badgeAlert ? AppColors.danger : context.appMuted,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  badge > 99 ? '99+' : '$badge',
-                  style: const TextStyle(
-                    color: AppColors.onAccent,
-                    fontSize: AppFont.caption,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            const Icon(Icons.chevron_right),
-          ],
-        ),
+        trailing: Icon(Icons.chevron_right, color: context.appMuted),
         onTap: onTap,
       );
 }
@@ -141,10 +130,10 @@ class _ValueRow extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 56),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.sm),
+              padding: const EdgeInsets.symmetric(horizontal: kSettingsRowInset, vertical: AppSpace.sm),
               child: Row(children: [
-                Icon(icon, color: context.appPrimary),
-                const SizedBox(width: AppSpace.lg),
+                Icon(icon, color: context.appInk),
+                const SizedBox(width: kSettingsRowInset),
                 Expanded(
                   child: _NameValue(
                     name: title,
@@ -165,16 +154,17 @@ class _ValueRow extends StatelessWidget {
 /// 바꾸면 '생활 습관 알아가 / 기', '읽지 않은 알림 / 4건'처럼 이름과 값이 둘 다 갈렸다(평가 4차 10/18).
 /// 큰 글씨(130% 넘게)는 늘 두 줄. 이름·값 모두 낱말 단위로만 줄을 바꾼다.
 class _NameValue extends StatelessWidget {
-  const _NameValue({required this.name, required this.value});
+  const _NameValue({required this.name, required this.value, this.valueColor});
   final String name;
   final String value;
+  final Color? valueColor;
 
   static const _nameStyle = TextStyle(fontSize: AppFont.body);
 
   @override
   Widget build(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
-    final valueStyle = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
+    final valueStyle = TextStyle(fontSize: AppFont.caption, color: valueColor ?? context.appMuted);
     // 보통 글씨에서 이름은 나란히 둘 수 없으면 아래 줄 전체 폭을 써서 꺾이지 않는다. 큰 글씨에서는 낱말 단위로만 꺾는다.
     final big = scaler.scale(1) > 1.3;
     final nameText = Text(big ? keepWordsTogether(name) : name, semanticsLabel: name, style: _nameStyle);

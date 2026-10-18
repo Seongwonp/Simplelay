@@ -14,7 +14,7 @@ import '../providers/appliance_provider.dart';
 import '../providers/routine_provider.dart';
 import '../widgets/routine_icon.dart';
 import '../widgets/routine_run.dart';
-import 'routines_screen.dart' show ampmClock, routineSubtitle, withAmPm;
+import 'routines_screen.dart' show ampmClock, kSetupActionLabel, routineSubtitle, withAmPm;
 import '../providers/ble_provider.dart';
 import '../providers/care_events_provider.dart';
 import '../providers/estop_provider.dart';
@@ -311,28 +311,59 @@ class _SectionTitle extends StatelessWidget {
 /// 평가 11·12차(10/18)에 종류 말('자동으로 한 일·루틴 안내 알림 4건, 아직 안 봤어요')을 붙였더니 평가 13차(10/18)에서
 /// 분류 나열 말투에 어절 중간에서 끊겼고, 문제가 아닌 알림도 경고처럼 읽혔다. 그래서 종류는 **봐야 할 것이 섞였을 때만**
 /// 가장 무거운 것 하나를 짧은 말로 붙인다('안 본 알림 3건, 못 한 일이 있어요'). 자동으로 한 일·루틴 안내뿐이면 건수만.
+///
+/// 평가 15차(10/18): '안 본 알림 7건, 못 한 일이 있어요'는 한 줄에 두 가지를 말하면서 **무엇을** 못 했는지는
+/// 없었다 → 봐야 할 것이 있으면 그 갈래만 한 줄('못 한 일 1건: 공기청정기 바람 중간으로 하기' — 가장 최근 것의
+/// 이름, 기록이 아는 말만), 나머지 알림은 따로 '안 본 알림 6건'([CareAttentionLines.rest]). 봐야 할 것이 없으면
+/// 중립 한 줄 '안 본 알림 N건'만.
+typedef CareAttentionLines = ({String? look, String? rest});
+
+CareAttentionLines careAttentionLines(List<RpiCareEvent> unread) {
+  if (unread.isEmpty) return (look: null, rest: null);
+  final group = _careLookGroup(unread);
+  if (group == null) return (look: null, rest: '안 본 알림 ${unread.length}건');
+  final (word, kinds) = group;
+  final hits = [for (final e in unread) if (kinds.contains(e.kind)) e]
+    ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+  final what = careEventWhat(hits.first);
+  final rest = unread.length - hits.length;
+  return (
+    look: what == null ? '$word ${hits.length}건' : '$word ${hits.length}건: $what',
+    rest: rest > 0 ? '안 본 알림 $rest건' : null,
+  );
+}
+
+/// 홈·접근성에서 쓰는 한 문장(두 줄을 이은 것).
 String careAttentionText(List<RpiCareEvent> unread) {
-  final head = '안 본 알림 ${unread.length}건';
-  final look = _careLookWord(unread);
-  return look == null ? head : '$head, $look';
+  final l = careAttentionLines(unread);
+  return [if (l.look != null) l.look!, if (l.rest != null) l.rest!].join(', ');
+}
+
+/// 알림 한 건이 **무엇에 대한** 것인지 — 서버가 적은 목적 문장(행동 이름으로), 없으면 알림 문장의 따옴표 속 이름.
+/// 둘 다 없으면 null(지어내지 않는다).
+String? careEventWhat(RpiCareEvent e) {
+  final purpose = e.purpose?.trim() ?? '';
+  if (purpose.isNotEmpty) return purposeActionName(purpose);
+  final quoted = RegExp(r"'([^']+)'").firstMatch(e.message);
+  final label = quoted?.group(1)?.trim();
+  return (label == null || label.isEmpty) ? null : label;
 }
 
 /// 안 본 알림 가운데 사람이 봐야 할 것(위험 소리·실패·정지·루틴 멈춤·안부 신호)이 있는가 — 경고색은 이때만.
-bool careNeedsLook(List<RpiCareEvent> unread) => _careLookWord(unread) != null;
+bool careNeedsLook(List<RpiCareEvent> unread) => _careLookGroup(unread) != null;
 
-/// 봐야 할 종류 가운데 가장 무거운 것 하나의 짧은 말. 없으면 null(자동으로 한 일·루틴 안내·모르는 종류).
-String? _careLookWord(List<RpiCareEvent> unread) {
+/// 봐야 할 갈래 가운데 가장 무거운 것 하나 — (짧은 이름, 그 갈래의 종류들). 없으면 null(자동으로 한 일·루틴 안내·모르는 종류).
+(String, Set<String>)? _careLookGroup(List<RpiCareEvent> unread) {
   const order = [
-    ('danger_sound', '위험 소리가 났어요'),
-    ('execution_failed', '못 한 일이 있어요'),
-    ('appliance_done_undelivered', '못 한 일이 있어요'),
-    ('emergency_stop', '멈춘 일이 있어요'),
-    ('routine_stopped', '멈춘 루틴이 있어요'),
-    ('quiet_routine', '안부 신호가 있어요'),
+    ('위험 소리', {'danger_sound'}),
+    ('못 한 일', {'execution_failed', 'appliance_done_undelivered'}),
+    ('멈춘 일', {'emergency_stop'}),
+    ('멈춘 루틴', {'routine_stopped'}),
+    ('안부 신호', {'quiet_routine'}),
   ];
   final kinds = {for (final e in unread) e.kind};
-  for (final (k, w) in order) {
-    if (kinds.contains(k)) return w;
+  for (final g in order) {
+    if (kinds.any(g.$2.contains)) return g;
   }
   return null;
 }
@@ -565,6 +596,7 @@ class _Attention extends ConsumerWidget {
     // 평가 14차(10/18): 할 일이 없을 때도 옅은 회색 면이라 '지금 우리 집'과 같은 무게였다 → 면 색은 할 일이 있을 때만
     // (주황 면 + 주황 테두리), 없으면 면 없이 옅은 테두리.
     final careLook = careNeedsLook(unreadCare);
+    final careLines = careAttentionLines(unreadCare);
     final warn = pending.isNotEmpty || result != null || careLook;
     final tone = warn ? context.appWarning : context.appMuted;
     return Padding(
@@ -601,12 +633,21 @@ class _Attention extends ConsumerWidget {
                   color: color,
                   onTap: () => context.push('/status'),
                 ),
-              if (unreadCare.isNotEmpty)
+              // 평가 15차(10/18): 봐야 할 것(무엇을 못 했는지)과 나머지 안 본 알림은 따로 한 줄씩.
+              if (careLines.look case final look?)
+                _AttentionRow(
+                  key: const Key('home-attention-care-look'),
+                  icon: Icons.error_outline,
+                  text: look,
+                  color: context.appWarning,
+                  onTap: () => context.push('/care'),
+                ),
+              if (careLines.rest case final rest?)
                 _AttentionRow(
                   key: const Key('home-attention-care'),
                   icon: Icons.family_restroom,
-                  text: careAttentionText(unreadCare),
-                  color: careLook ? context.appWarning : Theme.of(context).colorScheme.onSurface,
+                  text: rest,
+                  color: Theme.of(context).colorScheme.onSurface,
                   onTap: () => context.push('/care'),
                 ),
               // 한 대면 그 가전의 설정 카드를 그대로(연습 자리 확인이면 '실제 자리는 몰라요'까지), 둘 이상은 한 줄.
@@ -869,7 +910,7 @@ class _RoutineTile extends StatelessWidget {
         // 설정이 남았으면 같은 꼴의 '설정하기 >' — 무엇이 남았는지는 '확인이 필요해요' 한 곳에서(평가 3차 10/18).
         // 평가 11차(10/18): 글자 단추와 회색 '설정 필요' 칩이 섞여 있었다 — 루틴 탭 줄과 같은 글자 단추.
         : Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(keepWordsTogether(needsSetup ? '설정하기' : '지금 하기'),
+            Text(keepWordsTogether(needsSetup ? kSetupActionLabel : '지금 하기'),
                 style: TextStyle(
                     fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appInk)),
             Icon(Icons.chevron_right, size: 20, color: context.appMuted),
@@ -1291,18 +1332,13 @@ class _ApplianceCard extends ConsumerWidget {
                       runSpacing: AppSpace.sm,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        // 가전 그림 — 상태 색이 있을 때만 옅게 깐 둥근 칸(색만으로 말하지 않는다: 띠의 글이 같이 있다).
-                        // 평가 14차(10/18): 네 장이 같은 옅은 회색 칸이라 틀처럼 보였다 → 평소에는 칸 없이 그림만.
+                        // 가전 그림 — 늘 면 없이 그림만(평가 15차 10/18: 공기청정기·세탁기에만 바탕 칸이 있어 카드마다
+                        // 모양이 달랐다). 상태는 아래 띠의 글·색이 말한다.
                         Container(
+                          key: Key('appliance-icon-${a.id}'),
                           width: AppSpace.xxxl + AppSpace.sm,
                           height: AppSpace.xxxl + AppSpace.sm,
-                          alignment: tinted ? Alignment.center : Alignment.centerLeft,
-                          decoration: tinted
-                              ? BoxDecoration(
-                                  color: color.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(14),
-                                )
-                              : null,
+                          alignment: Alignment.centerLeft,
                           child: Icon(a.icon, size: 28, color: context.appInk),
                         ),
                         if (a.isDemo) const DemoBadge(),

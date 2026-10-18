@@ -320,6 +320,13 @@ bool historyIsLgAppliance(RpiHistoryEntry e) {
   return (body: body, routine: routine?.group(1));
 }
 
+/// 서버 목적 문장 → 짧은 행동 이름(홈 알림 줄 '못 한 일 1건: …', 평가 15차 10/18). 루틴이면 "'이름' 루틴".
+String purposeActionName(String purpose) {
+  final parts = _purposeParts(purpose);
+  if (parts.routine case final r?) return "'$r' 루틴";
+  return actionName(withoutMockMark(parts.body));
+}
+
 /// 누른 버튼으로 만든 행동 이름. 버튼을 모르면 null.
 String? _pressTitle(RpiHistoryEntry e, String? name) {
   final labels = [

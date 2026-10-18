@@ -368,7 +368,7 @@ void main() {
 
     await tester.tap(find.text('알림만'));
     await tester.pump();
-    expect(find.text('알림만 보내요. 가전은 그대로예요.'), findsOneWidget);
+    expect(findPlainText('알림만 보내요. 가전은 그대로예요.'), findsOneWidget);
     // 고치는 중에는 '지금 하기'를 내리지 않는다 -- 저장 전 내용으로 카드가 뜬다.
     expect(find.text('지금 하기'), findsNothing);
 
@@ -526,7 +526,7 @@ void main() {
     expect(runButton('rt-1'), findsNothing);
     // '설정하기 >' 글자 단추 — 누르면 그 가전 설정('지금 하기 >'와 같은 꼴, 평가 11차 10/18).
     expect(find.byKey(const Key('routine-setup-rt-1')), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const Key('routine-setup-rt-1')), matching: findPlainText('설정하기')),
+    expect(find.descendant(of: find.byKey(const Key('routine-setup-rt-1')), matching: findPlainText('설정 열기')),
         findsOneWidget);
     // 이유 문장은 두지 않는다 — '설정하기' 단추만, 무엇이 남았는지는 홈 확인 카드 한 곳(평가 3차 10/18).
     expect(findPlainText('설정이 필요해요', contains: true), findsNothing);

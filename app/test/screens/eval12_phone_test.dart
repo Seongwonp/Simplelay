@@ -264,11 +264,12 @@ void main() {
       // 평가 13차(10/18): 자동으로 한 일·루틴 안내뿐이면 건수만, 볼 것이 섞이면 가장 무거운 것 한 마디.
       expect(careAttentionText([_ev(4, 'auto_rule'), _ev(3, 'auto_rule'), _ev(2, 'routine_notice'), _ev(1, 'auto_rule')]),
           '안 본 알림 4건');
+      // 평가 15차(10/18): 볼 것은 그 갈래·건수, 나머지는 따로(eval15_phone_test 5).
       expect(careAttentionText([_ev(2, 'routine_stopped'), _ev(1, 'appliance_done_undelivered')]),
-          '안 본 알림 2건, 못 한 일이 있어요');
+          '못 한 일 1건, 안 본 알림 1건');
       expect(careAttentionText([_ev(2, 'routine_announce'), _ev(1, 'routine_notice')]), '안 본 알림 2건');
       expect(careAttentionText([_ev(2, 'execution_failed'), _ev(1, 'appliance_done_undelivered')]),
-          '안 본 알림 2건, 못 한 일이 있어요');
+          '못 한 일 2건');
       expect(careAttentionText([_ev(1, 'something_new')]), '안 본 알림 1건');
     });
   });

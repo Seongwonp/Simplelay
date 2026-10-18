@@ -321,7 +321,7 @@ void main() {
   group('C. 시각 표기는 오전/오후 하나로', () {
     test('조용한 시간 — 설정 줄·상세 요약·규칙 메모', () {
       const s = QuietHoursStatus(enabled: true, start: '22:00', end: '07:00', active: false, reason: 'schedule');
-      expect(quietRowValue(s, hasApi: true), '오후 10:00~오전 7:00 · 켜짐');
+      expect(quietRowValue(s, hasApi: true), '오후 10:00~오전 7:00');
       expect(s.summary, '매일 오후 10:00~오전 7:00, 지금 조용한 시간이에요');
       final rule = AutoRule.fromJson(_rules.first);
       expect(quietRuleNote(s, rule), '조용한 시간(오후 10:00~오전 7:00)이라 이때는 자동으로 안 해요');
@@ -392,7 +392,7 @@ void main() {
       await tester.pumpAndSettle();
       final intro = find.byKey(const Key('auto-rules-intro'));
       expect(intro, findsOneWidget);
-      expect(find.descendant(of: intro, matching: findPlainText('묻지 않고', contains: true), matchRoot: true),
+      expect(find.descendant(of: intro, matching: findPlainText('물어보지 않고', contains: true), matchRoot: true),
           findsOneWidget);
       // 첫 규칙 카드보다 위.
       expect(tester.getBottomLeft(intro).dy, lessThanOrEqualTo(tester.getTopLeft(find.byKey(const Key('auto-rule-ar-heat'))).dy));

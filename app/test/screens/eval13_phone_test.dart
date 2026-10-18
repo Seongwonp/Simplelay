@@ -186,11 +186,12 @@ void main() {
     });
 
     test('실패·정지가 섞이면 짧은 말 하나를 붙인다(가장 무거운 것)', () {
+      // 평가 15차(10/18): 볼 것은 그 갈래·건수, 나머지는 따로 '안 본 알림 N건'(eval15_phone_test 5).
       expect(careAttentionText([_ev(3, 'auto_rule'), _ev(2, 'execution_failed'), _ev(1, 'routine_notice')]),
-          '안 본 알림 3건, 못 한 일이 있어요');
-      expect(careAttentionText([_ev(2, 'routine_stopped'), _ev(1, 'danger_sound')]), '안 본 알림 2건, 위험 소리가 났어요');
-      expect(careAttentionText([_ev(1, 'emergency_stop')]), '안 본 알림 1건, 멈춘 일이 있어요');
-      expect(careAttentionText([_ev(1, 'routine_stopped')]), '안 본 알림 1건, 멈춘 루틴이 있어요');
+          '못 한 일 1건, 안 본 알림 2건');
+      expect(careAttentionText([_ev(2, 'routine_stopped'), _ev(1, 'danger_sound')]), '위험 소리 1건, 안 본 알림 1건');
+      expect(careAttentionText([_ev(1, 'emergency_stop')]), '멈춘 일 1건');
+      expect(careAttentionText([_ev(1, 'routine_stopped')]), '멈춘 루틴 1건');
       expect(careNeedsLook([_ev(1, 'appliance_done_undelivered')]), isTrue);
     });
 
@@ -216,25 +217,30 @@ void main() {
     testWidgets('홈: 실패가 섞이면 짧은 말과 경고색', (tester) async {
       _careJson = [_care(2, 'execution_failed'), _care(1, 'auto_rule')];
       await _pump(tester, const HomeScreen(), installed: [ApplianceMap.fromJson(_air)]);
+      // 평가 15차(10/18): 못 한 일은 경고색 한 줄, 나머지 알림은 중립 한 줄.
+      final look = find.byKey(const Key('home-attention-care-look'));
+      expect(_in(look, findPlainText('못 한 일 1건')), findsOneWidget);
+      expect(tester.widget<Text>(_in(look, findPlainText('못 한 일 1건'))).style?.color, tester.element(look).appWarning);
       final row = find.byKey(const Key('home-attention-care'));
-      expect(_in(row, findPlainText('안 본 알림 2건, 못 한 일이 있어요')), findsOneWidget);
-      expect(_careRowColor(tester), tester.element(row).appWarning);
+      expect(_in(row, findPlainText('안 본 알림 1건')), findsOneWidget);
+      expect(_careRowColor(tester), isNot(tester.element(row).appWarning));
     });
 
-    testWidgets("설정 줄도 같은 말 '안 본 알림 N건', 볼 것이 없으면 빨간 배지가 아니다", (tester) async {
+    // 평가 15차(10/18): 숫자 칩은 글자와 같은 말이라 없앴다 — 볼 것이 섞였을 때만 그 글자를 경고색(eval15_phone_test 3).
+    testWidgets("설정 줄도 같은 말 '안 본 알림 N건', 볼 것이 없으면 경고색이 아니다", (tester) async {
       _careJson = [_care(2, 'auto_rule'), _care(1, 'routine_notice')];
       await _pump(tester, const SettingsScreen());
-      expect(findPlainText('안 본 알림 2건'), findsOneWidget);
+      final value = findPlainText('안 본 알림 2건');
+      expect(value, findsOneWidget);
       expect(findPlainText('읽지 않은 알림', contains: true), findsNothing);
-      final badge = tester.widget<Container>(find.byKey(const Key('settings-care-badge')));
-      expect((badge.decoration as BoxDecoration).color, isNot(AppColors.danger));
+      expect(tester.widget<Text>(value).style?.color, isNot(tester.element(value).appWarning));
     });
 
-    testWidgets('설정 줄: 실패가 섞이면 빨간 배지 그대로', (tester) async {
+    testWidgets('설정 줄: 실패가 섞이면 그 글자가 경고색', (tester) async {
       _careJson = [_care(2, 'execution_failed'), _care(1, 'routine_notice')];
       await _pump(tester, const SettingsScreen());
-      final badge = tester.widget<Container>(find.byKey(const Key('settings-care-badge')));
-      expect((badge.decoration as BoxDecoration).color, AppColors.danger);
+      final value = findPlainText('안 본 알림 2건');
+      expect(tester.widget<Text>(value).style?.color, tester.element(value).appWarning);
     });
   });
 

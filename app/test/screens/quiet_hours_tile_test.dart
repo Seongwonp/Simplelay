@@ -179,7 +179,7 @@ void main() {
     await _settle(tester);
     final row = find.byKey(const Key('settings-row-quiet'));
     expect(row, findsOneWidget);
-    final value = find.descendant(of: row, matching: findPlainText('오후 10:00~오전 7:00 · 켜짐'));
+    final value = find.descendant(of: row, matching: findPlainText('오후 10:00~오전 7:00'));
     expect(value, findsOneWidget);
     final title = find.descendant(of: row, matching: findPlainText('조용한 시간'));
     expect(tester.getCenter(value).dx, greaterThan(tester.getCenter(title).dx));

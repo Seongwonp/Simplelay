@@ -5,6 +5,10 @@
 /// 있어도 코드가 따르지 않아 글자 15종·간격 14종이 됐던 것(감사 10/17)을 되풀이하지 않게.
 ///
 /// 16 미만 글자는 없다. 주 사용자가 고령자라 보조 글씨도 16이다.
+library;
+
+import 'package:flutter/widgets.dart';
+
 class AppFont {
   AppFont._();
 
@@ -48,3 +52,8 @@ class AppElevation {
 
   static const double card = 1;
 }
+
+/// 글자 배율을 따라 커지는 아이콘 크기(평가 15차 10/18: 큰 글씨에서 글자만 커지고 목록 아이콘은 그대로 작았다).
+/// 너무 커져 글 칸을 밀지 않게 [maxScale]배에서 멈춘다.
+double textScaledIcon(BuildContext context, double base, {double maxScale = 1.6}) =>
+    base * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, maxScale);

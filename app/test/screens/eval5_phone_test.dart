@@ -298,7 +298,7 @@ void main() {
       expect(find.descendant(of: find.byKey(const Key('routine-run-r-heat')), matching: findPlainText('지금 하기')),
           findsOneWidget);
       final setup = find.byKey(const Key('routine-setup-r-wash'));
-      expect(find.descendant(of: setup, matching: findPlainText('설정하기')), findsOneWidget);
+      expect(find.descendant(of: setup, matching: findPlainText('설정 열기')), findsOneWidget);
       expect(find.descendant(of: setup, matching: find.byType(OutlinedButton)), findsNothing);
       await tester.tap(setup);
       await tester.pumpAndSettle();
@@ -376,10 +376,10 @@ void main() {
   group('D. 보호자 알림을 홈에도', () {
     testWidgets("읽지 않은 알림이 있으면 '확인이 필요해요'에 한 줄, 누르면 알림함", (tester) async {
       await _pump(tester, const HomeScreen(), unread: 4);
-      final row = find.byKey(const Key('home-attention-care'));
+      // 평가 15차(10/18): 이 시험의 알림은 모두 실행 실패 — '못 한 일 4건' 한 줄(나머지 알림 줄은 없다).
+      final row = find.byKey(const Key('home-attention-care-look'));
       expect(find.descendant(of: find.byKey(const Key('home-attention')), matching: row), findsOneWidget);
-      // 평가 11차(10/18): 무슨 알림인지 앞에 — 이 시험의 알림은 모두 실행 실패.
-      expect(find.descendant(of: row, matching: findPlainText('안 본 알림 4건, 못 한 일이 있어요')), findsOneWidget);
+      expect(find.descendant(of: row, matching: findPlainText('못 한 일 4건', contains: true)), findsOneWidget);
       await tester.tap(row);
       await tester.pumpAndSettle();
       expect(_visited, ['/care']);
