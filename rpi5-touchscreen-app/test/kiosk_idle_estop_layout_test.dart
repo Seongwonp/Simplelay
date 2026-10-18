@@ -141,7 +141,7 @@ void main() {
         _expectFullyVisible(tester, find.text('11:41'));
         _expectFullyVisible(tester, find.text('오후'));
         _expectFullyVisible(tester, find.text(_tipText));
-        for (final name in ['세탁기', if (!band) '작동 중', '전자레인지']) {
+        for (final name in ['세탁기', '전자레인지']) {
           _expectFullyVisible(tester, find.text(name));
         }
 

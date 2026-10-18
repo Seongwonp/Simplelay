@@ -6,6 +6,7 @@ import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/route_badge.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/thinq_panel.dart';
 
@@ -131,12 +132,9 @@ void main() {
       final purifier = tester.getRect(find.byKey(const ValueKey('strip-air_purifier')));
       final microwave = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(purifier.left, lessThan(microwave.left));
-      expect(
-          find.descendant(
-              of: find.byKey(const ValueKey('strip-air_purifier')),
-              matching: find.text('켜져 있어요')),
-          findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp(r'LG 가전, 켜져 있어요\. 자세히 보기')), findsOneWidget);
+      // 사용자 결정(10/19): 글자 대신 아이콘 강조색, 화면 읽기는 그대로 '켜져 있어요'.
+      expect(tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-air_purifier'))).color, KioskColors.primary);
+      expect(find.bySemanticsLabel(RegExp(r'LG 가전, 켜져 있어요, 자세히 보기')), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
     handle.dispose();
@@ -146,43 +144,25 @@ void main() {
     final handle = tester.ensureSemantics();
     await _pump(tester, Center(child: strip(const {})));
 
-    expect(find.widgetWithText(KioskRouteBadge, 'LG 가전'), findsOneWidget);
-    expect(
-        find.descendant(
-            of: find.byKey(const ValueKey('strip-air_purifier')),
-            matching: find.byType(KioskRouteBadge)),
-        findsOneWidget);
-    expect(
-        find.descendant(
-            of: find.byKey(const ValueKey('strip-microwave')),
-            matching: find.byType(KioskRouteBadge)),
-        findsNothing);
-    expect(find.bySemanticsLabel(RegExp(r'공기청정기\(모의\)\. LG 가전')), findsOneWidget);
+    // 사용자 결정(10/19): 'LG 가전'은 오른쪽 위 배지가 아니라 이름 아래 작은 글자(오른쪽 위는 문제 표시 자리).
+    expect(find.byKey(const ValueKey('tile-lg-air_purifier')), findsOneWidget);
+    expect(find.byKey(const ValueKey('tile-lg-microwave')), findsNothing);
+    expect(find.bySemanticsLabel(RegExp(r'공기청정기\(모의\), LG 가전')), findsOneWidget);
     expect(tester.takeException(), isNull);
     handle.dispose();
   });
 
   // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게(평가 4차 10/18) — 상태 띠의 '바꾸는 중'(평가 6차 10/18).
+  // 사용자 결정(10/19): 화면 글자는 없고 화면 읽기 이름이 말한다.
   testWidgets('가전 줄: ThinQ 작업 중이면 "작동 중"이 아니라 "바꾸는 중"', (tester) async {
+    final handle = tester.ensureSemantics();
     await _pump(tester, Center(child: strip({'air_purifier', 'microwave'})));
-
-    expect(
-        find.descendant(
-            of: find.byKey(const ValueKey('strip-air_purifier')),
-            matching: find.text('바꾸는 중')),
-        findsOneWidget);
-    expect(
-        find.descendant(
-            of: find.byKey(const ValueKey('strip-air_purifier')),
-            matching: find.text('작동 중')),
-        findsNothing);
+    expect(find.bySemanticsLabel(RegExp(r'^공기청정기.*바꾸는 중')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^공기청정기.*작동 중')), findsNothing);
     // 물리 가전은 종전대로.
-    expect(
-        find.descendant(
-            of: find.byKey(const ValueKey('strip-microwave')),
-            matching: find.text('작동 중')),
-        findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^전자레인지.*작동 중')), findsOneWidget);
     expect(tester.takeException(), isNull);
+    handle.dispose();
   });
 
 }

@@ -304,23 +304,23 @@ void main() {
   });
 
   group('B. LG 가전 타일 전원', () {
-    testWidgets('서버가 꺼짐을 봤으면 꺼져 있어요(전원 아이콘), 켜짐은 켜져 있어요', (tester) async {
+    // 사용자 결정(10/19): 글자 띠 대신 아이콘 자체 — 읽은 꺼짐은 흐리게, 켜짐은 강조색. 문제 표시는 없다.
+    testWidgets('서버가 꺼짐을 봤으면 아이콘 흐리게, 켜짐은 강조색', (tester) async {
       final api = await _start(tester);
       api.powerOff = {'air_purifier'};
       await tester.pump(const Duration(seconds: 11));
       await tester.pump();
       final tile = find.byKey(const ValueKey('strip-air_purifier'));
       expect(tile, findsOneWidget);
-      expect(find.descendant(of: tile, matching: find.text('꺼져 있어요')), findsOneWidget);
+      Color? icon() => tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-air_purifier'))).color;
+      expect(icon(), KioskColors.muted);
+      expect(find.byKey(const ValueKey('tile-mark-air_purifier')), findsNothing);
       expect(find.descendant(of: tile, matching: find.text('준비됐어요')), findsNothing);
-      expect(find.descendant(of: tile, matching: find.byIcon(Icons.power_settings_new)), findsOneWidget);
-      expect(find.descendant(of: tile, matching: find.byIcon(Icons.touch_app_outlined)), findsNothing);
       api.powerOff = {};
       api.powerOn = {'air_purifier'};
       await tester.pump(const Duration(seconds: 11));
       await tester.pump();
-      expect(find.descendant(of: find.byKey(const ValueKey('strip-air_purifier')), matching: find.text('켜져 있어요')),
-          findsOneWidget);
+      expect(icon(), KioskColors.primary);
       await tester.pumpWidget(const SizedBox.shrink());
     });
   });

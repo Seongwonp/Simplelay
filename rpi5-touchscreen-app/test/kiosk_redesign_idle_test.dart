@@ -74,10 +74,10 @@ void main() {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('누름 장치가 끊겨 가전 2대를 못 써요')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('누름 장치가 끊겨 가전 2대를 쓸 수 없어요')), findsOneWidget);
       expect(tester.getSize(chip).height, greaterThanOrEqualTo(48));
       // 화면 읽기는 무엇이 문제인지까지 읽는다 — 원인이 하나면 원인과 영향(평가 15차 10/18).
-      expect(tester.getSemantics(chip).label, contains('누름 장치가 끊겨 가전 2대를 못 써요'));
+      expect(tester.getSemantics(chip).label, contains('누름 장치가 끊겨 가전 2대를 쓸 수 없어요'));
       final icon = tester.widget<Icon>(find.descendant(of: chip, matching: find.byType(Icon)).first);
       expect(icon.color, KioskColors.warning);
       await tester.tap(chip);
@@ -137,14 +137,14 @@ void main() {
   });
 
   group('가전 — 큰 사각 타일(상태 줄 포함)', () {
-    testWidgets('타일은 넓고 높다, 상태 줄이 늘 있다', (tester) async {
+    // 사용자 결정(10/19): 상태 줄은 없앴다 — 타일 크기만 본다.
+    testWidgets('타일은 넓고 높다', (tester) async {
       await _pump(tester, _idle());
       final tile = find.byKey(const ValueKey('strip-microwave'));
       final size = tester.getSize(tile);
       expect(size.width, greaterThanOrEqualTo(140));
       expect(size.height, greaterThanOrEqualTo(96));
-      expect(find.byKey(const ValueKey('tile-status-microwave')), findsOneWidget);
-      expect(find.byKey(const ValueKey('tile-status-induction')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tile-band-microwave')), findsNothing);
     });
   });
 

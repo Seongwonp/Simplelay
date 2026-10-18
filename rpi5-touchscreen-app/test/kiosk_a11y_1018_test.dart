@@ -399,13 +399,12 @@ void main() {
       'readiness': 'operable',
     });
 
-    test("서버 설정 필요·위치 미설정 모두 회색 '가족이 설정해요' — 앰버·느낌표 아님", () {
+    // 사용자 결정(10/19): 상태 띠 대신 오른쪽 위 톱니 표시 — 경고('!')가 아니라 설정 남음, 가족이 휴대폰에서 한다.
+    test("서버 설정 필요·위치 미설정 모두 톱니 표시 — 경고 '!'가 아님, 가족이 휴대폰에서 설정", () {
       for (final a in [setup, unmapped]) {
-        final band = kioskTileBand(a);
-        expect(band.text, '가족이 설정해요', reason: a.id);
-        expect(band.tone, KioskColors.muted, reason: a.id);
-        expect(band.fill, kTileBandGrey, reason: a.id);
-        expect(band.icon, isNot(anyOf(Icons.priority_high_rounded, Icons.error_outline, Icons.warning_amber)));
+        final issue = kioskTileIssue(a)!;
+        expect(issue.mark, KioskTileMark.setup, reason: a.id);
+        expect(issue.text, contains('가족이 휴대폰에서 설정해요'), reason: a.id);
       }
     });
 
@@ -427,7 +426,9 @@ void main() {
       expect(find.byKey(const ValueKey('idle-status-chip')), findsNothing);
       expect(find.text('확인 필요'), findsNothing);
       expect(find.text('설정이 필요해요'), findsNothing);
-      expect(find.text('가족이 설정해요'), findsNWidgets(2));
+      // 사용자 결정(10/19): 글자 띠 없이 톱니 표시 둘.
+      expect(find.byKey(const ValueKey('tile-mark-intercom')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tile-mark-washer')), findsOneWidget);
     });
   });
 
@@ -450,10 +451,11 @@ void main() {
       expect(reported, unknown);
     });
 
-    testWidgets("'확인 전이에요' 띠는 물음표 아이콘(연습 가전도)", (tester) async {
-      expect(kioskTileBand(_practiceWasher).text, '확인 전이에요');
-      expect(kioskTileBand(_practiceWasher).icon, Icons.help_outline);
-      expect(kioskTileBand(_purifier).icon, Icons.help_outline);
+    // 사용자 결정(10/19): '확인 전이에요' 띠 대신 같은 '?' 표시(연습 가전도).
+    testWidgets("전원을 모르면 '?' 표시(연습 가전도)", (tester) async {
+      expect(kioskTileIssue(_practiceWasher)!.mark, KioskTileMark.unknown);
+      expect(kioskTileIssue(_purifier)!.mark, KioskTileMark.unknown);
+      expect(kioskTileIssue(_practiceWasher)!.text, kTilePowerUnknown);
     });
 
     test("연습 가전 화면 이름은 '연습 세탁기' — 서버 이름 데이터는 그대로", () {

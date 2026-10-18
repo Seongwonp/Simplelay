@@ -397,7 +397,8 @@ void main() {
       expect(cause.style!.fontSize, KioskType.status);
     });
 
-    testWidgets('가전 타일 상태 띠 글자는 본문 단계', (tester) async {
+    // 사용자 결정(10/19): 상태 띠 글자는 없앴다 — 모르면 '?' 표시, 누르는 자리 60px 이상.
+    testWidgets("가전 타일 — 준비된 누름 장치 가전은 표시도 글자도 없다", (tester) async {
       await _pump(
           tester,
           KioskIdleView(
@@ -409,8 +410,8 @@ void main() {
             onOpenConnection: (_) {},
             onDndGesture: () {},
           ));
-      final t = tester.widget<Text>(find.byKey(const ValueKey('tile-status-microwave')));
-      expect(t.style!.fontSize, greaterThanOrEqualTo(KioskType.body));
+      expect(find.byKey(const ValueKey('tile-mark-microwave')), findsNothing);
+      expect(find.text('준비됐어요'), findsNothing);
     });
   });
 
@@ -487,22 +488,19 @@ void main() {
   });
 
   group('6. LG 가전·연습 가전 타일', () {
-    test('LG 가전에는 누름 장치의 손가락·준비됐어요를 쓰지 않는다 — 모르면 확인 전이에요', () {
-      final band = kioskTileBand(_purifier);
-      expect(band.icon, isNot(Icons.touch_app_outlined));
-      expect(band.text, '확인 전이에요');
-      expect(kioskTileBand(_purifier, on: true).text, '켜져 있어요');
-      // 누름 장치 가전은 그대로.
-      expect(kioskTileBand(_microwave).icon, Icons.touch_app_outlined);
+    // 사용자 결정(10/19): 상태 띠를 없앴다 — LG 가전은 전원을 모르면 '?' 표시, 읽은 켜짐이면 표시 없음(아이콘 강조색).
+    test("LG 가전은 누름 장치 가전처럼 '준비됨'으로 두지 않는다 — 모르면 '?'", () {
+      expect(kioskTileIssue(_purifier)?.mark, KioskTileMark.unknown);
+      expect(kioskTileIssue(_purifier, on: true), isNull);
+      expect(kioskTileStateWord(_purifier, on: true), '켜져 있어요');
+      // 누름 장치 가전 준비됨은 표시 없음.
+      expect(kioskTileIssue(_microwave), isNull);
     });
 
-    test('연습 가전 띠는 연습 색(청록) — 전원을 읽었으면 그 말, 모르면 확인 전이에요', () {
-      final band = kioskTileBand(_practiceWasher);
-      expect(band.tone, KioskColors.practice);
-      expect(band.icon, isNot(Icons.touch_app_outlined));
-      expect(band.text, '확인 전이에요');
-      expect(kioskTileBand(_practiceWasher, on: true).text, '켜져 있어요');
-      expect(kioskTileBand(_practiceWasher, on: true).tone, KioskColors.practice);
+    test("연습 가전 — 전원을 읽었으면 표시 없음, 모르면 '?'", () {
+      expect(kioskTileIssue(_practiceWasher)?.mark, KioskTileMark.unknown);
+      expect(kioskTileIssue(_practiceWasher, on: true), isNull);
+      expect(kioskTileStateWord(_practiceWasher, on: true), '켜져 있어요');
     });
 
     testWidgets('처음 화면 연습 세탁기 타일에 손가락 아이콘이 없다', (tester) async {

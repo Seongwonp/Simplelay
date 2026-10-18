@@ -242,13 +242,13 @@ void main() {
     expect(raw.replaceAll('⁠', '').replaceAll(' ', ' '), '연습 전자레인지');
   });
 
-  test("4. '지금 못 써요' — 비상 버튼과 누름 장치 끊김이 같은 모양", () {
-    final estop = kioskTileBand(kMicrowaveAppliance, unavailable: true, unavailableByEstop: true);
-    final link = kioskTileBand(kMicrowaveAppliance, unavailable: true);
-    expect(link.text, estop.text);
-    expect(link.icon, estop.icon);
-    expect(link.tone, estop.tone);
-    expect(link.face, estop.face);
-    expect(link.tone, KioskColors.danger);
+  // 사용자 결정(10/19): 띠 대신 같은 '!' 표시 — 이유는 표시 문장이 말한다.
+  test("4. 쓸 수 없음 — 비상 버튼과 누름 장치 끊김이 같은 '!' 모양", () {
+    final estop = kioskTileIssue(kMicrowaveAppliance, unavailable: true, unavailableByEstop: true)!;
+    final link = kioskTileIssue(kMicrowaveAppliance, unavailable: true)!;
+    expect(link.mark, estop.mark);
+    expect(link.mark, KioskTileMark.unusable);
+    expect(estop.text, kTileUnusableEstop);
+    expect(link.text, kTileUnusablePress);
   });
 }

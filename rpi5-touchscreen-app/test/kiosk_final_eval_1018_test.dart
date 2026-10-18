@@ -202,7 +202,8 @@ void main() {
       expect(_styleOf(tester, caption).fontSize, greaterThanOrEqualTo(KioskType.body));
     });
 
-    testWidgets('가전 타일 회색 띠 글자는 흐린 회색이 아니다(대비 올림)', (tester) async {
+    // 사용자 결정(10/19): 띠 글자는 없앴다 — 대신 쓸 수 없음 표시가 있고 누르는 자리가 넉넉하다.
+    testWidgets('가전 타일 쓸 수 없음 표시 — 누르는 자리 60px 이상', (tester) async {
       await _pump15(
           tester,
           KioskIdleView(
@@ -217,11 +218,9 @@ void main() {
             onOpenConnection: (_) {},
             onDndGesture: () {},
           ));
-      final status = find.byKey(const ValueKey('tile-status-microwave'));
-      expect(status, findsOneWidget);
-      final style = tester.widget<Text>(status).style!;
-      expect(style.color, isNot(KioskColors.muted));
-      expect(style.fontWeight, FontWeight.w700);
+      final mark = find.byKey(const ValueKey('tile-mark-microwave'));
+      expect(mark, findsOneWidget);
+      expect(tester.getSize(mark).shortestSide, greaterThanOrEqualTo(60));
     });
 
     testWidgets('사용 방법 본문은 상태 크기(한 단계 위)', (tester) async {
@@ -307,7 +306,7 @@ void main() {
       await _pump15(tester, idle(onOpen: (i) => opened = i));
       final cause = find.byKey(const ValueKey('idle-problem-cause'));
       expect(cause, findsOneWidget);
-      expect(_plain('누름 장치가 끊겨 가전 2대를 못 써요'), findsOneWidget);
+      expect(_plain('누름 장치가 끊겨 가전 2대를 쓸 수 없어요'), findsOneWidget);
       final style = _styleOf(tester, cause);
       expect(style.fontSize, greaterThanOrEqualTo(KioskType.status));
       // 한 줄 — 높이가 글자 두 줄에 못 미친다(캔버스 단위).

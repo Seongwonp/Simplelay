@@ -49,7 +49,7 @@ const _sug = KioskSuggestion(
 
 // RPi4가 실제로 보내는 문장(서버 문구 정리 2bc87e5).
 
-/// 비상 버튼이 눌려 있으면 누름 장치 가전 타일은 '지금 못 써요'(누르면 풀기 안내, 평가 4차 10/18) — 수동 조작 화면은
+/// 비상 버튼이 눌려 있으면 누름 장치 가전 타일은 쓸 수 없음 '!'(누르면 풀기 안내, 평가 4차 10/18) — 수동 조작 화면은
 /// LG 가전으로 연다(LG 가전 타일은 그대로 열린다).
 const _thinqAirForEstop = ApplianceMap(
   id: 'air_purifier',
@@ -528,8 +528,8 @@ void main() {
             running: false, estopLatched: true, estopDetail: _buttonDetail);
       await _pumpKiosk(tester, api);
       await _nextPoll(tester);
-      // 누름 장치 가전은 비상 버튼 동안 '지금 못 써요' — 누르면 수동 조작이 아니라 띠의 풀기 안내가 열린다(평가 4차 10/18).
-      expect(find.text('지금 못 써요'), findsOneWidget);
+      // 누름 장치 가전은 비상 버튼 동안 쓸 수 없음 '!' 표시(10/19) — 누르면 수동 조작이 아니라 띠의 풀기 안내가 열린다(평가 4차 10/18).
+      expect(find.byKey(const ValueKey('tile-mark-microwave')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('strip-microwave')));
       await _settle(tester);
       expect(find.byType(KioskManualView), findsNothing);

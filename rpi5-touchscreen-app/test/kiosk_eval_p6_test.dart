@@ -14,7 +14,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
-import 'package:simplelay_touchscreen/theme/kiosk_tokens.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/estop_banner.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
@@ -99,40 +98,34 @@ List<String> _allTexts(WidgetTester tester) => [
         p.text.toPlainText(),
     ];
 
-String _status(WidgetTester tester, String id) =>
-    tester.widget<Text>(find.byKey(ValueKey('tile-status-$id'))).data!;
-
-/// 상태 띠의 면 색.
-Color? _bandFill(WidgetTester tester, String id) {
-  final band = tester.widget<DecoratedBox>(find.byKey(ValueKey('tile-band-$id')));
-  return (band.decoration as BoxDecoration).color;
+/// 사용자 결정(10/19): 상태 띠를 없앴다 — 문제가 있을 때만 오른쪽 위 표시. 없으면 null.
+KioskTileIssue? _issue(WidgetTester tester, String id) {
+  final f = find.byKey(ValueKey('tile-mark-$id'));
+  return f.evaluate().isEmpty ? null : tester.widget<KioskTileMarkButton>(f).issue;
 }
 
-Color _tint(Color c) => c.withValues(alpha: KioskSizes.bandTint);
+Color? _icon(WidgetTester tester, String id) =>
+    tester.widget<Icon>(find.byKey(ValueKey('tile-icon-$id'))).color;
 
 void main() {
-  group('1. 가전 타일 상태 띠', () {
-    testWidgets("평소 가전은 '준비됐어요' 띠 — '눌러 드려요'를 되풀이하지 않는다", (tester) async {
+  // 평가 6차의 상태 띠는 사용자 결정(10/19)으로 아이콘 + 이름 + 문제 표시로 바뀌었다. 판정(무엇이 준비됨·설정·쓸 수 없음인지)은 그대로.
+  group('1. 가전 타일 상태', () {
+    testWidgets("평소 가전은 표시 없음 — '눌러 드려요'·'준비됐어요'를 되풀이하지 않는다", (tester) async {
       await _pump(tester, _idle([_microwave, _mapped]));
       expect(find.text('눌러 드려요'), findsNothing);
-      expect(_status(tester, 'microwave'), '준비됐어요');
-      expect(_status(tester, 'rice'), '준비됐어요', reason: '사진 위치를 맞춘 사용자 가전은 준비됨');
-      // 띠는 타일 아래 — 이름보다 아래에 있고, 아이콘과 말이 함께 있다.
-      final band = find.byKey(const ValueKey('tile-band-microwave'));
-      expect(band, findsOneWidget);
-      expect(find.descendant(of: band, matching: find.byType(Icon)), findsOneWidget);
-      expect(find.descendant(of: band, matching: find.text('준비됐어요')), findsOneWidget);
-      expect(tester.getTopLeft(band).dy, greaterThan(tester.getBottomLeft(find.text('전자레인지')).dy - 1));
+      expect(find.text('준비됐어요'), findsNothing);
+      expect(_issue(tester, 'microwave'), isNull);
+      expect(_issue(tester, 'rice'), isNull, reason: '사진 위치를 맞춘 사용자 가전은 준비됨');
     });
 
-    // 접근성 감사(10/18): 설정은 어르신 할 일이 아니다 — 본체는 중립 회색 '가족이 설정해요'(경고는 폰 '해야 할 일'에만).
-    testWidgets("폰에서 '설정이 필요해요'인 가전(사용자 가전, 사진 위치 없음)은 키오스크에서 회색 '가족이 설정해요'",
+    // 접근성 감사(10/18): 설정은 어르신 할 일이 아니다 — 본체는 경고 '!'가 아니라 설정 톱니(가족이 휴대폰에서 설정해요).
+    testWidgets("폰에서 '설정이 필요해요'인 가전(사용자 가전, 사진 위치 없음)은 키오스크에서 톱니 표시",
         (tester) async {
       await _pump(tester, _idle([_washer, _intercom, _microwave]));
-      expect(_status(tester, 'washer'), '가족이 설정해요');
-      expect(_status(tester, 'intercom'), '가족이 설정해요');
-      expect(_bandFill(tester, 'washer'), kTileBandGrey);
-      expect(_status(tester, 'microwave'), '준비됐어요');
+      expect(_issue(tester, 'washer')?.mark, KioskTileMark.setup);
+      expect(_issue(tester, 'intercom')?.mark, KioskTileMark.setup);
+      expect(_issue(tester, 'washer')?.text, kTilePanelSetup);
+      expect(_issue(tester, 'microwave'), isNull);
     });
 
     test('서버가 is_custom을 말하지 않으면 설정 필요라고 단정하지 않는다', () {
@@ -143,22 +136,18 @@ void main() {
       expect(_air.needsPanelMapping, isFalse, reason: 'LG 가전은 누를 자리가 없다');
     });
 
-    testWidgets('색만 봐도 갈린다 — 켜짐 초록·작동 중·준비 회색', (tester) async {
+    testWidgets('켜짐은 아이콘 강조색 — 작동 중·준비와 갈린다', (tester) async {
       await _pump(tester, _idle([_microwave, _air, _mapped], running: {'rice'}, on: {'air_purifier'}));
-      expect(_status(tester, 'air_purifier'), '켜져 있어요');
-      expect(_bandFill(tester, 'air_purifier'), _tint(KioskColors.confirmed));
-      expect(_status(tester, 'rice'), '작동 중');
-      final ready = _bandFill(tester, 'microwave');
-      expect(ready, isNot(_tint(KioskColors.confirmed)));
-      expect(ready, isNot(_tint(KioskColors.warning)));
-      expect(ready, isNot(_bandFill(tester, 'rice')));
+      expect(_icon(tester, 'air_purifier'), KioskColors.primary);
+      expect(_issue(tester, 'air_purifier'), isNull);
+      expect(_icon(tester, 'microwave'), isNot(KioskColors.primary));
+      expect(_icon(tester, 'rice'), isNot(KioskColors.primary));
     });
 
-    // 출시 검토(10/18)에서 바꿈: '지금 못 써요'는 이유와 상관없이 한 모양(빨강) — 회색 끊긴 고리와 빨간 느낌표가 달랐다.
-    testWidgets("누름 장치 끊김·비상 버튼 모두 같은 빨강 '지금 못 써요'", (tester) async {
+    // 출시 검토(10/18): 쓸 수 없음은 이유와 상관없이 한 모양 — 이제 '!' 표시(10/19), 이유는 문장.
+    testWidgets("누름 장치 끊김·비상 버튼 모두 같은 '!' 표시", (tester) async {
       await _pump(tester, _idle([_microwave, _air], connections: _pressDown));
-      expect(_status(tester, 'microwave'), '지금 못 써요');
-      expect(_bandFill(tester, 'microwave'), _tint(KioskColors.danger));
+      expect(_issue(tester, 'microwave'), const KioskTileIssue(KioskTileMark.unusable, kTileUnusablePress));
 
       await _pump(
           tester,
@@ -166,21 +155,12 @@ void main() {
             banner: KioskEstopBanner(detail: _estopDetail, onRequest: () {}),
             child: _idle([_microwave, _air]),
           ));
-      expect(_status(tester, 'microwave'), '지금 못 써요');
-      expect(_bandFill(tester, 'microwave'), _tint(KioskColors.danger));
+      expect(_issue(tester, 'microwave'), const KioskTileIssue(KioskTileMark.unusable, kTileUnusableEstop));
     });
 
-    testWidgets('LG 가전 작업 중은 짧게 바꾸는 중', (tester) async {
-      await _pump(
-          tester,
-          KioskApplianceStrip(
-              appliances: [_air],
-              running: const {'air_purifier'},
-              attention: const {},
-              onSelect: (_) {},
-              perPage: 3,
-              itemWidth: 180));
-      expect(_status(tester, 'air_purifier'), '바꾸는 중');
+    test('LG 가전 작업 중은 짧게 바꾸는 중(화면 읽기)', () {
+      expect(kioskTileStateWord(_air, running: true), '바꾸는 중');
+      expect(kioskTileIssue(_air, running: true), isNull);
     });
   });
 

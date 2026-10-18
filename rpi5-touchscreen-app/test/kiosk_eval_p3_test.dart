@@ -231,7 +231,8 @@ void main() {
   });
 
   group('2. 누름 장치 연결이 끊기면 대기 화면', () {
-    testWidgets("누름 장치 가전 타일은 '지금 못 써요' — 누르면 연결 창, LG 가전은 그대로", (tester) async {
+    // 사용자 결정(10/19): 상태 띠 대신 오른쪽 위 '!' 표시('지금은 쓸 수 없어요…'). 타일 본체를 누르면 연결 창은 그대로.
+    testWidgets("누름 장치 가전 타일은 '!' 쓸 수 없음 — 누르면 연결 창, LG 가전은 그대로", (tester) async {
       ConnectionItem? opened;
       ApplianceMap? selected;
       await _pump(
@@ -241,11 +242,11 @@ void main() {
               onOpen: (i) => opened = i,
               onSelect: (a) => selected = a));
       expect(tester.takeException(), isNull);
-      final mw = find.byKey(const ValueKey('tile-status-microwave'));
-      expect(tester.widget<Text>(mw).data, '지금 못 써요');
+      final mw = find.byKey(const ValueKey('tile-mark-microwave'));
+      expect(tester.widget<KioskTileMarkButton>(mw).issue.text, kTileUnusablePress);
       expect(find.byKey(const ValueKey('tile-unavailable-microwave')), findsOneWidget);
-      expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-air'))).data,
-          isNot('지금 못 써요'));
+      final air = find.byKey(const ValueKey('tile-mark-air'));
+      expect(air.evaluate().isEmpty || tester.widget<KioskTileMarkButton>(air).issue.text != kTileUnusablePress, isTrue);
       await tester.tap(find.byKey(const ValueKey('strip-microwave')));
       await tester.pump();
       expect(opened?.id, 'press');
@@ -341,7 +342,9 @@ void main() {
     });
 
     // 평가 6차(10/18): 타일 아래 상태 띠 — 회색 '눌러 드려요' 반복 대신 상태 말. 서버 판정이 없는 내장 가전은 단정하지 않는다.
-    testWidgets("타일 띠 — '눌러 드려요' 반복 없음, 작동 중은 '작동 중'", (tester) async {
+    // 사용자 결정(10/19): 화면 글자 띠는 없다 — 작동 중·바꾸는 중은 화면 읽기 이름에, 모르면 '?' 표시.
+    testWidgets("타일 — '눌러 드려요' 반복 없음, 작동 중은 화면 읽기 '작동 중'", (tester) async {
+      final h = tester.ensureSemantics();
       await _pump(
           tester,
           KioskApplianceStrip(
@@ -351,15 +354,14 @@ void main() {
               onSelect: (_) {},
               perPage: 3,
               itemWidth: 180));
-      expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-microwave'))).data, '확인 전이에요');
+      expect(tester.widget<KioskTileMarkButton>(find.byKey(const ValueKey('tile-mark-microwave'))).issue.text,
+          kTileReadyUnknown);
       expect(find.text('눌러 드려요'), findsNothing);
-      expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-induction'))).data,
-          '작동 중');
-      // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게(평가 4차 10/18).
-      expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-air'))).data,
-          '바꾸는 중');
+      expect(find.bySemanticsLabel(RegExp('인덕션.*작동 중')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('공기청정기.*바꾸는 중')), findsOneWidget);
       expect(find.text('누름 장치 조작'), findsNothing);
       expect(find.text('동작 중'), findsNothing);
+      h.dispose();
     });
 
     // 평가 6차(10/18, 폰 평가 5차와 같은 말): '누를 버튼 N개', LG 가전 단계는 결과 말 — 단계 내용이 없으면 '바꾸기'.

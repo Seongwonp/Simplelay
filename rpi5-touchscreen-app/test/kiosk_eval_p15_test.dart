@@ -333,7 +333,7 @@ void main() {
             ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
           ]));
       final texts = _texts(tester);
-      expect(texts, contains('누름 장치가 끊겨 가전 4대를 못 써요'));
+      expect(texts, contains('누름 장치가 끊겨 가전 4대를 쓸 수 없어요'));
       expect(texts, isNot(contains('연결 확인 필요 1'))); // 한 줄 제목만(결선 모의 평가 10/18)
       expect(find.byKey(const ValueKey('idle-problem-help')), findsOneWidget);
       expect(tester.takeException(), isNull);

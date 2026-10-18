@@ -122,17 +122,20 @@ void main() {
     });
   });
 
-  group("가전 타일 '준비됐어요'는 서버가 실행을 받아 준다고 말한 때만", () {
-    test('서버 판정 operable + 실행 가능 → 준비됐어요', () {
-      expect(kioskTileBand(_appliance('mw', '전자레인지', readiness: 'operable')).text, '준비됐어요');
+  // 사용자 결정(10/19): 준비됨은 표시 없음(평소), 그 밖은 문제 표시 — 준비됐다고 지어내지 않는 판정은 그대로.
+  group('가전 타일이 표시 없이(평소) 서는 것은 서버가 실행을 받아 준다고 말한 때만', () {
+    test('서버 판정 operable + 실행 가능 → 표시 없음', () {
+      expect(kioskTileIssue(_appliance('mw', '전자레인지', readiness: 'operable')), isNull);
     });
-    test('판정이 없거나(옛 서버·하드코딩) 실행 불가면 준비됐다고 하지 않는다', () {
-      expect(kioskTileBand(_appliance('mw', '전자레인지')).text, '확인 전이에요');
-      expect(kioskTileBand(_appliance('mw', '전자레인지', readiness: 'operable', canExecute: false)).text,
-          '확인 전이에요');
-      expect(kioskTileBand(_appliance('mw', '전자레인지', readiness: 'disconnected')).text, '연결이 안 돼요');
-      // 접근성 감사(10/18) — 본체는 중립 '가족이 설정해요'(준비됐다고도 하지 않는다).
-      expect(kioskTileBand(_appliance('mw', '전자레인지', readiness: 'needs_setup')).text, '가족이 설정해요');
+    test("판정이 없거나(옛 서버·하드코딩) 실행 불가면 '?'·'!'·톱니", () {
+      expect(kioskTileIssue(_appliance('mw', '전자레인지')),
+          const KioskTileIssue(KioskTileMark.unknown, kTileReadyUnknown));
+      expect(kioskTileIssue(_appliance('mw', '전자레인지', readiness: 'operable', canExecute: false)),
+          const KioskTileIssue(KioskTileMark.unknown, kTileReadyUnknown));
+      expect(kioskTileIssue(_appliance('mw', '전자레인지', readiness: 'disconnected')),
+          const KioskTileIssue(KioskTileMark.unusable, kTileUnusableLink));
+      expect(kioskTileIssue(_appliance('mw', '전자레인지', readiness: 'needs_setup')),
+          const KioskTileIssue(KioskTileMark.setup, kTileSetupLeft));
     });
   });
 }

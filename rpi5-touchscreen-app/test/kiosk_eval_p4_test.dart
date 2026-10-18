@@ -15,6 +15,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/command_result.dart';
@@ -187,18 +188,19 @@ void main() {
       expect(find.text('기기 모두 정상'), findsNothing);
     });
 
-    testWidgets('누름 장치로 누르는 가전 타일은 지금 못 써요, LG 가전은 그대로', (tester) async {
+    // 사용자 결정(10/19): 띠 대신 '!' 표시, 문장은 비상 버튼 이유.
+    testWidgets('누름 장치로 누르는 가전 타일은 쓸 수 없음 표시, LG 가전은 그대로', (tester) async {
       await _pump(tester, _underEstop(_idle()));
-      expect(
-          tester.widget<Text>(find.byKey(const ValueKey('tile-status-microwave'))).data, '지금 못 써요');
-      expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-air_purifier'))).data,
-          isNot('지금 못 써요'));
+      expect(tester.widget<KioskTileMarkButton>(find.byKey(const ValueKey('tile-mark-microwave'))).issue.text,
+          kTileUnusableEstop);
+      final air = find.byKey(const ValueKey('tile-mark-air_purifier'));
+      expect(air.evaluate().isEmpty || tester.widget<KioskTileMarkButton>(air).issue.text != kTileUnusableEstop, isTrue);
     });
 
     testWidgets('비상 버튼이 없고 연결이 괜찮으면 칩이 없다(사용자 결정 10/18)', (tester) async {
       await _pump(tester, _idle());
       expect(find.byKey(const ValueKey('idle-status-chip')), findsNothing);
-      expect(find.text('지금 못 써요'), findsNothing);
+      expect(tester.widgetList<KioskTileMarkButton>(find.byType(KioskTileMarkButton)).where((m) => m.issue.mark == KioskTileMark.unusable), isEmpty);
     });
   });
 

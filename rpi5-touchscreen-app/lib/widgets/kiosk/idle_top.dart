@@ -95,12 +95,12 @@ String connectionProblemText(ConnectionItem p) {
   return p.state == 'error' ? '$name 연결이 끊겼어요' : '$name${p.id == 'press' ? '을' : '를'} 봐 주세요';
 }
 
-/// 원인이 하나일 때 칩 첫 줄 — 원인과 영향(평가 15차 10/18: 가전 4대가 '지금 못 써요'인데 칩은 '확인 필요 1'뿐이었다).
-/// 누름 장치가 끊겨 못 쓰는 가전 수([pressImpact])를 알면 '누름 장치가 끊겨 가전 4대를 못 써요'(짧게 — 쉬는 중 칩과 함께여도 위 줄에
+/// 원인이 하나일 때 칩 첫 줄 — 원인과 영향(평가 15차 10/18: 가전 4대를 쓸 수 없는데 칩은 '확인 필요 1'뿐이었다).
+/// 누름 장치가 끊겨 못 쓰는 가전 수([pressImpact])를 알면 '누름 장치가 끊겨 가전 4대를 쓸 수 없어요'(짧게 — 쉬는 중 칩과 함께여도 위 줄에
 /// 들어가게), 모르면 '누름 장치 연결이 끊겼어요'.
 String connectionCauseLine(ConnectionItem p, {int? pressImpact}) {
   if (p.id == 'press' && p.state == 'error' && pressImpact != null && pressImpact > 0) {
-    return '누름 장치가 끊겨 가전 $pressImpact대를 못 써요';
+    return '누름 장치가 끊겨 가전 $pressImpact대를 쓸 수 없어요';
   }
   return connectionProblemText(p);
 }
@@ -143,7 +143,7 @@ class KioskIdleStatusChip extends StatelessWidget {
     if (summary == null) return const SizedBox.shrink();
     final text = summary;
     if (problem) {
-      // 원인이 하나면 제목은 원인과 영향(평가 15차 10/18) — '누름 장치가 끊겨 가전 5대를 못 써요'. 본체 끊김은 칩 글이 이미 원인이다.
+      // 원인이 하나면 제목은 원인과 영향(평가 15차 10/18) — '누름 장치가 끊겨 가전 5대를 쓸 수 없어요'. 본체 끊김은 칩 글이 이미 원인이다.
       final cause = direct != null && !_isHubDown(direct)
           ? connectionCauseLine(direct, pressImpact: pressImpact)
           : null;
@@ -156,7 +156,7 @@ class KioskIdleStatusChip extends StatelessWidget {
         titleIsCause: cause != null,
         also: also,
         vertical: vertical,
-        // 화면 읽기는 무엇이 문제인지까지 읽는다('누름 장치가 끊겨 가전 5대를 못 써요. 연결 확인 필요 1').
+        // 화면 읽기는 무엇이 문제인지까지 읽는다('누름 장치가 끊겨 가전 5대를 쓸 수 없어요. 연결 확인 필요 1').
         semanticsLabel: [if (cause != null) cause, text, if (cause == null) ...what, if (also != null) also!].join('. '),
         onTap: onTap,
       );
@@ -202,7 +202,7 @@ class KioskIdleStatusChip extends StatelessWidget {
 
 /// 연결 문제 줄(결선 모의 평가 10/18) — 평소 화면 위 줄 아래 한 줄 전체. 예전 알약 칩은 두 줄 글자가 꽉 끼었다.
 ///
-/// - 왼쪽: 앰버 면의 **한 줄 제목**(상태 크기, 흰 굵은 글자) — 원인과 영향('누름 장치가 끊겨 가전 5대를 못 써요') 또는
+/// - 왼쪽: 앰버 면의 **한 줄 제목**(상태 크기, 흰 굵은 글자) — 원인과 영향('누름 장치가 끊겨 가전 5대를 쓸 수 없어요') 또는
 ///   '본체와 연결이 끊겼어요'·'연결 확인 필요 2'. 누르면 연결 창(아래 단추와 같다).
 /// - 오른쪽: 따로 선 **'해결 방법 보기 ›'** 단추(테두리, 누르는 자리 48 이상).
 /// 줄 높이는 [height]로 고정 — 평소 화면이 이 높이만큼 가운데 칸을 줄인다. 글이 길거나 큰 글씨면 제목이 통째로 조금 줄어든다.

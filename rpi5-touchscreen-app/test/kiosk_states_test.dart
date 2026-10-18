@@ -362,7 +362,9 @@ void main() {
       final first = tester.getRect(find.byKey(const ValueKey('strip-intercom')));
       final second = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(first.left, lessThan(second.left));
-      expect(find.text('확인 필요'), findsOneWidget);
+      // 사용자 결정(10/19): 글자 띠 대신 '!' 표시 — 지난번에 끝까지 하지 못했다는 문장.
+      expect(tester.widget<KioskTileMarkButton>(find.byKey(const ValueKey('tile-mark-intercom'))).issue.text,
+          kTileLastFailed);
     });
 
     testWidgets('정지 버튼 대기 중인 가전은 "동작 중"으로 맨 앞에 선다', (tester) async {
@@ -390,18 +392,15 @@ void main() {
       final first = tester.getRect(find.byKey(const ValueKey('strip-intercom')));
       final second = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(first.left, lessThan(second.left));
-      final label = find.descendant(
-          of: find.byKey(const ValueKey('strip-intercom')),
-          matching: find.text('켜져 있어요'));
-      expect(label, findsOneWidget);
-      expect(tester.widget<Text>(label).style?.color, KioskColors.confirmed);
-      expect(find.text('켜져 있어요'), findsOneWidget);
+      // 사용자 결정(10/19): 글자 대신 아이콘 강조색.
+      expect(tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-intercom'))).color, KioskColors.primary);
     });
 
     testWidgets('전원 상태를 모르면 "켜져 있어요"을 달지 않고 순서도 등록 순서 그대로', (tester) async {
       final api = FakeKioskApi()..applianceList = _six;
       await _pump(tester, api);
       expect(find.text('켜져 있어요'), findsNothing);
+      expect(tester.widgetList<Icon>(find.byType(Icon)).where((i) => i.color == KioskColors.primary && i.key is ValueKey && '${(i.key as ValueKey).value}'.startsWith('tile-icon-')), isEmpty);
       expect(find.byKey(const ValueKey('strip-intercom')), findsNothing);
       expect(find.byKey(const ValueKey('strip-microwave')), findsOneWidget);
     });
@@ -414,12 +413,14 @@ void main() {
       await tester.pump(const Duration(seconds: 10));
       await tester.pump();
       expect(find.byKey(const ValueKey('strip-intercom')), findsOneWidget);
-      expect(find.text('켜져 있어요'), findsOneWidget);
+      Color? icon() => tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-intercom'))).color;
+      expect(icon(), KioskColors.primary);
       // 다시 모르게 되면 표시를 내린다(지어내지 않는다).
       api.powerOn = {};
       await tester.pump(const Duration(seconds: 10));
       await tester.pump();
-      expect(find.text('켜져 있어요'), findsNothing);
+      final f = find.byKey(const ValueKey('tile-icon-intercom'));
+      expect(f.evaluate().isEmpty || icon() != KioskColors.primary, isTrue);
     });
   });
 
