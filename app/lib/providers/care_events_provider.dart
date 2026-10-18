@@ -38,34 +38,42 @@ class CareEventsState {
     this.lastSeenId = 0,
     this.status = CareInboxStatus.loading,
     this.lastLoadedAt,
+    this.acks = const PersonAcks(),
   });
 
   final List<RpiCareEvent> events;
   final int lastSeenId;
+
+  /// 본체에 적힌 '사람이 확인함'(2026-10-19) — 다른 기기(키오스크 지난 일 확인·답)에서 본 것도 여기 있다.
+  /// 이 폰의 [lastSeenId]와 함께 본다: 둘 중 하나라도 봤다고 하면 안 본 알림이 아니다.
+  final PersonAcks acks;
   final CareInboxStatus status;
 
   /// 마지막으로 **성공한** 조회 시각. 실패해도 그대로 둔다 — 화면이
   /// "언제까지의 정보인지"를 말할 수 있어야 한다.
   final DateTime? lastLoadedAt;
 
-  int get unreadCount =>
-      events.where((e) => e.id > lastSeenId).length;
+  bool _unread(RpiCareEvent e) => e.id > lastSeenId && !acks.covers(e);
 
-  /// 아직 안 본 알림(알림함을 연 뒤 새로 온 것).
-  List<RpiCareEvent> get unreadEvents =>
-      [for (final e in events) if (e.id > lastSeenId) e];
+  int get unreadCount => events.where(_unread).length;
+
+  /// 아직 안 본 알림 — 이 폰에서 알림함을 연 뒤 새로 왔고, 어느 기기에서도 확인하지 않은 것(본체 확인, 2026-10-19:
+  /// '기록 보기'로 못 한 일을 보고 와도 경고가 남았고, 키오스크에서 확인한 실패도 폰에 남았다).
+  List<RpiCareEvent> get unreadEvents => [for (final e in events) if (_unread(e)) e];
 
   CareEventsState copyWith({
     List<RpiCareEvent>? events,
     int? lastSeenId,
     CareInboxStatus? status,
     DateTime? lastLoadedAt,
+    PersonAcks? acks,
   }) =>
       CareEventsState(
         events: events ?? this.events,
         lastSeenId: lastSeenId ?? this.lastSeenId,
         status: status ?? this.status,
         lastLoadedAt: lastLoadedAt ?? this.lastLoadedAt,
+        acks: acks ?? this.acks,
       );
 }
 
@@ -134,8 +142,10 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
       if (mounted) state = state.copyWith(status: CareInboxStatus.unconfigured);
       return;
     }
-    final events = await api.careEvents();
+    final (events, acks) = await (api.careEvents(), api.acks()).wait;
     if (!mounted) return;
+    // 확인 표시는 받았을 때만 바꾼다(옛 본체·통신 실패면 직전 값 그대로 — 지우지도 지어내지도 않는다).
+    if (acks != null) state = state.copyWith(acks: acks);
     if (events == null) {
       // 통신 실패 — 보고 있던 알림·배지를 지우지 않는다 (교차 리뷰 #13).
       // 다만 "지금 보고 있는 것이 최신이 아니다"는 사실은 알린다.
@@ -162,18 +172,32 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
     return newest < state.lastSeenId ? 0 : state.lastSeenId;
   }
 
-  /// 알림함 화면을 연 순간 호출 — 지금 보이는 것까지를 읽음 처리.
+  /// 알림함 화면을 연 순간 호출 — 지금 보이는 것까지를 읽음 처리. 본체에도 적어 다른 기기에서도 사라진다(2026-10-19).
   Future<void> markAllSeen() async {
     if (state.events.isEmpty) return;
     final newest = state.events.first.id;
-    if (newest <= state.lastSeenId) return;
-    state = state.copyWith(lastSeenId: newest);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt(_prefsKey, newest);
-    } catch (_) {
-      // 저장 실패 — 세션 내 읽음 표시는 유지된다
+    if (newest <= state.lastSeenId && newest <= state.acks.careSeenId) return;
+    if (newest > state.lastSeenId) {
+      state = state.copyWith(lastSeenId: newest);
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(_prefsKey, newest);
+      } catch (_) {
+        // 저장 실패 — 세션 내 읽음 표시는 유지된다
+      }
     }
+    final acks = await _ref.read(rpiApiServiceProvider)?.postAcks(careSeenId: newest);
+    if (acks != null && mounted) state = state.copyWith(acks: acks);
+  }
+
+  /// 못 한 일을 봤다(홈 경고의 '기록 보기', 2026-10-19) — 본체에 적어 폰 경고·설정 탭 배지·키오스크 표시가 함께 사라진다.
+  /// 본체 시계로 지금까지의 못 한 일만 — 위험 소리·비상 정지·안부 신호는 알림함을 열어야 지워진다. 새 실패는 다시 뜬다.
+  /// 본체에 닿지 못하면 아무것도 지우지 않는다(확인을 지어내지 않는다).
+  Future<bool> markFailuresSeen() async {
+    final acks = await _ref.read(rpiApiServiceProvider)?.postAcks(failuresSeen: true);
+    if (acks == null || !mounted) return false;
+    state = state.copyWith(acks: acks);
+    return true;
   }
 
   @override

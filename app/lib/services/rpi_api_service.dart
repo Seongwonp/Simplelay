@@ -604,6 +604,41 @@ class RpiCareEvent {
       );
 }
 
+/// 사람이 '확인함'(본체 `GET/POST /acks`, 2026-10-19) — 폰·키오스크가 같은 값을 읽는다.
+///
+/// - [careSeenId]: 보호자 알림을 이 번호까지 봤다.
+/// - [failuresSeenUntil]: 이 시각(본체 시계)까지의 '못 한 일' 알림은 봤다(폰 '기록 보기'·키오스크 지난 일 확인·답).
+/// - [jobAnswers]: 실행 하나에 남긴 답 — seen · moved · not_moved.
+class PersonAcks {
+  const PersonAcks({this.careSeenId = 0, this.failuresSeenUntil, this.jobAnswers = const {}});
+
+  final int careSeenId;
+  final DateTime? failuresSeenUntil;
+  final Map<String, String> jobAnswers;
+
+  /// '못 한 일'로 묶는 알림 종류 — 본체 `person_acks.FAILURE_CARE_KINDS`와 같다.
+  static const failureKinds = {'execution_failed', 'appliance_done_undelivered'};
+
+  /// 이 알림을 사람이 이미 봤나(어느 기기에서든).
+  bool covers(RpiCareEvent e) {
+    if (e.id <= careSeenId) return true;
+    final until = failuresSeenUntil;
+    return until != null && failureKinds.contains(e.kind) && !e.occurredAt.isAfter(until);
+  }
+
+  factory PersonAcks.fromJson(Map<String, dynamic> json) {
+    final until = json['failures_seen_until'];
+    final answers = json['job_answers'];
+    return PersonAcks(
+      careSeenId: (json['care_seen_id'] as num?)?.toInt() ?? 0,
+      failuresSeenUntil: until is String ? hubWallClock(until) : null,
+      jobAnswers: answers is Map
+          ? {for (final e in answers.entries) if (e.value is String) '${e.key}': e.value as String}
+          : const {},
+    );
+  }
+}
+
 class RpiHistoryEntry {
   final String executionMode;
   const RpiHistoryEntry({
@@ -1539,6 +1574,37 @@ class RpiApiService {
           .cast<Map<String, dynamic>>()
           .map(RpiCareEvent.fromJson)
           .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 사람이 확인한 것(GET /acks). 실패하면 null — 옛 본체(경로 없음)도 null.
+  Future<PersonAcks?> acks() async {
+    try {
+      final res = await _client.get(_base.replace(path: '/acks'), headers: _headers).timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return PersonAcks.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 사람이 봤다·답했다를 본체에 적는다(POST /acks). 실패하면 null.
+  Future<PersonAcks?> postAcks({int? careSeenId, bool failuresSeen = false, String? jobId, String? answer}) async {
+    try {
+      final res = await _client
+          .post(_base.replace(path: '/acks'),
+              headers: _jsonHeaders,
+              body: jsonEncode({
+                if (careSeenId != null) 'care_seen_id': careSeenId,
+                if (failuresSeen) 'failures_seen': true,
+                if (jobId != null) 'job_id': jobId,
+                if (answer != null) 'answer': answer,
+              }))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return PersonAcks.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
     } catch (_) {
       return null;
     }
