@@ -188,10 +188,10 @@ void main() {
     test('실패·정지가 섞이면 짧은 말 하나를 붙인다(가장 무거운 것)', () {
       // 평가 15차(10/18): 볼 것은 그 갈래·건수, 나머지는 따로 '안 본 알림 N건'(eval15_phone_test 5).
       expect(careAttentionText([_ev(3, 'auto_rule'), _ev(2, 'execution_failed'), _ev(1, 'routine_notice')]),
-          '못 한 일 1건, 안 본 알림 2건');
-      expect(careAttentionText([_ev(2, 'routine_stopped'), _ev(1, 'danger_sound')]), '위험 소리 1건, 안 본 알림 1건');
-      expect(careAttentionText([_ev(1, 'emergency_stop')]), '멈춘 일 1건');
-      expect(careAttentionText([_ev(1, 'routine_stopped')]), '멈춘 루틴 1건');
+          '못 한 일 1번, 그 밖에 안 본 알림 2건');
+      expect(careAttentionText([_ev(2, 'routine_stopped'), _ev(1, 'danger_sound')]), '위험 소리 1번, 그 밖에 안 본 알림 1건');
+      expect(careAttentionText([_ev(1, 'emergency_stop')]), '멈춘 일 1번');
+      expect(careAttentionText([_ev(1, 'routine_stopped')]), '멈춘 루틴 1번');
       expect(careNeedsLook([_ev(1, 'appliance_done_undelivered')]), isTrue);
     });
 
@@ -219,10 +219,10 @@ void main() {
       await _pump(tester, const HomeScreen(), installed: [ApplianceMap.fromJson(_air)]);
       // 평가 15차(10/18): 못 한 일은 경고색 한 줄, 나머지 알림은 중립 한 줄.
       final look = find.byKey(const Key('home-attention-care-look'));
-      expect(_in(look, findPlainText('못 한 일 1건')), findsOneWidget);
-      expect(tester.widget<Text>(_in(look, findPlainText('못 한 일 1건'))).style?.color, tester.element(look).appWarning);
+      expect(_in(look, findPlainText('못 한 일 1번')), findsOneWidget);
+      expect(tester.widget<Text>(_in(look, findPlainText('못 한 일 1번'))).style?.color, tester.element(look).appWarning);
       final row = find.byKey(const Key('home-attention-care'));
-      expect(_in(row, findPlainText('안 본 알림 1건')), findsOneWidget);
+      expect(_in(row, findPlainText('그 밖에 안 본 알림 1건')), findsOneWidget);
       expect(_careRowColor(tester), isNot(tester.element(row).appWarning));
     });
 

@@ -137,7 +137,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       // 낱말 중간에서 꺾이지 않게(평가 10차 10/18). 평가 14차(10/18): '~이에요. ~않아요.'가 잇달아 단조로웠다 →
                       // 짧은 명사구 + 한 문장.
                       // 평가 15차(10/18): '묻지 않고 하도록 허락한 일.'은 번역투 명사문이었다 → 쉬운 말 한 문장 + 짧은 안내.
-                      const _Note('물어보지 않고 바로 하는 일이에요. 스위치로 끌 수 있어요',
+                      const _Note('묻지 않고 바로 해요. 스위치로 꺼요',
                           key: Key('auto-rules-intro'), textKey: Key('auto-rules-intro-text')),
                       // 평가 15차(10/18): 그림자 진 흰 카드 한 장이 '내 루틴'의 면 없는 목록과 문법이 달랐다 → 같은 면 없는 줄,
                       // 줄 사이는 옅은 구분선.
@@ -783,13 +783,29 @@ class _RoutineRow extends StatelessWidget {
         : Text.rich(
             TextSpan(children: [
               TextSpan(text: lineShown),
-              for (final b in badges) ...[
-                // 누를 수 있는 표시는 구분 글자를 제 칸 안에 그린다([_LineMark.lead]).
-                if (!(b is _LineMark && b.lead != null)) TextSpan(text: line.isEmpty ? '' : ' · '),
-                // 글 속 위젯은 Text가 글자 배율만큼 한 번 더 키운다 — 배지 안에서는 배율을 빼 두 번 커지지 않게
-                // (200%에서 '자동으로 / 해요'가 배지 안에서 꺾였다).
-                WidgetSpan(alignment: PlaceholderAlignment.middle, child: MediaQuery.withNoTextScaling(child: b)),
-              ],
+              // 평가 16차(10/18): 표시마다 따로 줄을 넘겨 '· 자동'이 줄 머리에 혼자 남았다 → 표시 묶음('· 다음 · 자동')을
+              // 앞 가운뎃점까지 한 덩어리로 넘긴다. 덩어리가 한 줄보다 길 때만 그 안에서 꺾인다(Wrap).
+              if (badges.isNotEmpty)
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  // 글 속 위젯은 Text가 글자 배율만큼 한 번 더 키운다 — 배지 안에서는 배율을 빼 두 번 커지지 않게
+                  // (200%에서 '자동으로 / 해요'가 배지 안에서 꺾였다).
+                  child: MediaQuery.withNoTextScaling(
+                    child: Wrap(
+                      key: Key('routine-marks-$key'),
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (var i = 0; i < badges.length; i++) ...[
+                          // 누를 수 있는 표시는 구분 글자를 제 칸 안에 그린다([_LineMark.lead]).
+                          if (!(badges[i] is _LineMark && (badges[i] as _LineMark).lead != null) &&
+                              (i > 0 || line.isNotEmpty))
+                            ExcludeSemantics(child: Text(' · ', style: lineStyle)),
+                          badges[i],
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
             ]),
             key: Key('routine-line-$key'),
             semanticsLabel: line,
@@ -803,17 +819,26 @@ class _RoutineRow extends StatelessWidget {
         style: AppText.body.copyWith(fontWeight: FontWeight.w700));
     // 줄 오른쪽 표시([trailing])는 모든 줄에서 **이름 줄** 옆 같은 자리 — 이름이 늘 첫 줄이라 높이도 같다.
     // 그 아래 한 줄은 단추 밑까지 넓게 쓴다.
-    Widget textWith(Widget? trailing) => Column(
+    // 평가 16차(10/18): '지금 하기 >'는 이름 줄 옆, 아이콘은 두 줄 가운데라 세로 기준이 갈렸다 → 이름 줄을 아이콘
+    // 원과 같은 높이 칸에 두고 아이콘·이름·오른쪽 단추를 그 칸 가운데에 맞춘다. 설명 줄은 그 아래 단추 밑까지 넓게.
+    Widget textWith(Widget? trailing, {double? nameMinHeight}) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (trailing == null)
-          nameText
-        else
-          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        ConstrainedBox(
+          constraints: BoxConstraints(minHeight: nameMinHeight ?? 0),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             Expanded(child: nameText),
-            trailing,
+            if (trailing != null) trailing,
           ]),
-        if (lineText != null) lineText,
+        ),
+        // 평가 16차(10/18): 누를 수 있는 '자동'(48dp 칸)이 있는 줄만 설명 줄이 높아져 이름-설명 간격이 줄마다 달랐다 →
+        // 모든 줄의 설명 줄을 같은 높이 칸(48dp 이상)에 앉힌다.
+        if (lineText != null)
+          ConstrainedBox(
+            key: Key('routine-line-box-$key'),
+            constraints: const BoxConstraints(minHeight: kMinTouch),
+            child: Align(alignment: Alignment.centerLeft, widthFactor: 1, child: lineText),
+          ),
       ],
     );
     final text = textWith(null);
@@ -885,11 +910,19 @@ class _RoutineRow extends StatelessWidget {
             : null;
     // 왼쪽 열은 모든 줄이 같은 폭의 가전 아이콘(평가 6차 10/18).
     final leadWidth = circle + AppSpace.md;
+    // 이름 줄 칸 높이 — 아이콘 원과 오른쪽 단추(48dp 칸) 가운데 큰 것.
+    final headHeight = circle > kMinTouch ? circle : kMinTouch;
     final head = Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(width: leadWidth, child: Align(alignment: Alignment.centerLeft, child: icon)),
-        Expanded(child: Semantics(container: true, child: inline && action != null ? textWith(action) : text)),
+        SizedBox(
+            width: leadWidth,
+            height: headHeight,
+            child: Align(alignment: Alignment.centerLeft, child: icon)),
+        Expanded(
+            child: Semantics(
+                container: true,
+                child: textWith(inline ? action : null, nameMinHeight: headHeight))),
       ],
     );
     return Padding(
@@ -1058,7 +1091,8 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                 children: [
                   // 카드마다 붙던 순환 아이콘은 뺀다(평가 14차 10/18 — 장식). 켜짐은 스위치가 말한다.
                   Expanded(
-                    child: Text(keepWordsTogether(r.name),
+                    // 끝 짧은 낱말('세게'·'켜기')은 앞 낱말과 함께 넘긴다(평가 16차 10/18: '공기청정기 / 세게').
+                    child: Text(keepActionNameTogether(r.name),
                         semanticsLabel: r.name,
                         style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
                   ),
@@ -1156,7 +1190,8 @@ class _Note extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
         // 낱말 단위로만 줄을 바꾼다(평가 10차 10/18). 낭독은 원문.
-        child: Text(keepWordsTogether(text),
+        // 끝 짧은 낱말은 앞 낱말과 함께 넘긴다(평가 16차 10/18: '끌 수 / 있어요').
+        child: Text(keepActionNameTogether(text),
             key: textKey,
             semanticsLabel: text,
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),

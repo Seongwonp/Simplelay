@@ -143,9 +143,7 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => const _ThinqScreen())),
             ),
-          ]),
-          const SizedBox(height: AppSpace.lg),
-          _NavGroup(children: [
+            // 평가 16차(10/18): 'LG 가전 연결'과 '보호자 알림' 사이에만 구분선 없이 빈칸이 있었다 → 한 묶음, 구분선 규칙 하나.
             _NavRow(
               icon: Icons.family_restroom,
               title: '보호자 알림',

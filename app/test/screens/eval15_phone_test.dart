@@ -300,7 +300,8 @@ void main() {
       await _settle(tester);
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text'))).semanticsLabel!;
       expect(intro, isNot(contains('허락한 일.')));
-      expect(intro, startsWith('물어보지 않고 바로 하는 일이에요'));
+      // 평가 16차(10/18): 더 짧게 — eval16_phone_test 5.
+      expect(intro, startsWith('묻지 않고 바로 해요'));
     });
   });
 
@@ -357,10 +358,11 @@ void main() {
 
   group('4. 기록 — 쉬운 이유, 가까운 시각만 묶기', () {
     test("거절 이유는 근거만큼 — '모드'·'명령' 없이", () {
+      // 평가 16차(10/18): 가전 이름이 주어 — eval16_phone_test 3.
       expect(plainFailReason('가전의 지금 모드에서는 이 명령을 받을 수 없어요', '공기청정기 바람 중간으로 하기'),
-          '지금은 가전이 바꿀 수 없는 상태였어요');
+          '가전이 지금은 바꿀 수 없다고 했어요');
       expect(plainFailReason('가전이 꺼져 있어 이 명령을 받을 수 없어요', '공기청정기 바람 세게 하기'),
-          '꺼져 있을 땐 바람 세기를 바꿀 수 없어요');
+          '가전이 꺼져 있어서 바람 세기를 바꿀 수 없었어요');
       expect(plainFailReason('가전이 꺼져 있어 이 명령을 받을 수 없어요', '공기청정기 끄기'), '가전이 꺼져 있어서 못 했어요');
       // 모르는 문장은 그대로.
       expect(plainFailReason('가전 답이 늦어요', '공기청정기 켜기'), '가전 답이 늦어요');
@@ -369,9 +371,9 @@ void main() {
     testWidgets("화면에 '모드'·'명령'이 없다 — 펼쳐도", (tester) async {
       await _pump(tester, const HistoryScreen());
       final reason = find.byKey(const Key('history-reason-mode-1'));
-      expect(tester.widget<Text>(reason).semanticsLabel, '지금은 가전이 바꿀 수 없는 상태였어요');
+      expect(tester.widget<Text>(reason).semanticsLabel, '공기청정기가 지금은 바꿀 수 없다고 했어요');
       expect(tester.widget<Text>(find.byKey(const Key('history-reason-off-1'))).semanticsLabel,
-          '꺼져 있을 땐 바람 세기를 바꿀 수 없어요');
+          '공기청정기가 꺼져 있어서 바람 세기를 바꿀 수 없었어요');
       await tester.tap(find.byKey(const Key('history-tap-mode-1')));
       await _settle(tester);
       expect(findPlainText('모드', contains: true), findsNothing);
@@ -398,23 +400,24 @@ void main() {
         ev(2, 'execution_failed', purpose: '공기청정기 바람 중간으로 해줘'),
         ev(1, 'auto_rule'),
       ]);
-      expect(l.look, '못 한 일 1건: 공기청정기 바람 중간으로 하기');
-      expect(l.rest, '안 본 알림 2건');
+      // 평가 16차(10/18): '번' 하나, 나머지는 '그 밖에' — eval16_phone_test 1.
+      expect(l.look, '못 한 일: 공기청정기 바람 중간으로 하기');
+      expect(l.rest, '그 밖에 안 본 알림 2건');
       // 볼 것이 없으면 중립 한 줄.
       final n = careAttentionLines([ev(2, 'auto_rule'), ev(1, 'routine_notice')]);
       expect(n.look, isNull);
       expect(n.rest, '안 본 알림 2건');
       // 목적 문장이 없으면 알림 문장의 따옴표 속 이름, 그것도 없으면 건수만.
       expect(careAttentionLines([ev(1, 'execution_failed', message: "'30초 데우기' 실행이 완료되지 못했어요.")]).look,
-          '못 한 일 1건: 30초 데우기');
-      expect(careAttentionLines([ev(1, 'emergency_stop')]).look, '멈춘 일 1건');
+          '못 한 일: 30초 데우기');
+      expect(careAttentionLines([ev(1, 'emergency_stop')]).look, '멈춘 일 1번');
       // 가장 최근 것의 이름.
       expect(
           careAttentionLines([
             ev(2, 'execution_failed', purpose: '공기청정기 꺼줘'),
             ev(1, 'execution_failed', purpose: '공기청정기 켜줘'),
           ]).look,
-          '못 한 일 2건: 공기청정기 끄기');
+          '못 한 일: 공기청정기 끄기 외 1번');
     });
 
     testWidgets('홈 화면에 두 줄', (tester) async {
@@ -425,9 +428,9 @@ void main() {
       ];
       await _pump(tester, const HomeScreen());
       expect(_in(find.byKey(const Key('home-attention-care-look')),
-              findPlainText('못 한 일 1건: 공기청정기 바람 중간으로 하기')),
+              findPlainText('못 한 일: 공기청정기 바람 중간으로 하기')),
           findsOneWidget);
-      expect(_in(find.byKey(const Key('home-attention-care')), findPlainText('안 본 알림 2건')), findsOneWidget);
+      expect(_in(find.byKey(const Key('home-attention-care')), findPlainText('그 밖에 안 본 알림 2건')), findsOneWidget);
       expect(findPlainText('못 한 일이 있어요', contains: true), findsNothing);
     });
   });

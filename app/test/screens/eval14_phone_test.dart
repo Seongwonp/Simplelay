@@ -260,7 +260,7 @@ void main() {
       final reason = find.byKey(const Key('history-reason-f-1'));
       expect(reason, findsOneWidget);
       // 평가 15차(10/18): 기록 문장의 근거(꺼짐 거절)를 쉬운 말로 — '명령' 없이(eval15_phone_test 4).
-      expect(tester.widget<Text>(reason).semanticsLabel, '꺼져 있을 땐 바람 세기를 바꿀 수 없어요');
+      expect(tester.widget<Text>(reason).semanticsLabel, '공기청정기가 꺼져 있어서 바람 세기를 바꿀 수 없었어요');
       expect(find.byKey(const Key('history-reason-f-bare')), findsNothing);
     });
 

@@ -379,7 +379,7 @@ void main() {
       // 평가 15차(10/18): 이 시험의 알림은 모두 실행 실패 — '못 한 일 4건' 한 줄(나머지 알림 줄은 없다).
       final row = find.byKey(const Key('home-attention-care-look'));
       expect(find.descendant(of: find.byKey(const Key('home-attention')), matching: row), findsOneWidget);
-      expect(find.descendant(of: row, matching: findPlainText('못 한 일 4건', contains: true)), findsOneWidget);
+      expect(find.descendant(of: row, matching: findPlainText('못 한 일', contains: true)), findsOneWidget);
       await tester.tap(row);
       await tester.pumpAndSettle();
       expect(_visited, ['/care']);

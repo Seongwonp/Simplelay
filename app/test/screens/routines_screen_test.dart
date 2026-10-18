@@ -605,7 +605,7 @@ void main() {
     // 알림만은 부제에 적지 않고 '알려 드려요' 배지가 말한다(평가 4차 10/18).
     // 배지는 그 한 줄 끝(평가 10차 10/18).
     expect(find.descendant(of: find.byKey(const Key('routine-line-rt-n')),
-        matching: findPlainText('전자레인지 · 누를 버튼 3개 ', contains: true), matchRoot: true), findsOneWidget);
+        matching: findPlainText('전자레인지 · 누를 버튼 3개', contains: true), matchRoot: true), findsOneWidget);
     expect(findPlainText('알려 드려요'), findsOneWidget);
     expect(findPlainText('전자레인지 · 누를 버튼 3개 · 꺼짐', contains: true), findsOneWidget);
   });

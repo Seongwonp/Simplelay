@@ -327,9 +327,21 @@ CareAttentionLines careAttentionLines(List<RpiCareEvent> unread) {
     ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
   final what = careEventWhat(hits.first);
   final rest = unread.length - hits.length;
+  // 평가 16차(10/18): '못 한 일 3건: 공기청정기 바람 세기 중'은 끝 '중'이 '진행 중'처럼 읽혔고 기록('바람 중간으로 하기 ·
+  // 3번 못 했어요')과 이름·단위가 달랐다 → 기록과 같은 행동 이름, 횟수는 '번'으로 끝 괄호에. 이름이 서로 다른 일이
+  // 섞였으면 가장 최근 것의 이름과 '외 N번'(한 이름에 다른 일의 횟수를 붙이지 않는다).
+  final String look;
+  if (what == null) {
+    look = '$word ${hits.length}번';
+  } else {
+    final same = hits.where((e) => careEventWhat(e) == what).length;
+    final others = hits.length - same;
+    look = '$word: $what${same > 1 ? ' ($same번)' : ''}${others > 0 ? ' 외 $others번' : ''}';
+  }
   return (
-    look: what == null ? '$word ${hits.length}건' : '$word ${hits.length}건: $what',
-    rest: rest > 0 ? '안 본 알림 $rest건' : null,
+    look: look,
+    // 평가 16차(10/18): 홈 '안 본 알림 4건'과 설정 '안 본 알림 7건'이 달랐다 — 위 줄을 뺀 나머지라는 것이 드러나게.
+    rest: rest > 0 ? '그 밖에 안 본 알림 $rest건' : null,
   );
 }
 
@@ -339,14 +351,14 @@ String careAttentionText(List<RpiCareEvent> unread) {
   return [if (l.look != null) l.look!, if (l.rest != null) l.rest!].join(', ');
 }
 
-/// 알림 한 건이 **무엇에 대한** 것인지 — 서버가 적은 목적 문장(행동 이름으로), 없으면 알림 문장의 따옴표 속 이름.
-/// 둘 다 없으면 null(지어내지 않는다).
+/// 알림 한 건이 **무엇에 대한** 것인지 — 서버가 적은 목적 문장(행동 이름으로), 없으면 알림 문장의 따옴표 속 이름
+/// (본체 요약 '공기청정기 바람 세기 중'도 기록과 같은 행동 이름 '공기청정기 바람 중간으로 하기'로). 둘 다 없으면 null.
 String? careEventWhat(RpiCareEvent e) {
   final purpose = e.purpose?.trim() ?? '';
   if (purpose.isNotEmpty) return purposeActionName(purpose);
   final quoted = RegExp(r"'([^']+)'").firstMatch(e.message);
   final label = quoted?.group(1)?.trim();
-  return (label == null || label.isEmpty) ? null : label;
+  return (label == null || label.isEmpty) ? null : summaryActionName(label);
 }
 
 /// 안 본 알림 가운데 사람이 봐야 할 것(위험 소리·실패·정지·루틴 멈춤·안부 신호)이 있는가 — 경고색은 이때만.
@@ -603,10 +615,10 @@ class _Attention extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: AppSpace.lg),
       child: Container(
         key: const Key('home-attention'),
+        // 평가 16차(10/18): 베이지 둥근 면이 아래 가전 카드와 같은 문법이라 경고가 카드 하나처럼 읽혔다 → 면·둥근
+        // 모서리 없이 왼쪽 굵은 색 선과 글자만(카드와 다른 문법). 볼 것이 없으면 선도 옅은 색.
         decoration: BoxDecoration(
-          color: warn ? tone.withValues(alpha: 0.12) : null,
-          border: Border.all(color: warn ? tone.withValues(alpha: 0.45) : context.appBorderFaint),
-          borderRadius: BorderRadius.circular(20),
+          border: Border(left: BorderSide(color: warn ? tone : context.appBorderFaint, width: 4)),
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.sm, AppSpace.sm),
@@ -645,7 +657,8 @@ class _Attention extends ConsumerWidget {
               if (careLines.rest case final rest?)
                 _AttentionRow(
                   key: const Key('home-attention-care'),
-                  icon: Icons.family_restroom,
+                  // 알림 줄이라 알림 아이콘(평가 16차 10/18 — 가족 그림은 내용과 안 맞았다).
+                  icon: Icons.notifications_none,
                   text: rest,
                   color: Theme.of(context).colorScheme.onSurface,
                   onTap: () => context.push('/care'),

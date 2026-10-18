@@ -327,6 +327,15 @@ String purposeActionName(String purpose) {
   return actionName(withoutMockMark(parts.body));
 }
 
+/// 본체 가전 요약('공기청정기 바람 세기 중'·'공기청정기 전원 켜기') → 기록과 같은 행동 이름
+/// ('공기청정기 바람 중간으로 하기'·'공기청정기 켜기', 평가 16차 10/18). 요약 꼴이 아니면 [actionName] 그대로.
+String summaryActionName(String summary) {
+  final t = summary.trim();
+  final wind = RegExp(r'^(.*바람 세기) (약|중|강)$').firstMatch(t);
+  if (wind != null) return actionName('${wind[1]} ${wind[2]}으로 바꾸기');
+  return actionName(t);
+}
+
 /// 누른 버튼으로 만든 행동 이름. 버튼을 모르면 null.
 String? _pressTitle(RpiHistoryEntry e, String? name) {
   final labels = [

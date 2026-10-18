@@ -258,7 +258,17 @@ class _TargetHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: [
-          AppliancePortrait(appliance: appliance, size: 64, borderRadius: 12),
+          // 평가 16차(10/18): 사진이 없을 때의 사실풍 그림이 홈·설정의 가전 아이콘과 양식이 달랐다 → 사진이 있으면
+          // 그 사진, 없으면 같은 계열의 가전 아이콘.
+          if ((appliance.photoPath ?? '').isNotEmpty)
+            AppliancePortrait(appliance: appliance, size: 64, borderRadius: 12)
+          else
+            SizedBox(
+              key: const Key('manual-target-icon'),
+              width: 64,
+              height: 64,
+              child: Center(child: Icon(appliance.icon, size: 40, color: context.appInk)),
+            ),
           const SizedBox(width: AppSpace.lg),
           Expanded(
             child: Column(

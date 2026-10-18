@@ -392,7 +392,7 @@ void main() {
       await tester.pumpAndSettle();
       final intro = find.byKey(const Key('auto-rules-intro'));
       expect(intro, findsOneWidget);
-      expect(find.descendant(of: intro, matching: findPlainText('물어보지 않고', contains: true), matchRoot: true),
+      expect(find.descendant(of: intro, matching: findPlainText('묻지 않고', contains: true), matchRoot: true),
           findsOneWidget);
       // 첫 규칙 카드보다 위.
       expect(tester.getBottomLeft(intro).dy, lessThanOrEqualTo(tester.getTopLeft(find.byKey(const Key('auto-rule-ar-heat'))).dy));

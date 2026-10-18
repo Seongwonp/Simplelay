@@ -353,26 +353,46 @@ String? historyFailReason(RpiHistoryEntry e, {String? applianceName}) {
   if (e.executionMode == 'mock') return null;
   if (resultKindOf(outcome: e.outcome, status: e.status) != ResultKind.failed) return null;
   final first = _detailParts(e.detail).$1;
-  if (first != null) return plainFailReason(first, historyTitle(e, applianceName: applianceName));
+  if (first != null) {
+    return plainFailReason(first, historyTitle(e, applianceName: applianceName),
+        name: _cleanReasonName(e, applianceName));
+  }
   if (e.route == 'thinq') return null;
   return historyResult(e, applianceName: applianceName).sentence;
 }
 
 /// 본체 거절 문장의 첫 문장 → 쉬운 말(평가 15차 10/18: '가전의 지금 모드에서는 이 명령을 받을 수 없어요'의 '모드'·'명령').
 ///
-/// **근거가 있는 만큼만** 말한다 — '꺼져 있어'는 본체가 꺼짐 거절 코드로 적었을 때만 쓰고(바람 세기 일이면 '꺼져 있을
-/// 땐 바람 세기를 바꿀 수 없어요'), 모드·상태 거절은 꺼졌다고 하지 않고 '지금은 가전이 바꿀 수 없는 상태였어요'.
-/// 모르는 문장은 그대로 둔다(지어내지 않는다).
-String plainFailReason(String first, String title) {
+/// **근거가 있는 만큼만** 말한다 — '꺼져 있어'는 본체가 꺼짐 거절 코드로 적었을 때만 쓴다. 평가 16차(10/18): '지금은
+/// 가전이 바꿀 수 없는 상태였어요'는 주어가 어긋난 번역투였다 → 가전 이름을 주어로, 꺼짐 근거가 있으면
+/// '공기청정기가 꺼져 있어서 바람 세기를 바꿀 수 없었어요', 모드·상태 거절은 꺼졌다고 하지 않고 사실(가전이 거절)대로
+/// '공기청정기가 지금은 바꿀 수 없다고 했어요'. 이름을 모르면 '가전'. 모르는 문장은 그대로 둔다(지어내지 않는다).
+String plainFailReason(String first, String title, {String? name}) {
   final t = first.trim();
+  final who = (name == null || name.trim().isEmpty) ? '가전' : name.trim();
+  final subject = '$who${_subjectParticle(who)}';
   if (t.contains('꺼져 있어 이 명령을')) {
-    return title.contains('바람') ? '꺼져 있을 땐 바람 세기를 바꿀 수 없어요' : '가전이 꺼져 있어서 못 했어요';
+    return title.contains('바람') ? '$subject 꺼져 있어서 바람 세기를 바꿀 수 없었어요' : '$subject 꺼져 있어서 못 했어요';
   }
   if (t.contains('지금 모드에서는 이 명령을') || t.contains('지금은 이 명령을')) {
-    return '지금은 가전이 바꿀 수 없는 상태였어요';
+    return '$subject 지금은 바꿀 수 없다고 했어요';
   }
-  if (t == '가전이 이 명령을 받지 않았어요') return '가전이 받지 않았어요';
+  if (t == '가전이 이 명령을 받지 않았어요') return '$subject 받지 않았어요';
   return t;
+}
+
+/// 이유 문장의 주어로 쓸 가전 이름 — 모의 기록이면 "(모의)" 표시를 뗀다.
+String? _cleanReasonName(RpiHistoryEntry e, String? applianceName) {
+  final raw = applianceName?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  return e.executionMode == 'mock' ? withoutMockMark(raw) : raw;
+}
+
+/// '이'/'가' — 끝 글자 받침을 본다. 한글이 아니면 '가'.
+String _subjectParticle(String word) {
+  final c = word.runes.last;
+  if (c < 0xAC00 || c > 0xD7A3) return '가';
+  return (c - 0xAC00) % 28 == 0 ? '가' : '이';
 }
 
 /// 본체 결과 문장 → (첫 문장(마침표 뺌), 나머지). 비었으면 (null, null).
@@ -645,7 +665,8 @@ class _HistoryRowState extends State<_HistoryRow> {
     final sentenceShown = reasonShown && (look || failReason == result.sentence);
     final detailFirstShown = detailFirst == null
         ? null
-        : plainFailReason(detailFirst, historyTitle(entry, applianceName: applianceName));
+        : plainFailReason(detailFirst, historyTitle(entry, applianceName: applianceName),
+            name: _cleanReasonName(entry, applianceName));
     final detailShown = reasonShown && !look && failReason != null && failReason == detailFirstShown;
     final detailText = detailShown ? detailRest : (entry.detail.isEmpty ? null : entry.detail);
     return [
