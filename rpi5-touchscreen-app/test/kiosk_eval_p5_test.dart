@@ -111,7 +111,7 @@ KioskDoneView _failed({String mode = 'real', VoidCallback? onRetry, VoidCallback
 
 void main() {
   group('1. 같은 말 두 번 없애기', () {
-    testWidgets('비상 버튼 띠가 있으면 상태 칩은 띠 제목을 되풀이하지 않는다(아이콘만, 누르면 풀기 안내)', (tester) async {
+    testWidgets('비상 버튼 띠가 있으면 상태 칩은 띠 제목을 되풀이하지 않는다(평가 14차: 연결이 괜찮으면 칩 없음)', (tester) async {
       var guide = 0;
       await _pump(
           tester,
@@ -129,19 +129,11 @@ void main() {
             ),
           ));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(chip, findsOneWidget);
-      // 칩 안에 글이 없다 — 같은 말은 위 띠 한 곳.
-      // (아이콘도 안쪽은 RichText라 Text로 본다.)
-      expect(find.descendant(of: chip, matching: find.byType(Text)), findsNothing);
-      expect(find.descendant(of: chip, matching: find.byType(Icon)), findsOneWidget);
-      // 띠 제목은 그대로 한 번.
+      // 평가 14차(10/18): 글자 없는 '!' 원은 뜻 없는 장식이었다 — 연결이 괜찮으면 칩을 두지 않는다. 같은 말은 위 띠 한 곳.
+      expect(chip, findsNothing);
+      // 띠 제목은 그대로 한 번. 풀기 안내는 띠의 '풀기 안내'가 연다.
       expect(find.text('비상 버튼이 눌려 있어요'), findsOneWidget);
-      // 누르는 자리는 48 이상, 누르면 풀기 안내.
-      final size = tester.getSize(chip);
-      expect(size.width, greaterThanOrEqualTo(48));
-      expect(size.height, greaterThanOrEqualTo(48));
-      await tester.tap(chip);
-      expect(guide, 1);
+      expect(guide, 0);
     });
 
     testWidgets('LG 가전 상세(연습): 연습 안내는 한 곳(조작 칸 위) — 지금 상태 칸에 연습 문장을 또 쓰지 않는다', (tester) async {
@@ -230,7 +222,8 @@ void main() {
         ));
     final all = _allTexts(tester).join('\n');
     expect(all, isNot(contains('누르는 연습을 해요')));
-    expect(all, contains(kPracticeStopHint));
+    // 평가 14차(10/18): 연습을 마친 대기에는 정지 안내 문장을 두지 않는다.
+    expect(all, isNot(contains('눌러 볼 수')));
   });
 
   group('4. 평소 화면', () {

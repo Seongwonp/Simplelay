@@ -179,14 +179,12 @@ List<String> _badBreaks(WidgetTester tester) {
 
 void main() {
   group('A. 비상 버튼이 눌려 있으면 칩·타일이 그 사실을 따른다', () {
-    testWidgets('칩은 모두 정상이 아니라 빨강 비상 버튼 말', (tester) async {
+    testWidgets('칩은 모두 정상이라고 하지 않는다(평가 14차: 연결이 괜찮으면 칩 없음)', (tester) async {
       await _pump(tester, _underEstop(_idle()));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('모두 정상')), findsNothing);
-      // 평가 5차(10/18): 띠와 같은 문장을 칩에 또 쓰지 않는다 — 칩은 빨강 아이콘만(kiosk_eval_p5_test).
-      expect(find.descendant(of: chip, matching: find.byIcon(Icons.report)), findsOneWidget);
-      final shape = tester.widget<Material>(chip).shape as RoundedRectangleBorder;
-      expect(shape.side.color, KioskColors.danger);
+      // 평가 14차(10/18): 연결이 괜찮으면 칩을 두지 않는다 — '모두 정상'도 글자 없는 '!' 원도 없다.
+      expect(chip, findsNothing);
+      expect(find.text('기기 모두 정상'), findsNothing);
     });
 
     testWidgets('작은 팔로 누르는 가전 타일은 지금 못 써요, LG 가전은 그대로', (tester) async {
@@ -199,7 +197,7 @@ void main() {
 
     testWidgets('비상 버튼이 없으면 그대로 모두 정상', (tester) async {
       await _pump(tester, _idle());
-      expect(find.text('모두 정상'), findsOneWidget);
+      expect(find.text('기기 모두 정상'), findsOneWidget);
       expect(find.text('지금 못 써요'), findsNothing);
     });
   });

@@ -963,7 +963,7 @@ void main() {
     // 음성도 화면과 같은 말 — 기계 말투 대신 '버튼은 다 눌렀어요', 이름은 행동 이름(평가 4차 10/18).
     expect(tts.utterances.last, contains('버튼은 다 눌렀어요'));
     expect(tts.utterances.last, isNot(contains('알려 왔어요')));
-    expect(tts.utterances.last, contains('가전이 켜졌는지 봐 주세요'));
+    expect(tts.utterances.last, contains('가전이 움직이는지 봐 주세요'));
     expect(tts.utterances.last, isNot(contains('완료')));
     await tester.pump(KioskTimings.doneReturn);
   });
@@ -2308,7 +2308,7 @@ void main() {
     // 실행 환경을 몰라도 같은 말 하나(평가 4차 10/18) — 확인 수준은 띠 '확인해 주세요'가 지킨다.
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
     expect(find.text('확인해 주세요'), findsOneWidget);
-    expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
+    expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });

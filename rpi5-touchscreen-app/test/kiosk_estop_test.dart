@@ -152,13 +152,11 @@ void main() {
       await _pump(tester, api);
       expect(find.byKey(_banner), findsOneWidget);
       expect(find.descendant(of: find.byKey(_banner), matching: find.text(kEstopTitle)), findsOneWidget);
-      // 평소 화면 상태 칩은 '모두 정상'이 아니다(평가 4차 10/18) — 띠 문장을 되풀이하지 않고 빨강 아이콘만(평가 5차 10/18).
-      expect(
-          find.descendant(
-              of: find.byKey(const ValueKey('idle-status-chip')), matching: find.byIcon(Icons.report)),
-          findsOneWidget);
+      // 평소 화면 상태 칩은 '모두 정상'이 아니다(평가 4차 10/18) — 평가 14차(10/18): 연결이 괜찮으면 칩을 두지 않는다
+      // (글자 없는 '!' 원은 장식이었다). 비상 버튼 말은 위 띠 한 곳.
+      expect(find.byKey(const ValueKey('idle-status-chip')), findsNothing);
       expect(find.text(kEstopTitle), findsOneWidget);
-      expect(find.text('모두 정상'), findsNothing);
+      expect(find.text('기기 모두 정상'), findsNothing);
       expect(find.text(_detailShown), findsOneWidget);
 
       api.statusResult = const KioskStatus(running: false);

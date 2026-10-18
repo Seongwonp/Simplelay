@@ -10,7 +10,8 @@ import 'kiosk_text.dart';
 /// 평소 화면 위쪽(화면 구조 개편 10/18) — 아이콘 4~5개(쉬기·설정·와이파이·작은 팔·콘센트) 대신
 /// **상태 칩 하나**와 **메뉴** 하나.
 ///
-/// - 상태 칩: 모두 괜찮으면 '모두 정상'(중립), 문제가 있을 때만 앰버로 무엇이 문제인지('작은 팔 연결이 끊겼어요').
+/// - 상태 칩: 모두 괜찮으면 '기기 모두 정상'(중립), 문제가 있을 때만 앰버로 무엇이 문제인지('작은 팔 연결이 끊겼어요').
+///   비상 버튼 띠가 떠 있으면 연결 문제가 있을 때만 보인다(평가 14차 10/18).
 ///   문제가 하나면 누르면 그 연결 창이 바로 열리고, 그 밖에는 연결 목록 창이 열린다(항목을 누르면 그 연결 창).
 /// - 메뉴: 화면 가운데 큰 창에 '잠시 쉬기'·'설정' — 설정은 구석에 두지 않는다(누르는 자리 48 이상).
 /// 모름(unknown)은 정상처럼 두지 않고 '연결을 확인하고 있어요'(중립·물음표)로 말한다.
@@ -78,8 +79,12 @@ bool _isHubDown(ConnectionItem i) =>
   if (shown.any((i) => i.state == 'unknown' || i.state == 'unreachable')) {
     return ('연결을 확인하고 있어요', false, null);
   }
-  return ('모두 정상', false, null);
+  return (kAllDevicesOk, false, null);
 }
+
+/// 연결이 다 괜찮을 때 칩 말 — 무엇이 정상인지(기기 연결) 드러나게(평가 14차 10/18: '모두 정상' 옆에 '공기 나빠요'가
+/// 있으면 집이 다 괜찮다는 말로 엇갈려 읽혔다).
+const kAllDevicesOk = '기기 모두 정상';
 
 /// 연결 문제 칩 아래 다음 행동 한 줄(평가 7차 10/18).
 const kProblemHelp = '눌러서 해결 방법 보기';
@@ -93,15 +98,21 @@ class KioskIdleStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final estop = KioskEstopScope.titleOf(context);
-    final (text, problem, _) = connectionSummary(items, estopTitle: estop);
-    final unknown = !problem && text != '모두 정상';
-    // 비상 버튼은 빨강(위 띠와 같은 색), 연결 문제는 앰버.
-    final tone = estop != null ? KioskColors.danger : KioskColors.warning;
+    // 비상 버튼 띠가 떠 있으면(평가 14차 10/18) — 띠가 이미 빨강으로 말한다. 글자 없는 '!' 원은 뜻 없는 장식이었다:
+    // 연결이 다 괜찮으면 칩을 두지 않고, 연결 문제가 있으면 그 문제를 글자로(띠와 다른 사실이다). '모두 정상'은 띠와
+    // 엇갈리므로(평가 4차 10/18) 띠 아래에서는 쓰지 않는다.
+    if (KioskEstopScope.shownOf(context)) {
+      final (_, problem, _) = connectionSummary(items);
+      if (!problem) return const SizedBox.shrink();
+    }
+    final (text, problem, _) = connectionSummary(items);
+    final unknown = !problem && text != kAllDevicesOk;
+    // 연결 문제는 앰버.
+    const tone = KioskColors.warning;
     final color = problem ? tone : KioskColors.muted;
     return Semantics(
       button: true,
-      label: problem && estop == null ? '$text. $kProblemHelp' : '$text. 연결 자세히 보기',
+      label: problem ? '$text. $kProblemHelp' : '$text. 연결 자세히 보기',
       excludeSemantics: true,
       child: Material(
         key: const ValueKey('idle-status-chip'),
@@ -120,22 +131,19 @@ class KioskIdleStatusChip extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 52, minWidth: 52),
             child: Padding(
-              // 비상 버튼 띠가 있으면 칩은 아이콘만(평가 5차 10/18 — 띠와 칩이 같은 문장을 두 번 했다). 누르는 자리는 52.
-              padding: EdgeInsets.symmetric(horizontal: estop != null ? KioskSpace.sm : KioskSpace.md),
+              padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                      estop != null
-                          ? Icons.report
-                          : problem
+                      problem
                           ? Icons.error_outline
                           : unknown
                               ? Icons.help_outline
                               : Icons.check_circle_outline,
-                      size: estop != null ? 28 : 24,
+                      size: 24,
                       color: color),
-                  if (estop == null) ...[
+                  ...[
                     const SizedBox(width: KioskSpace.xs),
                     // 문제가 있으면 바로 아래 다음 행동 한 줄(평가 7차 10/18 — '작은 팔 연결이 끊겼어요'만 있고 할 일이 없었다).
                     // 칩 전체가 누르는 자리라 이 줄을 눌러도 같은 연결 창이 열린다.

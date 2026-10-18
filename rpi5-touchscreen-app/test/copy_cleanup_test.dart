@@ -252,7 +252,7 @@ void main() {
         ConnectionItem(id: 'plug', state: 'not_installed', title: '', message: ''),
       ]);
       // 설치 안 한 콘센트는 문제가 아니다 — 칩은 '모두 정상'.
-      expect(find.text('모두 정상'), findsOneWidget);
+      expect(find.text('기기 모두 정상'), findsOneWidget);
       await openIdleConnections(tester);
       expect(find.byKey(const ValueKey('conn-network')), findsOneWidget);
       expect(find.byKey(const ValueKey('conn-plug')), findsNothing);

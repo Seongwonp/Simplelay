@@ -270,11 +270,8 @@ class KioskHoldView extends StatelessWidget {
 
     // 설명 — 할 일 아래 본문 크기로.
     final lines = <(IconData, String, Color)>[
-      // 연습의 정지 안내는 고르는 말(평가 11차 10/18 — '빨간 정지를 눌러 보세요'는 까닭 없는 지시였다). 정지를 아직
-      // 보내지 않았을 때만.
-      if (_mock && holdState == 'hovering_stop' && !stopRequested && !stopFailed && !_unconfirmed)
-        (Icons.info_outline, kPracticeStopHint, KioskColors.muted),
-      // 연습은 제목이 이미 '누르기 연습을 마쳤어요'라고 말한다 — 같은 말을 한 번 더 두지 않는다(평가 6차 10/18).
+      // 연습을 마친 대기에는 정지 안내 문장을 두지 않는다(평가 14차 10/18) — 정지 버튼은 늘 같은 자리에 있고, 나가는 길은
+      // '처음 화면으로'다. 연습은 제목이 이미 '누르기 연습을 마쳤어요'라고 말한다 — 같은 말을 한 번 더 두지 않는다(평가 6차 10/18).
       if (!_mock && waiting && buttonsPressed != null && buttonsPressed! > 0)
         (Icons.check_circle_outline, '버튼 $buttonsPressed개를 눌렀어요', KioskColors.muted),
       // 정지 대기 안내는 흰색 — 주의색은 확인 못 함에만 쓴다(2026-10-15). 연습의 할 일은 위 첫 블록 한 줄뿐이다.
@@ -477,9 +474,6 @@ class _Lines extends StatelessWidget {
         ],
       );
 }
-
-/// 연습 대기의 정지 안내(평가 11차 10/18) — 시키는 말이 아니라 해 볼 수 있다는 말. 짧게(평가 13차 10/18).
-const kPracticeStopHint = '정지 단추도 눌러 볼 수 있어요';
 
 /// 그림 위 안내 — 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §2-2).
 const kPanelCaption = '작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요';

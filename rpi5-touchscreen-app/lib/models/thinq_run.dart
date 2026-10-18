@@ -3,7 +3,8 @@
 /// 작은 팔이 누르지 않는 실행에 버튼판·누를 순서·작은 팔 문구를 보이지 않는다 — 보내는 동안은 기다림 표시와
 /// **하려는 일** 한 줄('공기청정기를 켜고 있어요'), 끝나면 결과 창 하나. '명령'은 엔지니어 말이라 화면에 쓰지 않는다
 /// (평가 10차 10/18). 결과는 **서버가 준 확인 수준만큼** 말한다:
-/// - `state_confirmed`(보내기 전 다른 값 → 보낸 뒤 목표값): 바뀐 결과('공기청정기가 켜졌어요') + '공기청정기에서 확인했어요'.
+/// - `state_confirmed`(보내기 전 다른 값 → 보낸 뒤 목표값): 바뀐 결과('공기청정기가 켜졌어요') + '가전에서 확인했어요'(이름은 제목에 한 번,
+///   평가 14차 10/18).
 /// - `state_confirmed_unknown_before`(보낸 뒤 목표값, 전 값 모름): 본 상태('공기청정기가 켜져 있어요') — '바꿨어요'라고 하지 않는다.
 /// - `already_at_target`(이미 목표값, 보내지 않음): '이미 켜져 있어요' + '그대로 두었어요'.
 /// - 확인 못 함(`unconfirmed`): 체크 없이 '공기청정기에 켜기를 보냈어요' + '켜졌는지는 아직 몰라요 / 가전을 봐 주세요'
@@ -137,8 +138,9 @@ String thinqSendingSub({bool practice = false}) =>
     practice ? '실제 가전은 그대로예요' : '바뀐 것을 확인하면 알려 드릴게요';
 
 /// 보내는 중 정지 단추 옆 한 문장(평가 10차 10/18, 한 문장은 평가 12차) — 서버 /stop이 실제로 하는 일만: 아직 보내지 않았으면 보내지
-/// 않고(ThinQ 실행기의 보내기 직전 확인), 이미 보냈으면 되돌리지 않고 확인만 그만둔다(취소·반대 명령 없음).
-const kThinqStopNote = '멈추면 더 보내지 않지만 이미 바뀐 설정은 그대로일 수 있어요';
+/// 않고(ThinQ 실행기의 보내기 직전 확인), 이미 보냈으면 되돌리지 않고 확인만 그만둔다(취소·반대 명령 없음). 평가 14차(10/18) — '이미 바뀐
+/// 설정은 그대로일 수 있어요'는 엔지니어 설명투였다: 거짓이 되지 않는 가장 짧은 말(되돌린다고 하지 않는다).
+const kThinqStopNote = '정지를 누르면 그 뒤로는 보내지 않아요';
 
 String _trimDot(String s) {
   var t = s.trim();
@@ -203,11 +205,12 @@ ThinqResultCopy? thinqResultCopy({
         );
       case 'state_confirmed':
         // 위 띠 '됐어요'·제목 '켜졌어요'와 같은 뜻을 또 쓰지 않는다 — 아래 줄은 어디서 확인했는지만(평가 10차 10/18).
+        // 가전 이름은 제목에 이미 있다 — 아래 줄은 '가전에서'(평가 14차 10/18).
         return ThinqResultCopy(
           headline: power == null
               ? (d.contains('바꿨어요') ? _firstSentence(d) : '$applianceName 설정을 바꿨어요')
               : '$who ${power ? '켜졌어요' : '꺼졌어요'}',
-          sub: '$applianceName에서 확인했어요',
+          sub: '가전에서 확인했어요',
           tone: ThinqResultTone.confirmed,
         );
       default: // state_confirmed_unknown_before — 전 값을 몰라 '바꿨어요'·'켜졌어요'라고 하지 않는다.
@@ -215,7 +218,7 @@ ThinqResultCopy? thinqResultCopy({
           headline: power == null
               ? (d.contains('설정된 것을 확인') ? _firstSentence(d) : '원하는 설정인 것을 봤어요')
               : '$who ${power ? '켜져' : '꺼져'} 있어요',
-          sub: '지금 상태를 $applianceName에서 봤어요',
+          sub: '지금 상태를 가전에서 봤어요',
           tone: ThinqResultTone.confirmed,
         );
     }

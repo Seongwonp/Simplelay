@@ -182,7 +182,11 @@ void main() {
       // 안내가 없으면 인사말과 예보 4칸을 서버 값 그대로 보인다.
       api.ambientResult = AmbientInfo(
           greeting: _ambient.greeting,
-          hourly: _ambient.hourly,
+          // 비 확률이 높은 칸이 있으면 인사말을 뺀다(평가 14차 10/18) — 여기서는 비 소식 없는 예보로 인사말을 본다.
+          hourly: [
+            for (final h in _ambient.hourly)
+              AmbientHour(label: h.label, hour: h.hour, icon: h.icon == 'rain' ? 'cloudy' : h.icon, temp: h.temp),
+          ],
           weatherSource: _ambient.weatherSource);
       await tester.pumpWidget(const SizedBox.shrink());
       await _pump(tester, api);
@@ -198,8 +202,7 @@ void main() {
         expect(shown + now, 4, reason: '4칸');
         expect(shown, greaterThanOrEqualTo(3));
       }
-      // 비 오는 칸은 강수확률을 말한다(색만으로 말하지 않는다)
-      expect(find.text('비 70%'), findsOneWidget); // 기온 칸과 섞이면 글자로(평가 4차 10/18)
+      // 강수확률 칸은 다른 시험(kiosk_idle_next_line_test '비 70%')이 본다 — 여기는 비 소식 없는 예보(평가 14차 10/18).
       expect(
           find.descendant(of: find.byKey(const ValueKey('ambient-hours')), matching: find.text('16°')),
           findsOneWidget);
@@ -223,7 +226,7 @@ void main() {
       await _pump(tester, api);
 
       expect(find.byKey(const ValueKey('idle-status-chip')), findsOneWidget); // 아이콘 줄 대신 상태 칩(10/18)
-      expect(find.text('모두 정상'), findsOneWidget);
+      expect(find.text('기기 모두 정상'), findsOneWidget);
       expect(find.text('!'), findsNothing);
     });
 
@@ -272,7 +275,7 @@ void main() {
       await tester.tap(find.text('다시 연결해 보기'));
       await _settle(tester);
       expect(api.connectionsCalls, greaterThan(before));
-      expect(find.text('모두 정상'), findsOneWidget);
+      expect(find.text('기기 모두 정상'), findsOneWidget);
       expect(find.text('전기 플러그가 연결돼 있어요'), findsOneWidget);
 
       await tester.tap(find.text('닫기'));
@@ -443,7 +446,7 @@ void main() {
       // 질문이 이미 루틴 이름을 말하면 위 이름 줄은 되풀이하지 않는다(실패널 10/17).
       expect(find.textContaining('아침 데우기,'), findsOneWidget);
       expect(find.textContaining('내 루틴 "아침 데우기"'), findsNothing);
-      expect(find.text('아침에 5번 하셔서 여쭤봐요'), findsOneWidget);
+      expect(find.text('아침에 5번 하셨어요'), findsOneWidget);
       expect(find.byKey(const ValueKey('suggestion-approve')), findsOneWidget);
       expect(find.byKey(const ValueKey('suggestion-later')), findsOneWidget);
       expect(find.text('이 제안 다시 받지 않기'), findsNothing);
@@ -483,7 +486,8 @@ void main() {
       expect(find.text('누르기 연습을 마쳤어요'), findsOneWidget);
       expect(find.text('전자레인지 연습 중'), findsNothing);
       // 정지 안내는 고르는 말(평가 11차 10/18).
-      expect(find.text(kPracticeStopHint), findsOneWidget);
+      // 평가 14차(10/18): 연습을 마친 대기에는 정지 안내 문장을 두지 않는다.
+      expect(find.textContaining('눌러 볼 수'), findsNothing);
       expect(find.text('빨간 정지를 눌러 보세요'), findsNothing);
       // 연습에는 가전 판정·끝나는 시간 줄을 두지 않는다 — 위 연습 띠('실제 가전은 그대로예요')와 부딪혔다(평가 4차 10/18).
       expect(find.text('가전이 켜졌는지는 몰라요'), findsNothing);

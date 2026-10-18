@@ -13,3 +13,7 @@ int? _finalConsonant(String word) {
 /// 이/가를 붙인 낱말.
 String withSubject(String word) =>
     '$word${_finalConsonant(word) == 0 ? '가' : '이'}';
+
+/// 을/를을 붙인 낱말 — "공기청정기를", "밥솥을".
+String withObject(String word) =>
+    '$word${_finalConsonant(word) == 0 ? '를' : '을'}';

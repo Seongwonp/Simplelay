@@ -434,8 +434,8 @@ void main() {
       final text = rich.text.toPlainText().replaceAll('⁠', '').replaceAll(' ', ' ');
       expect(text, isNot(contains('\n')));
       expect('.'.allMatches(text.replaceAll(RegExp(r'\.$'), '')), isEmpty, reason: '한 문장');
-      expect(text, contains('더 보내지 않'));
-      expect(text, contains('그대로일 수 있어요'));
+      expect(text, contains('그 뒤로는 보내지 않'));
+      expect(text, isNot(contains('그대로일 수 있어요')), reason: '평가 14차(10/18): 엔지니어 설명투 없이 한 줄');
       final stop = tester.getRect(find.byKey(const ValueKey('kiosk-stop-area')));
       final r = tester.getRect(note);
       expect(r.left, lessThan(KioskSizes.runLeft + 8), reason: '왼쪽 선에서 시작');

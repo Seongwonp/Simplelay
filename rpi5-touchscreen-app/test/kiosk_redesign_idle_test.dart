@@ -62,7 +62,7 @@ void main() {
       expect(find.byType(KioskConnectionIcons), findsNothing);
       final chip = find.byKey(const ValueKey('idle-status-chip'));
       expect(chip, findsOneWidget);
-      expect(find.descendant(of: chip, matching: find.text('모두 정상')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('기기 모두 정상')), findsOneWidget);
       expect(tester.getSize(chip).height, greaterThanOrEqualTo(48));
     });
 

@@ -158,13 +158,13 @@ void main() {
 
     testWidgets('모두 괜찮으면 해결 방법 줄이 없다', (tester) async {
       await _pump(tester, _idle());
-      expect(find.text('모두 정상'), findsOneWidget);
+      expect(find.text('기기 모두 정상'), findsOneWidget);
       expect(find.byKey(const ValueKey('idle-problem-help')), findsNothing);
     });
 
     testWidgets('본체에 닿지 않으면(connected=false) 지난 목록이 다 괜찮아도 "모두 정상"이 아니다', (tester) async {
       await _pump(tester, _idle(connected: false));
-      expect(find.text('모두 정상'), findsNothing);
+      expect(find.text('기기 모두 정상'), findsNothing);
       expect(find.text('본체와 연결이 끊겼어요'), findsOneWidget);
     });
   });

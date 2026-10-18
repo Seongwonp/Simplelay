@@ -251,8 +251,9 @@ void main() {
     final all = _allTexts(tester);
     expect(all.join('\n'), isNot(contains('연습 중')), reason: "'연습 중' 제목 + '연습을 마쳤어요' 본문은 서로 다른 말");
     expect(all.where((t) => t.contains('연습을 마쳤어요')).length, 1);
-    expect(all.where((t) => t == kPracticeStopHint).length, 1);
-    expect(all.where((t) => t.contains('눌러')).length, 1, reason: '정지 안내는 하나');
+    // 평가 14차(10/18): 연습을 마친 대기에는 정지 안내 문장을 두지 않는다.
+    expect(all.where((t) => t.contains('눌러 볼 수')), isEmpty);
+    expect(all.where((t) => t.contains('눌러')).length, 0, reason: '정지 안내 문장 없음');
     expect(find.byIcon(Icons.my_location), findsNothing);
     // 정지 단추는 그대로.
     expect(find.byKey(const ValueKey('hold-stop')), findsOneWidget);

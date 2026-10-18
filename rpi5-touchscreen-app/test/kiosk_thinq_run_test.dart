@@ -216,9 +216,11 @@ void main() {
       expect(find.byType(KioskDoneView), findsOneWidget);
       expect(_result, findsOneWidget);
       expect(find.text('공기청정기가 켜졌어요'), findsOneWidget);
-      expect(find.text('공기청정기에서 확인했어요'), findsOneWidget);
-      final ring = find.byKey(const ValueKey('thinq-result-ring'));
-      final icon = tester.widget<Icon>(find.descendant(of: ring, matching: find.byType(Icon)));
+      expect(find.text('가전에서 확인했어요'), findsOneWidget);
+      // 평가 14차(10/18): 큰 결과 원·상자는 없다 — 초록 체크는 위 띠가 말한다.
+      expect(find.byKey(const ValueKey('thinq-result-ring')), findsNothing);
+      final icon = tester.widget<Icon>(find.descendant(
+          of: find.byType(KioskDoneView), matching: find.byKey(const ValueKey('status-band-icon'))));
       expect(icon.icon, Icons.check);
       expect(icon.color, KioskColors.confirmed);
       // 결과 창에 작은 팔 문구·버튼판이 없다.

@@ -273,7 +273,8 @@ void main() {
       await _pumpView(tester, _practiceHold());
       final texts = _texts(tester);
       expect(texts, contains('누르기 연습을 마쳤어요'));
-      expect(texts, contains(kPracticeStopHint));
+      // 평가 14차(10/18): 연습을 마친 대기에는 정지 안내 문장을 두지 않는다.
+      expect(texts.any((t) => t.contains('눌러 볼 수')), isFalse);
       expect(texts.any((t) => t.contains('빨간 정지를 눌러 보세요')), isFalse);
     });
 

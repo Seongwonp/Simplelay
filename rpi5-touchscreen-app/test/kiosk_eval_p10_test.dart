@@ -55,7 +55,7 @@ KioskSuggestion _card(String action, String summary) => KioskSuggestion(
 final _powerOn = _card('set_power', '공기청정기 전원 켜기');
 final _windHigh = _card('set_wind_strength', '공기청정기 바람 세기 강');
 
-const _stopNote = '멈추면 더 보내지 않지만 이미 바뀐 설정은 그대로일 수 있어요';
+const _stopNote = '정지를 누르면 그 뒤로는 보내지 않아요'; // 평가 14차(10/18)
 final _sending = find.byKey(const ValueKey('thinq-sending'));
 final _result = find.byKey(const ValueKey('thinq-result'));
 final _band = find.byKey(const ValueKey('status-band'));
@@ -207,7 +207,7 @@ void main() {
       await _finish(tester, api, _done());
       expect(_result, findsOneWidget);
       expect(find.text('공기청정기가 켜졌어요'), findsOneWidget);
-      expect(find.text('공기청정기에서 확인했어요'), findsOneWidget);
+      expect(find.text('가전에서 확인했어요'), findsOneWidget);
       expect(find.text('가전에서 바뀐 것을 확인했어요'), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     });

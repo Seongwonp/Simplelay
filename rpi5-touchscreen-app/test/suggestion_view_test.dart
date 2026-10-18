@@ -152,7 +152,7 @@ void main() {
           find.descendant(of: find.byKey(_later), matching: find.byType(Text)));
       final step = sizeOf(tester,
           find.descendant(of: find.byType(KioskPanelPicture), matching: find.text('즉석밥')));
-      final why = sizeOf(tester, find.text('아침에 3번 하셔서 여쭤봐요'));
+      final why = sizeOf(tester, find.text('아침에 3번 하셨어요'));
       final all = tester
           .widgetList<Text>(find.byType(Text))
           .map((t) => t.style?.fontSize ?? 0)

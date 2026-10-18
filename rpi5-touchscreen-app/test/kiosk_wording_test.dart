@@ -467,8 +467,8 @@ void main() {
           findsOneWidget);
       // 평소 화면 상태 칩은 '모두 정상'이 아니다(평가 4차 10/18) — 띠와 같은 문장은 되풀이하지 않고 빨강 아이콘만(평가 5차 10/18).
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('모두 정상')), findsNothing);
-      expect(find.descendant(of: chip, matching: find.byIcon(Icons.report)), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('기기 모두 정상')), findsNothing);
+      expect(chip, findsNothing); // 평가 14차(10/18): 연결이 괜찮으면 칩 없음(글자 없는 '!' 원은 장식)
       expect(find.text('비상 버튼이 눌려 있어요'), findsOneWidget);
       expect(find.text('비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요'), findsOneWidget);
       expect(find.text('풀기 안내'), findsOneWidget);
@@ -704,7 +704,7 @@ void main() {
       expect(find.text('작은 팔이 누를 순서'), findsOneWidget);
       expect(find.text('누르지 않으면 하지 않아요. 20초 뒤 닫혀요'), findsOneWidget);
       // 서버 문장이 없을 때의 대체문 — 기간을 모르니 '최근'은 없다.
-      expect(find.text('아침에 3번 하셔서 여쭤봐요'), findsOneWidget);
+      expect(find.text('아침에 3번 하셨어요'), findsOneWidget);
       expect(find.textContaining('최근'), findsNothing);
     });
 

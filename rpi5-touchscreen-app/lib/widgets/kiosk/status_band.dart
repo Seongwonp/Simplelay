@@ -30,8 +30,8 @@ enum KioskBandTone {
 /// 상태 띠 — **제안 → 실행 → 정지 대기 → 결과** 화면 맨 위, 모든 화면에서 같은 자리·같은 높이.
 ///
 /// 평소·수동 조작·설정 화면에는 두지 않는다(비상 버튼 띠는 별도로 모든 화면 위에 붙는다 — `estop_banner.dart`).
-/// 연습이면 띠 전체가 청록 연습 띠가 되고, 연습 중 확인 필요·실패가 겹치면 그 색 띠 오른쪽에 청록 연습 칸을
-/// 함께 둔다 — 연습 표시는 어느 결과에서도 사라지지 않는다. 큰 글씨에서는 글자를 줄이지 않고 줄을 바꾼다.
+/// 연습이면 띠 전체가 청록 연습 띠가 되고, 연습 중 확인 필요·실패가 겹치면 그 색 띠 오른쪽에 청록 연습 표시(아이콘 + 글자,
+/// 테두리 칩 없이 — 평가 14차 10/18)를 함께 둔다 — 연습 표시는 어느 결과에서도 사라지지 않는다. 큰 글씨에서는 글자를 줄이지 않고 줄을 바꾼다.
 class KioskStatusBand extends StatelessWidget {
   const KioskStatusBand({
     super.key,
@@ -126,16 +126,18 @@ class KioskStatusBand extends StatelessWidget {
               runSpacing: 4,
               children: [
                 main,
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: KioskColors.practice
-                        .withValues(alpha: KioskSizes.bandTint),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: KioskColors.practice, width: 1.5),
-                  ),
-                  child: _PracticeMark(style: text, iconSize: iconSize),
+                // 띠 안 글자로(평가 14차 10/18 — 띠 안에 또 테두리 칩을 두니 장식이 겹쳤다). 상태 말과 가는 세로 줄로
+                // 나눈다(무엇을 하는지 줄과 같은 꼴). 청록 연습 아이콘·말은 그대로 남는다.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                        width: 2,
+                        height: iconSize,
+                        color: Colors.white.withValues(alpha: 0.25)),
+                    const SizedBox(width: KioskSpace.md),
+                    Flexible(child: _PracticeMark(style: text, iconSize: iconSize)),
+                  ],
                 ),
               ],
             )

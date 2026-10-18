@@ -208,11 +208,11 @@ String finishedMessage({
       // 화면 제목과 같은 말(2026-10-15) — 작은 팔이 보고한 것까지, 가전은 사람이 본다.
       if (executionMode == 'mock') return '연습을 마쳤어요. 실제 가전은 누르지 않았어요.';
       // 실행 환경을 모를 때도 같은 말(평가 4차 10/18 — '작은 팔이 다 눌렀다고 알려 왔어요'는 기계 말투). 확인 수준은
-      // 화면 띠('확인해 주세요')와 뒤 문장('가전이 켜졌는지 봐 주세요')이 지킨다.
+      // 화면 띠('확인해 주세요')와 뒤 문장('가전이 움직이는지 봐 주세요')이 지킨다.
       const head = '버튼은 다 눌렀어요.';
       return operationVerified
           ? '$head 가전이 켜졌어요. 원하는 대로 됐는지 봐 주세요.'
-          : '$head 가전이 켜졌는지 봐 주세요.';
+          : '$head 가전이 움직이는지 봐 주세요.'; // 폰과 같은 말(평가 14차 10/18)
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
     case ResultKind.stopped:

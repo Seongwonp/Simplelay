@@ -290,7 +290,7 @@ class KioskDoneView extends StatelessWidget {
                             ? '버튼은 다 눌렀어요'
                             : '눌렸는지 몰라요')
                     // 실행 환경을 모를 때도 같은 말 하나로(평가 4차 10/18 — '작은 팔이 다 눌렀다고 알려 왔어요'는 기계 말투).
-                    // 확인 수준은 그대로다: 띠 '확인해 주세요'(앰버) + 아래 '가전이 켜졌는지 봐 주세요'.
+                    // 확인 수준은 그대로다: 띠 '확인해 주세요'(앰버) + 아래 '가전이 움직이는지 봐 주세요'.
                     : '버튼은 다 눌렀어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
     // 연습은 위 띠가 '실제 가전은 움직이지 않아요'를 말한다 — 같은 말을 아래에 또 쓰지 않는다(10/18).
@@ -298,7 +298,8 @@ class KioskDoneView extends StatelessWidget {
         ? null
         : operationVerified
                 ? '원하는 대로 됐는지 봐 주세요'
-                : '가전이 켜졌는지 봐 주세요';
+                // 폰·서버와 같은 말(평가 14차 10/18 — 폰 '버튼은 다 눌렀어요, 움직이는지 봐 주세요'). 제목이 '버튼은 다 눌렀어요'.
+                : '가전이 움직이는지 봐 주세요';
     // 판정 출처가 real일 때만 실제 동작을 확인했다고 말한다. 출처를 모르면 단정하지 않는다(폰과 같은 규칙).
     // 모의 출처는 아래 작은 글씨("연습 값이에요")가 같이 밝힌다. 물리 성공의 확인은 위 한 줄이 이미 말했다.
     // 연습에는 두지 않는다 — '연습이라 가전은 보지 않았어요'는 위 연습 띠와 부딪혔다(평가 4차 10/18).
@@ -864,8 +865,9 @@ KioskFailureReason failureReasonOf(
       ResultKind.success => KioskFailureReason.execution,
     };
 
-/// LG 가전 결과 창(사용자 요청 10/18) — 어두운 바탕 가운데 카드 하나: 결과 원(확인한 결과만 초록 체크) · 큰 글자 ·
-/// 한 줄 · '처음 화면으로'. 위 상태 띠는 다른 결과 화면과 같은 두 말('됐어요'·'확인해 주세요', 연습은 청록 띠).
+/// LG 가전 결과(사용자 요청 10/18) — 다른 결과 화면과 같은 틀(평가 14차 10/18): 위 상태 띠 아래 왼쪽 선에서 큰 글자 ·
+/// 한 줄 · (이름이 큰 글자에 없으면) 가전 줄, 아래 '처음 화면으로'. 테두리 상자·큰 결과 원은 없다 — 확인한 결과만 초록인
+/// 것은 띠('됐어요'·초록 체크)와 큰 글자 색이 말한다. 띠 말은 다른 결과 화면과 같은 두 말('됐어요'·'확인해 주세요', 연습은 청록 띠).
 /// 확인한 성공은 몇 초 뒤 처음 화면(화면을 만지면 멈춘다), 확인 못 함은 '처음 화면으로'를 누를 때까지 남는다
 /// (사용자 결정 — 카운트다운 문구도 없다).
 class _ThinqResult extends StatelessWidget {
@@ -887,74 +889,50 @@ class _ThinqResult extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final large = KioskLayout.isLarge(context);
-    final (Color color, IconData icon, KioskStatusBand band) = switch (copy.tone) {
+    final (Color color, KioskStatusBand band) = switch (copy.tone) {
       ThinqResultTone.confirmed => (
           KioskColors.confirmed,
-          Icons.check,
           const KioskStatusBand(tone: KioskBandTone.confirmed, icon: Icons.check, label: kBandDone),
         ),
       ThinqResultTone.attention => (
           KioskColors.warning,
-          Icons.question_mark,
           const KioskStatusBand(tone: KioskBandTone.attention, icon: Icons.help_outline, label: kBandCheck),
         ),
-      ThinqResultTone.practice => (Colors.white, Icons.school_outlined, const KioskStatusBand.practice()),
+      ThinqResultTone.practice => (Colors.white, const KioskStatusBand.practice()),
     };
     final name = target?.name;
-    // 큰 글자에 가전 이름이 없으면(바람 세기 결과 등) 아래 작게 무엇의 결과인지.
+    // 큰 글자에 가전 이름이 없으면(바람 세기 결과 등) 아래 작게 무엇의 결과인지 — 다른 결과 화면과 같은 가전 줄(아이콘 + 이름).
     final showName = name != null && name.isNotEmpty && !copy.headline.contains(name) && !copy.sub.contains(name);
-    final card = Container(
-      key: const ValueKey('thinq-result'),
-      constraints: const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
-      padding: const EdgeInsets.fromLTRB(KioskSpace.xl, KioskSpace.lg, KioskSpace.xl, KioskSpace.md),
-      decoration: BoxDecoration(
-        color: KioskColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: color.withValues(alpha: 0.6), width: 2),
-      ),
-      child: Semantics(
-        liveRegion: true,
-        label: [if (showName) name, copy.spoken].join('. '),
-        excludeSemantics: true,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              key: const ValueKey('thinq-result-ring'),
-              width: large ? KioskSizes.resultIconLarge : KioskSizes.resultIcon,
-              height: large ? KioskSizes.resultIconLarge : KioskSizes.resultIcon,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.16),
-                border: Border.all(color: color, width: 3),
-              ),
-              child: Icon(icon,
-                  size: (large ? KioskSizes.resultIconLarge : KioskSizes.resultIcon) * 0.6, color: color),
-            ),
-            SizedBox(height: large ? KioskSpace.xs : KioskSpace.md),
-            KioskText(
-              copy.headline,
-              textKey: const ValueKey('thinq-result-headline'),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: KioskType.key, fontWeight: FontWeight.w800, height: 1.2, color: color),
-            ),
-            const SizedBox(height: KioskSpace.xs),
-            KioskText(
-              copy.sub,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: KioskType.status, fontWeight: FontWeight.w700, height: 1.3, color: Colors.white),
-            ),
-            if (showName) ...[
-              const SizedBox(height: KioskSpace.xs),
-              KioskText(name,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
-            ],
+    // 다른 결과 화면(전자레인지 결과 kiosk15_done_verified)과 같은 틀 — 위 띠 아래 왼쪽 선에서 큰 글자 · 한 줄 · 가전 줄
+    // (평가 14차 10/18: 띠 '됐어요' + 테두리 상자 + 큰 체크 원은 같은 뜻을 세 번 장식했다). 뜻은 띠의 아이콘·색과 글자가 말한다.
+    final content = Semantics(
+      liveRegion: true,
+      label: [if (showName) name, copy.spoken].join('. '),
+      excludeSemantics: true,
+      child: Column(
+        key: const ValueKey('thinq-result'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          KioskText(
+            copy.headline,
+            textKey: const ValueKey('thinq-result-headline'),
+            textAlign: TextAlign.start,
+            style: TextStyle(fontSize: KioskType.key, fontWeight: FontWeight.w800, height: 1.2, color: color),
+          ),
+          const SizedBox(height: 8),
+          KioskText(
+            copy.sub,
+            textKey: const ValueKey('thinq-result-sub'),
+            textAlign: TextAlign.start,
+            style: const TextStyle(
+                fontSize: KioskType.status, fontWeight: FontWeight.w700, height: 1.3, color: Colors.white),
+          ),
+          if (showName && target != null) ...[
+            const SizedBox(height: 10),
+            KioskTargetLine(appliance: target!, textKey: const ValueKey('thinq-result-name')),
           ],
-        ),
+        ],
       ),
     );
     return Listener(
@@ -967,10 +945,15 @@ class _ThinqResult extends StatelessWidget {
           children: [
             band,
             Expanded(
-              child: KioskScrollArea(
-                center: true,
-                padding: const EdgeInsets.fromLTRB(KioskSpace.xl, KioskSpace.sm, KioskSpace.xl, KioskSpace.xs),
-                child: Center(child: card),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    KioskSizes.runLeft, KioskSizes.runTop, KioskSizes.stopRight, KioskSpace.xs),
+                child: KioskScrollArea(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
+                    child: content,
+                  ),
+                ),
               ),
             ),
             Padding(

@@ -658,6 +658,10 @@ void main() {
         t,
         'kiosk15_idle_air',
         _idle(
+            // 평가 14차(10/18) — 공기청정기가 가전 줄에 있으면 공기 줄 아래 할 일 작은 글자 단추('공기청정기를 켜 보세요').
+            appliances: [_purifierAppliance, _mw, _ind, _washerSetup],
+            running: const {},
+            off: const {'air_purifier'},
             air: const KioskAirReading(
                 applianceId: 'air_purifier', grade: 'BAD', pm25: 42, pm10: 90, power: 'off'),
             nextRun: _nextRun()));

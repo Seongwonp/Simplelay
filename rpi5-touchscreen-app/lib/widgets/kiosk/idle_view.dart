@@ -3,6 +3,7 @@ import 'estop_banner.dart';
 
 import '../../models/ambient.dart';
 import '../../models/appliance.dart';
+import '../../models/josa.dart';
 import '../../models/kiosk_time.dart';
 import '../../models/thinq.dart';
 import '../../theme/kiosk_colors.dart';
@@ -161,6 +162,9 @@ class KioskIdleView extends StatelessWidget {
     final large = MediaQuery.textScalerOf(context).scale(10) > 10.5;
     final env = _envParts;
     final badAir = airIfBad(air);
+    // 공기가 나쁘면 할 일 한 줄(평가 14차 10/18) — 그 공기청정기가 가전 줄에 있을 때만(없으면 지어내지 않는다).
+    final airTarget = badAir == null ? null : list?.where((a) => a.id == badAir.applianceId).firstOrNull;
+    final airAction = airTarget == null ? null : airActionLabel(badAir!, airTarget.name);
     final next = nextRun;
     final tip =(amb?.tip != null && amb!.tip!.text.isNotEmpty) ? amb.tip : null;
     // 안내는 한 번에 하나다(UI 확정 §3-1: 확인 필요 가전 → 날씨 → 인사말) —
@@ -169,7 +173,10 @@ class KioskIdleView extends StatelessWidget {
     // 예보 칸 — 맨 앞은 '지금'(사용자 요청 10/18: 날짜 옆 날씨를 예보 줄 첫 칸으로), 그 뒤 서버 3시간 칸. 모두 4칸까지.
     final slots = forecastSlots(amb, now);
     final showHours = slots.isNotEmpty && !(large && tip != null);
-    final showGreeting = tip == null;
+    // 비가 오거나 올 것 같으면(서버 비 안내 기준과 같은 60%) 인사말을 뺀다(평가 14차 10/18 — '좋은 아침이에요' 바로 아래
+    // '비 80%'가 엇갈렸다). 날씨 안내가 있으면 이미 안내가 인사말 자리를 쓴다.
+    final rainy = showHours && slots.any((s) => s.hour.precip || (s.hour.pop ?? 0) >= 60);
+    final showGreeting = tip == null && !rainy;
     final dnd = dndUntil != null && dndUntil!.isAfter(now) ? dndUntil : null;
     // 본체에 닿지 않으면 지난 연결 목록을 믿지 않는다(평가 7차 10/18 — 끊겼는데 칩이 '모두 정상').
     final connections = connectionsForDisplay(this.connections, connected: connected);
@@ -207,8 +214,9 @@ class KioskIdleView extends StatelessWidget {
           var strip = large ? _Idle.stripLarge : _Idle.strip;
           // 왼쪽 칸(시계 아래 실내 온습도·나쁜 공기·다음 루틴) — 시계를 뺀 높이. 화면과 같은 글꼴·배율로 잰다.
           var showEnv = env != null;
+          var showAirAction = airAction != null;
           double leftRest() => _leftRest(context, leftWidth,
-              env: showEnv ? env : null, air: badAir, next: next, onToggle: onToggleNextRunSkip,
+              env: showEnv ? env : null, air: badAir, airAction: showAirAction ? airAction : null, next: next, onToggle: onToggleNextRunSkip,
               notice: nextRunNotice);
           var rest = leftRest();
           // 다음 루틴·나쁜 공기가 시계 아래에 다 들어가게(2026-10-18) — 가장 작은 타일 줄에서 시계를 하한까지 줄여도
@@ -217,6 +225,11 @@ class KioskIdleView extends StatelessWidget {
           final minStrip = large ? _Idle.stripLargeMin : _Idle.strip;
           if (showEnv && clockMin + rest > middleAndStrip - minStrip - _Idle.slack) {
             showEnv = false;
+            rest = leftRest();
+          }
+          // 그래도 모자라면 공기 줄의 할 일 단추를 접는다(평가 14차 10/18) — 공기 말·다음 루틴이 먼저다. 가전 타일로도 같은 곳에 간다.
+          if (showAirAction && clockMin + rest > middleAndStrip - minStrip - _Idle.slack) {
+            showAirAction = false;
             rest = leftRest();
           }
           // 타일을 다 키우고도 남는 높이는 시계를 키우는 데 쓴다(평가 4차 10/18 — 안내·공기·다음 루틴이 없을 때 빈 띠).
@@ -281,8 +294,8 @@ class KioskIdleView extends StatelessWidget {
               KioskIdleStatusChip(
                 items: connections,
                 onTap: () {
-                  // 비상 버튼이면 위 띠의 풀기 안내, 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창.
-                  if (estop && onEstopGuide != null) return onEstopGuide!();
+                  // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창. 비상 버튼 띠 아래에서는 칩이 연결 문제만 말한다
+                  // (평가 14차 10/18) — 풀기 안내는 띠의 '풀기 안내'·못 쓰는 가전 타일이 연다.
                   final (_, _, direct) = connectionSummary(connections);
                   direct != null ? onOpenConnection(direct) : sheets.openConnections();
                 },
@@ -313,7 +326,8 @@ class KioskIdleView extends StatelessWidget {
                   // 실내 공기(2026-10-16) — 나쁠 때만(사용자 결정 10/18). 모르면 줄이 없다(지어내지 않는다).
                   if (badAir != null) ...[
                     const SizedBox(height: _Idle.airGap),
-                    _AirLine(key: const ValueKey('idle-air'), air: badAir, compact: large),
+                    _AirLine(key: const ValueKey('idle-air'), air: badAir, compact: large,
+                        action: showAirAction ? airAction : null, onAction: airTarget == null ? null : () => onSelectAppliance(airTarget)),
                   ],
                   // 다음 루틴(사용자 결정 10/18) — 시계 아래 담담한 한두 줄 + '오늘은 건너뛰기'(테두리 단추, 주인공 아님).
                   if (next != null) ...[
@@ -347,6 +361,21 @@ class KioskIdleView extends StatelessWidget {
                     _rightColumnHeight(context, box.maxWidth,
                                 tip: tip, hours: hourly, large: large, roomyHours: true) <=
                         box.maxHeight;
+                // 시계 아래에 공기 할 일 단추 자리가 없으면(다음 루틴과 함께 있을 때 등) 이 칸 아래 빈자리에 같은 공기 아이콘과
+                // 함께 둔다(평가 14차 10/18). 여기도 자리가 없으면 두지 않는다 — 가전 타일로 같은 곳에 간다.
+                final rightAction = airAction != null && !showAirAction && airTarget != null
+                    ? airAction
+                    : null;
+                final rightActionFits = rightAction != null &&
+                    _rightColumnHeight(context, box.maxWidth,
+                                greeting: showGreeting ? greeting : null,
+                                tip: tip,
+                                hours: hoursFit ? hourly : const [],
+                                large: large,
+                                roomyHours: roomyHours) +
+                            KioskSpace.sm +
+                            _AirLine._actionMin <=
+                        box.maxHeight;
                 final top = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -359,6 +388,24 @@ class KioskIdleView extends StatelessWidget {
                     if (tip == null && hoursFit) ...[
                       const SizedBox(height: _Idle.hoursGap),
                       _Hours(key: const ValueKey('ambient-hours'), hours: hourly),
+                    ],
+                    if (rightActionFits) ...[
+                      const SizedBox(height: KioskSpace.sm),
+                      Row(children: [
+                        Icon(Icons.air, size: _NextRunLine._headIcon, color: airGradeColor(badAir!.grade)),
+                        const SizedBox(width: _NextRunLine._iconGap),
+                        Flexible(
+                          child: _SkipButton(
+                            key: const ValueKey('idle-air-action'),
+                            label: rightAction,
+                            width: _AirLine._actionWidth(context, rightAction,
+                                box.maxWidth - _NextRunLine._headIcon - _NextRunLine._iconGap),
+                            minHeight: _AirLine._actionMin,
+                            busy: false,
+                            onTap: () => onSelectAppliance(airTarget!),
+                          ),
+                        ),
+                      ]),
                     ],
                   ],
                 );
@@ -417,7 +464,7 @@ class KioskIdleView extends StatelessWidget {
 
   /// 왼쪽 칸에서 시계를 뺀 높이(온습도·나쁜 공기·다음 루틴)가 [width] 폭에서 차지할 높이 — 시계·가전 타일 높이를 정하는 데만 쓴다.
   static double _leftRest(BuildContext context, double width,
-      {List<String>? env, KioskAirReading? air, KioskNextRun? next,
+      {List<String>? env, KioskAirReading? air, String? airAction, KioskNextRun? next,
       ValueChanged<KioskNextRun>? onToggle, String? notice}) {
     var h = 0.0;
     if (env != null) {
@@ -425,7 +472,7 @@ class KioskIdleView extends StatelessWidget {
           _textHeight(context, env.join(' · '),
               const TextStyle(fontSize: _Idle.envText, height: 1.25), width);
     }
-    if (air != null) h += _Idle.airGap + _AirLine.heightFor(context, air, width);
+    if (air != null) h += _Idle.airGap + _AirLine.heightFor(context, air, width, action: airAction);
     if (next != null) {
       h += _Idle.nextGap +
           _NextRunLine.heightFor(context, next, width, withButton: onToggle != null, notice: notice);
@@ -578,7 +625,8 @@ class _NextRunLine extends StatelessWidget {
   static const _headStyle = TextStyle(fontSize: KioskType.caption, height: 1.2);
   static const _lineStyle = TextStyle(fontSize: KioskType.body, height: 1.25);
   static const _wordStyle = TextStyle(fontSize: KioskType.caption, height: 1.2);
-  // 단추 글자는 머리말과 같은 크기·회색 계열 — 굵기만 조금(누르는 말인 줄 알게).
+  // 단추 글자는 머리말과 같은 크기·회색 계열 — 굵기만 조금(누르는 말인 줄 알게). 밑줄·테두리는 두지 않는다(사용자 결정
+  // 10/18 — 평가 14차가 밑줄을 권했지만 지금 모양이 실패널에서 잘 보인다며 그대로 두기로 했다).
   static const _buttonStyle =
       TextStyle(fontSize: KioskType.caption, height: 1.2, fontWeight: FontWeight.w700);
   static const _noticeStyle = TextStyle(fontSize: KioskType.caption, height: 1.2);
@@ -755,8 +803,9 @@ class _NextRunLine extends StatelessWidget {
       });
 }
 
-/// '오늘은 건너뛰기'·'되돌리기' — 작은 글자 단추(테두리·면 없음, 사용자 요청 10/18). 글자는 머리말과 같은 작은 회색 계열,
-/// 누르는 자리는 높이·폭 [minHeight] 이상. 보내는 중에는 눌리지 않고 더 흐려진다.
+/// '오늘은 건너뛰기'·'되돌리기'·공기 줄 할 일 — 작은 글자 단추(테두리·면 없음, 사용자 요청 10/18). 글자는 머리말과 같은 작은
+/// 회색 계열 굵은 글자(밑줄·테두리 없음 — 사용자 결정 10/18), 누르는 자리는 높이·폭 [minHeight] 이상. 보내는 중에는 눌리지
+/// 않고 더 흐려진다.
 class _SkipButton extends StatelessWidget {
   const _SkipButton({
     super.key,
@@ -945,11 +994,18 @@ class _DndEntry extends StatelessWidget {
 /// 실내 공기 — 나쁠 때만 보이는 한 줄(색 + 말, 사용자 결정 10/18)과 아래 작은 줄(연습 값). 1~2 m에서 읽히게 앞 글은 굵게.
 /// 숫자와 등급 출처는 LG 상세의 '자세히' 안에 둔다(2차 평가 10/18).
 class _AirLine extends StatelessWidget {
-  const _AirLine({super.key, required this.air, this.compact = false});
+  const _AirLine({super.key, required this.air, this.compact = false, this.action, this.onAction});
   final KioskAirReading air;
 
   /// 큰 글씨 모드(지금은 꼴이 같다 — 전원 줄을 뺀 뒤 작은 줄은 연습 값뿐이다).
   final bool compact;
+
+  /// 아래 할 일 작은 글자 단추 말([airActionLabel]) — 그 공기청정기가 가전 줄에 있을 때만(평가 14차 10/18 — '공기 나빠요'만
+  /// 있고 할 일이 없어 오른쪽 위 '모두 정상'과 엇갈려 읽혔다). 누르면 그 가전 화면이 열린다. 없으면 null.
+  final String? action;
+  final VoidCallback? onAction;
+
+  static const double _actionMin = 48;
 
   static const _headStyle =
       TextStyle(fontSize: KioskType.status, height: 1.2, fontWeight: FontWeight.w600);
@@ -960,13 +1016,24 @@ class _AirLine extends StatelessWidget {
       air.sub.where((d) => d == kPracticeNumbers).toList();
 
   /// 폭 [width]에서 이 줄이 차지할 높이(보통 글씨) — 평소 화면이 가전 타일 높이를 정할 때 쓴다.
-  static double heightFor(BuildContext context, KioskAirReading air, double width) {
+  static double heightFor(BuildContext context, KioskAirReading air, double width, {String? action}) {
     final w = width - _Idle.airIcon - KioskSpace.sm;
     final word = kAirGradeSentences[air.grade] ?? air.gradeWord;
     var h = _textHeight(context, '공기 ${keepWords(word)}', _headStyle.copyWith(fontWeight: FontWeight.w800), w);
     final sub = _subOf(air);
     if (sub.isNotEmpty) h += _textHeight(context, keepWords(sub.join('   ')), _subStyle, w);
+    if (action != null) {
+      final t = _textHeight(context, action, _NextRunLine._buttonStyle, double.infinity);
+      h += t > _actionMin ? t : _actionMin;
+    }
     return h;
+  }
+
+  /// 단추 폭 — 글자 + 오른쪽 여백, 왼쪽 글 칸을 넘지 않게.
+  static double _actionWidth(BuildContext context, String action, double max) {
+    final w = _textWidth(context, action, _NextRunLine._buttonStyle) + 2 * _NextRunLine._buttonPadH + 2;
+    final at = w > _actionMin ? w : _actionMin;
+    return at > max ? max : at;
   }
 
   @override
@@ -976,7 +1043,7 @@ class _AirLine extends StatelessWidget {
     final color = airGradeColor(air.grade);
     final word = kAirGradeSentences[air.grade] ?? air.gradeWord;
     final sub = _subOf(air);
-    return Semantics(
+    final line = Semantics(
       container: true,
       label: [air.sentence, ...sub].join('. '),
       excludeSemantics: true,
@@ -1013,8 +1080,39 @@ class _AirLine extends StatelessWidget {
         ],
       ),
     );
+    final action = this.action;
+    if (action == null || onAction == null) return line;
+    // 할 일은 공기 말 바로 아래, 글자 선(아이콘 오른쪽)에 맞춘다 — '오늘은 건너뛰기'와 같은 작은 글자 단추.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        line,
+        Padding(
+          padding: const EdgeInsets.only(left: _Idle.airIcon + KioskSpace.sm),
+          child: LayoutBuilder(
+            builder: (context, box) => _SkipButton(
+              key: const ValueKey('idle-air-action'),
+              label: action,
+              width: _actionWidth(context, action, box.maxWidth),
+              minHeight: _actionMin,
+              busy: false,
+              onTap: onAction!,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
+
+/// 공기 나쁨 줄의 할 일(평가 14차 10/18) — 공기청정기 상태만큼: 켜져 있으면 '바람을 세게 해 보세요', 꺼져 있으면
+/// '공기청정기를 켜 보세요', 모르면 '공기청정기 보기'. 누르면 그 가전 화면이 열리고, 바꾸는 것은 그 화면에서 사람이 고른다.
+String airActionLabel(KioskAirReading air, String applianceName) => switch (air.power) {
+      'on' => '바람을 세게 해 보세요',
+      'off' => '${withObject(applianceName)} 켜 보세요',
+      _ => '$applianceName 보기',
+    };
 
 class _StripNotice extends StatelessWidget {
   const _StripNotice(this.text);

@@ -211,7 +211,7 @@ void main() {
       });
     }
 
-    testWidgets("누름 보고만 — 제목 '버튼은 다 눌렀어요'(중립색, 파랑 아님), 할 일 '가전이 켜졌는지 봐 주세요'",
+    testWidgets("누름 보고만 — 제목 '버튼은 다 눌렀어요'(중립색, 파랑 아님), 할 일 '가전이 움직이는지 봐 주세요'",
         (tester) async {
       await _pump(
           tester,
@@ -225,7 +225,7 @@ void main() {
       final title = tester.widget<Text>(find.text('버튼은 다 눌렀어요'));
       expect(title.style?.color, isNot(KioskColors.running));
       expect(title.style?.color, isNot(KioskColors.confirmed));
-      expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
+      expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
       expect(find.byIcon(Icons.check), findsNothing, reason: '확인 수준을 높여 보이지 않는다');
     });
   });

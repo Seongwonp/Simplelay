@@ -54,7 +54,7 @@ void main() {
     );
 
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
-    expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
+    expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
     // 제목은 명령문이 아니라 행동 이름(평가 4차 10/18).
     expect(find.text('즉석밥 데우기'), findsOneWidget);
@@ -82,11 +82,11 @@ void main() {
     );
 
     // 기계 말투('작은 팔이 다 눌렀다고 알려 왔어요') 대신 같은 말 하나로(평가 4차 10/18). 확인 수준은 띠가 지킨다 —
-    // 실제 확인이 아니므로 '됐어요'가 아니라 '확인해 주세요', 할 일은 '가전이 켜졌는지 봐 주세요'.
+    // 실제 확인이 아니므로 '됐어요'가 아니라 '확인해 주세요', 할 일은 '가전이 움직이는지 봐 주세요'.
     expect(find.textContaining('알려 왔어요'), findsNothing);
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
     expect(find.text('확인해 주세요'), findsOneWidget);
-    expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
+    expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
   });
 
   testWidgets('모의 실행은 가장 큰 글자부터 연습이라고 말한다', (tester) async {
@@ -127,7 +127,7 @@ void main() {
 
     // 외부 평가 2026-10-13 M5: 실물 모션 + 모의 L3는 실제 동작 확인이 아니다.
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
-    expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
+    expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
     expect(find.text('연습 값이에요 · 전력 파형에서 가열 시작을 확인했어요'), findsOneWidget);
   });
 
@@ -336,8 +336,8 @@ void main() {
     // 연습(모션 mock)은 판정 줄이 없다(평가 4차 10/18) — 연습 띠 한 줄이 말한다.
     const mockMotion = kPracticeBandText;
     // 모의 L3와 출처 모름은 같은 말(직접 봐 달라) — 모의 출처는 아래 작은 글씨가 밝힌다.
-    const mockL3 = '가전이 켜졌는지 봐 주세요';
-    const unknownL3 = '가전이 켜졌는지 봐 주세요';
+    const mockL3 = '가전이 움직이는지 봐 주세요';
+    const unknownL3 = '가전이 움직이는지 봐 주세요';
     final cases = <(String, String?, String)>[
       ('real', 'real', realSentence),
       ('real', 'mock', mockL3),
