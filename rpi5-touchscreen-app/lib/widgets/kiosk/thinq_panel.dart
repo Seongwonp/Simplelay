@@ -40,6 +40,24 @@ String? thinqStateHeadline(String applianceName, Map<String, dynamic> state) {
   return wind == null ? '$who 켜져 있어요' : '$who 켜져 있어요 · 바람 $wind';
 }
 
+/// 공기가 나쁠 때 할 일 한 줄(평가 12차 10/18 — '공기 나빠요'에 할 일이 없었다). 가전이 매긴 등급이 나쁨·매우 나쁨일 때만.
+const kThinqAirWindHint = '바람을 세게 해 보세요';
+
+/// 꺼져 있으면 바람 세기를 바꿀 수 없다(전원을 켠 뒤 바꿀 수 있어요) — 켜기를 권한다.
+const kThinqAirPowerHint = '공기청정기를 켜 보세요';
+
+/// 공기 등급 [grade]와 읽은 상태로 할 일 한 줄. 근거(나쁨 등급·전원 값)가 없거나 이미 바람이 강이면 null(지어내지 않는다).
+String? thinqAirHint(String? grade, Map<String, dynamic> state) {
+  if (grade != 'BAD' && grade != 'VERY_BAD') return null;
+  final controls = thinqControlsFor(state);
+  final power = controls.where((c) => c.isPower).firstOrNull?.current;
+  if (power == 'POWER_OFF') return kThinqAirPowerHint;
+  if (power != 'POWER_ON') return null;
+  final wind = controls.where((c) => !c.isPower).firstOrNull?.current;
+  if (wind == null || wind == 'HIGH' || wind == 'POWER') return null;
+  return kThinqAirWindHint;
+}
+
 /// 조작 단추가 ✓로 이미 말하는 상태 줄(평가 11차 10/18) — 왼쪽 '지금 상태'에 두 번 두지 않는다.
 const _shownByControls = {'전원', '바람 세기'};
 
@@ -201,9 +219,9 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
                   padding: const EdgeInsets.fromLTRB(24, 6, 24, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    // 조작을 먼저 — 큰 글씨에서 켜기·끄기가 스크롤 아래로 밀렸다(UI 평가 10/17). 상태는 그 아래.
-                    // 큰 상태 한 줄은 조작 아래·상태 칸 위(조작이 첫 화면에 남게).
-                    children: [right, const SizedBox(height: 16), if (headline != null) headline, left],
+                    // 큰 상태 한 줄이 맨 위(평가 12차 10/18 — 큰 글씨에서만 조작 아래로 내려가 지금 상태를 먼저 못 봤다), 그다음
+                    // 조작 — 큰 글씨에서 켜기·끄기가 스크롤 아래로 밀렸다(UI 평가 10/17). 상태 칸은 그 아래.
+                    children: [if (headline != null) headline, right, const SizedBox(height: 16), left],
                   ),
                 )
               : Padding(
@@ -325,6 +343,14 @@ class _StateCardState extends State<_StateCard> {
                       color: grade == null ? Colors.white : airGradeColor(grade))),
             ),
           ]),
+          // 공기가 나쁠 때만 할 일 한 줄(평가 12차 10/18).
+          if (thinqAirHint(grade, map) case final hint?)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 26 + KioskSpace.xs),
+              child: KioskText(hint,
+                  textKey: const ValueKey('thinq-air-hint'),
+                  style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
+            ),
           // 무엇을 보는지 말하는 단추(평가 11차 10/18 — '자세히'는 무엇을 보여 주는지 몰랐다). 이름이 길어져 공기 한 줄
           // 옆이 아니라 그 아래에 둔다(한 줄 옆에 두면 '공기 나빠요'가 낱말 가운데서 꺾였다).
           const SizedBox(height: 6),

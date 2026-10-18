@@ -107,6 +107,9 @@ class KioskApplianceSelectView extends StatelessWidget {
   }
 }
 
+/// 칸 아래 표시 자리 높이 — 표시 글(보조 크기)과 위아래 여백. 큰 글씨에서도 칩이 잘리지 않게 넉넉히.
+const double _marksHeight = 32;
+
 class _ApplianceCard extends StatelessWidget {
   const _ApplianceCard({
     required this.appliance,
@@ -141,8 +144,13 @@ class _ApplianceCard extends StatelessWidget {
                 width: isLastUsed ? 1.5 : 1,
               ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            // 가전이 많고 큰 글씨면 칸이 낮다 — 넘치면 칸 안 내용을 통째로 살짝 줄인다(폭은 칸 그대로라 이름은 낱말 단위로 꺾인다).
+            child: LayoutBuilder(builder: (context, box) => Center(child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+              width: box.maxWidth,
+              child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(appliance.icon, size: 44, color: KioskColors.muted),
                 const SizedBox(height: 12),
@@ -155,31 +163,41 @@ class _ApplianceCard extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
-                // ThinQ 가전은 버튼판이 없다 -- 고르기 전에 경로를 글자로 말한다.
-                if (appliance.isThinq) ...[
-                  const SizedBox(height: 6),
-                  const KioskRouteBadge(label: 'LG 가전'),
-                ],
-                if (isLastUsed) ...[
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: KioskColors.surface2,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      '지난번',
-                      style: TextStyle(
-                        fontSize: KioskType.caption,
-                        color: KioskColors.success,
-                      ),
-                    ),
+                // 표시(LG 가전·지난번)는 칸마다 같은 높이의 자리에(평가 12차 10/18 — '지난번' 칩이 있는 칸만 아이콘·이름이
+                // 위로 밀려 칸마다 높이가 달랐다). 표시가 없어도 자리는 비워 둔다.
+                const SizedBox(height: 6),
+                SizedBox(
+                  key: const ValueKey('appliance-select-marks'),
+                  height: _marksHeight,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // ThinQ 가전은 버튼판이 없다 -- 고르기 전에 경로를 글자로 말한다.
+                      if (appliance.isThinq) const KioskRouteBadge(label: 'LG 가전'),
+                      if (appliance.isThinq && isLastUsed) const SizedBox(width: 6),
+                      if (isLastUsed)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: KioskColors.surface2,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            '지난번',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: KioskType.caption,
+                              color: KioskColors.success,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ],
+                ),
               ],
             ),
+            )))),
           ),
         ),
       ),

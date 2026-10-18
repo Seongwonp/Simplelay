@@ -55,7 +55,7 @@ KioskSuggestion _card(String action, String summary) => KioskSuggestion(
 final _powerOn = _card('set_power', '공기청정기 전원 켜기');
 final _windHigh = _card('set_wind_strength', '공기청정기 바람 세기 강');
 
-const _stopNote = '멈추면 더 보내지 않아요\n이미 바뀐 설정은 그대로일 수 있어요';
+const _stopNote = '멈추면 더 보내지 않지만 이미 바뀐 설정은 그대로일 수 있어요';
 final _sending = find.byKey(const ValueKey('thinq-sending'));
 final _result = find.byKey(const ValueKey('thinq-result'));
 final _band = find.byKey(const ValueKey('status-band'));

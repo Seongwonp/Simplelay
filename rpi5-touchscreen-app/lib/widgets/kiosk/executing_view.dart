@@ -194,24 +194,21 @@ class KioskExecutingView extends StatelessWidget {
       // 되돌리지 않는다(취소·반대 명령 없음). 연습은 실제 가전에 보내지 않으니 두지 않는다. 정지 단추 왼쪽 빈자리.
       picture: _mock
           ? null
-          // 문장 사이에서만 줄을 바꾸고, 실패널 글꼴이 넓어 넘치면 칸에 맞춰 살짝 줄인다(잘리지 않게).
+          // 한 문장, 왼쪽 선에서 시작해 낱말 단위로 줄을 바꾼다(평가 12차 10/18 — 오른쪽 정렬 두 줄은 읽기 어려웠다).
           : const Align(
-              alignment: Alignment.centerRight,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  kThinqStopNote,
-                  key: ValueKey('thinq-stop-note'),
-                  textAlign: TextAlign.end,
-                  softWrap: false,
-                  style: TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
-                ),
+              alignment: Alignment.centerLeft,
+              child: KioskText(
+                kThinqStopNote,
+                key: ValueKey('thinq-stop-note'),
+                textAlign: TextAlign.start,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
               ),
             ),
       body: Semantics(
         liveRegion: true,
-        label: [line, sub, if (!_mock) kThinqStopNote.replaceAll('\n', '. ')].join('. '),
+        label: [line, sub, if (!_mock) kThinqStopNote].join('. '),
         excludeSemantics: true,
         child: KioskScrollArea(
           key: const ValueKey('thinq-sending'),

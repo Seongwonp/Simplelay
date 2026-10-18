@@ -344,7 +344,7 @@ void main() {
       expect(connectionShortName('plug'), '전기 플러그');
     });
 
-    testWidgets('실패 화면 글자 단추는 작은 팔로 누를 버튼 고르기', (tester) async {
+    testWidgets('실패 화면 글자 단추는 작은 팔로 골라 누르기', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -356,7 +356,7 @@ void main() {
               onManual: () {},
               onDismiss: () {}));
       expect(find.text('화면으로 조작하기'), findsNothing);
-      expect(find.text('작은 팔로 누를 버튼 고르기'), findsOneWidget);
+      expect(find.text('작은 팔로 골라 누르기'), findsOneWidget);
     });
 
     testWidgets("큰 글씨 버튼판 한 줄은 '작은 팔 위치' 대신 작은 팔이 어디 위에 있는지", (tester) async {

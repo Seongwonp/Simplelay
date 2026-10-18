@@ -231,6 +231,8 @@ KioskHoldView _hold({bool stopRequested = false}) => KioskHoldView(
       operationSource: 'mock',
       stopRequested: stopRequested,
       onStop: _noop,
+      // 연습 대기는 '처음 화면으로'로 나갈 수 있다(평가 12차 10/18, kiosk_screen과 같은 조건).
+      onClose: _noop,
     );
 
 KioskManualView _mine() => KioskManualView(

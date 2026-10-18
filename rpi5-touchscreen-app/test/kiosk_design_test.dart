@@ -488,12 +488,12 @@ void main() {
       });
     }
 
-    // 평가 5차(10/18): 밑줄 글자 단추는 링크로 읽혔다 — 작은 팔로 누를 버튼 고르기도 테두리 버튼(아이콘 + 글).
-    testWidgets('실패 — 한 번 더 하기는 테두리 보조, 작은 팔로 누를 버튼 고르기도 테두리 버튼(48 이상)', (tester) async {
+    // 평가 5차(10/18): 밑줄 글자 단추는 링크로 읽혔다 — 작은 팔로 골라 누르기도 테두리 버튼(아이콘 + 글).
+    testWidgets('실패 — 한 번 더 하기는 테두리 보조, 작은 팔로 골라 누르기도 테두리 버튼(48 이상)', (tester) async {
       await _pump15(tester, _done(success: false));
       // 평가 7차(10/18): 한 번 더 하기는 가장 약한 글자 단추(맨 아래, 바로 위 안내 한 줄).
       expect(inButton<TextButton>('한 번 더 하기'), findsOneWidget);
-      final manual = inButton<OutlinedButton>('작은 팔로 누를 버튼 고르기');
+      final manual = inButton<OutlinedButton>('작은 팔로 골라 누르기');
       expect(manual, findsOneWidget);
       expect(tester.getSize(manual).height, greaterThanOrEqualTo(48));
     });

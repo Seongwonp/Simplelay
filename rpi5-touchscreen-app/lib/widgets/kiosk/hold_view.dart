@@ -4,6 +4,7 @@ import '../../models/appliance.dart';
 import '../../models/josa.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
+import 'done_view.dart' show kioskHomeButton;
 import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 import 'run_frame.dart';
@@ -73,8 +74,12 @@ class KioskHoldView extends StatelessWidget {
   final bool stopFailed;
   final VoidCallback onStop;
 
-  /// 사람이 닫아야 끝나는 결과(미확인·이상)일 때만 있다.
+  /// 사람이 닫아야 끝나는 결과(미확인·이상), 또는 연습 대기(평가 12차 10/18 — 연습은 실제 가전이 없어 정지를 기다리지 않고
+  /// 나가도 된다)일 때만 있다. 실제 대기에는 없다 — 가전이 돌아가는 동안 정지가 닿아야 한다.
   final VoidCallback? onClose;
+
+  /// 연습 대기에서 나가는 길 — 주 단추 '처음 화면으로'(결과 화면과 같은 단추). 미확인·이상은 종전 보조 단추.
+  bool get _practiceExit => onClose != null && _mock && !_unconfirmed && !_fault && estopTitle == null;
 
   /// 비상 멈춤이 걸려 있으면 그 제목(위 띠와 같은 말, 2026-10-15). 걸려 있는 동안에는
   /// '돌아가고 있어요' 같은 제목을 쓰지 않는다 — 위 띠와 아래 제목이 서로 다른 말을 하지 않게.
@@ -355,7 +360,7 @@ class KioskHoldView extends StatelessWidget {
                   const SizedBox(height: 10),
                 ],
                 _Lines(lines: lines),
-                if (onClose != null) ...[
+                if (onClose != null && !_practiceExit) ...[
                   const SizedBox(height: 8),
                   // 보조 단추(테두리) — 정지 단추·할 일과 주인공을 다투지 않게(§1-5).
                   OutlinedButton(
@@ -372,6 +377,11 @@ class KioskHoldView extends StatelessWidget {
             ),
           ),
         ),
+        // 연습 대기의 나가는 길(평가 12차 10/18) — 비어 있던 왼쪽 아래, 정지 단추와 떨어진 자리. 정지 단추 자리·이름은 그대로.
+        if (_practiceExit) ...[
+          const SizedBox(height: KioskSpace.xs),
+          kioskHomeButton(onClose!, key: const ValueKey('hold-home')),
+        ],
       ],
     );
 
@@ -403,6 +413,8 @@ class KioskHoldView extends StatelessWidget {
           : KioskPanelPicture(
               appliance: a,
               current: waitCell,
+              // 기다리는 칸은 흰 테로만(평가 12차 10/18) — 진행색(파랑) 채움은 '지금 누르는 중'으로 읽혔다.
+              resting: holdState == 'hovering_stop',
               caption: kPanelCaption,
               captionKey: const ValueKey('panel-caption'),
             ),

@@ -317,11 +317,10 @@ class KioskIdleView extends StatelessWidget {
                           fontSize: _Idle.greeting, height: 1.25, color: Colors.white)),
                     if (tip != null)
                       _TipCard(key: const ValueKey('ambient-tip'), tip: tip,
-                          compact: large),
-                    if (hoursFit) ...[
-                      SizedBox(height: tip != null ? _Idle.hoursGapTip : _Idle.hoursGap),
-                      _Hours(key: const ValueKey('ambient-hours'),
-                          hours: hourly, compact: tip != null),
+                          compact: large, hours: hoursFit ? hourly : const []),
+                    if (tip == null && hoursFit) ...[
+                      const SizedBox(height: _Idle.hoursGap),
+                      _Hours(key: const ValueKey('ambient-hours'), hours: hourly),
                     ],
                   ],
                 );
@@ -431,10 +430,11 @@ class KioskIdleView extends StatelessWidget {
       h += _textHeight(context, keepWords(greeting),
           const TextStyle(fontSize: _Idle.greeting, height: 1.25), width);
     }
-    if (tip != null) h += _TipCard.heightFor(context, tip, width, compact: large);
-    if (hours.isNotEmpty) {
-      h += tip != null ? _Idle.hoursGapTip : _Idle.hoursGap;
-      h += _Hours.heightFor(context, hours, compact: tip != null);
+    // 날씨 안내가 있으면 예보는 그 카드 안 아래 줄(평가 12차 10/18 — 카드 둘의 여백·사이 간격만큼 예보가 접혔다).
+    if (tip != null) {
+      h += _TipCard.heightFor(context, tip, width, compact: large, hours: hours);
+    } else if (hours.isNotEmpty) {
+      h += _Idle.hoursGap + _Hours.heightFor(context, hours, compact: false);
     }
     return h;
   }
@@ -499,13 +499,13 @@ abstract final class _Idle {
   static const double hourLabel = KioskType.caption; // 예보 시각(전 18)
   static const double hourValue = KioskType.body; // 예보 값(전 20)
   static const double hourIcon = 18; // 예보 아이콘(전 26·22)
-  static const double hourPop = KioskType.caption - 2; // 강수확률 둘째 줄(평가 11차 10/18 — 기온보다 작게)
+  // 강수확률 둘째 줄 — 기온과 같은 크기(평가 12차 10/18: 기온보다 작게 두었더니 1~2 m에서 '비 70%'가 안 읽혔다).
+  static const double hourPop = hourValue;
   // 안내 카드 아래 좁은 꼴 — 줄 높이를 글자 크기로 묶어(height 1.0) 실패널 글꼴에서도 높이가 같다. 칸 높이(17+18+13)가
   // 예전 두 줄 꼴(약 46)을 넘지 않게 해 다음 루틴 카드와 함께 있어도 예보가 접히지 않는다(평가 11차 10/18).
   static const double hourValueCompact = KioskType.caption + 1; // 좁은 꼴 기온(아이콘과 같은 18)
-  static const double hourPopCompact = KioskType.caption - 4; // 좁은 꼴 강수확률
+  static const double hourPopCompact = hourValueCompact; // 좁은 꼴 강수확률 — 기온과 같은 크기(평가 12차 10/18)
   static const double hoursGap = KioskSpace.sm;
-  static const double hoursGapTip = KioskSpace.xs;
   static const double clock = 104; // 시계 숫자
   static const double clockGrow = 24; // 남는 높이로 시계를 키울 수 있는 한도
   static const double airGap = 14; // 시계·온습도와 공기 줄 사이
@@ -519,20 +519,22 @@ abstract final class _Idle {
 }
 
 /// 다음 루틴 카드 위 간격(위 안내·예보와 떨어지게).
-const double _nextRunGap = KioskSpace.sm;
+const double _nextRunGap = KioskSpace.xs; // 평가 12차 10/18 — 예보 줄 자리를 내려고 12 → 8
 
-/// 다음 루틴 카드(평가 3차 10/18) — 오른쪽 칸 아래 끝, 가전 줄 바로 위. 첫 줄은 언제(크게) + '다음 루틴 · 자동 실행',
-/// 둘째 줄은 무엇을(루틴 이름). 예전에는 예보 아래 회색 작은 줄이라 놓쳤다.
+/// 다음 루틴 카드(평가 3차 10/18) — 오른쪽 칸 아래 끝, 가전 줄 바로 위. 첫 줄은 작은 머리('⏱ 다음 루틴 · 자동으로 해요'),
+/// 둘째 줄은 언제(시계 아이콘 + 크게), 셋째 줄은 무엇을(루틴 이름). 예전에는 예보 아래 회색 작은 줄이라 놓쳤다.
+/// 시계 아이콘을 왼쪽에 세로 칸으로 따로 두던 자리는 뺐다(평가 12차 10/18) — 그 폭만큼 머리 글이 두 줄로 꺾여 카드가
+/// 높아졌고, 실패널의 넓은 글꼴에서는 예보 줄이 통째로 접혔다. 아이콘은 시각 앞에 둔다(시각 줄은 폭이 남는다).
 class _NextRunCard extends StatelessWidget {
   const _NextRunCard({super.key, required this.next});
 
   final KioskNextRun next;
 
-  static const _pad = EdgeInsets.symmetric(horizontal: KioskSpace.sm, vertical: KioskSpace.xs);
-  static const double _icon = 28;
-  static const double _captionBottom = 4;
+  static const _pad = EdgeInsets.symmetric(horizontal: KioskSpace.sm, vertical: 6);
+  static const double _icon = 26;
+  static const double _iconGap = KioskSpace.xs;
   static const _timeStyle = TextStyle(
-      fontSize: KioskType.status, height: 1.2, fontWeight: FontWeight.w800, color: Colors.white);
+      fontSize: KioskType.status, height: 1.15, fontWeight: FontWeight.w800, color: Colors.white);
   static const _labelStyle =
       TextStyle(fontSize: KioskType.caption, height: 1.2, color: KioskColors.muted);
   static const _whatStyle = TextStyle(fontSize: KioskType.body, height: 1.25, color: Colors.white);
@@ -540,28 +542,22 @@ class _NextRunCard extends StatelessWidget {
   /// 언제 — '오늘 오전 7시'(시계와 같은 오전/오후, 평가 4차 10/18).
   static String _time(KioskNextRun n) => n.when;
 
-  /// 첫 줄 시각 옆 작은 글 — '다음 루틴 · 자동으로 해요'(자동 계열 이름은 하나로, 평가 4차 10/18). 무엇을(루틴 이름)은
-  /// 둘째 줄에 따로(이름 뒤에 붙이면 끝말만 다음 줄로 떨어졌다).
+  /// 머리 글 — '다음 루틴 · 자동으로 해요'(자동 계열 이름은 하나로, 평가 4차 10/18).
   static String _caption(KioskNextRun n) => [
         '다음 루틴',
         if (n.quietSkip) '조용한 시간이라 건너뛰어요' else if (n.modeWord.isNotEmpty) n.modeWord,
       ].join(' · ');
 
-  static double _textWidth(double width) =>
-      width - _pad.horizontal - 2 - _icon - KioskSpace.sm;
+  static double _textWidth(double width) => width - _pad.horizontal - 2;
 
-  /// 폭 [width]에서 이 카드가 차지할 높이(테두리 포함). 첫 줄(시각 + 작은 글)이 넘치면 작은 글을 다음 줄로 잰다.
+  /// 폭 [width]에서 이 카드가 차지할 높이(테두리 포함).
   static double heightFor(BuildContext context, KioskNextRun n, double width) {
     final w = _textWidth(width);
-    final time = _textHeight(context, _time(n), _timeStyle, double.infinity);
-    final timeW = _textWidthOf(context, _time(n), _timeStyle);
-    final capW = _textWidthOf(context, _caption(n), _labelStyle);
-    final head = timeW + KioskSpace.sm + capW <= w
-        ? time
-        // 작은 글이 다음 줄로 가면 그 아래 여백(4)까지 — 빠뜨려 카드 아래 테두리가 가전 줄 위에서 잘렸다(평가 11차 10/18 골든).
-        : time + _textHeight(context, keepWords(_caption(n)), _labelStyle, w) + _captionBottom;
+    final head = _textHeight(context, keepWords(_caption(n)), _labelStyle, w);
+    final timeH = _textHeight(context, _time(n), _timeStyle, double.infinity);
+    final time = timeH > _icon ? timeH : _icon;
     final what = _textHeight(context, keepWords(n.name), _whatStyle, w);
-    return _pad.vertical + 2 + head + what;
+    return _pad.vertical + 2 + head + time + what;
   }
 
   @override
@@ -576,53 +572,34 @@ class _NextRunCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: KioskColors.border),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.schedule, size: _icon, color: Colors.white),
-              const SizedBox(width: KioskSpace.sm),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.end,
-                      spacing: KioskSpace.sm,
-                      children: [
-                        Text(_time(next),
-                            key: const ValueKey('idle-next-run-time'),
-                            maxLines: 1,
-                            softWrap: false,
-                            style: _timeStyle),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: _captionBottom),
-                          child: KioskText(_caption(next), style: _labelStyle),
-                        ),
-                      ],
-                    ),
-                    // 어절 단위로 줄을 바꾼다(실패널에서 '공기청/정기'처럼 끊겼다).
-                    KioskText(next.name,
-                        textKey: const ValueKey('idle-next-run-what'), style: _whatStyle),
-                  ],
-                ),
+              KioskText(_caption(next), style: _labelStyle),
+              Row(
+                children: [
+                  const Icon(Icons.schedule, size: _icon, color: Colors.white),
+                  const SizedBox(width: _iconGap),
+                  // 시각은 한 줄 — 넓은 글꼴에서 넘치면 칸에 맞춰 살짝 줄인다(잘리지 않게).
+                  Flexible(
+                      child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(_time(next),
+                              key: const ValueKey('idle-next-run-time'),
+                              maxLines: 1,
+                              softWrap: false,
+                              style: _timeStyle))),
+                ],
               ),
+              // 어절 단위로 줄을 바꾼다(실패널에서 '공기청/정기'처럼 끊겼다).
+              KioskText(next.name,
+                  textKey: const ValueKey('idle-next-run-what'), style: _whatStyle),
             ],
           ),
         ),
       );
-}
-
-double _textWidthOf(BuildContext context, String text, TextStyle style) {
-  final tp = TextPainter(
-    text: TextSpan(text: text, style: DefaultTextStyle.of(context).style.merge(style)),
-    textDirection: Directionality.of(context),
-    textScaler: MediaQuery.textScalerOf(context),
-    maxLines: 1,
-  )..layout();
-  final w = tp.width;
-  tp.dispose();
-  return w;
 }
 
 /// 한 덩어리 글의 높이 — [Text]와 같은 기본 글꼴·배율로 잰다.
@@ -746,7 +723,7 @@ class _AirLine extends StatelessWidget {
   static double heightFor(BuildContext context, KioskAirReading air, double width) {
     final w = width - _Idle.airIcon - KioskSpace.sm;
     final word = kAirGradeSentences[air.grade] ?? air.gradeWord;
-    var h = _textHeight(context, '공기 $word', _headStyle.copyWith(fontWeight: FontWeight.w800), w);
+    var h = _textHeight(context, '공기 ${keepWords(word)}', _headStyle.copyWith(fontWeight: FontWeight.w800), w);
     if (air.sub.isNotEmpty) h += _textHeight(context, keepWords(air.sub.join('   ')), _subStyle, w);
     return h;
   }
@@ -774,10 +751,12 @@ class _AirLine extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // 낱말 단위로 줄을 바꾼다(평가 12차 10/18 — 큰 글씨에서 '공기 아주 나빠 / 요'로 한 글자만 꺾였다).
                 Text.rich(
                   TextSpan(children: [
                     const TextSpan(text: '공기 ', style: TextStyle(color: Colors.white)),
-                    TextSpan(text: word,
+                    TextSpan(text: keepWords(word),
+                        semanticsLabel: word,
                         style: TextStyle(color: color, fontWeight: FontWeight.w800)),
                   ]),
                   key: const ValueKey('idle-air-headline'),
@@ -828,28 +807,40 @@ IconData _tipIcon(String icon) => switch (icon) {
     };
 
 class _TipCard extends StatelessWidget {
-  const _TipCard({super.key, required this.tip, this.compact = false});
+  const _TipCard({super.key, required this.tip, this.compact = false, this.hours = const []});
   final AmbientTip tip;
+
+  /// 카드 아래 줄의 시간대 예보(평가 12차 10/18 — 날씨 안내와 예보를 한 카드로). 비어 있으면 안내만.
+  final List<AmbientHour> hours;
 
   /// 큰 글씨 모드 — 여백·줄 간격을 줄여 같은 문장을 다 담는다.
   final bool compact;
 
   static const _maxLines = 4;
+  /// 예보 줄을 품으면 위아래 여백을 조금 줄인다(평가 12차 10/18).
+  static EdgeInsets _padFor(bool compact, bool withHours) => withHours && !compact
+      ? const EdgeInsets.symmetric(horizontal: 14, vertical: 8)
+      : _pad(compact);
+
   static EdgeInsets _pad(bool compact) =>
       EdgeInsets.symmetric(horizontal: compact ? 10 : 14, vertical: compact ? 6 : 10);
   static double _gap(bool compact) => compact ? 8 : 10;
   static TextStyle _style(bool compact) =>
       TextStyle(fontSize: _Idle.tipText, height: compact ? 1.2 : 1.3);
 
-  /// 폭 [width]에서 이 카드가 차지할 높이(테두리 1px 포함).
+  /// 폭 [width]에서 이 카드가 차지할 높이(테두리 1px 포함). [hours]가 있으면 카드 안 예보 줄까지.
   static double heightFor(BuildContext context, AmbientTip tip, double width,
-      {required bool compact}) {
-    final pad = _pad(compact);
+      {required bool compact, List<AmbientHour> hours = const []}) {
+    final pad = _padFor(compact, hours.isNotEmpty);
     final textWidth = width - pad.horizontal - 2 - _Idle.tipIcon - _gap(compact);
     final text = _textHeight(context, kioskLine(tip.text), _style(compact), textWidth,
         maxLines: _maxLines);
-    return pad.vertical + 2 + (text > _Idle.tipIcon ? text : _Idle.tipIcon);
+    final withHours = hours.isEmpty ? 0.0 : _hoursGap + _Hours.heightFor(context, hours, compact: true);
+    return pad.vertical + 2 + (text > _Idle.tipIcon ? text : _Idle.tipIcon) + withHours;
   }
+
+  /// 안내 문장과 카드 안 예보 줄 사이.
+  static const double _hoursGap = 4;
 
   @override
   Widget build(BuildContext context) {
@@ -857,14 +848,17 @@ class _TipCard extends StatelessWidget {
     // 차분한 면만(10/7). 테 자리(1px)는 늘 둬서 높이가 같다.
     final attention = tip.icon == 'attention';
     return Container(
-      padding: _pad(compact),
+      padding: _padFor(compact, hours.isNotEmpty),
       decoration: BoxDecoration(
         color: KioskColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
             color: attention ? KioskColors.warning : Colors.transparent),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
         children: [
           Icon(_tipIcon(tip.icon),
               size: _Idle.tipIcon,
@@ -880,6 +874,12 @@ class _TipCard extends StatelessWidget {
               style: _style(compact).copyWith(color: Colors.white),
             ),
           ),
+        ],
+          ),
+          if (hours.isNotEmpty) ...[
+            const SizedBox(height: _hoursGap),
+            _Hours(key: const ValueKey('ambient-hours'), hours: hours, compact: true),
+          ],
         ],
       ),
     );

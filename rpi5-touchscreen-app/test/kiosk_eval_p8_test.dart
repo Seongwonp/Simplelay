@@ -5,7 +5,7 @@
 //    '멈추는 중이에요'를 보이고 처음 화면 단추를 숨긴다.
 // 2. 정지 미확인 대기 — 오른쪽 버튼판은 '직접 누를 버튼이에요' + 취소 칸 주의색. '작은 팔이 … 대신 눌렀어요' 대신
 //    '작은 팔도 … 눌렀지만 눌렸는지 확인이 안 됐어요'.
-// 3. 결과 화면 보조 단추 — '화면에서 직접 누르기'는 손으로 가전을 누르라는 말과 헷갈렸다 → '작은 팔로 누를 버튼 고르기'.
+// 3. 결과 화면 보조 단추 — '화면에서 직접 누르기'는 손으로 가전을 누르라는 말과 헷갈렸다 → '작은 팔로 골라 누르기'.
 // 4. 문구 통일 — 잠시 쉬기 설명 하나(새 제안과 자동으로 하는 일), 실행 화면 누를 순서에 머리말·끝낸 칸 이름 자리,
 //    결과 화면 할 일 줄은 마침표 없이.
 // 5. 제안 질문 — 사람 명령문('즉석밥 데워줘')이 아니라 할 일 이름('즉석밥 데우기, 지금 할까요?').
@@ -130,7 +130,7 @@ void main() {
 
   group('3. 결과 화면 보조 단추 — 작은 팔이 누른다는 말', () {
     for (final stop in [false, true]) {
-      testWidgets('${stop ? '사용자 정지' : '실패'}: "화면에서 직접 누르기" 대신 "작은 팔로 누를 버튼 고르기"', (tester) async {
+      testWidgets('${stop ? '사용자 정지' : '실패'}: "화면에서 직접 누르기" 대신 "작은 팔로 골라 누르기"', (tester) async {
         await _pump(
             tester,
             stop
@@ -146,7 +146,7 @@ void main() {
         expect(find.text('화면에서 직접 누르기'), findsNothing);
         expect(
             find.descendant(
-                of: find.byKey(const ValueKey('done-manual')), matching: find.text('작은 팔로 누를 버튼 고르기')),
+                of: find.byKey(const ValueKey('done-manual')), matching: find.text('작은 팔로 골라 누르기')),
             findsOneWidget);
       });
     }

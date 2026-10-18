@@ -179,8 +179,8 @@ void main() {
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
       // 평가 7차(10/18): 한 번 더 하기는 글자 단추(가장 약하게).
       expect(_inButton<TextButton>('한 번 더 하기'), findsOneWidget);
-      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 작은 팔로 누를 버튼 고르기는 글자 단추(48 이상, 평가 4차 이름).
-      expect(_inButton<OutlinedButton>('작은 팔로 누를 버튼 고르기'), findsOneWidget);
+      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 작은 팔로 골라 누르기는 글자 단추(48 이상, 평가 4차 이름).
+      expect(_inButton<OutlinedButton>('작은 팔로 골라 누르기'), findsOneWidget);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
       final home = tester.getRect(find.text('처음 화면으로'));

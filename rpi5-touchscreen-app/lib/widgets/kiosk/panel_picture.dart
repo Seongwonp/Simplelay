@@ -21,6 +21,7 @@ class KioskPanelPicture extends StatelessWidget {
     required this.caption,
     this.current,
     this.caution = false,
+    this.resting = false,
     this.captionKey,
     this.compact = false,
     this.order = const {},
@@ -40,6 +41,7 @@ class KioskPanelPicture extends StatelessWidget {
         caption: caption,
         current: current,
         caution: caution,
+        resting: resting,
         captionKey: captionKey,
         compact: true,
         order: order,
@@ -55,6 +57,9 @@ class KioskPanelPicture extends StatelessWidget {
 
   /// 자리를 맞춰 다시 누르는 중 — 채움을 주의색으로.
   final bool caution;
+
+  /// 작은 팔이 그 칸 위에서 **기다리는** 중(정지 대기, 평가 12차 10/18) — 진행색으로 채우지 않고 흰 테로만 자리를 알린다.
+  final bool resting;
 
   final Key? captionKey;
 
@@ -172,7 +177,9 @@ class KioskPanelPicture extends StatelessWidget {
                             fontSize: KioskType.status,
                             color: caution
                                 ? KioskColors.warning
-                                : KioskColors.running,
+                                : resting
+                                    ? Colors.white
+                                    : KioskColors.running,
                             fontWeight: FontWeight.w800))),
                 const SizedBox(width: KioskSpace.xs),
                 const Text('위에 있어요',
@@ -211,12 +218,18 @@ class KioskPanelPicture extends StatelessWidget {
     final marked = numbers != null || mark != null;
     final fill = caution ? KioskColors.warning : KioskColors.running;
     final Color edge = mark == false ? KioskColors.warning : Colors.white;
+    // 기다리는 칸 — 채우지 않고 흰 테(굵게)만.
+    final rest = on && resting && !caution;
     final cell = DecoratedBox(
       key: on ? const ValueKey('panel-current') : null,
       decoration: BoxDecoration(
-        color: on ? fill : KioskColors.bg,
+        color: rest ? KioskColors.surface2 : on ? fill : KioskColors.bg,
         borderRadius: BorderRadius.circular(8),
-        border: marked && !on ? Border.all(color: edge, width: 2) : null,
+        border: rest
+            ? Border.all(color: Colors.white, width: 3)
+            : marked && !on
+                ? Border.all(color: edge, width: 2)
+                : null,
       ),
       child: Center(
         child: Padding(
@@ -229,7 +242,9 @@ class KioskPanelPicture extends StatelessWidget {
               style: TextStyle(
                 fontSize: KioskType.caption,
                 fontWeight: on || marked ? FontWeight.w800 : FontWeight.w500,
-                color: on
+                color: rest
+                    ? Colors.white
+                    : on
                     ? KioskColors.onAccent
                     : marked
                         ? Colors.white

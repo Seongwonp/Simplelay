@@ -251,6 +251,10 @@ class _KioskScreenState extends State<KioskScreen> {
   // ── 동작 중: 정지 버튼 대기·보관(2026-09-30) ─────────────────────────
   KioskStatus? _hold;
   DateTime _holdSince = DateTime.now();
+
+  /// 사람이 '처음 화면으로'로 나온 연습 대기(평가 12차 10/18) — 같은 대기를 평소 화면 조회가 다시 띄우지 않게 기억한다.
+  /// 서버 대기는 그대로다(연습 가전이 끝나면 보관, 새 실행이 시작되면 풀린다). 대기가 사라지면 잊는다.
+  String? _leftPracticeHold;
   bool _holdStopRequested = false;
   bool _holdStopFailed = false;
   // 짧게 보여 주고 평소 화면으로 돌아가는 타이머(보관 완료).
@@ -638,8 +642,13 @@ class _KioskScreenState extends State<KioskScreen> {
       // 버튼을 다 누른 뒤 가전이 돌아가는 중 — 동작 중 화면(정지 버튼 대기).
       // 제안보다 먼저 본다: 안내는 한 번에 하나다.
       if (_holdActive(st.holdState)) {
-        _toHold(st);
-        return;
+        final key = _practiceHoldKey(st);
+        if (key == null || key != _leftPracticeHold) {
+          _toHold(st);
+          return;
+        }
+      } else {
+        _leftPracticeHold = null;
       }
       _trackAutoRun(st);
       if (_catchMissedResult(st)) return;
@@ -1018,6 +1027,19 @@ class _KioskScreenState extends State<KioskScreen> {
         if (mounted && _phase == KioskPhase.hold) _toIdle();
       });
     }
+  }
+
+  /// 연습 대기 하나를 가리키는 값 — 연습(mock)일 때만. 실제 대기는 null이라 언제나 다시 띄운다(정지가 닿아야 한다).
+  static String? _practiceHoldKey(KioskStatus st) => st.holdExecutionMode == 'mock'
+      ? '${st.holdApplianceId}|${st.lastJobId}'
+      : null;
+
+  /// 연습 대기에서 '처음 화면으로'(평가 12차 10/18) — 정지를 보내지 않고 평소 화면으로. 실제 가전은 움직이지 않았다.
+  void _leavePracticeHold() {
+    final st = _hold;
+    if (st == null) return;
+    _leftPracticeHold = _practiceHoldKey(st);
+    _toIdle();
   }
 
   /// 사람이 확인하고 닫아야 하는 결과 — 멈췄는지 모름, 구동부 이상.
@@ -1723,7 +1745,12 @@ class _KioskScreenState extends State<KioskScreen> {
           stopRequested: _holdStopRequested,
           stopFailed: _holdStopFailed,
           onStop: _onHoldStop,
-          onClose: _holdNeedsPerson(st) ? _toIdle : null,
+          // 연습 대기는 나가도 된다(평가 12차 10/18) — 실제 가전이 없다. 실제 대기는 정지가 닿아야 해서 나가는 단추가 없다.
+          onClose: _holdNeedsPerson(st)
+              ? _toIdle
+              : _practiceHoldKey(st) != null
+                  ? _leavePracticeHold
+                  : null,
           // 비상 멈춤이 걸려 있으면 제목이 위 띠와 같은 말을 한다(돌아가고 있다고 말하지 않는다).
           estopTitle: _estopLatched ? estopTitleFor(_estopDetail) : null,
         );

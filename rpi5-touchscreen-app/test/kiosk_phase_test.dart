@@ -1053,7 +1053,7 @@ void main() {
 
     expect(find.byType(KioskDoneView), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsOneWidget);
-    expect(find.text('작은 팔로 누를 버튼 고르기'), findsOneWidget);
+    expect(find.text('작은 팔로 골라 누르기'), findsOneWidget);
 
     // 성공과 달리 자동 복귀 타이머가 없다 — 사용자가 고를 때까지 남는다
     await tester.pump(KioskTimings.doneReturn);
@@ -1109,7 +1109,7 @@ void main() {
     // 서버 연결 실패는 '다시 시도'가 또 실패할 가능성이 높아 숨긴다
     expect(find.text('한 번 더 하기'), findsNothing);
 
-    await tester.tap(find.text('작은 팔로 누를 버튼 고르기'));
+    await tester.tap(find.text('작은 팔로 골라 누르기'));
     await tester.pump();
     expect(find.text('전자레인지'), findsOneWidget);
   });
@@ -1426,9 +1426,9 @@ void main() {
     await tester.pump();
     await tester.pump();
     // 큰 글씨에서는 보조 단추가 할 일 아래 같은 스크롤 흐름에 있다(2026-10-16 §1-8) — 보이게 굴린 뒤 누른다.
-    await tester.ensureVisible(find.text('작은 팔로 누를 버튼 고르기'));
+    await tester.ensureVisible(find.text('작은 팔로 골라 누르기'));
     await tester.pump();
-    await tester.tap(find.text('작은 팔로 누를 버튼 고르기'));
+    await tester.tap(find.text('작은 팔로 골라 누르기'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
   }
@@ -2115,7 +2115,7 @@ void main() {
     expect(find.descendant(of: find.byKey(const ValueKey('thinq-result')), matching: find.byIcon(Icons.check)),
         findsNothing);
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('작은 팔로 누를 버튼 고르기'), findsNothing);
+    expect(find.text('작은 팔로 골라 누르기'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

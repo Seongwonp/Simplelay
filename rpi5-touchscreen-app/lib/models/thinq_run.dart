@@ -136,9 +136,9 @@ String thinqSendingLine(ThinqAction action, {bool practice = false}) =>
 String thinqSendingSub({bool practice = false}) =>
     practice ? '실제 가전은 그대로예요' : '바뀐 것을 확인하면 알려 드릴게요';
 
-/// 보내는 중 정지 단추 옆 두 줄(평가 10차 10/18) — 서버 /stop이 실제로 하는 일만: 아직 보내지 않았으면 보내지
+/// 보내는 중 정지 단추 옆 한 문장(평가 10차 10/18, 한 문장은 평가 12차) — 서버 /stop이 실제로 하는 일만: 아직 보내지 않았으면 보내지
 /// 않고(ThinQ 실행기의 보내기 직전 확인), 이미 보냈으면 되돌리지 않고 확인만 그만둔다(취소·반대 명령 없음).
-const kThinqStopNote = '멈추면 더 보내지 않아요\n이미 바뀐 설정은 그대로일 수 있어요';
+const kThinqStopNote = '멈추면 더 보내지 않지만 이미 바뀐 설정은 그대로일 수 있어요';
 
 String _trimDot(String s) {
   var t = s.trim();

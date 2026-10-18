@@ -8,7 +8,7 @@
 //    정지 안내는 고르는 말('정지가 어떻게 되는지 눌러 볼 수 있어요').
 // 5. LG 가전 조작 — 전원·바람 세기 상태는 단추의 ✓ 하나로(왼쪽 상태 줄 두 번 금지), '자세히' → '미세먼지 보기',
 //    큰 상태 한 줄('공기청정기가 켜져 있어요 · 바람 약').
-// 6. 위 띠 '?'와 결과 원 'i' 불일치 → 같은 물음표. 사용자 정지 결과의 '작은 팔로 누를 버튼 고르기'는 글자 단추로 한 단계 낮춘다.
+// 6. 위 띠 '?'와 결과 원 'i' 불일치 → 같은 물음표. 사용자 정지 결과의 '작은 팔로 골라 누르기'는 글자 단추로 한 단계 낮춘다.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
@@ -176,8 +176,9 @@ void main() {
         }
         final pop = find.descendant(of: hours, matching: find.text('비 70%'));
         expect(pop, findsOneWidget);
-        expect(_fontOf(tester, pop), lessThan(_fontOf(tester, find.descendant(of: hours, matching: find.text('17°')))),
-            reason: '강수확률은 기온보다 작은 둘째 줄');
+        // 평가 12차(10/18): 기온보다 작으면 1~2 m에서 안 읽혔다 — 기온과 같은 크기(더 크지는 않게).
+        expect(_fontOf(tester, pop), lessThanOrEqualTo(_fontOf(tester, find.descendant(of: hours, matching: find.text('17°')))),
+            reason: '강수확률은 기온보다 크지 않은 둘째 줄');
         expect(tester.getRect(pop).top, greaterThanOrEqualTo(tester.getRect(find.text('17°')).bottom - 1),
             reason: '기온 아래 줄');
         expect(tester.takeException(), isNull);
@@ -331,7 +332,8 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets("사용자 정지 — '작은 팔로 누를 버튼 고르기'는 글자 단추", (tester) async {
+    // 평가 12차(10/18): 실패 화면과 꼴이 달랐다 — 두 화면 같은 테두리 보조 단추(주 단추 '처음 화면으로'보다 낮다).
+    testWidgets("사용자 정지 — '작은 팔로 골라 누르기'는 실패 화면과 같은 테두리 보조 단추", (tester) async {
       await _pumpView(
           tester,
           KioskDoneView(
@@ -344,7 +346,7 @@ void main() {
               onRetry: _noop,
               onManual: _noop,
               onDismiss: _noop));
-      expect(tester.widget(find.byKey(const ValueKey('done-manual'))), isA<TextButton>());
+      expect(tester.widget(find.byKey(const ValueKey('done-manual'))), isA<OutlinedButton>());
       expect(tester.getSize(find.byKey(const ValueKey('done-manual'))).height, greaterThanOrEqualTo(48));
       _expectHomeButton(tester, '사용자 정지');
     });

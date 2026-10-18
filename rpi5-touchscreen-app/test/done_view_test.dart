@@ -148,7 +148,7 @@ void main() {
     expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
     expect(find.text('처음 화면으로'), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsOneWidget);
-    expect(find.text('작은 팔로 누를 버튼 고르기'), findsOneWidget);
+    expect(find.text('작은 팔로 골라 누르기'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
     // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
     // '확인해 주세요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 몰라요').
@@ -178,9 +178,9 @@ void main() {
     expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
     expect(find.text('가전을 봐 주세요'), findsOneWidget);
     // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
-    // 다시 하려면 처음 화면에서 고른다. '작은 팔로 누를 버튼 고르기'는 남는다.
+    // 다시 하려면 처음 화면에서 고른다. '작은 팔로 골라 누르기'는 남는다.
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('작은 팔로 누를 버튼 고르기'), findsOneWidget);
+    expect(find.text('작은 팔로 골라 누르기'), findsOneWidget);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {

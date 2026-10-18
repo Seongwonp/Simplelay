@@ -651,7 +651,6 @@ class KioskDoneView extends StatelessWidget {
                       stacked: stacked,
                       onDismiss: onDismiss,
                       retryHint: !mock,
-                      lowManual: userStop,
                     ),
             ),
           ),
@@ -1100,6 +1099,9 @@ class _SuccessActions extends StatelessWidget {
 /// '처음 화면으로' — 모든 결과 화면의 나가는 단추(화면당 채움 단추는 이것 하나, §1-5). 늘 같은 자리·같은 크기로 쉽게 닿는다.
 /// 이름·아이콘·색은 하나(평가 11차 10/18 — LG 가전 결과는 '× 닫기', 성공은 골드, 확인 필요는 흰색으로 화면마다 달랐다):
 /// 흰 면·검은 글자 중립 채움. 골드 면은 앰버·빨강 띠 아래에서 '잘 됐으니 다음으로'처럼 읽혔다(10/18).
+/// 연습 대기(hold_view)도 같은 단추를 쓴다(평가 12차 10/18).
+Widget kioskHomeButton(VoidCallback onTap, {Key key = const ValueKey('done-home')}) => _homeButton(onTap, key: key);
+
 Widget _homeButton(VoidCallback onTap, {Key key = const ValueKey('done-home')}) => ElevatedButton.icon(
       key: key,
       onPressed: onTap,
@@ -1113,15 +1115,16 @@ Widget _homeButton(VoidCallback onTap, {Key key = const ValueKey('done-home')}) 
           background: KioskColors.neutralFill, foreground: KioskColors.onAccent),
     );
 
-/// 실패·정지 화면의 단추 — **주 하나 · 보조 하나 · 글자 하나**(2차 평가 10/18).
+/// 실패·정지 화면의 단추 — **주 출구 하나 + 보조 묶음**(평가 12차 10/18 — 같은 무게로 보이는 출구 셋이 많았다).
 ///
 /// 화면의 주인공은 단추가 아니라 할 일 문장('가전을 봐 주세요')이다.
 /// - 주: `처음 화면으로`(채움, 늘 쉽게 닿게 — 안전상 빠져나갈 길).
-/// - 가장 약하게: `한 번 더 하기`(글자 단추, 맨 아래, 평가 7차 10/18) — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문에
-///   덜 강조하고(열린 문제 R1), 바로 위에 '가전을 보고 안 됐을 때만 다시 하세요' 한 줄.
-///   누르면 확인 창이 먼저 뜬다. 다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) 그리지 않는다.
-/// - 보조: `작은 팔로 누를 버튼 고르기`(테두리 + 아이콘) — 밑줄 글자는 링크로 읽혔다(평가 5차 10/18). 누르는 자리는 48 이상.
-///   '화면에서 직접 누르기'는 같은 화면의 '가전 버튼을 직접 눌러 주세요'(손으로)와 헷갈렸다(평가 8차 10/18) — 작은 팔이 누른다고.
+/// - 보조: `작은 팔로 골라 누르기`(테두리 + 아이콘) — 실패·사용자 정지 두 화면에서 같은 꼴(평가 12차 — 하나는 테두리, 하나는
+///   글자 단추였다). 밑줄 글자는 링크로 읽혔다(평가 5차). '직접 누르기'는 같은 화면의 '가전 버튼을 직접 눌러 주세요'(손으로)와
+///   헷갈렸다(평가 8차) — 누르는 것은 작은 팔이라는 말은 남긴다. 누르는 자리는 48 이상.
+/// - `한 번 더 하기`(가장 약한 글자 단추) — 언제 다시 하는지 말하는 안내 문장 **바로 옆** 한 줄로 묶는다(평가 12차). 가전 상태를
+///   보지 않고 같은 버튼을 다시 누르기 때문에 덜 강조한다(열린 문제 R1). 누르면 확인 창이 먼저 뜬다. 다시 보낼 요청이 없으면
+///   (폰이 시작한 실행·놓친 결과·사용자 정지 등, B2) 그리지 않는다.
 class _FailureActions extends StatelessWidget {
   const _FailureActions({
     required this.onRetry,
@@ -1129,11 +1132,7 @@ class _FailureActions extends StatelessWidget {
     required this.onDismiss,
     this.retryHint = false,
     this.stacked = false,
-    this.lowManual = false,
   });
-
-  /// 사용자 정지 결과 — '작은 팔로 누를 버튼 고르기'를 글자 단추로(평가 11차 10/18).
-  final bool lowManual;
 
   /// 큰 글씨 — 주 단추 아래 보조 단추를 세로로(주 단추가 먼저).
   final bool stacked;
@@ -1142,7 +1141,7 @@ class _FailureActions extends StatelessWidget {
   final VoidCallback? onManual;
   final VoidCallback? onDismiss;
 
-  /// '한 번 더 하기' 바로 위 한 줄을 둘까(실제 가전 실행). 연습은 실제 가전을 누르지 않아 두지 않는다.
+  /// '한 번 더 하기' 옆 안내 문장을 둘까(실제 가전 실행). 연습은 실제 가전을 누르지 않아 두지 않는다.
   final bool retryHint;
 
   @override
@@ -1151,35 +1150,16 @@ class _FailureActions extends StatelessWidget {
     final buttons = <Widget>[
           if (onDismiss != null) _homeButton(onDismiss!),
           if (onManual != null)
-            lowManual
-                // 사용자가 멈춘 결과 — '멈췄는지 몰라요' 옆에서 같은 무게로 보이지 않게 글자 단추로 한 단계 낮춘다
-                // (평가 11차 10/18). 누르는 자리는 48 이상 그대로.
-                ? TextButton.icon(
-                    key: const ValueKey('done-manual'),
-                    onPressed: onManual,
-                    icon: const Icon(Icons.touch_app_outlined, size: KioskType.body),
-                    label: const Text(kManualEntryLabel,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w600)),
-                    style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 48),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md)),
-                  )
-                : OutlinedButton.icon(
-                    key: const ValueKey('done-manual'),
-                    onPressed: onManual,
-                    icon: const Icon(Icons.touch_app_outlined, size: KioskType.body),
-                    // '조작하기'는 기계 말(평가 4차 10/18). 누르는 것은 작은 팔이다(평가 8차 10/18).
-                    label: const Text(kManualEntryLabel,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: TextStyle(
-                            fontSize: KioskType.body, fontWeight: FontWeight.w600)),
-                    style: KioskButtons.secondary(
-                        foreground: Colors.white, border: KioskColors.border),
-                  ),
+            OutlinedButton.icon(
+              key: const ValueKey('done-manual'),
+              onPressed: onManual,
+              icon: const Icon(Icons.touch_app_outlined, size: KioskType.body),
+              label: const Text(kManualEntryLabel,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w600)),
+              style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border),
+            ),
     ];
     final Widget main = stacked
         ? Column(
@@ -1200,39 +1180,48 @@ class _FailureActions extends StatelessWidget {
             children: buttons,
           );
     if (retry == null) return main;
-    // '한 번 더 하기'는 가장 약한 글자 단추로 맨 아래(평가 7차 10/18) — 켜기/끄기가 한 버튼인 가전은 두 번 누르면
-    // 도로 꺼질 수 있다. 바로 위 한 줄이 언제 다시 하는지 말한다. 다시 보내는 정책은 그대로(누르면 확인 창이 먼저).
+    // 안내 문장 + '한 번 더 하기'를 한 줄 묶음으로(평가 12차 10/18) — 따로 떨어진 세 번째 출구로 보이지 않게.
+    // 켜기/끄기가 한 버튼인 가전은 두 번 누르면 도로 꺼질 수 있다. 다시 보내는 정책은 그대로(누르면 확인 창이 먼저).
+    final retryButton = TextButton.icon(
+      key: const ValueKey('done-retry'),
+      onPressed: retry,
+      icon: const Icon(Icons.refresh, size: KioskType.caption + 3),
+      // '다시 시도'는 기계 말(평가 5차 10/18).
+      label: const Text('한 번 더 하기',
+          maxLines: 1,
+          softWrap: false,
+          style: TextStyle(fontSize: KioskType.caption, fontWeight: FontWeight.w700)),
+      style: TextButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          foregroundColor: KioskColors.muted,
+          padding: const EdgeInsets.symmetric(horizontal: KioskSpace.xs)),
+    );
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         main,
-        const SizedBox(height: KioskSpace.xs),
-        if (retryHint)
-          Row(
-            key: const ValueKey('done-retry-hint'),
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.info_outline, size: KioskType.caption + 3, color: KioskColors.warning),
-              const SizedBox(width: 6),
-              Text(kRetryOnlyIfNot,
-                  maxLines: 1,
-                  softWrap: false,
-                  style: const TextStyle(fontSize: KioskType.caption, color: Colors.white)),
-            ],
-          ),
-        TextButton.icon(
-          key: const ValueKey('done-retry'),
-          onPressed: retry,
-          icon: const Icon(Icons.refresh, size: KioskType.body),
-          // '다시 시도'는 기계 말(평가 5차 10/18).
-          label: const Text('한 번 더 하기',
-              maxLines: 1,
-              softWrap: false,
-              style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w600)),
-          style: TextButton.styleFrom(
-              minimumSize: const Size(0, 48),
-              foregroundColor: KioskColors.muted,
-              padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md)),
+        const SizedBox(height: 4),
+        Wrap(
+          key: const ValueKey('done-retry-group'),
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: KioskSpace.xs,
+          children: [
+            if (retryHint)
+              Row(
+                key: const ValueKey('done-retry-hint'),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.info_outline, size: KioskType.caption + 3, color: KioskColors.warning),
+                  const SizedBox(width: 6),
+                  Text(kRetryOnlyIfNot,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(fontSize: KioskType.caption, color: Colors.white)),
+                ],
+              ),
+            retryButton,
+          ],
         ),
       ],
     );
@@ -1240,7 +1229,8 @@ class _FailureActions extends StatelessWidget {
 }
 
 /// 결과 화면에서 버튼판(작은 팔이 누를 버튼을 고르는 화면)으로 가는 단추 이름(평가 8차 10/18).
-const kManualEntryLabel = '작은 팔로 누를 버튼 고르기';
+/// 짧게(평가 12차 10/18) — 누르는 것은 작은 팔이라는 말은 남긴다(손으로 누르라는 말과 헷갈리지 않게, 평가 8차).
+const kManualEntryLabel = '작은 팔로 골라 누르기';
 
 /// '한 번 더 하기' 바로 위 한 줄(평가 7차 10/18).
 const kRetryOnlyIfNot = '가전을 보고 안 됐을 때만 다시 하세요';
