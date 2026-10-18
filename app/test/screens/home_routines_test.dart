@@ -1,5 +1,5 @@
 // 홈 개편(2026-10-18, UI 개편안 §4·2차 평가) — 읽는 순서:
-// 지금 우리 집(공기·켜진 가전·다음 예정) → 지금 할 일(제안) → 확인이 필요해요 → 가전 → 자주 쓰는 루틴 타일.
+// 지금 우리 집(공기·다음 예정 — 가전 전원은 타일이 말한다, 평가 11차) → 지금 할 일(제안) → 확인이 필요해요 → 가전 → 자주 쓰는 루틴 타일.
 // 큰 '바로 실행할 수 있는 루틴' 카드는 없다. 타일은 **승인 카드만** 만든다(실행 경로를 부르지 않는다).
 // '추천/자주 쓰는' 같은 이유를 지어내지 않고, 루틴 이름을 코드에 고정하지 않는다.
 import 'dart:convert';
@@ -206,6 +206,10 @@ void main() {
       ..suggestions = [_suggestionJson]
       ..power = [
         {'appliance_id': 'air', 'power': 'on', 'age_s': 3},
+      ]
+      // 위 카드는 공기·다음 예정만 말한다(평가 11차 10/18) — 카드가 서도록 공기 값을 준다.
+      ..air = [
+        {'appliance_id': 'air', 'grade': 'NORMAL'},
       ];
     _tall(tester);
     await tester.pumpWidget(_home(hub, suggestions: const [
@@ -323,7 +327,7 @@ void main() {
     expect(hub.requests.where((r) => r.endsWith('/trigger')), isEmpty);
   });
 
-  testWidgets('지금 우리 집: 공기·켜진 가전·다음 예정 시각(본체 시각 그대로)·자동 배지', (tester) async {
+  testWidgets('지금 우리 집: 공기·다음 예정 시각(본체 시각 그대로)·자동 배지', (tester) async {
     final hub = _Hub(appliances: [_thinq('air', '공기청정기')], routines: const [])
       ..power = [
         {'appliance_id': 'air', 'power': 'on', 'age_s': 3},
@@ -349,7 +353,8 @@ void main() {
 
     final now = find.byKey(const Key('home-now'));
     expect(find.descendant(of: now, matching: findPlainText('공기 나쁨')), findsOneWidget);
-    expect(find.descendant(of: now, matching: findPlainText('공기청정기 켜짐')), findsOneWidget);
+    // 가전 전원은 위 카드에서 말하지 않는다 — 타일 '켜져 있어요' 한 곳(평가 11차 10/18).
+    expect(find.descendant(of: now, matching: findPlainText('켜짐', contains: true)), findsNothing);
     // 오전/오후 표기(평가 7차 10/18) — 큰 '10:00' 위에 작은 '오후'.
     expect(find.descendant(of: now, matching: find.text('10:00')), findsOneWidget);
     expect(find.descendant(of: now, matching: find.text('오후')), findsOneWidget);

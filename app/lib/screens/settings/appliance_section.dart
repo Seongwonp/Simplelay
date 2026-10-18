@@ -2,7 +2,9 @@ part of '../settings_screen.dart';
 
 /// 본체에 못 보낸 가전 변경을 다시 보내고 본체 쪽 목록도 받아 오는 버튼 — 쉬운 말('동기화' 대신, UI 평가 10/17).
 /// 사용자가 얻는 것으로 이름 짓는다(평가 4차 10/18: '본체와 다시 맞추기'는 기계가 하는 일을 말했다).
-const kResyncLabel = '가전 다시 불러오기';
+/// 평가 11차(10/18): '가전 다시 불러오기'는 무엇이 일어나는지 모호했다 — 이 단추는 본체에 못 보낸 변경이 있을 때만 뜨고,
+/// 이 폰에서 바꾼 가전을 본체로 다시 보낸다(본체에만 있는 가전은 받아 오되 지우지 않는다). 하는 일 그대로.
+const kResyncLabel = '바꾼 가전 본체로 다시 보내기';
 
 /// 안부 알림을 며칠 쉬는 설정의 이름 — 하는 일 그대로(평가 3차 10/18, 예전 '안부 확인 쉬기').
 const kAwayTitle = '집 비우는 날';
@@ -33,9 +35,10 @@ class _ApplianceSection extends ConsumerWidget {
                         style: TextStyle(fontSize: AppFont.caption, color: context.appWarning))
                     : null)
                 // 평가 4차 10/18: '처음부터 들어 있는 가전이에요'·'빼기는 LG 가전 연결에서 해요'는 앱이 어떻게 만들어졌는지를
-                // 말했다. 사용자가 할 일이 있을 때만 적는다 — LG 가전은 LG 앱에서 관리한다는 것, 그 밖은 비운다.
+                // 말했다. 사용자가 할 일이 있을 때만 적는다 — LG 가전은 어디서 무엇을 하는지, 그 밖은 비운다.
+                // 평가 11차(10/18): 'LG 앱에서 관리해요'는 여기서 못 다룬다는 오해 — 켜기·끄기는 줄을 눌러 들어간 상태 카드에서 한다.
                 : appliance.isThinq
-                    ? _WordsText('LG 앱에서 관리해요',
+                    ? _WordsText('켜기·끄기는 여기서, 등록은 LG 앱에서',
                         style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
                     : null,
             onTap: () => context.push('/appliance/detail/${appliance.id}'),
@@ -56,8 +59,10 @@ class _ApplianceSection extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
             ),
             icon: Icon(Icons.sync, size: 18, color: context.appMuted),
+            // 낱말 중간에서 꺾이지 않게('다 / 시' 방지, 큰 글씨).
             label: Text(
-              kResyncLabel,
+              keepWordsTogether(kResyncLabel),
+              semanticsLabel: kResyncLabel,
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ),

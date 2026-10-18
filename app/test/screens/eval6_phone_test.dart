@@ -355,7 +355,7 @@ void main() {
       expect(notes, ['아직 자리 확인을 안 했어요', '자리 확인을 했는지 몰라요']);
     });
 
-    test("'가전 다시 불러오기'", () => expect(kResyncLabel, '가전 다시 불러오기'));
+    test("다시 보내기 단추 이름(평가 11차에 다시 바꿈)", () => expect(kResyncLabel, '바꾼 가전 본체로 다시 보내기'));
   });
 
   group('F. 대비·높이', () {

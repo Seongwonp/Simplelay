@@ -524,11 +524,11 @@ void main() {
     await _settle(tester);
 
     expect(runButton('rt-1'), findsNothing);
-    // 회색 '설정 필요' 배지 — 누르면 그 가전 설정(평가 5차 10/18: 테두리 버튼과 섞이지 않게).
+    // '설정하기 >' 글자 단추 — 누르면 그 가전 설정('지금 하기 >'와 같은 꼴, 평가 11차 10/18).
     expect(find.byKey(const Key('routine-setup-rt-1')), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const Key('routine-setup-rt-1')), matching: findPlainText('설정 필요')),
+    expect(find.descendant(of: find.byKey(const Key('routine-setup-rt-1')), matching: findPlainText('설정하기')),
         findsOneWidget);
-    // 이유 문장은 두지 않는다 — '설정 필요' 배지만, 무엇이 남았는지는 홈 확인 카드 한 곳(평가 3차 10/18).
+    // 이유 문장은 두지 않는다 — '설정하기' 단추만, 무엇이 남았는지는 홈 확인 카드 한 곳(평가 3차 10/18).
     expect(findPlainText('설정이 필요해요', contains: true), findsNothing);
     expect(menuButton('rt-1'), findsNothing);
   });

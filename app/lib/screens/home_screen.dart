@@ -150,7 +150,7 @@ class HomeScreen extends ConsumerWidget {
             ],
 
             // ── 지금 우리 집 ─────────────────────────────────────────────
-            _HomeNow(appliances: appliances, power: thinqPower),
+            const _HomeNow(),
 
             // ── ① 지금 할 일 ──────────────────────────────────────────────
             // 빈 제안 문장("지금 확인할 제안이 없어요")은 두지 않는다(2026-10-13).
@@ -306,17 +306,37 @@ class _SectionTitle extends StatelessWidget {
       );
 }
 
+/// 홈 '확인이 필요해요'의 안 본 알림 줄 — 무슨 알림인지 종류 말을 앞에(평가 11차 10/18: '읽지 않은 보호자 알림 4건'은
+/// 무엇인지 드러나지 않았다). 종류 말은 알림함 카드 이름표와 같은 갈래(위험 신호음·실행 실패·정지·안부 신호)를 쉬운 말로,
+/// 무거운 것부터 두 가지까지('등'). 모르는 종류뿐이면 그냥 '알림'.
+String careAttentionText(List<RpiCareEvent> unread) {
+  const order = [
+    ('danger_sound', '위험 소리'),
+    ('execution_failed', '못 한 일'),
+    ('emergency_stop', '정지'),
+    ('quiet_routine', '안부'),
+  ];
+  final kinds = {for (final e in unread) e.kind};
+  final words = [for (final (k, w) in order) if (kinds.contains(k)) w];
+  final head = words.isEmpty
+      ? ''
+      : words.length <= 2
+          ? '${words.join('·')} '
+          : '${words.take(2).join('·')} 등 ';
+  return '$head알림 ${unread.length}건, 아직 안 봤어요';
+}
+
 // ── 지금 우리 집 ─────────────────────────────────────────────────────────────
 
-/// 맨 위 요약 한 장 — 공기 · 켜진 가전 · 다음 예정(큰 시각과 자동 배지).
+/// 맨 위 요약 한 장 — 공기 · 다음 예정(큰 시각과 자동 배지).
 ///
-/// **아는 것만 말한다.** 공기 등급·전원은 본체가 최근에 읽은 값일 때만(모르면 그 칸을 비운다),
-/// 셋 다 모르면 카드 자체가 없다. 공기 '좋음'도 초록으로 칠하지 않는다(초록은 실제 확인 결과 전용).
+/// 가전 전원은 여기서 말하지 않는다 — 가전 타일 띠('켜져 있어요')가 말한다(평가 11차 10/18: '공기청정기 켜짐'과
+/// 타일 '켜져 있어요'가 겹치고 명사형·문장형이 섞였다).
+///
+/// **아는 것만 말한다.** 공기 등급은 본체가 최근에 읽은 값일 때만(모르면 그 칸을 비운다),
+/// 둘 다 모르면 카드 자체가 없다. 공기 '좋음'도 초록으로 칠하지 않는다(초록은 실제 확인 결과 전용).
 class _HomeNow extends ConsumerWidget {
-  const _HomeNow({required this.appliances, required this.power});
-
-  final List<ApplianceMap> appliances;
-  final Map<String, String> power;
+  const _HomeNow();
 
   static const _airWords = {
     'GOOD': '좋음',
@@ -329,10 +349,6 @@ class _HomeNow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final grade = ref.watch(thinqAirProvider).valueOrNull;
     final next = ref.watch(nextRoutineProvider).valueOrNull;
-    final onNames = [
-      for (final a in appliances)
-        if (a.isThinq && power[a.id] == 'on') a.displayName,
-    ];
     final air = grade == null ? null : _airWords[grade];
     final facts = <Widget>[
       if (air != null)
@@ -341,10 +357,6 @@ class _HomeNow extends ConsumerWidget {
           text: '공기 $air',
           color: grade == 'BAD' || grade == 'VERY_BAD' ? context.appWarning : null,
         ),
-      if (onNames.length == 1)
-        _Fact(icon: Icons.power_settings_new, text: '${onNames.single} 켜짐')
-      else if (onNames.length > 1)
-        _Fact(icon: Icons.power_settings_new, text: '켜진 가전 ${onNames.length}대'),
     ];
     if (facts.isEmpty && next == null) return const SizedBox.shrink();
 
@@ -510,7 +522,7 @@ class _Attention extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pending = pendingSetupAppliances(ref, setupCandidates);
     // 읽지 않은 보호자 알림 — 설정 안에만 묻히지 않게 홈에도 한 줄(평가 5차 10/18).
-    final unreadCare = ref.watch(careEventsProvider.select((s) => s.unreadCount));
+    final unreadCare = ref.watch(careEventsProvider.select((s) => s.unreadEvents));
     final result = switch (execution.phase) {
       ExecutionPhase.unconfirmed => (
           Icons.help_outline,
@@ -520,7 +532,7 @@ class _Attention extends ConsumerWidget {
       ExecutionPhase.failed => (Icons.cancel_outlined, '지난 일을 못 했어요', context.appDanger),
       _ => null,
     };
-    if (pending.isEmpty && result == null && unreadCare == 0) return const SizedBox.shrink();
+    if (pending.isEmpty && result == null && unreadCare.isEmpty) return const SizedBox.shrink();
     // 흰 카드가 아니라 옅은 주황 면 — 할 일이 있다는 것을 면 색으로도 가른다(평가 5차 10/18). 글·아이콘이 같이 말한다.
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpace.lg),
@@ -557,11 +569,11 @@ class _Attention extends ConsumerWidget {
                   color: color,
                   onTap: () => context.push('/status'),
                 ),
-              if (unreadCare > 0)
+              if (unreadCare.isNotEmpty)
                 _AttentionRow(
                   key: const Key('home-attention-care'),
                   icon: Icons.family_restroom,
-                  text: '읽지 않은 보호자 알림 $unreadCare건',
+                  text: careAttentionText(unreadCare),
                   color: context.appWarning,
                   onTap: () => context.push('/care'),
                 ),
@@ -792,7 +804,7 @@ class _ErrorLine extends StatelessWidget {
       );
 }
 
-/// 루틴 한 줄 — 아이콘 · 이름 · 무엇을 · 오른쪽 '지금 하기' 표시(설정이 필요하면 회색 '설정 필요').
+/// 루틴 한 줄 — 아이콘 · 이름 · 무엇을 · 오른쪽 '지금 하기 >' 표시(설정이 필요하면 같은 꼴의 '설정하기 >').
 ///
 /// 평가 5차(10/18): 가전 타일과 같은 흰 카드 2열이라 가전인지 루틴인지 모양으로 갈리지 않았다 — 루틴은 카드가 아닌
 /// 줄 목록으로 둔다. 누르면 승인 카드만 만든다(설정이 필요하면 그 가전으로). 가전은 승인 화면에서 허락해야 움직인다.
@@ -821,15 +833,14 @@ class _RoutineTile extends StatelessWidget {
     final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
     final Widget trailing = running
         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-        : needsSetup
-            // 설정이 남았다는 것은 회색 배지 하나 — 무엇이 남았는지는 '확인이 필요해요' 한 곳에서(평가 3차 10/18).
-            ? const StatusBadge(icon: Icons.tune_rounded, label: '설정 필요')
-            : Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(keepWordsTogether('지금 하기'),
-                    style: TextStyle(
-                        fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appInk)),
-                Icon(Icons.chevron_right, size: 20, color: context.appMuted),
-              ]);
+        // 설정이 남았으면 같은 꼴의 '설정하기 >' — 무엇이 남았는지는 '확인이 필요해요' 한 곳에서(평가 3차 10/18).
+        // 평가 11차(10/18): 글자 단추와 회색 '설정 필요' 칩이 섞여 있었다 — 루틴 탭 줄과 같은 글자 단추.
+        : Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(keepWordsTogether(needsSetup ? '설정하기' : '지금 하기'),
+                style: TextStyle(
+                    fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appInk)),
+            Icon(Icons.chevron_right, size: 20, color: context.appMuted),
+          ]);
     final info = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

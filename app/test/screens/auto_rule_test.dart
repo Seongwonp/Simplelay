@@ -411,7 +411,7 @@ void main() {
       expect(findPlainText('조용한 시간', contains: true), findsNothing);
     });
 
-    testWidgets('자동으로 해요 배지·한 문장(화살표 없음)·마지막 결과, 스위치로 끄면 지금은 안 해요', (tester) async {
+    testWidgets('켜짐은 스위치·한 문장(화살표 없음)·마지막 결과, 스위치로 끄면 지금은 안 해요', (tester) async {
       _tall(tester);
       final server = _Server();
       await tester.pumpWidget(_list(server));
@@ -425,7 +425,9 @@ void main() {
       expect(findPlainText('전자레인지가 멈추면 거실 공기청정기 풍량 강으로'), findsOneWidget);
       expect(findPlainText('전자레인지가 멈추면 → 거실 공기청정기 풍량 강으로'), findsNothing);
       expect(find.textContaining('조건:'), findsNothing);
-      expect(find.text('자동으로 해요'), findsOneWidget);
+      // 켜짐은 스위치가 말한다 — 같은 뜻의 '자동으로 해요' 칩은 없다(평가 11차 10/18).
+      expect(tester.widget<Switch>(_switch('ar-1')).value, isTrue);
+      expect(find.text('자동으로 해요'), findsNothing);
       expect(find.textContaining('상태 재조회로 확인'), findsOneWidget);
       expect(find.textContaining('깨끗'), findsNothing);
       // 값 바꾸기·지우기는 ⋮ 메뉴 안(2026-10-18 버튼 위계) — 카드에 버튼을 늘어놓지 않는다.
@@ -447,13 +449,15 @@ void main() {
     });
 
     // 2차 평가 10/18: 상태는 서버 문장(status_label) 비교가 아니라 enabled 값으로 정한다.
-    testWidgets('상태 배지는 enabled 값으로 — 서버 문장이 달라도 따라가지 않는다', (tester) async {
+    testWidgets('상태는 enabled 값으로 — 서버 문장이 달라도 따라가지 않는다', (tester) async {
       _tall(tester);
       final server = _Server()..rule = {..._rule(), 'status_label': '자동 실행 꺼짐'};
       await tester.pumpWidget(_list(server));
       await _settle(tester);
       await _openRules(tester);
-      expect(find.text('자동으로 해요'), findsOneWidget);
+      // 켜짐은 스위치가 말한다 — 같은 뜻의 '자동으로 해요' 칩은 없다(평가 11차 10/18).
+      expect(tester.widget<Switch>(_switch('ar-1')).value, isTrue);
+      expect(find.text('자동으로 해요'), findsNothing);
       expect(find.text('자동 실행 꺼짐'), findsNothing);
     });
 
@@ -490,7 +494,9 @@ void main() {
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'],
           {'enabled': true, 'fingerprint': 'fp-rule-high'});
-      expect(find.text('자동으로 해요'), findsOneWidget);
+      // 켜짐은 스위치가 말한다 — 같은 뜻의 '자동으로 해요' 칩은 없다(평가 11차 10/18).
+      expect(tester.widget<Switch>(_switch('ar-1')).value, isTrue);
+      expect(find.text('자동으로 해요'), findsNothing);
     });
 
     testWidgets('설정값을 바꾸면 바뀐 내용으로 다시 허용을 묻는다', (tester) async {
@@ -512,7 +518,9 @@ void main() {
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'],
           {'enabled': true, 'fingerprint': 'fp-rule-MID'});
-      expect(find.text('자동으로 해요'), findsOneWidget);
+      // 켜짐은 스위치가 말한다 — 같은 뜻의 '자동으로 해요' 칩은 없다(평가 11차 10/18).
+      expect(tester.widget<Switch>(_switch('ar-1')).value, isTrue);
+      expect(find.text('자동으로 해요'), findsNothing);
     });
   });
 }

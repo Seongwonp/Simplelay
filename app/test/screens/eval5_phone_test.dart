@@ -291,13 +291,14 @@ void main() {
           findsWidgets);
     });
 
-    testWidgets("행 버튼은 '지금 하기' 하나, 설정이 남았으면 회색 '설정 필요' 배지(테두리 버튼 아님)", (tester) async {
+    // 평가 11차(10/18): 회색 '설정 필요' 칩 → 같은 꼴의 글자 단추 '설정하기 >'(eval11_phone_test 1).
+    testWidgets("행 버튼은 '지금 하기' 하나, 설정이 남았으면 '설정하기'(테두리 버튼 아님)", (tester) async {
       await _pump(tester, const RoutinesScreen());
       expect(find.text('실행'), findsNothing);
       expect(find.descendant(of: find.byKey(const Key('routine-run-r-heat')), matching: findPlainText('지금 하기')),
           findsOneWidget);
       final setup = find.byKey(const Key('routine-setup-r-wash'));
-      expect(find.descendant(of: setup, matching: findPlainText('설정 필요')), findsOneWidget);
+      expect(find.descendant(of: setup, matching: findPlainText('설정하기')), findsOneWidget);
       expect(find.descendant(of: setup, matching: find.byType(OutlinedButton)), findsNothing);
       await tester.tap(setup);
       await tester.pumpAndSettle();
@@ -377,7 +378,8 @@ void main() {
       await _pump(tester, const HomeScreen(), unread: 4);
       final row = find.byKey(const Key('home-attention-care'));
       expect(find.descendant(of: find.byKey(const Key('home-attention')), matching: row), findsOneWidget);
-      expect(find.descendant(of: row, matching: findPlainText('읽지 않은 보호자 알림 4건')), findsOneWidget);
+      // 평가 11차(10/18): 무슨 알림인지 앞에 — 이 시험의 알림은 모두 실행 실패.
+      expect(find.descendant(of: row, matching: findPlainText('못 한 일 알림 4건, 아직 안 봤어요')), findsOneWidget);
       await tester.tap(row);
       await tester.pumpAndSettle();
       expect(_visited, ['/care']);

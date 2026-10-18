@@ -51,6 +51,10 @@ class CareEventsState {
   int get unreadCount =>
       events.where((e) => e.id > lastSeenId).length;
 
+  /// 아직 안 본 알림(알림함을 연 뒤 새로 온 것).
+  List<RpiCareEvent> get unreadEvents =>
+      [for (final e in events) if (e.id > lastSeenId) e];
+
   CareEventsState copyWith({
     List<RpiCareEvent>? events,
     int? lastSeenId,

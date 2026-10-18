@@ -251,10 +251,10 @@ void main() {
       await _pump(tester, const SettingsScreen(), width: 400, scale: 1.0, hub: false);
       expect(findPlainText('처음부터 들어 있는', contains: true), findsNothing);
       expect(findPlainText('빼기는', contains: true), findsNothing);
-      expect(findPlainText('LG 앱에서 관리해요'), findsOneWidget);
+      expect(findPlainText('켜기·끄기는 여기서, 등록은 LG 앱에서'), findsOneWidget); // 평가 11차
     });
 
-    test('다시 맞추기 → 가전 다시 불러오기(평가 6차)', () => expect(kResyncLabel, '가전 다시 불러오기'));
+    test('다시 맞추기 → 가전 다시 불러오기(평가 6차) → 하는 일 그대로(평가 11차)', () => expect(kResyncLabel, '바꾼 가전 본체로 다시 보내기'));
 
     test('콘센트 → 전기 플러그', () {
       const r = EstopAckResult(EstopAckOutcome.outletUnreachable);

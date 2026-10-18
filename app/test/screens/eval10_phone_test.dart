@@ -320,13 +320,15 @@ void main() {
       expect(b.left, greaterThan(r.left + 40), reason: '줄 머리가 아니라 글 뒤 $b $r');
     });
 
-    testWidgets("홈에서 '자동으로 해요'인 루틴은 목록에도 '자동으로 해요'", (tester) async {
+    // 평가 11차(10/18): 목록에서는 설명 줄 끝 짧은 '자동'(칩 아님, eval11_phone_test 1). 낭독은 '자동으로 해요'.
+    testWidgets("홈에서 '자동으로 해요'인 루틴은 목록에도 '자동' 표시", (tester) async {
       await _pump(tester, const RoutinesScreen());
       for (final id in ['r-eve', 'r-morn']) {
-        expect(_in(find.byKey(Key('routine-row-$id')), findPlainText('자동으로 해요')), findsOneWidget, reason: id);
+        expect(_in(find.byKey(Key('routine-row-$id')), find.byKey(Key('routine-auto-badge-$id'))), findsOneWidget,
+            reason: id);
       }
       for (final id in ['r-noon', 'r-heat']) {
-        expect(_in(find.byKey(Key('routine-row-$id')), findPlainText('자동으로 해요')), findsNothing, reason: id);
+        expect(find.byKey(Key('routine-auto-badge-$id')), findsNothing, reason: id);
       }
     });
   });
@@ -340,13 +342,13 @@ void main() {
       expect(intro.data, contains('자$kWordJoiner동'));
     });
 
-    testWidgets("사용자가 끈 규칙은 짧은 '꺼 둠' — 긴 문장 배지는 없다", (tester) async {
+    // 평가 11차(10/18): '꺼 둠'도 스위치와 같은 뜻이라 두지 않는다(eval11_phone_test 2).
+    testWidgets("사용자가 끈 규칙은 스위치만 — 긴 문장 배지·'꺼 둠' 없음", (tester) async {
       await _pump(tester, const RoutinesScreen());
       await tester.tap(findPlainText('자동으로 하기'));
       await tester.pumpAndSettle();
-      final off = find.byKey(const Key('auto-rule-paused-ar-heat'));
-      expect(off, findsOneWidget);
-      expect(_in(off, findPlainText('꺼 둠')), findsOneWidget);
+      expect(find.byKey(const Key('auto-rule-paused-ar-heat')), findsNothing);
+      expect(findPlainText('꺼 둠'), findsNothing);
       expect(findPlainText('자동으로 하기를 꺼 두셨어요', contains: true), findsNothing);
       // 다른 까닭으로 꺼진 규칙은 그 까닭 배지 그대로.
       expect(findPlainText('비상 정지로 꺼졌어요', contains: true), findsOneWidget);
