@@ -6,6 +6,7 @@ import '../providers/care_events_provider.dart';
 import '../providers/wellness_pause_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
 import '../theme/app_text.dart';
 import '../theme/app_tokens.dart';
 
@@ -243,6 +244,23 @@ class _CareEventCard extends StatelessWidget {
             Icons.favorite_outline,
             context.appInk,
             '안부 신호'
+          ),
+        // 본체가 실제로 보내는 그 밖의 종류(평가 12차 10/18 — 홈 알림 줄과 같은 갈래).
+        'appliance_done_undelivered' => (
+            Icons.error_outline,
+            context.appWarning,
+            '실행 실패'
+          ),
+        'routine_stopped' => (
+            Icons.front_hand_outlined,
+            context.appWarning,
+            '루틴 멈춤'
+          ),
+        'auto_rule' => (AppIcons.auto, context.appInk, '자동으로 하기'),
+        'routine_notice' || 'routine_announce' => (
+            AppIcons.notify,
+            context.appInk,
+            '루틴 안내'
           ),
         _ => (Icons.info_outline, context.appMuted, '알림'),
       };

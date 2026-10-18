@@ -352,10 +352,10 @@ void main() {
         verifyPassLookupNote(const VerifyPassLookup.noRecord()),
         verifyPassLookupNote(const VerifyPassLookup.unknown()),
       ];
-      expect(notes, ['아직 자리 확인을 안 했어요', '자리 확인을 했는지 몰라요']);
+      expect(notes, ['아직 자리 확인을 안 했어요', '버튼 자리를 다시 맞춰 주세요']);
     });
 
-    test("다시 보내기 단추 이름(평가 11차에 다시 바꿈)", () => expect(kResyncLabel, '바꾼 가전 본체로 다시 보내기'));
+    test("다시 보내기 단추 이름(평가 11차에 다시 바꿈)", () => expect(kResyncLabel, '본체 화면에 반영하기'));
   });
 
   group('F. 대비·높이', () {

@@ -337,7 +337,7 @@ void main() {
   });
 
   group('설정 문장', () {
-    test('다시 보내기 단추 이름(평가 4차·6차·11차 10/18에 바꿈)', () => expect(kResyncLabel, '바꾼 가전 본체로 다시 보내기'));
+    test('다시 보내기 단추 이름(평가 4차·6차·11차 10/18에 바꿈)', () => expect(kResyncLabel, '본체 화면에 반영하기'));
     // 평가 10차(10/18): 까닭은 알 때만 앞에, '새로 보기'는 값이 아니라 따로 단추(eval10_phone_test 5).
     test('조용한 시간을 못 읽으면 "못 불러왔어요"', () {
       expect(quietRowValue(null, hasApi: true), '못 불러왔어요');

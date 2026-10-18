@@ -309,15 +309,27 @@ class _SectionTitle extends StatelessWidget {
 /// 홈 '확인이 필요해요'의 안 본 알림 줄 — 무슨 알림인지 종류 말을 앞에(평가 11차 10/18: '읽지 않은 보호자 알림 4건'은
 /// 무엇인지 드러나지 않았다). 종류 말은 알림함 카드 이름표와 같은 갈래(위험 신호음·실행 실패·정지·안부 신호)를 쉬운 말로,
 /// 무거운 것부터 두 가지까지('등'). 모르는 종류뿐이면 그냥 '알림'.
+///
+/// 평가 12차(10/18): 실기기에는 '알림 4건'만 보였다 — 본체가 실제로 보내는 종류가 네 가지보다 많았다(자동 실행 결과
+/// `auto_rule`, 루틴 알림 `routine_notice`·`routine_announce`, 루틴 멈춤 `routine_stopped`, 가전 끝 처리 실패
+/// `appliance_done_undelivered` — 서버 rpi/routines·rpi/api/deps.py). 같은 말은 한 번만.
 String careAttentionText(List<RpiCareEvent> unread) {
   const order = [
     ('danger_sound', '위험 소리'),
     ('execution_failed', '못 한 일'),
+    ('appliance_done_undelivered', '못 한 일'),
     ('emergency_stop', '정지'),
+    ('routine_stopped', '루틴 멈춤'),
+    ('auto_rule', '자동으로 한 일'),
+    ('routine_notice', '루틴 안내'),
+    ('routine_announce', '루틴 안내'),
     ('quiet_routine', '안부'),
   ];
   final kinds = {for (final e in unread) e.kind};
-  final words = [for (final (k, w) in order) if (kinds.contains(k)) w];
+  final words = <String>{
+    for (final (k, w) in order)
+      if (kinds.contains(k)) w,
+  }.toList();
   final head = words.isEmpty
       ? ''
       : words.length <= 2

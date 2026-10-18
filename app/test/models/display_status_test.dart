@@ -353,15 +353,18 @@ void main() {
       expect(r.next, '세탁기 동작을 봐 주세요');
     });
 
-    test('응답만 받은 성공은 대상을 직접 확인하라고 한다(받침 따라 을/를)', () {
+    // 평가 12차(10/18): 볼 것은 결과 한 줄이 함께 말한다('버튼은 다 눌렀어요, 움직이는지 봐 주세요') — 가전 이름은 시각 줄에.
+    test('응답만 받은 성공은 가전을 직접 보라고 한 줄로 말한다', () {
       final e = _entry(const {
         'outcome': 'success',
         'execution_mode': 'real',
         'confirmation': 'reported',
       });
-      expect(historyResult(e, applianceName: '인터폰').next, '인터폰을 봐 주세요');
-      expect(historyResult(e, applianceName: '세탁기').next, '세탁기를 봐 주세요');
-      expect(historyResult(e).next, '가전을 봐 주세요');
+      for (final name in ['인터폰', '세탁기', null]) {
+        final r = historyResult(e, applianceName: name);
+        expect(r.sentence, '버튼은 다 눌렀어요, 움직이는지 봐 주세요');
+        expect(r.next, isNull);
+      }
     });
 
     test('재시도 소진은 눌렸는지 확인 못 함', () {

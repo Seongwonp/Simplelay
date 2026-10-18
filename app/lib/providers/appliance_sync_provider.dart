@@ -490,7 +490,20 @@ final applianceSyncProvider =
 ///
 /// 커스텀 가전 존재만으로 판단하면, **마지막 가전을 지우다 실패했을 때**
 /// 버튼이 함께 사라져 복구할 길이 없어진다.
+///
+/// 평가 12차(10/18): 예전에는 사용자 가전이 하나라도 있으면 늘 떠 있어, 바꾼 것이 없는데도 '다시 보내라'는 단추가
+/// 보였다. 이제는 **보낼 것이 있을 때만** — 대기열에 남은 변경(지우다 실패한 것 포함)이 있거나, 본체 목록을 받아
+/// 보니 이 폰의 사용자 가전이 본체에 없을 때(본체가 꺼져 있던 때 등록해 대기열에 없던 것 — 이 단추가 복구 수단).
+/// 본체 목록을 아직 못 받았으면(조회 중·실패) 없다고 단정하지 않는다 — 대기열만 본다.
 final hasPendingSyncProvider = Provider<bool>((ref) {
-  final hasCustom = ref.watch(customAppliancesProvider).isNotEmpty;
-  return hasCustom || ref.watch(applianceSyncProvider).hasPending;
+  if (ref.watch(applianceSyncProvider).hasPending) return true;
+  final catalog = ref.watch(serverApplianceCatalogProvider);
+  if (!catalog.isLoaded) return false;
+  final onHub = {
+    for (final a in catalog.customAppliances) a.id,
+    for (final a in catalog.appliances) a.id,
+  };
+  return ref
+      .watch(customAppliancesProvider)
+      .any((a) => a.isCustom && !a.isDemo && !onHub.contains(a.id));
 });

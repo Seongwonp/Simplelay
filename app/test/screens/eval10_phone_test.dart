@@ -365,7 +365,8 @@ void main() {
           findsOneWidget);
       expect(_in(find.byKey(const ValueKey('history-j-auto')), findPlainText('루틴 · 자동으로', contains: true)),
           findsOneWidget);
-      expect(_in(find.byKey(const ValueKey('history-j-me')), findPlainText('사람이 직접', contains: true)),
+      // 평가 12차(10/18): 사람이 시작한 LG 가전 기록의 출처는 'LG 가전'(eval12_phone_test 2).
+      expect(_in(find.byKey(const ValueKey('history-j-me')), findPlainText('LG 가전', contains: true)),
           findsOneWidget);
       final unk = find.byKey(const ValueKey('history-j-unk'));
       expect(_in(unk, findPlainText('봐 주세요')), findsOneWidget);
@@ -383,9 +384,9 @@ void main() {
       final card = find.byKey(const Key('appliance-card-mw'));
       expect(card, findsOneWidget);
       final band = find.byKey(const Key('appliance-band-mw'));
-      expect(_in(band, findPlainText('자리 확인을 했는지 몰라요')), findsOneWidget);
+      expect(_in(band, findPlainText('버튼 자리를 다시 맞춰 주세요')), findsOneWidget);
       expect(_in(card, findPlainText('준비됐어요')), findsNothing);
-      expect(_in(card, findPlainText('자리 확인', contains: true)), findsOneWidget);
+      expect(_in(card, findPlainText('버튼 자리', contains: true)), findsOneWidget);
     });
   });
 

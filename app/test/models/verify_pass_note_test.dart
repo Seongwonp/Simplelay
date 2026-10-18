@@ -68,7 +68,7 @@ String? _note(
       lookup: lookup,
     );
 
-const _unknownText = '자리 확인을 했는지 몰라요';
+const _unknownText = '버튼 자리를 다시 맞춰 주세요';
 
 RpiApiService _api(Future<http.Response> Function(http.Request) handler) =>
     RpiApiService('http://rpi5.local:8000', client: MockClient(handler));

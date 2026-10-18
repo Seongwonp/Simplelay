@@ -212,10 +212,15 @@ String? verifyPassTileNote({
   return verifyPassLookupNote(lookup);
 }
 
+/// 확인 주행 여부를 모를 때의 말(평가 12차 10/18).
+const kVerifyUnknownNote = '버튼 자리를 다시 맞춰 주세요';
+
 /// 확인 주행 조회 결과 하나를 말로 — 타일 보조 줄과 설정 카드가 **같은 근거 수준**으로
 /// 쓴다(검토 M4, 2026-10-13). 실제 완료면 null. 진행 중·모의 실패·모드 모름은 모름.
 String? verifyPassLookupNote(VerifyPassLookup lookup) {
-  const unknown = '자리 확인을 했는지 몰라요';
+  // 평가 12차(10/18): '자리 확인을 했는지 몰라요'는 무엇을 하라는 말인지 없었다 → 할 일로. 설정 화면의 '버튼 자리를
+  // 맞춰 주세요'와 같은 말 계열. 언제 이 말을 쓰는지(판정)는 그대로다 — 실제 확인 주행 완료를 확인하지 못한 경우.
+  const unknown = kVerifyUnknownNote;
   switch (lookup.kind) {
     case VerifyPassLookupKind.noRecord:
       return '아직 자리 확인을 안 했어요';
@@ -285,8 +290,19 @@ String historySourceLabel(RpiHistoryEntry e) {
   // '못 했어요'·'봐 주세요'일 때 엇갈린다(결과는 배지 하나가 말한다).
   // '직접'은 누가 직접인지 몰랐다 → '사람이 직접'. 폰·본체 화면·말 가운데 어디서 했는지는 기록에 가를 자료가 없어
   // 지어내지 않는다(사람이 시작했다는 것까지만).
+  // 평가 12차(10/18): LG 가전(클라우드) 기록에 '사람이 직접'과 손 아이콘이 붙어 작은 팔·손 누름과 헷갈렸다 →
+  // 출처는 'LG 가전'. 폰·본체 화면 가운데 어디서 보냈는지는 기록(/history)에 가를 필드가 없어 거기까지만 말한다.
+  if (historyIsLgDirect(e)) return 'LG 가전';
   if (routine == null) return source == '직접' ? '사람이 직접' : source;
   return source == '자동' ? '루틴 · 자동으로' : '루틴 · 물어보고';
+}
+
+/// 사람이 시작한 LG 가전(클라우드) 기록인가 — 루틴·자동 실행이 아닌 ThinQ 경로. 기록 줄은 손 아이콘 대신 가전
+/// 아이콘, 출처는 'LG 가전'(평가 12차 10/18).
+bool historyIsLgDirect(RpiHistoryEntry e) {
+  if (e.route != 'thinq' || historySource(e) != '직접') return false;
+  final purpose = e.purpose?.trim() ?? '';
+  return purpose.isEmpty || _purposeParts(purpose).routine == null;
 }
 
 /// 목적 문장에서 출처 머리('자동 실행 · ')를 떼고, 루틴이면 그 이름을 돌려준다.
@@ -447,6 +463,9 @@ class HistoryResult {
   final String? mockNote;
 }
 
+/// 작은 팔이 버튼을 다 눌렀지만 가전 동작은 확인하지 못한 기록의 한 줄(평가 12차 10/18).
+const kPressedAllSentence = '버튼은 다 눌렀어요, 움직이는지 봐 주세요';
+
 /// 결과 문장(검토 §5 표). 선택 순서: executionMode → resultKind(outcome 우선) →
 /// route·receipt·termination·confirmation. 정지·안전 정지는 기존 문장을 그대로 쓴다.
 HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
@@ -586,8 +605,9 @@ HistoryResult _liveResult(
             sentence: '버튼을 눌렀어요',
             next: '$target 동작을 봐 주세요');
       }
-      return HistoryResult(
-          kind: kind, sentence: '다 눌렀다고 알려 왔어요', next: checkTarget);
+      // 평가 12차(10/18): '다 눌렀다고 알려 왔어요'는 기계 보고 말투였다 → 사람 말. 뜻은 그대로 — 작은 팔은 다
+      // 눌렀지만 가전이 움직였는지는 확인하지 못했다(배지 '봐 주세요'·초록 아님). 볼 것은 이 한 줄이 함께 말한다.
+      return HistoryResult(kind: kind, sentence: kPressedAllSentence);
     case ResultKind.unconfirmed:
       return HistoryResult(
           kind: kind, sentence: '눌렸는지 몰라요', next: checkTarget);

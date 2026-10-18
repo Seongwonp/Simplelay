@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/appliance.dart';
 import '../models/command_result.dart';
 import '../models/display_status.dart';
 import '../models/line_break.dart';
@@ -91,6 +92,8 @@ class HistoryScreen extends ConsumerWidget {
                           applianceName: section.entries[i].applianceName ??
                               _applianceName(
                                   installed, section.entries[i].applianceId),
+                          applianceIcon: _applianceIcon(
+                              installed, section.entries[i].applianceId),
                         ),
                         if (i < section.entries.length - 1)
                           Divider(height: 1, color: context.appBorderFaint),
@@ -109,6 +112,15 @@ class HistoryScreen extends ConsumerWidget {
     if (id == null) return null;
     for (final a in installed) {
       if (a.id == id) return a.displayName as String;
+    }
+    return null;
+  }
+
+  /// 기록이 가리키는 가전의 아이콘(종류에서). 모르면 null.
+  static IconData? _applianceIcon(List installed, String? id) {
+    if (id == null) return null;
+    for (final a in installed) {
+      if (a.id == id) return a.icon as IconData;
     }
     return null;
   }
@@ -312,9 +324,13 @@ class _HistoryRow extends StatefulWidget {
     super.key,
     required this.entry,
     required this.applianceName,
+    this.applianceIcon,
   });
 
   final RpiHistoryEntry entry;
+
+  /// 가전 종류 아이콘. LG 가전 기록의 왼쪽 아이콘에 쓴다. 모르면 null.
+  final IconData? applianceIcon;
 
   /// 어느 가전이었는지. 모르면 null이고 말하지 않는다.
   final String? applianceName;
@@ -361,7 +377,8 @@ class _HistoryRowState extends State<_HistoryRow> {
     final receipt = _thinqReceiptLine(entry, kind);
     final muted = context.appCaption;
     // '봐 주세요' 배지에는 까닭 한 줄(평가 10차 10/18: 왜 보라는지 펼쳐야만 알았다). 결과 문장 그대로 — 데이터가 아는
-    // 만큼만('눌렸는지 몰라요'·'보냈지만 설정이 바뀌었는지 몰라요'·'다 눌렀다고 알려 왔어요'). 펼친 칸에서는 되풀이하지 않는다.
+    // 만큼만('눌렸는지 몰라요'·'보냈지만 설정이 바뀌었는지 몰라요'·'버튼은 다 눌렀어요, 움직이는지 봐 주세요'). 펼친 칸에서는
+    // 되풀이하지 않는다.
     final reason = badge.label == '봐 주세요' ? result.sentence : null;
 
     // 큰 글씨에서는 배지를 제목 아래로 — 오른쪽에 두면 제목이 한 글자씩 꺾인다.
@@ -378,7 +395,15 @@ class _HistoryRowState extends State<_HistoryRow> {
             color: Theme.of(context).colorScheme.surfaceContainerHigh,
             shape: BoxShape.circle,
           ),
-          child: Icon(AppIcons.source(source), size: 20, color: context.appMuted),
+          // 사람이 시작한 LG 가전 기록은 손 대신 가전 아이콘(평가 12차 10/18: 클라우드로 켠 기록에 손이 붙어 작은 팔·손
+          // 누름과 헷갈렸다). 루틴·자동은 그대로 출처 아이콘.
+          child: Icon(
+              historyIsLgDirect(entry)
+                  ? (widget.applianceIcon ?? ApplianceCategory.other.icon)
+                  : AppIcons.source(source),
+              key: Key('history-icon-${entry.jobId}'),
+              size: 20,
+              color: context.appMuted),
         ),
         const SizedBox(width: AppSpace.md),
         Expanded(
@@ -390,7 +415,7 @@ class _HistoryRowState extends State<_HistoryRow> {
               // 낱말 중간에서 꺾이지 않게('전자레인/지' 방지). 낭독은 원문.
               Text(keepWordsTogether(timeLine), semanticsLabel: timeLine, style: muted),
               if (reason != null)
-                Text(keepWordsTogether(reason),
+                Text(keepPhrasesTogether(reason),
                     key: Key('history-reason-${entry.jobId}'),
                     semanticsLabel: reason,
                     style: muted.copyWith(fontWeight: FontWeight.w600, color: context.appWarning)),

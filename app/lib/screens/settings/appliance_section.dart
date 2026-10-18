@@ -4,7 +4,12 @@ part of '../settings_screen.dart';
 /// 사용자가 얻는 것으로 이름 짓는다(평가 4차 10/18: '본체와 다시 맞추기'는 기계가 하는 일을 말했다).
 /// 평가 11차(10/18): '가전 다시 불러오기'는 무엇이 일어나는지 모호했다 — 이 단추는 본체에 못 보낸 변경이 있을 때만 뜨고,
 /// 이 폰에서 바꾼 가전을 본체로 다시 보낸다(본체에만 있는 가전은 받아 오되 지우지 않는다). 하는 일 그대로.
-const kResyncLabel = '바꾼 가전 본체로 다시 보내기';
+/// 평가 12차(10/18): '다시 보내기'는 여전히 동기화(기계가 하는 일)였다 → 사용자가 얻는 결과로. 단추는 이 폰에서 바꾼
+/// 가전이 본체에 아직 없을 때만 뜬다([hasPendingSyncProvider]).
+const kResyncLabel = '본체 화면에 반영하기';
+
+/// LG 가전 줄 부제 두 줄(평가 12차 10/18).
+const kThinqSubtitleLines = ['켜기·끄기는 여기서 해요', '등록은 LG 앱에서 해요'];
 
 /// 안부 알림을 며칠 쉬는 설정의 이름 — 하는 일 그대로(평가 3차 10/18, 예전 '안부 확인 쉬기').
 const kAwayTitle = '집 비우는 날';
@@ -38,7 +43,12 @@ class _ApplianceSection extends ConsumerWidget {
                 // 말했다. 사용자가 할 일이 있을 때만 적는다 — LG 가전은 어디서 무엇을 하는지, 그 밖은 비운다.
                 // 평가 11차(10/18): 'LG 앱에서 관리해요'는 여기서 못 다룬다는 오해 — 켜기·끄기는 줄을 눌러 들어간 상태 카드에서 한다.
                 : appliance.isThinq
-                    ? _WordsText('켜기·끄기는 여기서, 등록은 LG 앱에서',
+                    // 평가 12차(10/18): 한 줄로 이어 쓰니 'LG / 앱에서'로 끊겼다 → 두 문장을 두 줄로, 'LG 앱에서'는
+                    // 붙여 둔다(줄바꿈 없는 빈칸). 낭독은 원문.
+                    ? Text(
+                        kThinqSubtitleLines.map(keepPhrasesTogether).join('\n'),
+                        key: const Key('settings-thinq-subtitle'),
+                        semanticsLabel: kThinqSubtitleLines.join(' '),
                         style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
                     : null,
             onTap: () => context.push('/appliance/detail/${appliance.id}'),

@@ -360,12 +360,12 @@ void main() {
   group('4. 설정', () {
     testWidgets("LG 가전 부제는 '켜기·끄기는 여기서, 등록은 LG 앱에서'", (tester) async {
       await _pump(tester, const SettingsScreen());
-      expect(findPlainText('켜기·끄기는 여기서, 등록은 LG 앱에서'), findsOneWidget);
+      expect(findPlainText('등록은 LG 앱에서 해요', contains: true), findsOneWidget);
       expect(findPlainText('LG 앱에서 관리해요'), findsNothing);
     });
 
     test('못 보낸 변경을 다시 보내는 단추는 하는 일 그대로', () {
-      expect(kResyncLabel, '바꾼 가전 본체로 다시 보내기');
+      expect(kResyncLabel, '본체 화면에 반영하기');
       expect(kResyncLabel, isNot(contains('불러오기')));
     });
   });

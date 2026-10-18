@@ -154,7 +154,7 @@ void main() {
       '연습으로만 자리 확인했어요',
       '자리 확인을 마치지 못했어요',
       '아직 자리 확인을 안 했어요',
-      '자리 확인을 했는지 몰라요',
+      '버튼 자리를 다시 맞춰 주세요',
     ]) {
       expect(_inTile('d', t), findsNothing, reason: '실제 완료는 보조 줄 없음: $t');
     }
@@ -181,8 +181,8 @@ void main() {
     });
     await tester.pumpWidget(_home(api));
     await _settle(tester);
-    expect(_inTile('a', '자리 확인을 했는지 몰라요'), findsOneWidget);
-    expect(_inTile('b', '자리 확인을 했는지 몰라요'), findsOneWidget);
+    expect(_inTile('a', '버튼 자리를 다시 맞춰 주세요'), findsOneWidget);
+    expect(_inTile('b', '버튼 자리를 다시 맞춰 주세요'), findsOneWidget);
     expect(find.text('아직 자리 확인을 안 했어요'), findsNothing);
   });
 
@@ -197,7 +197,7 @@ void main() {
     expect(find.byKey(const Key('appliance-setup-dot-w')), findsOneWidget);
     expect(_inTile('w', '설정이 필요해요'), findsOneWidget);
     expect(_inTile('w', '연습으로만 자리 확인했어요'), findsNothing);
-    expect(_inTile('w', '자리 확인을 했는지 몰라요'), findsNothing);
+    expect(_inTile('w', '버튼 자리를 다시 맞춰 주세요'), findsNothing);
   });
 
   testWidgets('허브에 닿지 않으면 연결 문구만 — 보조 줄 없음', (tester) async {
@@ -219,7 +219,7 @@ void main() {
     ));
     await _settle(tester);
     expect(_inTile('a', '본체 연결을 봐 주세요'), findsOneWidget);
-    expect(_inTile('a', '자리 확인을 했는지 몰라요'), findsNothing);
+    expect(_inTile('a', '버튼 자리를 다시 맞춰 주세요'), findsNothing);
   });
 
   testWidgets('타일 접근성 이름에 보조 줄이 들어간다', (tester) async {
@@ -242,7 +242,7 @@ void main() {
         findsOneWidget);
     expect(
         find.bySemanticsLabel(
-            '세탁기, 자리 확인을 했는지 몰라요'),
+            '세탁기, 버튼 자리를 다시 맞춰 주세요'),
         findsOneWidget);
     expect(find.bySemanticsLabel('밥솥, 준비됐어요'), findsOneWidget);
     handle.dispose();
@@ -264,12 +264,12 @@ void main() {
       await _settle(tester);
       final card = find.byType(ApplianceSetupCard);
       expect(card, findsOneWidget);
-      expect(_inTile('a', '자리 확인을 했는지 몰라요'), findsOneWidget);
+      expect(_inTile('a', '버튼 자리를 다시 맞춰 주세요'), findsOneWidget);
       expect(find.textContaining('주행을 확인했어요'), findsNothing,
           reason: '마치지 않은 모의 주행을 확인했다고 하지 않는다');
       expect(
           find.descendant(
-              of: card, matching: findPlainText('자리 확인을 했는지 몰라요')),
+              of: card, matching: findPlainText('버튼 자리를 다시 맞춰 주세요')),
           findsOneWidget);
     });
   }
