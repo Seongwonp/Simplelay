@@ -3,7 +3,7 @@
 두 응답이 따로 계산하면 같은 대상이 한쪽에서는 '실행 가능', 다른 쪽에서는 '연결 안 됨'으로 나온다
 (2026-10-13: 노드가 끊긴 내장 가전이 ``/readiness``에서 can_execute=true·빈 사유, 비상정지 걸림 사유 누락).
 판정 순서는 실행 경로(``SimpleLayService._route_to``·``_require_ready``)와 같다:
-ThinQ → 서버 구성 실행기 → 노드 → 로컬 갠트리(걸림 확인) → 작은 팔이 없는 기본 가전 → 누를 장치 없음.
+ThinQ → 서버 구성 실행기 → 노드 → 로컬 갠트리(걸림 확인) → 누름 장치가 없는 기본 가전 → 누를 장치 없음.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def readiness_view(a, service, nodes) -> tuple[str, list[str], bool]:
             return "needs_setup", [blocked], False
         return "operable", [], True
     if service.gantry_absent(a.appliance_id):
-        # 기본 가전인데 작은 팔이 그 위에 없다(갠트리 1대, SIMPLELAY_GANTRY_APPLIANCES — 2026-10-18).
+        # 기본 가전인데 누름 장치가 그 위에 없다(갠트리 1대, SIMPLELAY_GANTRY_APPLIANCES — 2026-10-18).
         from rpi.api.service import GANTRY_ABSENT_REASON  # noqa: PLC0415
 
         return "needs_setup", [GANTRY_ABSENT_REASON], False

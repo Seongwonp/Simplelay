@@ -1,6 +1,6 @@
 """쉬운 말 회귀 시험(2026-10-17, docs/UI-개편안-2026-10-17.md §2·§3).
 
-폰·키오스크에 그대로 나가는 서버 문장에 내부 이름('허브'·'모의'·'시연'·'ThinQ'·'CT'·'L3'·'작은 팔 장치')과
+폰·키오스크에 그대로 나가는 서버 문장에 내부 이름('허브'·'모의'·'시연'·'ThinQ'·'CT'·'L3'·'누름 장치')과
 문장 잇기 기호('—'·'·'·괄호)가 다시 들어오지 않게 지킨다. 클라이언트가 글자 일치로 쓰는 낱말
 ('조리 완료가 아닐 수 있어요'·'다시 켜져'·'이미'+'보내지 않았어요')은 남아 있는지도 본다.
 """
@@ -20,9 +20,9 @@ from rpi.services.thinq import wording
 from rpi.verifier.outlet import POWER_LOST_DETAIL
 from rpi4.services import act_executor
 
-#: 사용자 문장에 나오면 안 되는 말(쉬운 말 사전 §3). '본체'·'작은 팔'·'전기 플러그'·'LG 가전'·'연습'으로 바꾼다.
+#: 사용자 문장에 나오면 안 되는 말(쉬운 말 사전 §3). '본체'·'누름 장치'(10/18 '작은 팔'에서 바꿈)·'전기 플러그'·'LG 가전'·'연습'으로 바꾼다.
 #: 10/18 4차: '콘센트'(가족은 벽 콘센트로 읽음 → '전기 플러그')·'보냈어요'(기계 말 → '가전에 전했어요'·'멈추는 중이에요').
-BANNED_WORDS = ("허브", "모의", "시연", "ThinQ", "CT", "L3", "작은 팔 장치", "가전 콘센트 장치", "SimpleLay 본체",
+BANNED_WORDS = ("허브", "모의", "시연", "ThinQ", "CT", "L3", "작은 팔", "가전 콘센트 장치", "SimpleLay 본체",
                 "상태 재조회", "변경 명령", "콘센트 전력", "콘센트", "보냈어요")
 #: 문장을 잇는 기호(말투 규칙 4).
 BANNED_JOINERS = ("—", "--", " · ", "(", ")")
@@ -90,7 +90,7 @@ def test_client_matched_words_stay():
 
 #: 2차에서 더 막는 말 — 설정표 말('풍량'), 화살표, 내부 이름·검증 층·재시도 횟수, '단계'(→ '할 일').
 BANNED_WORDS_2 = ("풍량", "→", "PAT", "API", "SIMPLELAY_", "L1", "L2", "L3", "재시도", "정지 요청", "단계",
-                  "전원 켜기", "전원 끄기", "누름 장치", "클라우드", "프로필")
+                  "전원 켜기", "전원 끄기", "클라우드", "프로필")
 
 
 def _rule(event="heat_complete", action="set_wind_strength", value="HIGH", **kw):
@@ -371,3 +371,21 @@ def test_round4_client_matched_values_stay():
     assert AUTO_PURPOSE_PREFIX == "자동 실행 · "
     assert "이미" in ALREADY_REASON and "보내지 않았어요" in ALREADY_REASON
     assert "다시 켜져" in POWER_LOST_DETAIL
+
+
+# ── 10/18 이름 바꾸기: '누름 장치' → '누름 장치'(사용자 결정) ─────────────────────────────────────────────
+
+def test_old_press_device_name_does_not_come_back():
+    """폰·키오스크에 나가는 서버·RPi4 문장(과 그 둘레 주석)에 옛 이름 '작은 팔'이 다시 들어오지 않는다."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    offenders = []
+    for pkg in ("rpi", "rpi4"):
+        for path in (root / pkg).rglob("*.py"):
+            if "tests" in path.relative_to(root).parts:
+                continue
+            for no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if re.search(r"작은 ?팔", line):
+                    offenders.append(f"{path.relative_to(root)}:{no}: {line.strip()}")
+    assert offenders == []

@@ -1,8 +1,8 @@
-"""작은 팔(로컬 갠트리)이 누를 수 있는 기본 가전을 정한다 (2026-10-18, 사용자 요청).
+"""누름 장치(로컬 갠트리)가 누를 수 있는 기본 가전을 정한다 (2026-10-18, 사용자 요청).
 
-실물 갠트리는 1대이고 전자레인지 위에만 있다. 예전에는 기본 가전(전자레인지·인덕션)을 모두 작은 팔 대상으로 보아
+실물 갠트리는 1대이고 전자레인지 위에만 있다. 예전에는 기본 가전(전자레인지·인덕션)을 모두 누름 장치 대상으로 보아
 인덕션도 '준비됐어요'(operable)로 나왔다. ``SIMPLELAY_GANTRY_APPLIANCES``(쉼표 목록, 기본 ``microwave``)에 든
-기본 가전만 작은 팔로 실행하고, 나머지 기본 가전은 '설정이 필요해요'(needs_setup) + 실행 거절(412, 쉬운 말 사유).
+기본 가전만 누름 장치로 실행하고, 나머지 기본 가전은 '설정이 필요해요'(needs_setup) + 실행 거절(412, 쉬운 말 사유).
 사용자 등록 가전(is_custom)의 판정은 바꾸지 않는다.
 """
 
@@ -79,7 +79,7 @@ def test_execute_on_induction_is_refused_in_plain_words(monkeypatch):
     client = _client(monkeypatch, None)
     res = client.post("/execute", json={"text": "즉석밥 데워줘", "appliance_id": "induction"})
     assert res.status_code == 412, res.text
-    assert "작은 팔" in res.json()["detail"]
+    assert "누름 장치" in res.json()["detail"]
     # 전자레인지는 그대로 받는다
     ok = client.post("/execute", json={"text": "즉석밥 데워줘", "appliance_id": "microwave"})
     assert ok.status_code == 200, ok.text
@@ -103,7 +103,7 @@ def test_custom_appliance_judgement_is_unchanged(monkeypatch):
     client = _client(monkeypatch, None)
     assert client.put("/appliances/custom_fan", json=_FAN).status_code == 200
     fan = _by_id(client)["custom_fan"]
-    # 노드도 로컬 배선도 없는 사용자 가전 — 종전처럼 '연결 안 됨'(작은 팔 사유가 아니다).
+    # 노드도 로컬 배선도 없는 사용자 가전 — 종전처럼 '연결 안 됨'(누름 장치 사유가 아니다).
     assert fan["can_execute"] is False
     assert GANTRY_ABSENT_REASON not in fan["readiness_reasons"]
 

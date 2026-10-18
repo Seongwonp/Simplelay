@@ -124,10 +124,10 @@ ESTOP_LATCHED_REASON = "비상 버튼이 눌려 있어요. 버튼을 돌려 풀�
 #: RPi5가 다시 켜진 뒤 RPi4의 걸림 상태를 아직 모를 때(2026-10-06 평가 C1). '풀림'으로 보지 않는다.
 ESTOP_UNKNOWN_REASON = "비상 버튼 상태를 확인하는 중이에요. 잠시 기다려 주세요."
 #: RPi4(누름 장치) 링크가 끊겼거나 첫 연결 전일 때(2026-10-06 인계 §6). 걸림 상태도 모름이라 실행하지 않는다.
-ACT_LINK_DOWN_REASON = "작은 팔과 연결되지 않았어요. 다시 연결하는 중이에요."
-#: 작은 팔(로컬 갠트리)이 올라가 있지 않은 기본 가전(2026-10-18). 갠트리는 1대이고 ``SIMPLELAY_GANTRY_APPLIANCES``에
+ACT_LINK_DOWN_REASON = "누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요."
+#: 누름 장치(로컬 갠트리)가 올라가 있지 않은 기본 가전(2026-10-18). 갠트리는 1대이고 ``SIMPLELAY_GANTRY_APPLIANCES``에
 #: 든 기본 가전 위에만 있다 — 나머지 기본 가전은 '설정이 필요해요'로 보이고 실행을 거절한다.
-GANTRY_ABSENT_REASON = "작은 팔이 이 가전 위에 없어서 누를 수 없어요"
+GANTRY_ABSENT_REASON = "누름 장치가 이 가전 위에 없어서 누를 수 없어요"
 
 
 def _check_approved(buttons, approved_buttons) -> None:
@@ -305,7 +305,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         # 물리 오라우팅이 다른 문으로 되돌아오는 것이다. 데모용 배선은
         # 여기 적어 '의도한 것'임을 밝힌다.
         self._local_appliance_ids = frozenset(local_appliance_ids or ())
-        # 작은 팔(로컬 갠트리)이 실제로 올라가 있는 **기본 가전**(2026-10-18). None이면 기본 가전 전부(종전 동작 —
+        # 누름 장치(로컬 갠트리)가 실제로 올라가 있는 **기본 가전**(2026-10-18). None이면 기본 가전 전부(종전 동작 —
         # 가전 개념만 쓰는 단위 시험). 허브 조립(deps)은 ``SIMPLELAY_GANTRY_APPLIANCES``(기본 microwave)를 준다.
         self._gantry_ids = _BUILTIN_IDS if gantry_appliance_ids is None else frozenset(gantry_appliance_ids)
         # 실행 이력(무엇을·언제·재시도·결과) — None이면 기록하지 않는다
@@ -1140,7 +1140,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 and appliance_id in _BUILTIN_IDS and appliance_id in self._gantry_ids)
 
     def gantry_absent(self, appliance_id: str | None) -> bool:
-        """작은 팔이 올라가 있지 않은 **기본 가전**인가(2026-10-18). 사용자 등록·서버 구성 가전은 늘 False(판정 그대로)."""
+        """누름 장치가 올라가 있지 않은 **기본 가전**인가(2026-10-18). 사용자 등록·서버 구성 가전은 늘 False(판정 그대로)."""
         if appliance_id is None or appliance_id in self._local_appliance_ids:
             return False
         if appliance_id not in _BUILTIN_IDS or appliance_id in self._gantry_ids:
@@ -1179,7 +1179,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             if self.runs_locally(appliance_id):
                 return
             if self.gantry_absent(appliance_id):
-                # 기본 가전이지만 작은 팔이 그 위에 없다(갠트리 1대 — 2026-10-18).
+                # 기본 가전이지만 누름 장치가 그 위에 없다(갠트리 1대 — 2026-10-18).
                 raise ApplianceNotReadyError(appliance_id or "", (GANTRY_ABSENT_REASON,))
             # 노드도 없고 로컬 대상도 아니다 = 누를 액추에이터가 없다.
             raise ApplianceNotReadyError(

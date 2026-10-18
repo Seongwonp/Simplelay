@@ -2,7 +2,7 @@
 
 - 가열 종료 감지(CT 전력이 떨어짐)는 조리 완료가 아닐 수 있다 — 자동 규칙 이름이 '데우기가 끝나면'처럼 다 데운 것으로
   단정하지 않는다. 멈춘 것이 근거다.
-- 연습(모의) 구성에서 작은 팔·전기 플러그가 실제로 '준비됐다'·'연결돼 있다'고 하지 않는다 — 연습이라는 것을 제목에서 말한다.
+- 연습(모의) 구성에서 누름 장치·전기 플러그가 실제로 '준비됐다'·'연결돼 있다'고 하지 않는다 — 연습이라는 것을 제목에서 말한다.
 """
 
 from __future__ import annotations
@@ -39,5 +39,5 @@ def test_practice_plug_item_does_not_say_the_plug_is_connected():
 
 
 def test_real_items_keep_their_titles():
-    assert press_item("uart", "ok").title == "작은 팔이 연결돼 있어요"
+    assert press_item("uart", "ok").title == "누름 장치가 연결돼 있어요"
     assert plug_item("off").title == "전기 플러그가 아직 없어요"

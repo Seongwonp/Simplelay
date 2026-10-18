@@ -535,10 +535,10 @@ def _local_appliance_ids() -> frozenset[str]:
 
 
 def _gantry_appliance_ids() -> frozenset[str]:
-    """작은 팔(로컬 갠트리)이 올라가 있는 기본 가전 id (쉼표 구분, 기본 ``microwave`` — 2026-10-18).
+    """누름 장치(로컬 갠트리)가 올라가 있는 기본 가전 id (쉼표 구분, 기본 ``microwave`` — 2026-10-18).
 
     실물 갠트리는 1대이고 전자레인지 위에만 있다. 여기 없는 기본 가전(인덕션)은 '설정이 필요해요'로 보이고
-    실행을 거절한다. 빈 값(``SIMPLELAY_GANTRY_APPLIANCES=``)이면 작은 팔로 누르는 기본 가전이 없다.
+    실행을 거절한다. 빈 값(``SIMPLELAY_GANTRY_APPLIANCES=``)이면 누름 장치로 누르는 기본 가전이 없다.
     """
     raw = os.environ.get("SIMPLELAY_GANTRY_APPLIANCES")
     if raw is None:

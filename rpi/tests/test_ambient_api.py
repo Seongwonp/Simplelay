@@ -202,7 +202,7 @@ def test_connections_press_uart_reads_frame_tap(client, monkeypatch):
     monkeypatch.setenv("SIMPLELAY_ACT_MODE", "uart")
     app.dependency_overrides[deps.get_service] = lambda: FakeService()
     press = client.get("/connections").json()["items"][1]
-    assert (press["state"], press["title"]) == ("error", "작은 팔이 답하지 않아요")
+    assert (press["state"], press["title"]) == ("error", "누름 장치가 답하지 않아요")
 
 
 def test_routes_require_key_on_lan(client, monkeypatch):

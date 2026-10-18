@@ -38,7 +38,7 @@ WASHER_ID = "thinq_washer"
 WASHER_DEVICE_KEY = "washer"
 DEHUMIDIFIER_ID = "dehumidifier"
 FAN_ID = "fan"
-#: 연습 세탁기 이름 — 사용자 등록 버튼식 '세탁기'(작은 팔용)와 구분한다(2026-10-18).
+#: 연습 세탁기 이름 — 사용자 등록 버튼식 '세탁기'(누름 장치용)와 구분한다(2026-10-18).
 PRACTICE_WASHER_NAME = "LG 세탁기(연습)"
 
 

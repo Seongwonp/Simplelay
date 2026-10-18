@@ -1,7 +1,7 @@
-"""키오스크 오른쪽 위 연결 상태 세 가지(와이파이·작은 팔·전기 플러그) — 사용자 말로.
+"""키오스크 오른쪽 위 연결 상태 세 가지(와이파이·누름 장치·전기 플러그) — 사용자 말로.
 
 이름은 쉬운 말 사전(docs/UI-개편안-2026-10-17.md §3)을 따른다: 허브 → 본체,
-누름 장치(RPi4) → 작은 팔, 플러그(콘센트 모듈) → 전기 플러그(10/18 사전 변경: 가족은 '콘센트'를 벽 콘센트로 읽는다).
+누름 장치(RPi4)는 그대로 누름 장치(10/18 사용자 결정), 플러그(콘센트 모듈) → 전기 플러그(10/18 사전 변경: 가족은 '콘센트'를 벽 콘센트로 읽는다).
 문장은 결과 한 줄 + 할 일 한 줄.
 
 UI 확정 §1-5: 부품 이름 대신 사용자가 아는 이름을 쓰고, 무엇을 못 하게
@@ -150,21 +150,21 @@ def press_link_from_frames(
 
 
 _PRESS_FIXES = (
-    "작은 팔 전원이 켜져 있는지 봐 주세요.",
-    "작은 팔에 꽂힌 선이 끝까지 꽂혀 있는지 봐 주세요.",
-    "그래도 안 되면 작은 팔 전원을 껐다가 다시 켜 주세요.",
+    "누름 장치 전원이 켜져 있는지 봐 주세요.",
+    "누름 장치에 꽂힌 선이 끝까지 꽂혀 있는지 봐 주세요.",
+    "그래도 안 되면 누름 장치 전원을 껐다가 다시 켜 주세요.",
 )
 
 
 def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
-    """``act_mode``: SIMPLELAY_ACT_MODE. uart만 실제 작은 팔이고 나머지는 연습용이다."""
+    """``act_mode``: SIMPLELAY_ACT_MODE. uart만 실제 누름 장치고 나머지는 연습용이다."""
     mode = (act_mode or "").strip().lower()
     if mode != "uart":
         return ConnectionItem(
             "press",
             "ok",
-            # 연습 구성에는 실제 작은 팔이 없을 수 있다 — '준비됐어요'는 실물이 준비된 것처럼 읽혔다(10/18 §3-5).
-            "작은 팔은 연습 중이에요",
+            # 연습 구성에는 실제 누름 장치가 없을 수 있다 — '준비됐어요'는 실물이 준비된 것처럼 읽혔다(10/18 §3-5).
+            "누름 장치는 연습 중이에요",
             "실제 가전은 누르지 않아요.",
             (),
             "mock",
@@ -173,7 +173,7 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
         return ConnectionItem(
             "press",
             "error",
-            "작은 팔과 연결이 끊겼어요",
+            "누름 장치와 연결이 끊겼어요",
             "본체가 다시 연결하는 중이에요. 그동안은 버튼을 누를 수 없어요.",
             _PRESS_FIXES,
             "real",
@@ -182,7 +182,7 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
         return ConnectionItem(
             "press",
             "error",
-            "작은 팔이 답하지 않아요",
+            "누름 장치가 답하지 않아요",
             "누르라고 했는데 답이 없었어요. 지금은 버튼을 누를 수 없어요.",
             _PRESS_FIXES,
             "real",
@@ -191,7 +191,7 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
         return ConnectionItem(
             "press",
             "warn",
-            "작은 팔에 문제가 생겼어요",
+            "누름 장치에 문제가 생겼어요",
             "마지막 누르기를 끝내지 못했어요. 다음 누르기가 실패할 수 있어요.",
             _PRESS_FIXES,
             "real",
@@ -200,13 +200,13 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
         return ConnectionItem(
             "press",
             "unknown",
-            "작은 팔을 아직 확인하지 못했어요",
+            "누름 장치를 아직 확인하지 못했어요",
             "본체를 켠 뒤 아직 주고받은 적이 없어요. 한 번 실행하면 확인돼요.",
             _PRESS_FIXES[:2],
             "real",
         )
     return ConnectionItem(
-        "press", "ok", "작은 팔이 연결돼 있어요", "버튼을 대신 눌러 드릴 수 있어요.", (), "real"
+        "press", "ok", "누름 장치가 연결돼 있어요", "버튼을 대신 눌러 드릴 수 있어요.", (), "real"
     )
 
 
@@ -214,7 +214,7 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
 
 _PLUG_FIXES = (
     "전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요.",
-    "전기 플러그와 작은 팔을 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.",
+    "전기 플러그와 누름 장치를 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.",
     "그래도 안 되면 전기 플러그를 뽑았다가 10초 뒤 다시 꽂아 주세요.",
 )
 

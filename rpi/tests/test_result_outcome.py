@@ -187,7 +187,7 @@ def test_reported_stop_becomes_stopped_command():
         execution_mode=ExecutionMode.UNKNOWN,
     )
     assert out.status is CommandStatus.STOPPED
-    assert out.detail == "작은 팔이 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요."
+    assert out.detail == "누름 장치가 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요."
     # 멈춘 버튼은 여전히 모른다 — 추정 버튼을 문구에 쓰지 않는다
     assert "'시작'" not in out.detail and "눌림 확인" not in out.detail
 
@@ -199,7 +199,7 @@ def test_reported_safety_stop_stays_a_failure():
         Command.physical("microwave", ["시작"]), r, execution_mode=ExecutionMode.UNKNOWN
     )
     assert out.status is CommandStatus.FAILED
-    assert out.detail == "작은 팔이 눌림을 확인하지 못해 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요."
+    assert out.detail == "누름 장치가 눌림을 확인하지 못해 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요."
 
 
 def test_contradictory_success_outcome_on_failure_is_failed():

@@ -4,8 +4,8 @@
 /dev/tty* 없음) 예외가 나 백엔드 기동 자체가 실패했다. 고친 뒤 기대:
   - 공장은 바로 돌아오고, 첫 연결도 재연결과 같은 간격(늘어나는 대기, 상한)으로 배경에서 다시 시도한다.
   - 잇기 전에는 링크 끊김이다 — 걸림 상태는 '모름'(풀림으로 가정하지 않음), 실행은 기존 준비 안 됨(412)으로
-    거절하고 사유는 "작은 팔 장치와 연결되지 않았어요"(10/15 전 "누름 장치 연결 안 됨"). ``/status.actuator_link_up=false``·``/health.actuator_ready=false``·
-    ``/connections`` 작은 팔 장치 항목이 같은 사실을 보인다.
+    거절하고 사유는 "누름 장치와 연결되지 않았어요"(10/15 전 "누름 장치 연결 안 됨"). ``/status.actuator_link_up=false``·``/health.actuator_ready=false``·
+    ``/connections`` 누름 장치 항목이 같은 사실을 보인다.
   - 이으면 hello부터 보내고, RPi4의 ``estop_state`` 답을 받은 뒤에만 실행이 열린다.
 """
 
@@ -152,7 +152,7 @@ def test_uart_factory_returns_even_if_first_connection_fails_then_connects(unrea
 
 
 def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unreachable_rpi4, monkeypatch):
-    """API까지: 잇기 전에는 412 '작은 팔 장치와 연결되지 않았어요'·상태에 링크 끊김, 이은 뒤(걸림 답 받은 뒤) 실행 성공."""
+    """API까지: 잇기 전에는 412 '누름 장치와 연결되지 않았어요'·상태에 링크 끊김, 이은 뒤(걸림 답 받은 뒤) 실행 성공."""
     from fastapi.testclient import TestClient
 
     from rpi.api import deps
@@ -167,7 +167,7 @@ def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unr
     # 의존성(제안 서비스 등)이 두 번째 UART 컨트롤러를 만들어 같은 가짜 포트를 잡는다.
     monkeypatch.delenv("SIMPLELAY_ACT_MODE", raising=False)
     allow, opened, streams = unreachable_rpi4
-    assert "작은 팔과 연결되지 않았어요" in ACT_LINK_DOWN_REASON
+    assert "누름 장치와 연결되지 않았어요" in ACT_LINK_DOWN_REASON
 
     controller = acc.open_uart_act_controller("socket://rpi4:7000", 115200)
     loop = controller._loop  # noqa: SLF001
@@ -181,7 +181,7 @@ def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unr
         _wait(lambda: len(opened) >= 2)
         res = c.post("/execute-buttons", json={"buttons": ["즉석밥", "시작"], "appliance_id": "microwave"})
         assert res.status_code == 412, res.text
-        assert "작은 팔과 연결되지 않았어요" in res.text
+        assert "누름 장치와 연결되지 않았어요" in res.text
         assert c.get("/status").json()["actuator_link_up"] is False
         assert c.get("/health/detail").json()["actuator_ready"] is False
         monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)  # 내장 가전을 목록에 보이게
@@ -190,7 +190,7 @@ def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unr
         monkeypatch.setenv("SIMPLELAY_ACT_MODE", "uart")
         press = c.get("/connections").json()["items"][1]
         monkeypatch.delenv("SIMPLELAY_ACT_MODE")
-        assert (press["state"], press["title"]) == ("error", "작은 팔과 연결이 끊겼어요")
+        assert (press["state"], press["title"]) == ("error", "누름 장치와 연결이 끊겼어요")
 
         allow.set()
         _wait(lambda: streams and {"type": "hello"} in streams[0][1].messages())

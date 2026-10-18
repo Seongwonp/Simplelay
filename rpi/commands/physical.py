@@ -185,7 +185,7 @@ def _detail(
     )
     # 10/18 쉬운 말: 결과 한 줄 + 할 일 한 줄, '—'·괄호·가운뎃점으로 잇지 않는다. 판정 근거(전력 확인 사유·검증 층·
     # 재시도 횟수)는 문장에 넣지 않는다 — 근거는 ``ExecutionResult``에 통째로 남는다. 확인 수준은 낮추거나 높이지 않는다:
-    # '확인했어요'(센서·가전 반응을 봄) · '알려 왔어요'(작은 팔 보고뿐) · '몰라요'.
+    # '확인했어요'(센서·가전 반응을 봄) · '알려 왔어요'(누름 장치 보고뿐) · '몰라요'.
     note = STOP_REQUESTED_NOTE if stop_requested else ""
     look = " 가전이 움직이는지 봐 주세요."
 
@@ -195,23 +195,23 @@ def _detail(
         # 보내기 전 정지(G2) — 정지 요청이 원인인 것이 확실한 유일한 경우라 note를 덧붙이지 않는다.
         return "멈추기를 눌러서 버튼을 누르지 않았어요."
     if receipt is Receipt.UNKNOWN:
-        return "작은 팔의 답이 없어 눌렸는지 몰라요. 다시 누르지 않았으니 가전을 직접 봐 주세요." + note
+        return "누름 장치의 답이 없어 눌렸는지 몰라요. 다시 누르지 않았으니 가전을 직접 봐 주세요." + note
     if confirmation is Confirmation.OPERATION_CONFIRMED:
         if is_aggregate_report(result):
-            return "작은 팔이 다 눌렀고 가전이 반응한 것도 확인했다고 알려 왔어요." + note
+            return "누름 장치가 다 눌렀고 가전이 반응한 것도 확인했다고 알려 왔어요." + note
         return "버튼이 눌렸고 가전이 반응한 것도 확인했어요." + note
     if confirmation is Confirmation.REPORTED:
         operation = result.operation
         if result.failed_layer is VerificationLayer.OPERATION:
-            return "작은 팔이 다 눌렀다고 알려 왔지만 가전 반응은 확인하지 못했어요." + look + note
+            return "누름 장치가 다 눌렀다고 알려 왔지만 가전 반응은 확인하지 못했어요." + look + note
         if operation is not None and operation.passed and getattr(operation, "mock", False):
-            return "작은 팔이 다 눌렀다고 알려 왔어요. 연습이라 실제 가전 반응은 보지 않았어요." + note
-        return "작은 팔이 다 눌렀다고 알려 왔어요." + look + note
+            return "누름 장치가 다 눌렀다고 알려 왔어요. 연습이라 실제 가전 반응은 보지 않았어요." + note
+        return "누름 장치가 다 눌렀다고 알려 왔어요." + look + note
     if confirmation is Confirmation.PRESS_CONFIRMED:
         if result.failed_layer is VerificationLayer.OPERATION:
             return "버튼은 다 눌렸지만 가전 반응은 확인하지 못했어요." + look + note
         if stopped:
-            return "버튼은 다 눌렸고 작은 팔을 멈췄어요." + look + note
+            return "버튼은 다 눌렸고 누름 장치를 멈췄어요." + look + note
         return "버튼이 눌린 것을 센서로 확인했어요." + look + note
 
     # confirmation NONE -- 시퀀스가 끝나지 않았다.
@@ -219,10 +219,10 @@ def _detail(
         # 집계 보고: 어느 버튼에서 멈췄는지, 몇 개가 눌렸는지, 멈췄는지는 보고에 없다.
         # synthesize가 채운 버튼별 값은 추정이므로 사실로 적지 않는다.
         if result.outcome is ExecutionOutcome.STOPPED:
-            return "작은 팔이 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요." + note
+            return "누름 장치가 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요." + note
         if result.outcome is ExecutionOutcome.SAFETY_STOP:
-            return "작은 팔이 눌림을 확인하지 못해 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요." + note
-        return "작은 팔이 실패를 알려 왔어요. 몇 개를 눌렀는지, 멈췄는지 모르니 가전을 봐 주세요." + note
+            return "누름 장치가 눌림을 확인하지 못해 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요." + note
+        return "누름 장치가 실패를 알려 왔어요. 몇 개를 눌렀는지, 멈췄는지 모르니 가전을 봐 주세요." + note
     pressed = sum(1 for b in result.buttons if _sensor_verified(b))
     counts = f" 눌린 것을 확인한 버튼은 {total}개 중 {pressed}개예요."
     verb = "멈췄어요." if stopped else "실패했어요."

@@ -1,6 +1,6 @@
 """키오스크·폰이 그대로 보이는 서버·RPi4 문장 — 용어표(2026-10-15 키오스크 문구 개선 계획 §1·§6).
 
-허브 → SimpleLay 본체, 누름 장치 → 작은 팔(장치는 '작은 팔 장치'), 콘센트 모듈·플러그 → 가전 콘센트 장치,
+허브 → SimpleLay 본체, 누름 장치(10/17 '작은 팔'로 바꿨다가 10/18 사용자 결정으로 '누름 장치'로 되돌림), 콘센트 모듈·플러그 → 가전 콘센트 장치,
 비상정지가 걸려 있어요 → 비상 버튼이 눌려 있어요, 보관 위치 → 제자리. 내부 말(실행기·이쪽 센서·구동부·
 RPi4)도 화면 문장에 내지 않는다. 문장만 고정한다 — 판정·코드 값은 다른 시험이 지킨다.
 """
@@ -26,7 +26,7 @@ from rpi4.services.act_executor import (
 
 #: 화면 문장에 남으면 안 되는 옛 말·내부 말.
 OLD_WORDS = re.compile(
-    r"허브|누름 장치|콘센트|(?<!전기 )플러그|비상정지가 걸려|보관 위치|실행기|이쪽 센서|구동부|RPi4|좌표|"
+    r"허브|작은 ?팔|콘센트|(?<!전기 )플러그|비상정지가 걸려|보관 위치|실행기|이쪽 센서|구동부|RPi4|좌표|"
     r"정지됨|미확인|다시 연결하기"
 )
 
@@ -62,9 +62,9 @@ def test_user_sentences_use_the_kiosk_glossary(texts):
 
 
 def test_connection_items_name_the_parts_by_the_glossary():
-    # 10/17 쉬운 말 사전: 본체 · 작은 팔 · 전기 플러그(10/18 — '콘센트'는 벽 콘센트로 읽혀 바꿈).
+    # 10/17 쉬운 말 사전: 본체 · 누름 장치(10/18) · 전기 플러그(10/18 — '콘센트'는 벽 콘센트로 읽혀 바꿈).
     assert plug_item("off", "weak").title == "전기 플러그 연결이 약해요"
-    assert press_item("uart", "no_reply").title == "작은 팔이 답하지 않아요"
+    assert press_item("uart", "no_reply").title == "누름 장치가 답하지 않아요"
     assert network_item("down").message.startswith("본체가")
     assert "'다시 확인하기'" in network_item("up", "failed").fixes[-1]
 
@@ -84,8 +84,8 @@ def test_reboot_latch_sentence_is_shared_and_keeps_the_marker_the_server_reads()
 
 
 def test_hold_sentences_name_who_moved_and_say_home_position():
-    assert stop_hold.PARK_DETAILS["stop_confirmed"] == "가전이 멈춰 작은 팔이 제자리로 돌아갔어요"
-    assert "작은 팔" in stop_hold.DETAIL_UNCONFIRMED and "확인하지 못했어요" in stop_hold.DETAIL_UNCONFIRMED
+    assert stop_hold.PARK_DETAILS["stop_confirmed"] == "가전이 멈춰 누름 장치가 제자리로 돌아갔어요"
+    assert "누름 장치" in stop_hold.DETAIL_UNCONFIRMED and "확인하지 못했어요" in stop_hold.DETAIL_UNCONFIRMED
     # 가전이 멈췄다고 말하는 문장은 전력 하강으로 확인한 때(stopped)뿐이다.
     assert stop_hold.DETAIL_STOPPED.startswith("가전이 멈춘 것을 확인했어요")
 

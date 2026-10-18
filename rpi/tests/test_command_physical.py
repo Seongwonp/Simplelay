@@ -167,7 +167,7 @@ def test_user_stop_after_all_presses_keeps_press_confirmed():
     out = convert(result, stopped_by_user=True)
     assert out.status is CommandStatus.STOPPED
     assert out.confirmation is Confirmation.PRESS_CONFIRMED
-    assert "작은 팔을 멈췄어요" in out.detail and out.detail.endswith(STOP_REQUESTED_NOTE)
+    assert "누름 장치를 멈췄어요" in out.detail and out.detail.endswith(STOP_REQUESTED_NOTE)
     # 요청이 있었다는 사실만 적는다. 재시도 소진과 겹칠 수 있어 원인으로 단정하지 않는다.
     assert "사용자 정지로" not in out.detail
 
@@ -274,7 +274,7 @@ def test_aggregate_success_is_reported_not_press_confirmed():
     assert out.receipt is Receipt.ACCEPTED
     assert out.confirmation is Confirmation.REPORTED
     assert not out.confirmation.has_evidence
-    assert out.detail == "작은 팔이 다 눌렀다고 알려 왔어요. 가전이 움직이는지 봐 주세요."
+    assert out.detail == "누름 장치가 다 눌렀다고 알려 왔어요. 가전이 움직이는지 봐 주세요."
     assert "센서로 확인" not in out.detail
 
 
@@ -297,7 +297,7 @@ def test_aggregate_failure_does_not_claim_button_position_or_press_count():
     # synthesize가 채운 '즉석밥 성공, 시작 실패'는 추정이다 -- 문구에 쓰지 않는다.
     assert "'시작'에서" not in out.detail
     assert "눌림 확인" not in out.detail
-    assert out.detail == "작은 팔이 실패를 알려 왔어요. 몇 개를 눌렀는지, 멈췄는지 모르니 가전을 봐 주세요."
+    assert out.detail == "누름 장치가 실패를 알려 왔어요. 몇 개를 눌렀는지, 멈췄는지 모르니 가전을 봐 주세요."
     # 원본은 그대로 보존된다(추정임을 아는 쪽이 해석한다).
     assert out.buttons[-1].attempts == 3 and out.buttons[-1].verification is None
 

@@ -44,18 +44,18 @@ HOLD_STATES = ("hovering_stop", "stopping", "parking", "parked", "fault", "relea
 #: 정지 요청 결과. None은 요청 없음.
 STOP_OUTCOMES = ("stopped", "requested_unconfirmed", "drive_fault")
 
-DETAIL_STOPPED = "가전이 멈춘 것을 확인했어요 — 작은 팔이 정지 버튼을 누른 뒤 가전 전력이 떨어졌어요"
-DETAIL_STOPPED_MOCK = "연습 결과 — 작은 팔이 정지 버튼을 짚은 뒤 연습용 가전이 꺼졌어요(실제 가전 아님)"
-DETAIL_STOPPED_LATE = ("작은 팔이 정지 버튼을 누르고 확인 시간이 지난 뒤에 가전 전력이 떨어졌어요 — 가전이 "
+DETAIL_STOPPED = "가전이 멈춘 것을 확인했어요 — 누름 장치가 정지 버튼을 누른 뒤 가전 전력이 떨어졌어요"
+DETAIL_STOPPED_MOCK = "연습 결과 — 누름 장치가 정지 버튼을 짚은 뒤 연습용 가전이 꺼졌어요(실제 가전 아님)"
+DETAIL_STOPPED_LATE = ("누름 장치가 정지 버튼을 누르고 확인 시간이 지난 뒤에 가전 전력이 떨어졌어요 — 가전이 "
                        "스스로 끝났을 수도 있어요")
-DETAIL_UNCONFIRMED = ("가전이 멈췄는지 확인하지 못했어요 — 작은 팔이 정지 버튼을 {n}번 눌렀지만 가전 전력이 "
+DETAIL_UNCONFIRMED = ("가전이 멈췄는지 확인하지 못했어요 — 누름 장치가 정지 버튼을 {n}번 눌렀지만 가전 전력이 "
                       "떨어진 것을 확인하지 못했어요. 가전을 직접 확인해 주세요")
-DETAIL_DRIVE_FAULT = "작은 팔에 이상이 생겨 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요"
-DETAIL_DRIVE_STOPPED = "작은 팔을 멈췄어요 — 정지 버튼 위에서 기다리기를 끝냈어요. 가전은 직접 확인해 주세요"
+DETAIL_DRIVE_FAULT = "누름 장치에 이상이 생겨 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요"
+DETAIL_DRIVE_STOPPED = "누름 장치를 멈췄어요 — 정지 버튼 위에서 기다리기를 끝냈어요. 가전은 직접 확인해 주세요"
 PARK_DETAILS = {
-    "appliance_finished": "가전 전력이 떨어져 작은 팔이 제자리로 돌아갔어요",
-    "stop_confirmed": "가전이 멈춰 작은 팔이 제자리로 돌아갔어요",
-    "hold_timeout": "최대 대기 시간이 지나 작은 팔이 제자리로 돌아갔어요(가전이 끝났는지는 확인하지 못했어요)",
+    "appliance_finished": "가전 전력이 떨어져 누름 장치가 제자리로 돌아갔어요",
+    "stop_confirmed": "가전이 멈춰 누름 장치가 제자리로 돌아갔어요",
+    "hold_timeout": "최대 대기 시간이 지나 누름 장치가 제자리로 돌아갔어요(가전이 끝났는지는 확인하지 못했어요)",
 }
 
 
@@ -438,10 +438,10 @@ class StopHoldSession:
                     start = None
             sim.sequence_finished(start)
             self._probe.start()
-            self._set("hovering_stop", "작은 팔이 정지 버튼 위로 가는 중이에요")
+            self._set("hovering_stop", "누름 장치가 정지 버튼 위로 가는 중이에요")
             if not self._advance():
                 return
-            self._set("hovering_stop", f"작은 팔이 '{self.plan.stop_button}' 버튼 위에서 기다리는 중이에요")
+            self._set("hovering_stop", f"누름 장치가 '{self.plan.stop_button}' 버튼 위에서 기다리는 중이에요")
             started = self._clock()
             while True:
                 self._wake.wait(self._timing.poll_s)
@@ -453,7 +453,7 @@ class StopHoldSession:
                     self._set("fault", DETAIL_DRIVE_STOPPED)
                     return
                 if release and (not stop or self.stop_outcome is not None):
-                    self._set("released", "새 실행이 시작돼 작은 팔이 정지 버튼 위에서 기다리기를 끝냈어요")
+                    self._set("released", "새 실행이 시작돼 누름 장치가 정지 버튼 위에서 기다리기를 끝냈어요")
                     return
                 if stop and not self._stop_handled:
                     self._stop_handled = True
@@ -488,7 +488,7 @@ class StopHoldSession:
                 sim.lock("hold_internal_error")
             except Exception:  # noqa: BLE001
                 pass
-            self._set("fault", f"작은 팔이 정지 버튼 위에서 기다리다 오류가 났어요({exc}) — 가전은 직접 확인해 주세요")
+            self._set("fault", f"누름 장치가 정지 버튼 위에서 기다리다 오류가 났어요({exc}) — 가전은 직접 확인해 주세요")
 
     def _do_stop(self) -> None:
         sim = self._sim
@@ -497,7 +497,7 @@ class StopHoldSession:
             self.stop_outcome = "drive_fault"
             self._set("fault", DETAIL_DRIVE_FAULT)
             return
-        self._set("stopping", f"작은 팔이 정지 버튼 '{self.plan.stop_button}'을 {self.plan.stop_presses}번 누르는 중이에요")
+        self._set("stopping", f"누름 장치가 정지 버튼 '{self.plan.stop_button}'을 {self.plan.stop_presses}번 누르는 중이에요")
         try:
             sim.request_appliance_stop()
         except ValueError:
@@ -507,14 +507,14 @@ class StopHoldSession:
             return
         if not self._advance(on_fail_outcome="drive_fault"):
             return
-        self._set("stopping", "작은 팔이 정지 버튼을 눌렀어요 — 가전 전력이 떨어지는지 확인하는 중이에요")
+        self._set("stopping", "누름 장치가 정지 버튼을 눌렀어요 — 가전 전력이 떨어지는지 확인하는 중이에요")
 
     def _park(self, reason: str) -> None:
         self.park_reason = reason
         self._sim.confirm_operation_ended()
-        self._set("parking", self.detail if self.stop_outcome == "stopped" else "작은 팔이 제자리로 돌아가는 중이에요")
+        self._set("parking", self.detail if self.stop_outcome == "stopped" else "누름 장치가 제자리로 돌아가는 중이에요")
         if self._advance():
-            detail = PARK_DETAILS.get(reason, "작은 팔이 제자리로 돌아갔어요")
+            detail = PARK_DETAILS.get(reason, "누름 장치가 제자리로 돌아갔어요")
             if self.stop_outcome == "stopped":
                 detail = f"{self.detail} · {detail}"
             elif self.stop_outcome == "requested_unconfirmed":
@@ -534,7 +534,7 @@ class StopHoldSession:
                     self.stop_outcome = on_fail_outcome
                 detail = DETAIL_DRIVE_STOPPED if drive and on_fail_outcome is None else (
                     DETAIL_DRIVE_FAULT if on_fail_outcome == "drive_fault"
-                    else f"작은 팔에 이상이 생겼어요({error}) — 정지 버튼 위에서 기다리기를 멈췄어요. 가전은 직접 확인해 주세요")
+                    else f"누름 장치에 이상이 생겼어요({error}) — 정지 버튼 위에서 기다리기를 멈췄어요. 가전은 직접 확인해 주세요")
                 self._set("fault", detail, error=error)
                 return False
         return True
