@@ -1377,7 +1377,8 @@ class _ApplianceGrid extends StatelessWidget {
 
 /// 가전 타일 — 아이콘 + 이름만(사용자 결정 2026-10-19: 아래 상태 글자 띠가 너무 복잡했다. 키오스크와 같은 규칙).
 ///
-/// - LG 가전 전원은 서버가 **읽은** 것만 아이콘 색으로 — 켜짐 강조색(실제 기기 불빛처럼), 꺼짐 흐리게.
+/// - 밝기 = 켜짐·작동 중(사용자 결정 10/19, 두 번째): 밝게(본문 글자색 아이콘·이름)는 [tileLit]일 때만, 그 밖은 흐리게
+///   ([AppColorsX.appTileDim]). 카드 면은 바꾸지 않는다. LG 가전은 본체가 **읽은** 켜짐만 밝다.
 /// - 문제가 있을 때만 오른쪽 위 작은 표시 하나([TileStatus.issue] 또는 자리 확인 보조 줄) — 쓸 수 없음 '!',
 ///   확인 전·모름 '?', 설정 남음 톱니. 누르면 말풍선으로 한두 문장, 화면 읽기는 그 문장을 그대로 읽는다.
 /// - 버튼 조작 중은 잉크색 테두리 + 진행 막대(글자 없이 — 화면 읽기 이름이 말한다).
@@ -1417,14 +1418,14 @@ class _ApplianceCard extends ConsumerWidget {
     final practice = isPracticeAppliance(a);
     // 연습 가전 화면 이름은 '연습 세탁기'(접근성 감사 10/18 — 실제 '세탁기'와 헷갈렸다, 본체와 같은 규칙).
     final shownName = practiceDisplayName(name);
-    final iconColor = s.tone == TileTone.on
-        ? context.appPrimary
-        : s.tone == TileTone.off
-            ? context.appMuted
-            : context.appInk;
-    // 문제가 아닌 상태 말 — 화면 읽기 이름에만(화면 글자는 없다).
+    // 밝기 = 켜짐·작동 중(10/19, 두 번째) — 아이콘·이름 같은 색. 강조색(골드)은 쓰지 않는다(주 행동 전용).
+    final fg = tileLit(s) ? context.appInk : context.appTileDim;
+    // 문제가 아닌 상태 말 — 화면 읽기 이름에만(화면 글자는 없다). 밝기(색)만으로 말하지 않는다(10/19, 두 번째):
+    // 쉬는 누름 장치 가전은 '작동 중 아님' — 허브가 지금 누르고 있지 않다는 뜻까지만(가전이 꺼졌다고 단정하지 않는다).
+    // LG 가전 전원을 모르면 넣지 않는다 — '?' 표시 문장이 말한다.
     final word = switch (s.tone) {
       TileTone.on || TileTone.off || TileTone.active => s.text,
+      _ when !a.isThinq => '작동 중 아님',
       _ => null,
     };
     final card = Semantics(
@@ -1467,7 +1468,7 @@ class _ApplianceCard extends ConsumerWidget {
                           width: AppSpace.xxxl + AppSpace.sm,
                           height: AppSpace.xxxl + AppSpace.sm,
                           alignment: Alignment.centerLeft,
-                          child: Icon(a.icon, size: 28, color: iconColor),
+                          child: Icon(a.icon, size: 28, color: fg),
                         ),
                         // 남는 폭은 배지 칸 하나가 가진다(Spacer와 나누면 배지가 반으로 줄었다).
                         Expanded(
@@ -1487,7 +1488,7 @@ class _ApplianceCard extends ConsumerWidget {
                     const SizedBox(height: AppSpace.sm),
                     Text(
                       shownName,
-                      style: const TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700),
+                      style: TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700, color: fg),
                     ),
                     if ((a.location ?? '').isNotEmpty)
                       Text(a.location!,

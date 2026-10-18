@@ -1,7 +1,7 @@
 // 가전 타일 단순화(사용자 결정 2026-10-19) — 옛 코드(상태 띠)에서 실패하는 것을 확인한 시험. 키오스크와 같은 규칙·같은 문장.
 //
 // 1. 평소 타일은 아이콘 + 이름만 — 아래 상태 글자 띠('준비됐어요'·'꺼져 있어요'·'확인 전이에요'·'설정이 필요해요' 등) 없음.
-//    LG 가전 전원은 아이콘 자체로: 켜짐 = 강조색, 꺼짐 = 흐리게.
+//    LG 가전 전원은 아이콘 자체로: 켜짐 = 밝게, 꺼짐 = 흐리게(10/19 두 번째: 강조색 대신 본문 글자색 — tile_power_1019_phone_test).
 // 2. 문제가 있을 때만 오른쪽 위 작은 표시 하나: 쓸 수 없음 '!', 확인 전·모름 '?', 설정 남음 톱니.
 // 3. 표시를 누르면 말풍선, 몇 초 뒤 닫힘. 타일 본체를 누르면 지금처럼 가전 화면. 누르는 자리 48dp 이상.
 //    화면 읽기는 표시에서 상태 문장을 그대로 읽는다.
@@ -147,7 +147,8 @@ void main() {
     expect(_mark('air'), findsNothing, reason: '읽은 꺼짐은 문제가 아니다');
   });
 
-  testWidgets('1. LG 가전 전원은 아이콘 색 — 켜짐 강조색, 꺼짐 흐리게', (tester) async {
+  // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐·실행 중은 본문 글자색(appInk), 꺼짐·모름·쉬는 중은 appTileDim. 강조색은 쓰지 않는다.
+  testWidgets('1. LG 가전 전원은 아이콘 밝기 — 켜짐 밝게, 꺼짐 흐리게', (tester) async {
     _tall(tester);
     await tester.pumpWidget(_home(_hub([
       _appliance('on', '공기청정기', control: 'thinq', custom: false, category: 'air_purifier'),
@@ -155,8 +156,8 @@ void main() {
     ], power: {'on': 'on', 'off': 'off'})));
     await _settle(tester);
     final ctx = tester.element(find.byKey(const Key('appliance-icon-on')));
-    expect(_iconColor(tester, 'on'), ctx.appPrimary);
-    expect(_iconColor(tester, 'off'), ctx.appMuted);
+    expect(_iconColor(tester, 'on'), ctx.appInk);
+    expect(_iconColor(tester, 'off'), ctx.appTileDim);
   });
 
   testWidgets("2. 표시 — 전원 모름 '?', 연결 끊김 '!', 위치 미설정 톱니 — 화면 읽기는 문장", (tester) async {

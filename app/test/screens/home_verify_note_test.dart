@@ -230,10 +230,11 @@ void main() {
     await tester.pumpWidget(_home(api));
     await _settle(tester);
     // 사용자 결정(10/19): 타일은 이름, 오른쪽 위 표시가 자리 확인 문장을 그대로 읽는다(한 번씩).
-    expect(find.bySemanticsLabel('전자레인지'), findsOneWidget);
+    // 10/19 두 번째: 쉬는 누름 장치 가전은 이름과 함께 '작동 중 아님'(밝기만으로 말하지 않는다).
+    expect(find.bySemanticsLabel('전자레인지, 작동 중 아님'), findsOneWidget);
     expect(find.bySemanticsLabel('연습으로만 자리 확인했어요'), findsOneWidget);
     expect(find.bySemanticsLabel('버튼 자리를 다시 맞춰 주세요'), findsOneWidget);
-    expect(find.bySemanticsLabel('밥솥'), findsOneWidget);
+    expect(find.bySemanticsLabel('밥솥, 작동 중 아님'), findsOneWidget);
     handle.dispose();
   });
 

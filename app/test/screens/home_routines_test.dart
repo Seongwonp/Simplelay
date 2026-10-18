@@ -382,7 +382,7 @@ void main() {
   });
 
   // 사용자 결정(10/19): 글자 띠 대신 — 읽은 꺼짐은 아이콘을 흐리게(표시 없음), 모르면 '?' 표시.
-  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 흐린 아이콘, 모르면 "?" 표시(손 아이콘 준비됐어요 아님)', (tester) async {
+  testWidgets('LG 가전 타일: 읽은 꺼짐·모름은 흐린 아이콘, 모르면 "?" 표시(손 아이콘 준비됐어요 아님)', (tester) async {
     final hub = _Hub(appliances: [_thinq('air', '공기청정기'), _thinq('dh', '제습기')], routines: const [])
       ..power = [
         {'appliance_id': 'air', 'power': 'off', 'age_s': 3},
@@ -395,9 +395,11 @@ void main() {
     Color? icon(String id) => tester
         .widget<Icon>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(Icon)))
         .color;
-    expect(icon('air'), ctx.appMuted);
+    // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐·실행 중은 본문 글자색(appInk), 꺼짐·모름·쉬는 중은 appTileDim. 강조색은 쓰지 않는다.
+    // 모르는 전원도 밝게 그리지 않는다 — 흐린 모양 + '?' 표시.
+    expect(icon('air'), ctx.appTileDim);
     expect(tileMarkText(tester, 'dh'), kTilePowerUnknown);
-    expect(icon('dh'), isNot(ctx.appMuted));
+    expect(icon('dh'), ctx.appTileDim);
     expect(find.byIcon(Icons.touch_app_outlined), findsNothing);
   });
 
@@ -465,7 +467,8 @@ void main() {
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
     // 사용자 결정(10/19): 타일 이름과, 오른쪽 위 표시가 상태 문장을 그대로 읽는다.
-    expect(find.bySemanticsLabel('세탁기'), findsOneWidget);
+    // 10/19 두 번째: 쉬는 누름 장치 가전은 이름과 함께 '작동 중 아님'(밝기만으로 말하지 않는다).
+    expect(find.bySemanticsLabel('세탁기, 작동 중 아님'), findsOneWidget);
     expect(find.bySemanticsLabel(kTilePanelSetup), findsOneWidget);
     expect(find.bySemanticsLabel('저녁 데우기 실행하기'), findsOneWidget);
     handle.dispose();

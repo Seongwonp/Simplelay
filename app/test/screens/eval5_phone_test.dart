@@ -236,14 +236,15 @@ void main() {
     });
 
     // 사용자 결정(10/19): 상태 띠 대신 — 켜짐(읽은 값)만 아이콘 강조색, 설정 남음은 톱니 표시, 준비는 표시 없음.
-    testWidgets('켜짐(읽은 값)만 아이콘 강조색, 설정 남음은 톱니 표시, 준비는 표시 없음', (tester) async {
+    // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐·실행 중은 본문 글자색(appInk), 꺼짐·모름·쉬는 중은 appTileDim. 강조색은 쓰지 않는다.
+    testWidgets('켜짐(읽은 값)만 아이콘 밝게, 설정 남음은 톱니 표시, 준비는 표시 없음', (tester) async {
       await _pump(tester, const HomeScreen());
-      expect(_tileIcon(tester, 'air').color, AppColors.primaryLight);
+      expect(_tileIcon(tester, 'air').color, AppColors.successLight);
       expect(tileMarkText(tester, 'air'), isNull);
       expect(tileMarkIcon(tester, 'washer'), Icons.settings_rounded);
-      // 준비 — 표시 없음. 확인한 것이 아니므로 강조색이 아니다.
+      // 준비 — 표시 없음. 켜짐을 읽을 수 없는 누름 장치 가전이고 실행 중도 아니니 흐리다.
       expect(tileMarkText(tester, 'mw'), isNull);
-      expect(_tileIcon(tester, 'mw').color, isNot(AppColors.primaryLight));
+      expect(_tileIcon(tester, 'mw').color, AppColors.tileDimLight);
       // 타일 아이콘은 가전마다 — 공기청정기는 바람.
       expect(find.descendant(of: find.byKey(const Key('appliance-card-air')), matching: find.byIcon(Icons.air)),
           findsOneWidget);

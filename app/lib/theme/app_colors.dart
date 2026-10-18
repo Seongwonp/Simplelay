@@ -87,6 +87,13 @@ class AppColors {
   // 배경에도 얹힌다.
   // 평가 6차(10/18): 한 단계 진하게(옛 #4A4D54 카드 8.47:1 — 옅은 면 위에서 7 언저리였다).
   static const onSurfaceMutedLight = Color(0xFF3D4047); // 카드 10.38 / 바탕 9.60 / 눌린 면 8.86:1
+
+  // ── 가전 타일 흐린 모양(사용자 결정 10/19, 두 번째) ─────────────────────────
+  // 흐린 모양(꺼짐·아무 작동 없음)의 아이콘·이름 색 — 밝은 모양(켜짐·작동 중)은 본문 글자색(appInk). 키오스크 tileDim과 같은 뜻.
+  // 보조 회색(onSurfaceMuted)은 본문 글자와 너무 비슷해 켜짐·꺼짐이 갈리지 않았다. 카드 위 4.5:1 이상은
+  // `test/screens/tile_power_1019_phone_test.dart`가 지킨다.
+  static const tileDim      = Color(0xFF8E93A0); // 다크 카드 5.5:1 언저리
+  static const tileDimLight = Color(0xFF6E727B); // 라이트 흰 카드 4.8:1 언저리
 }
 
 // BuildContext 확장 — 현재 밝기에 따라 올바른 색상을 반환
@@ -98,6 +105,9 @@ extension AppColorsX on BuildContext {
   Color get appSurfaceLow    => _isDark ? AppColors.surfaceLow   : AppColors.surfaceLowLight;
   Color get appBorderSubtle  => _isDark ? AppColors.borderSubtle : AppColors.borderSubtleLight;
   Color get appMuted         => _isDark ? AppColors.onSurfaceMuted : AppColors.onSurfaceMutedLight;
+
+  /// 가전 타일 흐린 모양(꺼짐·아무 작동 없음)의 아이콘·이름 색(10/19, 두 번째) — 밝은 모양은 [appInk].
+  Color get appTileDim       => _isDark ? AppColors.tileDim : AppColors.tileDimLight;
 
   /// 경고·삭제·정지를 **글자나 아이콘으로** 표시할 때. 면으로 쓸 때는 이게 아니라
   /// `AppColors.danger` 배경 + `AppColors.onAccent` 글자다.

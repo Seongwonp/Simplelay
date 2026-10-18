@@ -337,11 +337,12 @@ void main() {
       expect(_in(now, findPlainText('켜짐', contains: true)), findsNothing);
       expect(_in(now, findPlainText('켜진 가전', contains: true)), findsNothing);
       expect(_in(now, findPlainText('저녁 공기청정기 켜기')), findsOneWidget);
-      // 전원은 가전 타일 한 곳 — 사용자 결정(10/19)부터 아이콘 강조색(글자 없음).
+      // 전원은 가전 타일 한 곳 — 사용자 결정(10/19)부터 아이콘(글자 없음).
+      // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐·실행 중은 본문 글자색(appInk), 꺼짐·모름·쉬는 중은 appTileDim. 강조색은 쓰지 않는다.
       final ctx = tester.element(find.byKey(const Key('appliance-icon-air')));
       expect(
           tester.widget<Icon>(find.descendant(of: find.byKey(const Key('appliance-icon-air')), matching: find.byType(Icon))).color,
-          ctx.appPrimary);
+          ctx.appInk);
     });
 
     testWidgets('안 본 알림 줄은 무슨 알림인지 말한다', (tester) async {
