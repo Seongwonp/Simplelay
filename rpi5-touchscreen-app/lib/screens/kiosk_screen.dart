@@ -875,9 +875,8 @@ class _KioskScreenState extends State<KioskScreen> {
       if (!mounted || _phase != KioskPhase.idle) return;
       _trackStrip(st);
       _trackEstop(st);
-      if (st.running && st.jobId != null) {
-        _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
-            applianceId: st.applianceId, jobId: st.jobId, thinqOnly: _adoptedThinq(st));
+      if (_adoptableJobId(st) != null) {
+        _adoptRunning(st);
         _followPendingStop(st);
         return;
       }
@@ -971,6 +970,23 @@ class _KioskScreenState extends State<KioskScreen> {
       }
       // 옛 본체(조회 없음)·조회 실패면 /status의 마지막 한 건으로 종전처럼. null이면 본체가 그 실행을 모른다(흔적 없음과 같다).
       final job = lookup.unsupported ? st : lookup.status;
+      final root = job?.routineRunId;
+      if (job != null && !lookup.unsupported && root != null && root != jobId) {
+        // 루틴의 구간 번호를 따라가고 있었다(검토 10/19) — 구간의 끝은 루틴의 끝이 아니다. 루틴 첫 번호로 갈아타고 다음 조회부터
+        // 루틴 전체 수명을 본다. 이 구간의 끝을 결과 화면으로 띄우지 않는다.
+        _lastStatusOk = DateTime.now();
+        _foreignPolls = 0;
+        _trackStrip(st);
+        _trackEstop(st);
+        setState(() {
+          _activeJobId = root;
+          _execRoutineRunId = root;
+          _execRoutineSegment = job.routineSegment ?? _execRoutineSegment;
+          _execRoutineSegmentJobId = job.routineSegmentJobId ?? jobId;
+        });
+        _followPendingStop(st);
+        return;
+      }
       _lastStatusOk = DateTime.now();
       _trackStrip(st);
       _trackEstop(st);
@@ -1048,6 +1064,26 @@ class _KioskScreenState extends State<KioskScreen> {
         _toDone(false, _execTitle,
             reason: KioskFailureReason.serverLost);
       }
+    }
+  }
+
+  /// /status에서 이어받을 실행 번호(검토 10/19) — 루틴이 돌면(구간 사이 기다림 포함) 그 루틴의 첫 번호, 아니면 도는 실행 번호.
+  /// 구간 번호를 따라가면 구간 하나의 끝을 루틴의 끝으로 말한다. 옛 본체(루틴 필드 없음)는 종전처럼 job_id.
+  String? _adoptableJobId(KioskStatus st) {
+    final routine = st.routineRunId;
+    if (routine != null && (st.routineStatus == null || st.routineStatus == 'running')) return routine;
+    return st.running ? st.jobId : null;
+  }
+
+  /// 본체에서 도는 실행(폰·자동 실행·루틴)을 이어받아 실행 화면으로. 루틴이면 첫 번호를 따라가고 정지는 그 루틴만 멈추는 경로로.
+  void _adoptRunning(KioskStatus st) {
+    _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
+        applianceId: st.applianceId, jobId: _adoptableJobId(st), thinqOnly: _adoptedThinq(st));
+    final routine = st.routineRunId;
+    if (routine != null && _activeJobId == routine) {
+      _execRoutineRunId = routine;
+      _execRoutineSegment = st.routineSegment;
+      _execRoutineSegmentJobId = st.routineSegmentJobId;
     }
   }
 
@@ -1146,9 +1182,9 @@ class _KioskScreenState extends State<KioskScreen> {
       if (!mounted || _phase != KioskPhase.done) return;
       _trackEstop(st);
       _trackAutoRun(st);
-      if (st.running && st.jobId != null && st.jobId != _activeJobId) {
-        _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
-            applianceId: st.applianceId, jobId: st.jobId, thinqOnly: _adoptedThinq(st));
+      final adopt = _adoptableJobId(st);
+      if (adopt != null && adopt != _activeJobId) {
+        _adoptRunning(st);
         _followPendingStop(st);
         return;
       }
@@ -1278,10 +1314,9 @@ class _KioskScreenState extends State<KioskScreen> {
       _trackStrip(st);
       _trackEstop(st);
       // 폰이 새 실행을 시작했다 — 그 실행을 따라간다.
-      if (st.running && st.jobId != null) {
+      if (_adoptableJobId(st) != null) {
         _holdReturnTimer?.cancel();
-        _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
-            applianceId: st.applianceId, jobId: st.jobId, thinqOnly: _adoptedThinq(st));
+        _adoptRunning(st);
         return;
       }
       _applyHold(st);
@@ -1934,11 +1969,13 @@ class _KioskScreenState extends State<KioskScreen> {
         }
         return;
       }
-      if (st.running && st.jobId != null) {
+      final adopt = _adoptableJobId(st);
+      if (adopt != null) {
         _endAdmitUnknown();
         _foreignPolls = 0;
         setState(() {
-          _activeJobId = st.jobId;
+          _activeJobId = adopt;
+          if (adopt == st.routineRunId) _execRoutineRunId = adopt;
           _execApplianceId = st.applianceId ?? _execApplianceId;
         });
         _followPendingStop(st);
@@ -2067,7 +2104,9 @@ class _KioskScreenState extends State<KioskScreen> {
     final mine = _activeJobId;
     final askedAt = _stopAskedAt;
     final fresh = askedAt != null && DateTime.now().difference(askedAt) <= _pendingStopWindow;
-    if (st.running && st.jobId != null && (mine == null ? fresh : st.jobId == mine)) {
+    // 루틴을 따라가면(내 번호가 루틴 첫 번호) 구간 사이 기다림·다음 구간도 내 실행이다(검토 10/19).
+    final routineMine = mine != null && st.routineRunId == mine;
+    if (routineMine || (st.running && st.jobId != null && (mine == null ? fresh : st.jobId == mine))) {
       unawaited(_sendExecStop());
       return;
     }
