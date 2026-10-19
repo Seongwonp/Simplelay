@@ -231,9 +231,11 @@ def test_readiness_is_dropped_even_if_node_cleanup_raises(client, monkeypatch):
         deps.get_node_registry(), "unregister", _boom("노드 정리 실패")
     )
 
-    # 예외는 숨기지 않는다 -- 호출자는 뒷정리가 덜 끝났다는 것을 알아야 한다.
-    with pytest.raises(RuntimeError, match="노드 정리 실패"):
-        client.delete("/appliances/c1")
+    # 가전은 이미 지워졌다 — 뒷정리 실패는 로그로 남기고 삭제는 성공으로 답한다(검토 10/19 #9: 예전 500은 '안 지워졌다'로
+    # 읽혀 다시 지우면 404였다).
+    res = client.delete("/appliances/c1")
+    assert res.status_code == 200, res.text
+    assert deps.get_appliance_registry().get("c1") is None
 
     # 그래도 나머지 정리는 전부 수행된다.
     assert _state("c1") is not ReadinessState.OPERABLE
@@ -251,18 +253,20 @@ def test_cleanup_failure_does_not_touch_other_appliances(client, monkeypatch):
     monkeypatch.setattr(
         deps.get_node_registry(), "unregister", _boom("노드 정리 실패")
     )
-    with pytest.raises(RuntimeError):
-        client.delete("/appliances/c1")
+    assert client.delete("/appliances/c1").status_code == 200
 
     # 남의 가전은 그대로다.
     assert _state("c2") is ReadinessState.OPERABLE
     assert _pending_ids("c2") != []
 
 
-def test_first_cleanup_error_is_the_one_raised(client, monkeypatch):
-    """정리 단계가 여럿 실패하면 **첫 예외**를 호출자에게 전달한다.
+def test_first_cleanup_error_is_the_one_raised(client, monkeypatch, caplog):
+    """정리 단계가 여럿 실패하면 **첫 예외**를 뒷정리 호출자(라우터)에게 전달한다.
     나머지는 로그로 남긴다 -- 하나로 뭉뚱그리면 원인 추적이 어려워지고,
-    마지막 것을 던지면 먼저 무너진 곳을 잃는다."""
+    마지막 것을 던지면 먼저 무너진 곳을 잃는다. 라우터는 그 첫 예외를 로그로 남기고
+    삭제는 성공으로 답한다(검토 10/19 #9)."""
+    from rpi.api.router import _cleanup_after_delete
+
     _register_custom(client, "c1")
     _make_operable("c1")
 
@@ -272,7 +276,12 @@ def test_first_cleanup_error_is_the_one_raised(client, monkeypatch):
     )
 
     with pytest.raises(RuntimeError, match="먼저"):
-        client.delete("/appliances/c1")
+        _cleanup_after_delete("c1", deps.get_node_registry(), deps.get_suggestion_service(),
+                              deps.get_readiness_registry())
+    _make_operable("c1")
+    caplog.clear()
+    assert client.delete("/appliances/c1").status_code == 200
+    assert "먼저" in caplog.text
 
     # 그 와중에도 안전 정리는 끝난다.
     assert _state("c1") is not ReadinessState.OPERABLE

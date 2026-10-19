@@ -936,7 +936,13 @@ def delete_appliance(
     if not found:
         raise HTTPException(status_code=404, detail="appliance not found")
 
-    _cleanup_after_delete(appliance_id, nodes, suggestions, readiness)
+    # 가전은 이미 지워졌다 — 뒷정리 실패로 500을 주면 '안 지워졌다'로 읽히고, 다시 지우면 404라 뒷정리를 다시 해 볼 길도
+    # 없다(검토 10/19 #9). 실패는 단계마다 로그로 남기고(``_cleanup_after_delete``) 삭제는 성공으로 답한다. 각 단계는 다시
+    # 불러도 같은 결과다(없는 노드·카드·판정을 지우는 것).
+    try:
+        _cleanup_after_delete(appliance_id, nodes, suggestions, readiness)
+    except Exception:  # noqa: BLE001
+        log.exception("cleanup after deleting appliance %r was incomplete", appliance_id)
     return OkResponse()
 
 
