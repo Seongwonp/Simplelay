@@ -23,6 +23,11 @@ from rpi.controller import ExecutionMode
 log = logging.getLogger(__name__)
 
 
+#: 확인 주행이 기계 제어권을 잡을 때의 이름(ControlArbiter holder). 일반 실행(``execution``)의
+#: 반납과 섞이지 않게 따로 둔다.
+VERIFY_PASS_HOLDER = "verify_pass"
+
+
 class VerifyPassUnavailable(RuntimeError):
     """이 구성에서는 확인 주행을 할 수 없다."""
 
@@ -39,7 +44,10 @@ class VerifyPassRunner:
             return None if doc is None else _copy(doc)
 
     def start(self, appliance_id: str, targets: list[dict], controller: Any,
-              *, wait: bool = False) -> dict:
+              *, wait: bool = False, arbiter: Any = None) -> dict:
+        """``arbiter``(일반 실행과 같은 ControlArbiter)를 주면 주행 내내 기계 제어권을 잡는다 —
+        잡지 못하면(일반 실행·개발자 세션·정지 미확인) ControlConflictError/ControlFaultedError
+        (RuntimeError)로 거절하고 움직이지 않는다(10/19 검토 #8)."""
         mode = getattr(controller, "execution_mode", ExecutionMode.UNKNOWN)
         remote = callable(getattr(controller, "verify_pass", None))
         if not remote and mode is not ExecutionMode.MOCK:
@@ -47,6 +55,8 @@ class VerifyPassRunner:
         with self._lock:
             if self._running:
                 raise RuntimeError("다른 확인 주행이 진행 중이에요")
+            if arbiter is not None:
+                arbiter.acquire(VERIFY_PASS_HOLDER)  # 중재자 락은 최내곽(leaf)이라 역전이 없다
             self._running = True
             doc = {
                 "pass_id": uuid.uuid4().hex[:12],
@@ -59,9 +69,18 @@ class VerifyPassRunner:
                 "note": "누르지 않고 Z를 올린 채 지나갑니다. 버튼 위인지는 눈으로 확인해 주세요.",
             }
             self._passes[appliance_id] = doc
-        thread = threading.Thread(target=self._run, args=(doc, targets, controller, remote),
+        thread = threading.Thread(target=self._run, args=(doc, targets, controller, remote, arbiter),
                                   daemon=True, name="verify-pass")
-        thread.start()
+        try:
+            thread.start()
+        except BaseException:
+            with self._lock:
+                self._running = False
+                doc["state"] = "failed"
+                doc["detail"] = "확인 주행을 시작하지 못했어요"
+            if arbiter is not None:
+                arbiter.release(VERIFY_PASS_HOLDER)
+            raise
         if wait:
             thread.join(30)
         return self.status(appliance_id) or {}
@@ -77,7 +96,8 @@ class VerifyPassRunner:
             if mode:
                 doc["execution_mode"] = mode
 
-    def _run(self, doc: dict, targets: list[dict], controller: Any, remote: bool) -> None:
+    def _run(self, doc: dict, targets: list[dict], controller: Any, remote: bool,
+             arbiter: Any = None) -> None:
         try:
             wire = [{"button": t["button"], "x_mm": t["x_mm"], "y_mm": t["y_mm"], "kind": t["kind"]}
                     for t in targets]
@@ -108,6 +128,8 @@ class VerifyPassRunner:
                     if step["status"] in ("pending", "moving"):
                         step["status"] = "skipped"
         finally:
+            if arbiter is not None:
+                arbiter.release(VERIFY_PASS_HOLDER)
             with self._lock:
                 self._running = False
 

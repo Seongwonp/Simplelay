@@ -235,9 +235,13 @@ async def verify_pass_start(appliance_id: str, body: VerifyPassRequest | None = 
         raise HTTPException(status_code=409, detail="다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.")
     if not service.runs_locally(appliance_id):
         raise HTTPException(status_code=409, detail=VERIFY_NOT_LOCAL_DETAIL)
+    # 위 running 확인은 안내 문구용이다. 실제 상호 배제는 일반 실행과 같은 제어권 중재자를 주행 내내
+    # 잡는 것으로 한다 — 확인 뒤 일반 실행이 먼저 시작했으면 여기서 409(10/19 검토 #8).
+    arbiter = getattr(service, "_control_arbiter", None)
     try:
         # 실행기 최초 생성도 스레드 안에서(인자로 부르면 루프에서 만든다 — 지금은 메모리뿐이지만 같은 모양을 남기지 않는다)
-        return await asyncio.to_thread(lambda: get_verify_runner().start(appliance_id, targets, service._controller))
+        return await asyncio.to_thread(
+            lambda: get_verify_runner().start(appliance_id, targets, service._controller, arbiter=arbiter))
     except VerifyPassUnavailable as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RuntimeError as exc:
