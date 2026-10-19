@@ -144,7 +144,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     if (target != null) target.displayName,
                     _jobTitle(status),
                     if (now.button != null) "${now.button} 버튼",
-                    now.headline,
+                    // 화면은 할 일 하나만 먼저 보이고 나머지를 접어도, 화면 읽기는 결과 문장 전부를 듣는다(심사 의견 10/19).
+                    now.spoken ?? now.headline,
+                    if (now.nextAction != null) now.nextAction!,
                     if (now.detail != null) now.detail!,
                     if (_finished(status.phase)) ..._resultFactWords(status),
                     if (_finished(status.phase))
@@ -453,8 +455,10 @@ class _ResultFacts extends StatelessWidget {
     // ThinQ 성공(2026-10-14)은 큰 문장이 서버 문장을 그대로 말한다 — 같은 줄을 두 번 쓰지 않는다.
     final mockRun = status.isDemo || status.executionMode == 'mock';
     final detail = status.route == 'thinq' &&
-            thinqOutcomeSentence(status.confirmation, status.detail) != null &&
-            !(mockRun && status.confirmation == 'state_confirmed')
+                thinqOutcomeSentence(status.confirmation, status.detail) != null &&
+                !(mockRun && status.confirmation == 'state_confirmed') ||
+            // 할 일 한 가지를 크게 보인 결과는 근거 줄을 위 '더 볼 것' 안에 둔다(심사 의견 10/19).
+            _recoveryAction(status) != null
         ? null
         : status.detail;
     if (words.isEmpty &&
@@ -651,7 +655,64 @@ class _NowState {
     this.tone = _Tone.neutral,
     this.retryNote,
     this.idle = false,
+    this.spoken,
+    this.nextAction,
+    this.caveats = const [],
+    this.more = const [],
   });
+
+  /// 화면 읽기에 줄 결과 문장 전부. null이면 [headline].
+  final String? spoken;
+
+  /// 실패·확인 못 함의 할 일 **한 가지**(크게) — 키오스크 순서 안내 첫 줄과 같은 말([_recoveryAction]).
+  final String? nextAction;
+
+  /// 다시 하기 전 주의(늘 보인다 — 접지 않는다).
+  final List<String> caveats;
+
+  /// 그 밖의 확인할 것 — '더 볼 것' 뒤에 접는다.
+  final List<String> more;
+
+  /// 실패·확인 못 함 결과를 '본 사실 한 문장 + 할 일 한 가지 + 주의 + 접힌 나머지'로 가른다(심사 의견 10/19 — 가전 불빛·누름
+  /// 장치 자리·손으로 누르기를 한꺼번에 말하면 눈이 어둡거나 나이 든 사용자에게 많았다). 할 일이 없는 결과는 그대로 둔다.
+  /// 결과 문장의 어느 말도 버리지 않는다 — 다시 하기·다시 보내기에 걸린 말은 늘 보이고, 나머지는 접히며, 화면 읽기는 전부 듣는다.
+  static _NowState _withRecovery(ExecutionStatus s, String full, _Tone tone) {
+    final action = _recoveryAction(s);
+    if (action == null) return _NowState(headline: full, tone: tone);
+    var rest = full;
+    final caveats = <String>[];
+    // 두 문장짜리 주의는 한 덩어리로 — 쪼개면 '같은 버튼을 또 누르게 돼요'만 접힌다.
+    if (rest.contains(kDontRetryIfOn)) {
+      rest = rest.replaceFirst(RegExp('${RegExp.escape(kDontRetryIfOn)}\\.?'), ' ');
+    }
+    final sentences = [
+      for (final t in rest.split(RegExp(r'(?<=[.?!])\s+')))
+        if (t.trim().isNotEmpty) t.trim(),
+    ];
+    if (sentences.isEmpty) return _NowState(headline: full, tone: tone);
+    String bare(String t) => t.replaceAll(RegExp(r'[.\s]+$'), '');
+    final more = <String>[];
+    for (final t in sentences.skip(1)) {
+      if (t.contains('다시')) {
+        caveats.add(t);
+      } else if (bare(t) != action && bare(t) != '집에서 가전을 확인해야 해요') {
+        // 할 일 줄이 이미 말한 '집에서 가전을 확인'은 접힌 곳에 또 두지 않는다.
+        more.add(t);
+      }
+    }
+    if (full.contains(kDontRetryIfOn)) caveats.add('$kDontRetryIfOn.');
+    // 서버가 준 근거 한 줄(어디까지 했는지)도 접힌 곳으로 — 결과 아래에 따로 늘어놓지 않는다([_ResultFacts]).
+    final d = s.detail?.trim();
+    if (d != null && d.isNotEmpty && !full.contains(d)) more.add(d);
+    return _NowState(
+      headline: sentences.first,
+      tone: tone,
+      spoken: full,
+      nextAction: action,
+      caveats: caveats,
+      more: more,
+    );
+  }
 
   /// 아무것도 하고 있지 않다. 그때만 안내 문구를 작게 쓴다 -- 실행 중의
   /// '실행 중'은 지금 상태이므로 다른 국면과 같은 크기로 말한다.
@@ -729,8 +790,9 @@ class _NowState {
           tone: _Tone.done,
         );
       case ExecutionPhase.failed:
-        return _NowState(
-          headline: s.message ??
+        return _withRecovery(
+          s,
+          s.message ??
               finishedMessage(
                 kind: ResultKind.failed,
                 // 모의 실행은 이 job에 새겨져 있다(전역 토글이 아니다).
@@ -738,7 +800,7 @@ class _NowState {
                 route: s.route,
                 receipt: s.receipt,
               ),
-          tone: _Tone.failed,
+          _Tone.failed,
         );
       case ExecutionPhase.unknown:
         return _NowState(
@@ -747,15 +809,32 @@ class _NowState {
         );
       case ExecutionPhase.unconfirmed:
         // 실패로 말하지 않는다 -- 다시 보내면 중복 실행이 될 수 있다.
-        return _NowState(
-          headline: s.message ?? unconfirmedSentence(receipt: s.receipt),
-          tone: _Tone.caution,
-        );
+        return _withRecovery(s, s.message ?? unconfirmedSentence(receipt: s.receipt), _Tone.caution);
     }
   }
 }
 
 enum _Tone { neutral, caution, done, failed }
+
+/// 할 일 한 가지(심사 의견 10/19) — 볼 것은 키오스크 순서 안내 첫 줄(`kPressRecoverySteps`·`kThinqRecoverySteps`)과 같고,
+/// 말투는 폰 규칙대로 '집에서 확인'이다(폰을 든 사람은 집 밖의 보호자일 수 있다 — heuristic_1018 C).
+const kPressFirstCheck = '가전 화면이 바뀌었는지 집에서 확인이 필요해요';
+const kThinqFirstCheck = '집에서 가전을 직접 확인해야 해요';
+
+/// 누름 장치가 걸려 멈췄을 때의 할 일 — 결과 문장의 그 말([finishedMessage])과 같다.
+const kMotionAbortCheck = '가전과 누름 장치는 집에서 확인이 필요해요';
+
+/// 실패·확인 못 함 결과의 할 일 한 가지. 사용자 정지·보내지 못함(연결을 보고 다시)·LG 가전이 하지 않음·연습·서버 결과가
+/// 오기 전의 실패(시작 못 함 등)는 null — 결과 문장이 이미 짧거나 볼 가전이 없다.
+String? _recoveryAction(ExecutionStatus s) {
+  if (s.outcome == null || s.isDemo || s.executionMode == 'mock') return null;
+  return switch (_kindOf(s)) {
+    ResultKind.unconfirmed => kThinqFirstCheck,
+    ResultKind.safetyStop => motionAbortSentence(s.abortReason) != null ? kMotionAbortCheck : kPressFirstCheck,
+    ResultKind.failed when s.route != 'thinq' && s.receipt != 'not_dispatched' => kPressFirstCheck,
+    _ => null,
+  };
+}
 
 class _NowBlock extends StatelessWidget {
   const _NowBlock({required this.now});
@@ -814,6 +893,21 @@ class _NowBlock extends StatelessWidget {
             ),
           ],
         ),
+        // 할 일 한 가지 — 가장 크게(심사 의견 10/19). 흐린 글자로 두지 않는다.
+        if (now.nextAction != null) ...[
+          const SizedBox(height: AppSpace.md),
+          Text(
+            keepWordsTogether(now.nextAction!),
+            key: const Key('status-next-action'),
+            semanticsLabel: now.nextAction,
+            style: const TextStyle(fontSize: AppFont.tabTitle, fontWeight: FontWeight.w700),
+          ),
+        ],
+        for (final (i, c) in now.caveats.indexed) ...[
+          const SizedBox(height: AppSpace.xs),
+          Text(c, key: Key('status-caveat-$i'), style: const TextStyle(fontSize: AppFont.body)),
+        ],
+        if (now.more.isNotEmpty) _MoreChecks(lines: now.more),
         if (now.detail != null) ...[
           const SizedBox(height: AppSpace.xs),
           Text(now.detail!, style: TextStyle(color: context.appMuted)),
@@ -835,6 +929,42 @@ class _NowBlock extends StatelessWidget {
       ],
     );
   }
+}
+
+/// '더 볼 것' — 접힌 확인할 것(심사 의견 10/19). 키오스크 결과 화면의 '더 볼 것'과 같은 말.
+class _MoreChecks extends StatefulWidget {
+  const _MoreChecks({required this.lines});
+
+  final List<String> lines;
+
+  @override
+  State<_MoreChecks> createState() => _MoreChecksState();
+}
+
+class _MoreChecksState extends State<_MoreChecks> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: AppSpace.xs),
+          TextButton.icon(
+            key: const Key('status-more-checks'),
+            onPressed: () => setState(() => _open = !_open),
+            icon: Icon(_open ? Icons.expand_less : Icons.expand_more),
+            label: Text(_open ? '접기' : '더 볼 것 ${widget.lines.length}가지'),
+            // 고령 사용자 기준 최소 터치 대상.
+            style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+          ),
+          if (_open)
+            for (final l in widget.lines)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpace.xs),
+                child: Text(l, style: const TextStyle(fontSize: AppFont.body)),
+              ),
+        ],
+      );
 }
 
 // ── 대상 가전 한 줄 ───────────────────────────────────────────────────────
