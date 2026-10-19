@@ -9,7 +9,8 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../models/display_status.dart' show isPracticeAppliance;
-import '../models/command_result.dart' show manualPressSentence, manualPressUnknownSentence;
+import '../models/command_result.dart'
+    show ResultKind, manualPressSentence, manualPressUnknownSentence, resultKindOf;
 import '../providers/appliance_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -48,6 +49,9 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   String? _resultLabel;
   bool? _resultSuccess;
 
+  /// 끝난 결과의 종류(서버 last_outcome 우선, 검토 10/19) — 멈춤·스스로 멈춤·못 함·확인 못 함을 따로 말한다.
+  ResultKind? _resultKind;
+
   /// 방금 누른 결과 한 줄 — 확인한 만큼만(2026-10-15).
   String? _resultSentence;
   Timer? _resultClearTimer;
@@ -82,9 +86,10 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       _resultButtonId = null;
       _resultLabel = null;
       _resultSuccess = null;
+      _resultKind = null;
     });
 
-    bool success;
+    ResultKind kind;
     String? confirmation;
     var mode = 'unknown';
     String? unknownJobId;
@@ -106,11 +111,13 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       );
       final done = await _waitJobDone(api, accepted.jobId);
       if (done == null) unknownJobId = accepted.jobId;
-      success = done?.lastStatus == 'succeeded';
+      kind = done == null
+          ? ResultKind.failed
+          : resultKindOf(outcome: done.lastOutcome, status: done.lastStatus);
       confirmation = done?.lastConfirmation;
       mode = done?.lastExecutionMode ?? 'unknown';
     } catch (_) {
-      success = false;
+      kind = ResultKind.failed;
     }
 
     if (!mounted) return;
@@ -129,24 +136,26 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       _trackUnknown(api, unknownJobId, button);
       return;
     }
-    _showResult(button, success: success, confirmation: confirmation, mode: mode);
+    _showResult(button, kind: kind, confirmation: confirmation, mode: mode);
   }
 
   void _showResult(
     ApplianceButton button, {
-    required bool success,
+    required ResultKind kind,
     String? confirmation,
     String mode = 'unknown',
   }) {
     _resultClearTimer?.cancel();
+    final success = kind == ResultKind.success;
     setState(() {
       _pendingButtonId = null;
       _pendingLabel = null;
       _resultButtonId = button.id;
       _resultLabel = button.label;
       _resultSuccess = success;
+      _resultKind = kind;
       _resultSentence = manualPressSentence(button.label,
-          success: success, confirmation: confirmation, executionMode: mode);
+          success: success, kind: kind, confirmation: confirmation, executionMode: mode);
     });
     // 셀의 색은 2초 뒤 거둔다. 문장은 다음 버튼을 누를 때까지 남긴다 --
     // 실패를 2초 만에 지우면 한눈판 사람은 무슨 일이 있었는지 모른다.
@@ -169,7 +178,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
           _unknownButtonId = null;
           if (_pendingButtonId == null && _resultSuccess == null && _resultLabel == button.label) {
             _showResult(button,
-                success: status.lastStatus == 'succeeded',
+                kind: resultKindOf(outcome: status.lastOutcome, status: status.lastStatus),
                 confirmation: status.lastConfirmation,
                 mode: status.lastExecutionMode);
           }
@@ -300,6 +309,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
               pendingLabel: _pendingLabel,
               resultLabel: _resultLabel,
               resultSuccess: _resultSuccess,
+              resultKind: _resultKind,
               resultSentence: _resultSentence,
               onSeeStatus: () => context.push('/status'),
             ),
@@ -405,6 +415,7 @@ class _FeedbackLine extends StatelessWidget {
     required this.pendingLabel,
     required this.resultLabel,
     required this.resultSuccess,
+    this.resultKind,
     this.resultSentence,
     required this.onSeeStatus,
   });
@@ -412,6 +423,7 @@ class _FeedbackLine extends StatelessWidget {
   final String? pendingLabel;
   final String? resultLabel;
   final bool? resultSuccess;
+  final ResultKind? resultKind;
   final String? resultSentence;
   final VoidCallback onSeeStatus;
 
@@ -459,22 +471,31 @@ class _FeedbackLine extends StatelessWidget {
     }
     if (resultLabel != null && resultSuccess != null) {
       final ok = resultSuccess!;
+      // 사람이 멈춘 것·확인 못 한 것은 실패 색으로 보이지 않는다 — 못 함·스스로 멈춤만 빨강.
+      final calm = resultKind == ResultKind.stopped || resultKind == ResultKind.unconfirmed;
+      final color = ok ? context.appSuccess : (calm ? context.appWarning : context.appDanger);
       return Row(
         children: [
           Icon(
-            ok ? Icons.check_circle_outline : Icons.cancel_outlined,
+            ok
+                ? Icons.check_circle_outline
+                : switch (resultKind) {
+                    ResultKind.stopped => Icons.stop_circle_outlined,
+                    ResultKind.unconfirmed => Icons.help_outline,
+                    _ => Icons.cancel_outlined,
+                  },
             size: 22,
-            color: ok ? context.appSuccess : context.appDanger,
+            color: color,
           ),
           const SizedBox(width: AppSpace.sm),
           Expanded(
             child: Text(
               resultSentence ??
-                  manualPressSentence(resultLabel!, success: ok),
+                  manualPressSentence(resultLabel!, success: ok, kind: resultKind),
               style: TextStyle(
                 fontSize: AppFont.body,
                 fontWeight: FontWeight.w600,
-                color: ok ? context.appSuccess : context.appDanger,
+                color: color,
               ),
             ),
           ),

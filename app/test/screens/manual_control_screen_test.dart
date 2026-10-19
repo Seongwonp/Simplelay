@@ -329,4 +329,39 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
     });
   }
+  // 검토 10/19(12): 결과를 last_status만 보고 갈라, 사람이 멈춘 것·스스로 멈춘 것도 같은 빨간 '눌렸는지 몰라요'였다.
+  for (final (outcome, status, sentence) in [
+    ('stopped', 'safety_stopped', "'켜기' 멈추라고 해서 멈췄어요. 눌렸는지는 가전을 보고 확인해 주세요"),
+    ('safety_stop', 'safety_stopped', "'켜기' 눌렸는지 확인이 안 돼 스스로 멈췄어요. 가전을 보고 확인해 주세요"),
+    ('failed', 'failed', "'켜기' 하지 못했어요. 눌렸는지는 집에서 가전을 확인해야 해요"),
+    ('unconfirmed', 'unconfirmed', "'켜기' 보냈지만 눌렸는지 확인하지 못했어요. 집에서 가전을 확인해야 해요"),
+  ]) {
+    testWidgets('끝난 결과는 last_outcome으로 가른다 — $outcome', (tester) async {
+      final client = MockClient((request) async {
+        if (request.url.path == '/execute-buttons') {
+          return jsonRes({'job_id': 'job-k1', 'status': 'accepted'});
+        }
+        return jsonRes({
+          'running': false,
+          'last_status': status,
+          'last_outcome': outcome,
+          'last_job_id': 'job-k1',
+        });
+      });
+      final api = RpiApiService('http://rpi5.local:8000', client: client);
+      final container = await _makeContainerWithAppliance(
+        tester,
+        extra: [rpiApiServiceProvider.overrideWithValue(api)],
+      );
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+      await tester.tap(find.text('켜기'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+      expect(find.text(sentence), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(seconds: 4)); // 멈춤 결과의 정지 단계 후속 조회
+    });
+  }
 }

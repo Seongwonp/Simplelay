@@ -193,9 +193,20 @@ const kDontRetryIfOn = '가전이 이미 움직이고 있으면 다시 시도하
 String manualPressUnknownSentence(String label) =>
     "'$label' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요";
 
+///
+/// [kind]는 끝난 실행의 결과 축(`resultKindOf(outcome: last_outcome, status: last_status)`, 검토 10/19) — 성공이 아니면 멈춤·
+/// 스스로 멈춤·못 함·확인 못 함을 따로 말한다. 없으면 종전 문장.
 String manualPressSentence(String label,
-    {required bool success, String? confirmation, String executionMode = 'unknown'}) {
-  if (!success) return "'$label' 눌렸는지 몰라요. 집에서 가전을 확인해야 해요";
+    {required bool success, ResultKind? kind, String? confirmation, String executionMode = 'unknown'}) {
+  if (!success) {
+    return switch (kind) {
+      ResultKind.stopped => "'$label' 멈추라고 해서 멈췄어요. 눌렸는지는 가전을 보고 확인해 주세요",
+      ResultKind.safetyStop => "'$label' 눌렸는지 확인이 안 돼 스스로 멈췄어요. 가전을 보고 확인해 주세요",
+      ResultKind.unconfirmed => "'$label' 보냈지만 눌렸는지 확인하지 못했어요. 집에서 가전을 확인해야 해요",
+      ResultKind.failed => "'$label' 하지 못했어요. 눌렸는지는 집에서 가전을 확인해야 해요",
+      _ => "'$label' 눌렸는지 몰라요. 집에서 가전을 확인해야 해요",
+    };
+  }
   if (executionMode == 'mock') return "'$label' 연습으로 눌렀어요. 실제 가전은 누르지 않았어요";
   if (executionMode == 'real' &&
       (confirmation == 'press_confirmed' || confirmation == 'operation_confirmed')) {
