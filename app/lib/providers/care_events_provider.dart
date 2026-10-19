@@ -191,10 +191,24 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
   }
 
   /// 못 한 일을 봤다(홈 경고의 '기록 보기', 2026-10-19) — 본체에 적어 폰 경고·설정 탭 배지·키오스크 표시가 함께 사라진다.
-  /// 본체 시계로 지금까지의 못 한 일만 — 위험 소리·비상 정지·안부 신호는 알림함을 열어야 지워진다. 새 실패는 다시 뜬다.
-  /// 본체에 닿지 못하면 아무것도 지우지 않는다(확인을 지어내지 않는다).
-  Future<bool> markFailuresSeen() async {
-    final acks = await _ref.read(rpiApiServiceProvider)?.postAcks(failuresSeen: true);
+  /// 경고에 보인 알림([shown]) 가운데 가장 새 못 한 일 번호까지만(검토 10/19) — 폰이 아직 받아 오지 않은 실패는 남는다.
+  /// 위험 소리·비상 정지·안부 신호는 알림함을 열어야 지워진다. 새 실패는 다시 뜬다.
+  /// 본체에 닿지 못하면 아무것도 지우지 않는다(확인을 지어내지 않는다). 보인 못 한 일이 없으면 적지 않는다.
+  Future<bool> markFailuresSeen(List<RpiCareEvent> shown) async {
+    final ids = [for (final e in shown) if (PersonAcks.failureKinds.contains(e.kind)) e.id];
+    if (ids.isEmpty) return false;
+    final newest = ids.reduce((a, b) => a > b ? a : b);
+    final acks = await _ref.read(rpiApiServiceProvider)?.postAcks(failuresSeenId: newest);
+    if (acks == null || !mounted) return false;
+    state = state.copyWith(acks: acks);
+    return true;
+  }
+
+  /// 기록 화면에 보인 실행([jobIds])을 봤다(홈 경고의 '기록 보기'로 열었을 때, 검토 10/19) — 키오스크 지난 일·가전 칸 표시가
+  /// 함께 내려간다. 보이지 않은 실행은 적지 않는다. 본체 한도(200건)까지만.
+  Future<bool> markJobsSeen(List<String> jobIds) async {
+    if (jobIds.isEmpty) return false;
+    final acks = await _ref.read(rpiApiServiceProvider)?.postAcks(seenJobIds: jobIds.take(200).toList());
     if (acks == null || !mounted) return false;
     state = state.copyWith(acks: acks);
     return true;

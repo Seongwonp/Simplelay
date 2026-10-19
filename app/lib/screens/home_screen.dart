@@ -17,7 +17,7 @@ import '../providers/routine_provider.dart';
 import '../widgets/routine_icon.dart';
 import '../widgets/routine_run.dart';
 import 'routines_screen.dart' show ampmClock, kSetupActionLabel, routineSubtitle, withAmPm;
-import 'history_screen.dart' show historyFailedOnlyProvider;
+import 'history_screen.dart' show historyAckPendingProvider, historyFailedOnlyProvider;
 import '../providers/ble_provider.dart';
 import '../providers/care_events_provider.dart';
 import '../providers/estop_provider.dart';
@@ -626,8 +626,10 @@ class _FailureAlert extends ConsumerWidget {
                       // 못 한 일만 거른 기록으로(보호자 과업 평가 10/18 — 어제 실패를 찾기 쉽게).
                       ref.read(historyFailedOnlyProvider.notifier).state = true;
                       // 보러 간다 = 봤다(사용자 보고 10/19: 기록을 보고 와도 경고가 남았다) — 본체에 적어 이 경고·설정 탭
-                      // 배지·키오스크 표시가 함께 사라진다. 새 실패는 다시 뜬다.
-                      unawaited(ref.read(careEventsProvider.notifier).markFailuresSeen());
+                      // 배지·키오스크 표시가 함께 사라진다. 이 경고에 보인 못 한 일까지만, 실행은 기록 화면에 보인 것만
+                      // (검토 10/19). 새 실패는 다시 뜬다.
+                      ref.read(historyAckPendingProvider.notifier).state = true;
+                      unawaited(ref.read(careEventsProvider.notifier).markFailuresSeen(unreadCare));
                       context.go('/history');
                     }
                   : () => context.push('/care'),

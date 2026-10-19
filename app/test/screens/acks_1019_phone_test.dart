@@ -3,7 +3,7 @@
 // 원인: 홈 '못 한 일 … 기록 보기' 경고는 보호자 알림 가운데 안 본 것으로 정해지는데, '안 봄'의 기준이 이 폰 안에만
 // 기억하는 '알림함을 연 시점'이었다 — '기록 보기'로 기록을 보고 와도 경고·설정 탭 배지가 그대로였고, 키오스크에서 그
 // 실패를 확인해도 폰은 몰랐다.
-// 이제: '기록 보기'를 누르면 본체 POST /acks(failures_seen)에 적고 경고가 사라진다. 다른 기기(키오스크)에서 확인한 것도
+// 이제: '기록 보기'를 누르면 본체 POST /acks(경고에 보인 failures_seen_id)에 적고 경고가 사라진다. 다른 기기(키오스크)에서 확인한 것도
 // GET /acks로 읽어 사라진다. 새 실패는 다시 뜬다.
 import 'dart:convert';
 
@@ -45,7 +45,8 @@ class _Hub {
           if (path == '/acks' && req.method == 'POST') {
             final body = jsonDecode(req.body) as Map<String, dynamic>;
             posts.add(body);
-            if (body['failures_seen'] == true) acks = {...acks, 'failures_seen_until': now};
+            // 화면에 보인 못 한 일 번호까지(검토 10/19 계약) — 시각은 옛 앱 호환 값.
+            if (body['failures_seen_id'] case final int id) acks = {...acks, 'failures_seen_id': id, 'failures_seen_until': now};
             return _json(acks);
           }
           if (path == '/appliances') return _json(const []);
@@ -104,7 +105,7 @@ void main() {
     await tester.tap(find.byKey(const Key('home-failure-action')));
     await _settle(tester);
     expect(hub.posts, [
-      {'failures_seen': true},
+      {'failures_seen_id': 1},
     ]);
     await tester.tap(find.byKey(const Key('back-home')));
     await _settle(tester);

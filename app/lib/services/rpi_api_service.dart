@@ -653,12 +653,15 @@ class RpiCareEvent {
 /// 사람이 '확인함'(본체 `GET/POST /acks`, 2026-10-19) — 폰·키오스크가 같은 값을 읽는다.
 ///
 /// - [careSeenId]: 보호자 알림을 이 번호까지 봤다.
-/// - [failuresSeenUntil]: 이 시각(본체 시계)까지의 '못 한 일' 알림은 봤다(폰 '기록 보기'·키오스크 지난 일 확인·답).
+/// - [failuresSeenId]: 이 알림 번호까지의 '못 한 일' 알림은 봤다(검토 10/19 — 번호 비교라 본체 시계가 뒤로 가도 새 실패를
+///   덮지 않는다). 옛 본체(값 없음)면 null.
+/// - [failuresSeenUntil]: 옛 본체 호환 시각 — [failuresSeenId]가 없을 때만 이 시각까지의 '못 한 일'을 봤다로 본다.
 /// - [jobAnswers]: 실행 하나에 남긴 답 — seen · moved · not_moved.
 class PersonAcks {
-  const PersonAcks({this.careSeenId = 0, this.failuresSeenUntil, this.jobAnswers = const {}});
+  const PersonAcks({this.careSeenId = 0, this.failuresSeenId, this.failuresSeenUntil, this.jobAnswers = const {}});
 
   final int careSeenId;
+  final int? failuresSeenId;
   final DateTime? failuresSeenUntil;
   final Map<String, String> jobAnswers;
 
@@ -668,8 +671,11 @@ class PersonAcks {
   /// 이 알림을 사람이 이미 봤나(어느 기기에서든).
   bool covers(RpiCareEvent e) {
     if (e.id <= careSeenId) return true;
+    if (!failureKinds.contains(e.kind)) return false;
+    final seenId = failuresSeenId;
+    if (seenId != null) return e.id <= seenId;
     final until = failuresSeenUntil;
-    return until != null && failureKinds.contains(e.kind) && !e.occurredAt.isAfter(until);
+    return until != null && !e.occurredAt.isAfter(until);
   }
 
   factory PersonAcks.fromJson(Map<String, dynamic> json) {
@@ -677,6 +683,7 @@ class PersonAcks {
     final answers = json['job_answers'];
     return PersonAcks(
       careSeenId: (json['care_seen_id'] as num?)?.toInt() ?? 0,
+      failuresSeenId: (json['failures_seen_id'] as num?)?.toInt(),
       failuresSeenUntil: until is String ? hubWallClock(until) : null,
       jobAnswers: answers is Map
           ? {for (final e in answers.entries) if (e.value is String) '${e.key}': e.value as String}
@@ -1637,14 +1644,20 @@ class RpiApiService {
   }
 
   /// 사람이 봤다·답했다를 본체에 적는다(POST /acks). 실패하면 null.
-  Future<PersonAcks?> postAcks({int? careSeenId, bool failuresSeen = false, String? jobId, String? answer}) async {
+  ///
+  /// 화면에 **실제로 보인 것만** 보낸다(본체 계약 `rpi/services/person_acks.py` 머리말, 검토 10/19): [failuresSeenId]는 보인
+  /// 가장 새 못 한 일 알림 번호, [seenJobIds]는 보인 실행 기록 번호. 맨 `failures_seen`은 보내지 않는다 — 본체가 폰이 받아
+  /// 오지 않은 실패·실행까지 '봤다'로 올린다.
+  Future<PersonAcks?> postAcks(
+      {int? careSeenId, int? failuresSeenId, List<String>? seenJobIds, String? jobId, String? answer}) async {
     try {
       final res = await _client
           .post(_base.replace(path: '/acks'),
               headers: _jsonHeaders,
               body: jsonEncode({
                 if (careSeenId != null) 'care_seen_id': careSeenId,
-                if (failuresSeen) 'failures_seen': true,
+                if (failuresSeenId != null) 'failures_seen_id': failuresSeenId,
+                if (seenJobIds != null) 'seen_job_ids': seenJobIds,
                 if (jobId != null) 'job_id': jobId,
                 if (answer != null) 'answer': answer,
               }))

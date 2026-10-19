@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../models/clock_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,7 @@ import '../models/display_status.dart';
 import '../models/line_break.dart';
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/care_events_provider.dart';
 import '../providers/routine_provider.dart';
 import '../widgets/routine_run.dart';
 import '../providers/clock_provider.dart';
@@ -32,6 +35,10 @@ final historyProvider =
 
 /// 기록 위 '못 한 일만' 거르기(보호자 과업 평가 10/18 — 어제 실패를 찾기 쉽게). 홈 실패 경고의 '기록 보기'가 켠다.
 final historyFailedOnlyProvider = StateProvider<bool>((ref) => false);
+
+/// 홈 실패 경고의 '기록 보기'로 왔다 — 기록이 보이면 보인 실행을 본체에 '봤다'로 한 번 적는다(검토 10/19 /acks 계약:
+/// 받아 오지 않은 실행까지 '봤다'로 올리지 않는다).
+final historyAckPendingProvider = StateProvider<bool>((ref) => false);
 
 /// '못 한 일만'에 남는 기록 — 못 했어요·스스로 멈췄어요·됐는지 모름(연습·됐어요·사람이 멈춘 것은 뺀다).
 bool historyIsNotDone(RpiHistoryEntry e) {
@@ -64,6 +71,15 @@ class HistoryScreen extends ConsumerWidget {
     final now = ref.watch(nowProvider)();
     final installed = ref.watch(installedAppliancesProvider);
     final failedOnly = ref.watch(historyFailedOnlyProvider);
+    final shown = historyAsync.valueOrNull;
+    if (shown != null && ref.watch(historyAckPendingProvider)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted || !ref.read(historyAckPendingProvider)) return;
+        ref.read(historyAckPendingProvider.notifier).state = false;
+        final ids = [for (final e in failedOnly ? shown.where(historyIsNotDone) : shown) e.jobId];
+        unawaited(ref.read(careEventsProvider.notifier).markJobsSeen(ids));
+      });
+    }
     final filter = Padding(
       padding: const EdgeInsets.only(top: AppSpace.sm),
       child: Align(
