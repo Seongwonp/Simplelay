@@ -330,8 +330,10 @@ class _RoutinePanel extends StatelessWidget {
                   ),
           ),
           const SizedBox(height: 8),
+          // 판의 버튼은 하나씩 묻고 하나씩 누른다 — '30초 → 시작'처럼 여러 개를 한 번 묻고 한 번에 맡기는 길은 루틴이다
+          // (첫 사용 검토 10/19 #6). 새 루틴은 폰에서 만든다.
           KioskText(
-            '새 루틴은 휴대폰 앱에서 만들어요',
+            '여러 버튼을 한 번에 맡기려면 휴대폰 앱에서 루틴을 만들어요',
             style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
           ),
         ],

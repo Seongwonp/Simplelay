@@ -601,7 +601,8 @@ void main() {
       expect(find.text('전자레인지'), findsOneWidget);
       expect(find.text('아침 데우기'), findsOneWidget);
       expect(find.text('빨래 시작'), findsNothing); // 다른 가전의 루틴
-      expect(find.text('새 루틴은 휴대폰 앱에서 만들어요'), findsOneWidget);
+      // 여러 버튼을 한 번 묻고 한 번에 맡기는 길(루틴)을 판에서 알린다(첫 사용 검토 10/19 #6).
+      expect(find.text('여러 버튼을 한 번에 맡기려면 휴대폰 앱에서 루틴을 만들어요'), findsOneWidget);
 
       // 루틴을 눌러도 바로 실행하지 않는다 — 카드(승인)로 간다
       await tester.tap(find.byKey(const ValueKey('routine-morning')));

@@ -752,7 +752,8 @@ void main() {
       expect(find.text('전자레인지 바람 세기 바꾸기'), findsOneWidget);
       expect(find.text('알림만'), findsOneWidget);
       expect(find.textContaining('단계'), findsNothing);
-      expect(find.text('새 루틴은 휴대폰 앱에서 만들어요'), findsOneWidget);
+      // 여러 버튼을 한 번 묻고 한 번에 맡기는 길(루틴)을 판에서 알린다(첫 사용 검토 10/19 #6).
+      expect(find.text('여러 버튼을 한 번에 맡기려면 휴대폰 앱에서 루틴을 만들어요'), findsOneWidget);
       expect(find.textContaining('녹화'), findsNothing);
     });
 
