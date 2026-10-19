@@ -445,15 +445,21 @@ class ThinqController:
                 return self._result(command, failed, not_sent, none,
                                     str(exc) or "하기 직전에 다시 확인했더니 할 수 없었어요. 그래서 하지 않았어요.", requested_at)
 
+        # 4) 이미 목표값(2026-10-14) -- 확인할 속성을 읽을 수 있고 조회 값이 목표와 같으면 보내지 않는다. 정지·재판정을
+        #    지난 뒤에만 이 결과를 낸다(아래 잠금 안). 판정 재료(조회 값)는 이미 정해졌다.
+        already = confirmable and before is not None and cap.confirmed_by(target, before)
+        if not already:
+            # 보내면 이전 조회의 전원 값이 맞는지 모른다 — 확인 조회가 다시 적을 때까지 지운다. 2026-10-19: 이 호출은 아래
+            # 마지막 정지 확인 **앞**이다. 예전에는 '보냄'을 세우고 잠금을 놓은 뒤 여기를 거쳐 POST해, 그 틈의 정지가
+            # '이미 보내 취소 못 함'을 들었는데 실제로는 아직 안 보냈고 곧 보냈다. 이제 '보냄'과 POST 사이에 다른 호출이 없다.
+            self._observe(command.target_id, binding, None)
         with self._lock:
             if self._cancel:
                 return self._result(command, CommandStatus.STOPPED, not_sent, none,
                                     "멈추기를 눌러서 하지 않았어요.", requested_at,
                                     stop_requested=True)
-            # 4) 이미 목표값(2026-10-14) -- 확인할 속성을 읽을 수 있고 조회 값이 목표와 같으면 보내지 않는다. 정지·재판정을
-            #    지난 뒤에만 이 결과를 낸다. 전송권 확인도 같은 자리에서 거친다(철회·꺼짐·정지 세대가 먼저면 '걸림') — 다만
-            #    보내지 않으므로 '전송 개시'로 표시하지 않는다(``will_send=False``, 철회가 '이미 보내는 중'으로 보지 않게).
-            already = confirmable and before is not None and cap.confirmed_by(target, before)
+            # 전송권 확인도 같은 자리에서 거친다(철회·꺼짐·정지 세대가 먼저면 '걸림') — 이미 목표값이면 보내지 않으므로
+            # '전송 개시'로 표시하지 않는다(``will_send=False``, 철회가 '이미 보내는 중'으로 보지 않게).
             if callable(commit):
                 try:
                     if already:
@@ -468,8 +474,6 @@ class ThinqController:
                                     already_sentence(cap.setting_phrase(str(target))),
                                     requested_at, confirmed_at=self._now())
             self._phase = "dispatched"
-        # 보낸 뒤에는 이전 조회의 전원 값이 맞는지 모른다 — 확인 조회가 다시 적을 때까지 지운다.
-        self._observe(command.target_id, binding, None)
         try:
             response = self._client.post_control(binding.device_id, cap.payload_for(target, key))
         except ThinqCommandRejected as exc:
