@@ -775,4 +775,92 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     });
   });
+
+  group('못 알아들은 말(422) — 후보·할 수 있는 일', () {
+    http.Response json(Object body, [int code = 200]) => http.Response.bytes(
+          utf8.encode(jsonEncode(body)),
+          code,
+          headers: {'content-type': 'application/json'},
+        );
+
+    Future<(ProviderContainer, List<String>)> setUpScreen(
+        WidgetTester tester, Object body422) async {
+      final paths = <String>[];
+      final client = MockClient((request) async {
+        paths.add(request.url.path);
+        if (request.url.path == '/execute') return json(body422, 422);
+        return http.Response('[]', 200);
+      });
+      final api = RpiApiService('http://rpi5.local:8000', client: client);
+      final container = await _makeContainer(
+        extra: [rpiApiServiceProvider.overrideWithValue(api)],
+      );
+      container.read(voiceTextProvider.notifier).state = '즉석밥 대워줘';
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+      await tester.tap(find.text('이대로 실행'));
+      await tester.pumpAndSettle();
+      return (container, paths);
+    }
+
+    const newBody = {
+      'detail': "'즉석밥 대워줘'을(를) 알아듣지 못했어요",
+      'suggestion': {'purpose': '즉석밥 데워줘', 'label': '즉석밥 데우기'},
+      'choices': [
+        {'purpose': '해동해줘', 'label': '해동'},
+        {'purpose': '30초 돌려줘', 'label': '30초 돌리기'},
+      ],
+    };
+
+    testWidgets('이유 문장·혹시 이것?·할 수 있는 일·말 예시를 화면에 남긴다', (tester) async {
+      await setUpScreen(tester, newBody);
+
+      expect(find.text("'즉석밥 대워줘'을(를) 알아듣지 못했어요"), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '혹시 이것인가요? 즉석밥 데우기'), findsOneWidget);
+      expect(find.text('${kTestAppliance.displayName}가 할 수 있는 일이에요'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, '해동'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, '30초 돌리기'), findsOneWidget);
+      expect(find.text('이렇게 말해 보세요: 해동해줘'), findsOneWidget);
+      // 다시 말하기·버튼으로 하기 길도 남는다.
+      expect(find.text('다시 말하기'), findsOneWidget);
+      expect(find.text('버튼으로 하기'), findsOneWidget);
+    });
+
+    testWidgets('후보를 누르면 바로 실행하지 않고 그 말로 확인을 다시 묻는다', (tester) async {
+      final (container, paths) = await setUpScreen(tester, newBody);
+      final sent = paths.where((p) => p == '/execute').length;
+
+      await tester.tap(find.text('혹시 이것인가요? 즉석밥 데우기'));
+      await tester.pumpAndSettle();
+
+      expect(paths.where((p) => p == '/execute').length, sent);
+      expect(container.read(voiceTextProvider), '즉석밥 데워줘');
+      expect(find.text('이대로 실행할까요?'), findsOneWidget);
+      expect(find.text('이대로 실행'), findsOneWidget);
+      expect(find.text('혹시 이것인가요? 즉석밥 데우기'), findsNothing);
+    });
+
+    testWidgets('할 수 있는 일을 눌러도 확인부터 묻는다', (tester) async {
+      final (container, paths) = await setUpScreen(tester, newBody);
+      final sent = paths.where((p) => p == '/execute').length;
+
+      final choice = find.widgetWithText(OutlinedButton, '30초 돌리기');
+      await tester.ensureVisible(choice);
+      await tester.pumpAndSettle();
+      await tester.tap(choice);
+      await tester.pumpAndSettle();
+
+      expect(paths.where((p) => p == '/execute').length, sent);
+      expect(container.read(voiceTextProvider), '30초 돌려줘');
+      expect(find.text('이대로 실행할까요?'), findsOneWidget);
+    });
+
+    testWidgets('옛 서버(detail만)면 종전 안내 그대로', (tester) async {
+      await setUpScreen(tester, {'detail': 'not understood'});
+
+      expect(find.text('무슨 말인지 몰랐어요. 다시 말해 주세요.'), findsOneWidget);
+      expect(find.textContaining('혹시 이것인가요?'), findsNothing);
+      expect(find.textContaining('할 수 있는 일이에요'), findsNothing);
+    });
+  });
 }

@@ -81,13 +81,30 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   /// 여기서는 아무리 다시 말해도 소용없다 -- 다른 길(버튼)을 먼저 내민다.
   bool _voiceUnavailable = false;
 
+  /// 본체가 말을 못 알아듣고 준 '혹시 이것?' 후보·할 수 있는 일 목록(422, 2026-10-19 서버). 고르면 확인부터 다시 묻는다.
+  NotUnderstoodHelp? _notUnderstood;
+
   void _fail(String message) {
     _notice(message);
     if (mounted) setState(() => _recognitionError = message);
   }
 
   void _clearFailure() {
-    if (_recognitionError != null) setState(() => _recognitionError = null);
+    if (_recognitionError != null || _notUnderstood != null) {
+      setState(() {
+        _recognitionError = null;
+        _notUnderstood = null;
+      });
+    }
+  }
+
+  /// 후보·할 수 있는 일을 고르면 그 문장을 확인 대기에 올린다 — **바로 실행하지 않는다**('이대로 실행할까요?'를 다시 묻는다).
+  void _pickPurpose(String purpose) {
+    setState(() {
+      _notUnderstood = null;
+      _recognitionError = null;
+    });
+    ref.read(voiceTextProvider.notifier).state = purpose;
   }
 
   Future<void> _cancelSession() async {
@@ -231,6 +248,15 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         if (mounted) _notice('보냈어요.');
       }
     } on RpiApiException catch (error) {
+      final help = NotUnderstoodHelp.fromException(error);
+      if (help != null) {
+        // 새 서버: 못 알아들은 말이면 이유·후보·할 수 있는 일을 화면에 남긴다(스낵바는 금방 사라진다).
+        if (mounted) {
+          setState(() => _notUnderstood = help);
+          _cancelPending();
+        }
+        return;
+      }
       if (mounted) {
         _notice(switch (error.statusCode) {
           422 => '무슨 말인지 몰랐어요. 다시 말해 주세요.',
@@ -473,7 +499,14 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
                       child: text.isEmpty
-                          ? (_recognitionError == null
+                          ? (_notUnderstood != null
+                              ? _NotUnderstoodPanel(
+                                  key: const ValueKey('not-understood'),
+                                  help: _notUnderstood!,
+                                  applianceName: appliance.displayName,
+                                  onPick: _sending ? null : _pickPurpose,
+                                )
+                              : _recognitionError == null
                               ? Text(
                                   hintExample,
                                   key: const ValueKey('hint'),
@@ -534,7 +567,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                   child: const Text('말 끝났어요'),
                 ),
               )
-            else if (text.trim().isEmpty && _recognitionError != null) ...[
+            else if (text.trim().isEmpty &&
+                (_recognitionError != null || _notUnderstood != null)) ...[
               // 실패한 자리에 두 경로를 함께 둔다. 안내만 남기면 사용자는
               // 같은 시도를 되풀이하게 된다 -- 홈에서 이미 같은 규칙을 쓴다.
               _ActionPair(
@@ -715,6 +749,75 @@ class _FailureNote extends StatelessWidget {
           ],
         ),
       );
+}
+
+// ── 못 알아들었을 때 ─────────────────────────────────────────────────────
+
+/// 본체가 준 이유 한 줄, '혹시 이것인가요?' 후보, 이 가전이 할 수 있는 일. 버튼은 모두 **확인으로** 간다 — 실행 아님.
+class _NotUnderstoodPanel extends StatelessWidget {
+  const _NotUnderstoodPanel({
+    required this.help,
+    required this.applianceName,
+    required this.onPick,
+    super.key,
+  });
+
+  final NotUnderstoodHelp help;
+  final String applianceName;
+  final ValueChanged<String>? onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final suggestion = help.suggestion;
+    final pick = onPick;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _FailureNote(
+          message: help.detail.trim().isEmpty ? '무슨 말인지 몰랐어요.' : help.detail,
+        ),
+        if (suggestion != null) ...[
+          const SizedBox(height: AppSpace.md),
+          FilledButton.tonal(
+            onPressed: pick == null ? null : () => pick(suggestion.purpose),
+            child: Text('혹시 이것인가요? ${suggestion.label}', textAlign: TextAlign.center),
+          ),
+        ],
+        if (help.choices.isNotEmpty) ...[
+          const SizedBox(height: AppSpace.lg),
+          Text(
+            '$applianceName${_subjectParticle(applianceName)} 할 수 있는 일이에요',
+            style: AppText.body.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Wrap(
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
+            children: [
+              for (final choice in help.choices)
+                OutlinedButton(
+                  onPressed: pick == null ? null : () => pick(choice.purpose),
+                  child: Text(choice.label),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            '이렇게 말해 보세요: ${help.choices.first.purpose}',
+            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// '이'/'가' — 끝 글자 받침을 본다. 한글이 아니면 '가'.
+String _subjectParticle(String word) {
+  if (word.isEmpty) return '가';
+  final c = word.runes.last;
+  if (c < 0xAC00 || c > 0xD7A3) return '가';
+  return (c - 0xAC00) % 28 == 0 ? '가' : '이';
 }
 
 // ── 마이크 버튼 ───────────────────────────────────────────────────────────

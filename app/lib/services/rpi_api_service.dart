@@ -14,9 +14,12 @@ import '../models/routine_candidate.dart';
 import '../models/scenario_run.dart';
 
 class RpiApiException implements Exception {
-  RpiApiException(this.statusCode, this.message);
+  RpiApiException(this.statusCode, this.message, {this.body});
   final int statusCode;
   final String message;
+
+  /// 오류 응답 본문(JSON 객체일 때만). 못 알아들은 말(422)의 후보·동작 목록을 읽는 데 쓴다 — [NotUnderstoodHelp].
+  final Map<String, dynamic>? body;
 
   /// 제안 승인 재검사 실패(409) — 승인한 대상·경로·동작·인자가 바뀌었거나 승인이
   /// 만료·무효가 됐다. 서버는 이 카드를 내리므로 다시 확인해야 한다. 같은 409인
@@ -26,6 +29,49 @@ class RpiApiException implements Exception {
 
   @override
   String toString() => 'RpiApiException($statusCode): $message';
+}
+
+/// 말 하나(후보·동작 목록의 한 줄). [purpose]는 확인 뒤 /execute에 다시 보낼 문장, [label]은 보여 줄 이름.
+class VoicePurposeChoice {
+  const VoicePurposeChoice({required this.purpose, required this.label});
+  final String purpose;
+  final String label;
+
+  static VoicePurposeChoice? _fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final purpose = raw['purpose'];
+    final label = raw['label'];
+    if (purpose is! String || purpose.trim().isEmpty) return null;
+    return VoicePurposeChoice(
+        purpose: purpose, label: label is String && label.trim().isNotEmpty ? label : purpose);
+  }
+}
+
+/// 못 알아들은 말(422)에 서버가 함께 준 '혹시 이것?' 후보와 그 가전이 할 수 있는 일(2026-10-19 서버).
+///
+/// 어느 것도 **실행된 것이 아니다** — 고르면 화면이 그 [VoicePurposeChoice.purpose]로 기존 확인('이대로 실행할까요?')을
+/// 다시 묻는다. 옛 서버(본문에 `suggestion`·`choices` 둘 다 없음)면 null — 화면은 종전 안내를 쓴다.
+class NotUnderstoodHelp {
+  const NotUnderstoodHelp({required this.detail, this.suggestion, this.choices = const []});
+  final String detail;
+  final VoicePurposeChoice? suggestion;
+  final List<VoicePurposeChoice> choices;
+
+  static NotUnderstoodHelp? fromException(RpiApiException error) {
+    final body = error.body;
+    if (error.statusCode != 422 || body == null) return null;
+    if (!body.containsKey('suggestion') && !body.containsKey('choices')) return null;
+    final rawChoices = body['choices'];
+    final choices = rawChoices is List
+        ? rawChoices.map(VoicePurposeChoice._fromJson).whereType<VoicePurposeChoice>().toList()
+        : const <VoicePurposeChoice>[];
+    final detail = body['detail'];
+    return NotUnderstoodHelp(
+      detail: detail is String ? detail : error.message,
+      suggestion: VoicePurposeChoice._fromJson(body['suggestion']),
+      choices: choices,
+    );
+  }
 }
 
 class RpiButtonStep {
@@ -2181,8 +2227,10 @@ class RpiApiService {
       } catch (_) {
         detail = res.body;
       }
+      Map<String, dynamic>? body;
       try {
-        final raw = (jsonDecode(detail) as Map<String, dynamic>)['detail'];
+        body = jsonDecode(detail) as Map<String, dynamic>;
+        final raw = body['detail'];
         if (raw is String) {
           detail = raw;
         } else if (raw is List && raw.isNotEmpty && raw.first is Map) {
@@ -2193,7 +2241,7 @@ class RpiApiService {
           }
         }
       } catch (_) {}
-      throw RpiApiException(res.statusCode, detail);
+      throw RpiApiException(res.statusCode, detail, body: body);
     }
   }
 
