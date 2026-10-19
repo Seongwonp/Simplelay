@@ -576,17 +576,34 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   /// 사람이 확인한 실행을 본체에서 읽는다(2026-10-19) — 폰에서 '기록 보기'로 본 실패도 여기서 사라진다. 못 읽으면 그대로(null).
-  Future<Map<String, String>?> _fetchAcks() async {
+  /// 읽었으면(본체에 닿으면) 아직 적지 못한 답을 다시 보낸다([retry], 검토 10/19 코어 5차 #9).
+  Future<Map<String, String>?> _fetchAcks({bool retry = true}) async {
     final acked = await _api.ackedJobs();
     if (!mounted || acked == null) return null;
     // 화면이 먼저 보인 답은 본체 목록에 나타날 때까지 지킨다(검토 10/19 #9) — POST보다 먼저 온 조회가 덮어써 '!'이 다시 떴다.
     _pendingAcks.removeWhere((id, answer) => acked[id] == answer);
+    _unsentAcks.removeWhere((id, e) => acked[id] == e.answer);
     _applyAcks({...acked, ..._pendingAcks});
+    if (retry) {
+      for (final id in _unsentAcks.keys.toList()) {
+        unawaited(_sendAck(id));
+      }
+    }
     return acked;
   }
 
-  /// 화면에는 보였지만 본체 목록(GET /acks)에 아직 없는 답 — 실행 번호 → 답. 본체에 나타나거나 POST가 실패하면 뺀다.
+  /// 화면에는 보였지만 본체 목록(GET /acks)에 아직 없는 답 — 실행 번호 → 답. 본체에 나타나거나, 본체에 닿는데 적지 못했으면 뺀다.
   final Map<String, String> _pendingAcks = {};
+
+  /// 본체가 아직 적지 않은 답(검토 10/19 코어 5차 #9) — 실행 번호 → (답, 되살릴 지난 일 줄, 본체에 닿고도 못 적은 횟수).
+  /// POST가 성공하거나 본체 목록에 같은 답이 보일 때까지 지키고, 본체 목록을 다시 읽을 수 있을 때마다(연결이 돌아오면) 다시 보낸다.
+  /// 예전에는 POST가 한 번 실패하면 버려, 끊긴 동안 답한 확인이 본체에 끝내 남지 않았다.
+  final Map<String, ({String answer, KioskPastResult? restore, int failures})> _unsentAcks = {};
+  final Set<String> _ackSending = {};
+  static const _maxUnsentAcks = 64;
+
+  /// 본체에 닿는데도 이만큼 못 적으면(본체가 계속 거절) 그 답은 그만 보낸다 — 10초마다 보내므로 약 5분.
+  static const _maxAckFailures = 30;
 
   void _applyAcks(Map<String, String> acked) {
     final past = _pastResult;
@@ -609,18 +626,51 @@ class _KioskScreenState extends State<KioskScreen> {
   void _ack(String? jobId, String answer, {KioskPastResult? restore}) {
     if (jobId == null) return;
     _pendingAcks[jobId] = answer;
+    _unsentAcks.remove(jobId);
+    _unsentAcks[jobId] = (answer: answer, restore: restore, failures: 0);
+    if (_unsentAcks.length > _maxUnsentAcks) _unsentAcks.remove(_unsentAcks.keys.first);
     _applyAcks({..._ackedJobs, jobId: answer});
-    unawaited(_postAck(jobId, answer, restore));
+    unawaited(_sendAck(jobId));
   }
 
-  /// 본체에 적지 못하면(검토 10/19 #9) 화면의 답을 거두고 본체 목록을 다시 읽는다 — 본체에 없는 확인을 화면만 지어내지 않는다.
-  /// 본체 목록을 읽었는데 그 답이 없으면(분명히 못 적음) 지운 지난 일 줄도 되살린다. 목록을 못 읽으면(옛 본체·끊김) 종전처럼 둔다.
-  Future<void> _postAck(String jobId, String answer, [KioskPastResult? restore]) async {
-    final ok = await _api.postAck(jobId: jobId, answer: answer);
-    if (ok || !mounted || _pendingAcks[jobId] != answer) return;
-    _pendingAcks.remove(jobId);
-    final acked = await _fetchAcks();
-    if (!mounted || restore == null || acked == null || acked.containsKey(jobId) || _pastResult != null) return;
+  /// 아직 적지 않은 답 하나를 본체에 보낸다(POST /acks). 적었으면 대기에서 뺀다 — 다시 보내서 적었으면 화면에도 다시 보인다.
+  /// 적지 못하면(검토 10/19 #9) 본체 목록을 다시 읽는다. 본체에 닿는데 그 답이 없으면(분명히 못 적음) 화면의 답을 거두고 지운
+  /// 지난 일 줄을 되살린다 — 본체에 없는 확인을 화면만 지어내지 않는다. 목록을 못 읽으면(옛 본체·끊김) 화면은 종전처럼 둔다.
+  /// 어느 쪽이든 답은 대기에 남아, 본체 목록을 다시 읽을 수 있을 때 [_fetchAcks]가 다시 보낸다.
+  Future<void> _sendAck(String jobId) async {
+    final entry = _unsentAcks[jobId];
+    if (entry == null || !_ackSending.add(jobId)) return;
+    final bool ok;
+    try {
+      ok = await _api.postAck(jobId: jobId, answer: entry.answer);
+    } finally {
+      _ackSending.remove(jobId);
+    }
+    if (!mounted || _unsentAcks[jobId]?.answer != entry.answer) return; // 그사이 새 답 — 그 답이 따로 간다
+    if (ok) {
+      _unsentAcks.remove(jobId);
+      if (_ackedJobs[jobId] != entry.answer) {
+        _pendingAcks[jobId] = entry.answer;
+        _applyAcks({..._ackedJobs, jobId: entry.answer});
+      }
+      return;
+    }
+    final acked = await _fetchAcks(retry: false);
+    if (!mounted || acked == null || acked[jobId] == entry.answer) return;
+    final current = _unsentAcks[jobId];
+    if (current == null || current.answer != entry.answer) return;
+    final failures = current.failures + 1;
+    if (failures >= _maxAckFailures) {
+      _unsentAcks.remove(jobId);
+    } else {
+      _unsentAcks[jobId] = (answer: current.answer, restore: null, failures: failures);
+    }
+    if (_pendingAcks[jobId] == entry.answer) {
+      _pendingAcks.remove(jobId);
+      _applyAcks({...acked, ..._pendingAcks});
+    }
+    final restore = current.restore;
+    if (restore == null || acked.containsKey(jobId) || _pastResult != null) return;
     setState(() => _pastResult = restore);
   }
 
