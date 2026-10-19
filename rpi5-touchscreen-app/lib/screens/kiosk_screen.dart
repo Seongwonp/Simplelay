@@ -151,6 +151,10 @@ class _KioskScreenState extends State<KioskScreen> {
   String _executionMode = 'unknown';
   DateTime _now = DateTime.now();
   bool _showDnd = false;
+
+  /// 잠시 쉬기 요청이 오가는 중 — 다른 시간·닫기를 받지 않는다(검토 10/19 코어 6차). 겹친 요청은 먼저 끝난 응답이 창을 닫고
+  /// 늦게 끝난 쪽 시간이 남았다.
+  bool _dndBusy = false;
   AlertState _alert = AlertState.inactive;
   bool _alertAcknowledged = false;
 
@@ -2039,23 +2043,27 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
-  Future<void> _onSetDnd(int minutes) async {
-    bool? persisted;
-    try {
-      persisted = await _api.setDnd(minutes);
-    } catch (_) {}
-    await _checkHealth();
-    if (mounted) setState(() => _showDnd = false);
-    _notSaved(persisted);
-  }
+  Future<void> _onSetDnd(int minutes) => _sendDnd(() => _api.setDnd(minutes));
 
-  Future<void> _onClearDnd() async {
+  Future<void> _onClearDnd() => _sendDnd(_api.clearDnd);
+
+  Future<void> _sendDnd(Future<bool?> Function() send) async {
+    if (_dndBusy) return;
+    setState(() => _dndBusy = true);
     bool? persisted;
     try {
-      persisted = await _api.clearDnd();
+      persisted = await send();
     } catch (_) {}
-    await _checkHealth();
-    if (mounted) setState(() => _showDnd = false);
+    try {
+      await _checkHealth();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dndBusy = false;
+          _showDnd = false;
+        });
+      }
+    }
     _notSaved(persisted);
   }
 
@@ -2157,6 +2165,7 @@ class _KioskScreenState extends State<KioskScreen> {
                           dndUntil: _health.dndUntil,
                           dndScope: _health.dndScope,
                           quietSchedule: _health.quietSchedule,
+                          busy: _dndBusy,
                           onSet: _onSetDnd,
                           onClear: _onClearDnd,
                           onDismiss: () => setState(() => _showDnd = false),

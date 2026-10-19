@@ -18,6 +18,7 @@ class DndOverlay extends StatelessWidget {
     required this.dndUntil,
     this.dndScope,
     this.quietSchedule,
+    this.busy = false,
     required this.onSet,
     required this.onClear,
     required this.onDismiss,
@@ -30,6 +31,9 @@ class DndOverlay extends StatelessWidget {
 
   /// 켜 둔 매일 조용한 시간대 (시작, 끝) — 보여 주기만 한다(바꾸기는 폰 설정, 2026-10-14).
   final (String, String)? quietSchedule;
+
+  /// 요청이 오가는 중 — 모든 선택지와 닫기를 막는다(검토 10/19 코어 6차). 응답이 오면 화면이 창을 닫는다.
+  final bool busy;
   final void Function(int minutes) onSet;
   final VoidCallback onClear;
   final VoidCallback onDismiss;
@@ -38,7 +42,7 @@ class DndOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onDismiss,
+      onTap: busy ? () {} : onDismiss, // 오가는 중에도 뒤 화면으로 새지 않게 탭은 흡수한다
       child: ColoredBox(
         color: const Color(0xCC0C0E12),
         child: Center(
@@ -112,22 +116,22 @@ class DndOverlay extends StatelessWidget {
                     ],
                     const SizedBox(height: 20),
                     if (dndUntil == null) ...[
-                      _DndOption(label: '30분', onTap: () => onSet(30)),
+                      _DndOption(label: '30분', onTap: busy ? null : () => onSet(30)),
                       const SizedBox(height: 8),
-                      _DndOption(label: '1시간', onTap: () => onSet(60)),
+                      _DndOption(label: '1시간', onTap: busy ? null : () => onSet(60)),
                       const SizedBox(height: 8),
-                      _DndOption(label: '2시간', onTap: () => onSet(120)),
+                      _DndOption(label: '2시간', onTap: busy ? null : () => onSet(120)),
                     ] else ...[
                       _DndOption(
                         label: '쉬기 끝내기',
                         accent: true,
-                        onTap: onClear,
+                        onTap: busy ? null : onClear,
                       ),
                     ],
                     const SizedBox(height: 8),
                     // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17).
                     OutlinedButton(
-                      onPressed: onDismiss,
+                      onPressed: busy ? null : onDismiss,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         side: BorderSide(color: KioskColors.border, width: 2),

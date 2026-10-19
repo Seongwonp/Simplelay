@@ -192,14 +192,26 @@ class FakeKioskApi implements KioskApiService {
   bool? dndPersisted = true;
   final dndSets = <int>[];
 
+  /// 잠시 쉬기 응답을 잡아 둔다(검토 10/19 코어 6차) — 응답 전 두 번 누름·보내기 실패를 흉내 낸다.
+  Completer<bool?>? dndPending;
+  Object? dndError;
+  int dndClears = 0;
+
   @override
   Future<bool?> setDnd(int minutes) async {
     dndSets.add(minutes);
+    if (dndError != null) throw dndError!;
+    if (dndPending != null) return dndPending!.future;
     return dndPersisted;
   }
 
   @override
-  Future<bool?> clearDnd() async => dndPersisted;
+  Future<bool?> clearDnd() async {
+    dndClears++;
+    if (dndError != null) throw dndError!;
+    if (dndPending != null) return dndPending!.future;
+    return dndPersisted;
+  }
 
   @override
   Future<List<ApplianceMap>?> listAppliances() async => applianceList;
@@ -932,6 +944,29 @@ void main() {
       expect(find.text(kSettingNotSavedNotice), persisted ? findsNothing : findsOneWidget);
     });
   }
+
+  // 검토 10/19 코어 6차 #11: 응답 전에 다른 시간을 또 누르면 요청이 겹쳐 먼저 끝난 응답이 창을 닫고 늦은 쪽 시간이 남았다.
+  testWidgets('잠시 쉬기 응답 전에는 다른 시간·닫기를 받지 않는다 — 요청은 하나만', (tester) async {
+    useKioskViewport(tester);
+    final pending = Completer<bool?>();
+    final api = FakeKioskApi()..dndPending = pending;
+    await _pumpKiosk(tester, api);
+    await tapIdleMenuItem(tester, 'dnd-entry');
+    await tester.pump();
+    await tester.tap(find.text('30분'));
+    await tester.pump();
+    await tester.tap(find.text('1시간'));
+    await tester.pump();
+    await tester.tap(find.text('닫기'));
+    await tester.pump();
+    expect(api.dndSets, [30]);
+    expect(find.byType(DndOverlay), findsOneWidget, reason: '응답 전에는 닫히지 않는다');
+    pending.complete(true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(DndOverlay), findsNothing);
+    expect(api.dndSets, [30]);
+  });
 
   // ── 음성 안내 (TTS) ──────────────────────────────────────────────────────
 
