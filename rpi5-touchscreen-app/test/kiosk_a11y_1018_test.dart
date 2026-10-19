@@ -179,7 +179,33 @@ void main() {
       expect(retried, 1);
     });
 
-    testWidgets('토글 성질이 없으면 일반 경고 그대로 — 꺼진다고 지어내지 않는다', (tester) async {
+    testWidgets("성질을 모르는 버튼(behavior=unknown)도 토글과 같은 경고 — 두 번 누르면 되돌아갈 수 있다(검토 10/19 #5)", (tester) async {
+      await _pumpView(tester, unknown(_microwave(startBehavior: 'unknown'), onRetry: _noop));
+      await openRetry(tester);
+      final text = tester.widget<Text>(find.byKey(const ValueKey('done-retry-dialog-text'))).data!;
+      expect(text, contains('가전이 이미 켜졌다면 다시 누르면 꺼질 수 있어요'));
+    });
+
+    testWidgets('누른 버튼이 버튼판에 없으면(성질을 모름) 토글과 같은 경고(검토 10/19 #5)', (tester) async {
+      await _pumpView(
+          tester,
+          KioskDoneView(
+            success: false,
+            reason: KioskFailureReason.execution,
+            label: '해동 해줘',
+            target: _microwave(startBehavior: 'idempotent'),
+            executionMode: 'real',
+            pressed: const [KioskButtonResult(button: '해동', success: false)],
+            onRetry: _noop,
+            onRetryAfterCheck: _noop,
+            onDismiss: _noop,
+          ));
+      await openRetry(tester);
+      final text = tester.widget<Text>(find.byKey(const ValueKey('done-retry-dialog-text'))).data!;
+      expect(text, contains('가전이 이미 켜졌다면 다시 누르면 꺼질 수 있어요'));
+    });
+
+    testWidgets('되풀이해도 같은 버튼(idempotent)만이면 일반 경고 그대로 — 꺼진다고 지어내지 않는다', (tester) async {
       await _pumpView(tester, unknown(_microwave(startBehavior: 'idempotent'), onRetry: _noop));
       await openRetry(tester);
       final text = tester.widget<Text>(find.byKey(const ValueKey('done-retry-dialog-text'))).data!;

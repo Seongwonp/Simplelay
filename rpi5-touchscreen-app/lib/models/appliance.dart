@@ -20,6 +20,10 @@ class ApplianceButton {
 
   /// 켜고 끄는 한 버튼인가 — 다시 누르면 꺼질 수 있다(접근성 감사 10/18 — '한 번 더 하기' 확인 창 경고).
   bool get isToggle => behavior == 'toggle';
+
+  /// 다시 누르면 되돌아갈 수 있나(검토 10/19 #5) — 토글이거나 성질을 모르면(unknown·옛 서버·폴백) 그렇다고 본다(안전한 쪽).
+  /// 되풀이해도 같은 결과라고 서버가 밝힌 버튼(idempotent)만 아니다.
+  bool get mayUndoOnRepeat => behavior != 'idempotent';
 }
 
 /// 본체가 누름 장치 위치 때문에 거절한 이유(서버 `GANTRY_ABSENT_REASON`과 같은 문장, 폰 `kGantryAbsentReason`과 같다).

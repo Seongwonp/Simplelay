@@ -186,10 +186,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('done-check-no')));
       await tester.pump();
       expect(_inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
-      // 다시 시도를 누르면 확인 창이 당부를 한 번 말한다.
+      // 다시 시도를 누르면 확인 창이 당부를 한 번 말한다 — 폴백 버튼판은 성질을 몰라 토글과 같은 경고(검토 10/19 #5).
       await tester.tap(find.text('한 번 더 하기'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('이미 움직이고 있으면 한 번 더 하지 마세요'), findsOneWidget);
+      expect(find.textContaining(kRetryToggleWarning), findsOneWidget);
     });
 
     testWidgets('B2 — 다시 보낼 요청이 없으면(놓친 결과·폰이 시작한 실행) 다시 시도도, 그 당부도 없다',

@@ -115,13 +115,17 @@ class KioskDoneView extends StatelessWidget {
 
   /// '한 번 더 하기'가 켜고 끄는 한 버튼(서버 버튼 데이터 behavior=toggle)을 다시 누를 수 있나(접근성 감사 10/18) — 그러면
   /// 확인 창에 '이미 켜졌다면 다시 누르면 꺼질 수 있어요'. 누른 버튼 기록이 있으면 그 버튼들로, 없으면(어느 버튼인지 모름)
-  /// 이 가전 버튼판에 토글 버튼이 하나라도 있으면 그렇다고 본다(안전한 쪽). 버튼 데이터에 성질이 없으면 false — 일반 경고.
+  /// 이 가전 버튼판에 토글 버튼이 하나라도 있으면 그렇다고 본다(안전한 쪽). 성질을 모르는 버튼(unknown)·버튼판에서 찾지
+  /// 못한 버튼도 토글과 같이 본다(검토 10/19 #5 — 두 번 누르면 되돌아갈 수 있다). 되풀이해도 같은 버튼(idempotent)만이면 false.
   bool get retryMayToggle {
     final a = target;
     if (a == null || route == 'thinq') return false;
     final pressed = this.pressed;
-    if (pressed == null || pressed.isEmpty) return a.buttons.any((b) => b.isToggle);
-    return pressed.any((p) => a.buttons.any((b) => b.label == p.button && b.isToggle));
+    if (pressed == null || pressed.isEmpty) return a.buttons.any((b) => b.mayUndoOnRepeat);
+    return pressed.any((p) {
+      final b = a.buttons.where((b) => b.label == p.button).firstOrNull;
+      return b == null || b.mayUndoOnRepeat;
+    });
   }
 
   /// 사람 확인 흐름(휴리스틱 평가 10/18) — 사람이 가전을 보고 답할 결과면 그 말. 아니면 null.
