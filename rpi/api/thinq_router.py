@@ -7,7 +7,8 @@
 - ``GET  /thinq/status/{id}``        가전 상태 다시 조회("보냈지만 확인 못 함" 뒤 재조회)
 - ``GET  /thinq/power``              최근 조회로 아는 ThinQ 가전 전원(켜짐·꺼짐) — 키오스크 가전 줄용, **클라우드를 부르지 않는다**
 - ``GET  /thinq/air``                최근 조회로 아는 공기청정기 센서 공기질(가전 등급·PM2.5·PM10·전원) — 키오스크 평소 화면용, **클라우드를 부르지 않는다**
-- ``POST /thinq/command``            직접 명령 1건 → job_id (요청 자체가 승인)
+- ``POST /thinq/command``            직접 명령 1건 → job_id (요청 자체가 승인). 선택 ``client_request_id``(검토 10/19) —
+                                     같은 번호로 다시 보내면 같은 job_id(다시 보내지 않음), ``GET /jobs/by-request/{id}``로도 찾는다
 - ``GET  /readiness/{id}``           경로별 준비 상태(물리 4축 / ThinQ 모드·연결·기기)
 - ``GET  /scenarios``                시나리오 정의
 - ``GET  /scenarios/last-run``       마지막 명령 실행의 단계별 결과(경로·수신·확인 근거)
@@ -32,13 +33,14 @@ import asyncio
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from rpi.commands import Command
 from rpi.intent.rules import UnknownIntentError
 
 from .deps import get_appliance_registry, get_node_registry, get_readiness_registry, get_service
+from .job_receipts import CLIENT_REQUEST_ID_PATTERN, ledger_of
 from .readiness_view import readiness_view
 from .service import SimpleLayService
 
@@ -251,6 +253,8 @@ class ThinqCommandRequest(BaseModel):
     appliance_id: str = Field(min_length=1, max_length=64)
     action: str = Field(min_length=1, max_length=40)
     args: dict[str, str | int | float | bool] = Field(default_factory=dict, max_length=16)
+    #: 선택(검토 10/19) — 클라이언트 요청 번호. 같은 번호로 다시 보내면 같은 job_id(다시 보내지 않음). 실행 경로와 한 장부.
+    client_request_id: str | None = Field(default=None, pattern=CLIENT_REQUEST_ID_PATTERN)
 
 
 def _purpose_of(command: Command) -> str | None:
@@ -265,7 +269,7 @@ def _purpose_of(command: Command) -> str | None:
 
 
 @router.post("/thinq/command")
-async def thinq_command(body: ThinqCommandRequest,
+async def thinq_command(body: ThinqCommandRequest, request: Request,
                         service: SimpleLayService = Depends(get_service)) -> dict:
     """직접 명령 — 사용자의 요청 자체가 승인이다(계약 §4-5). 재해석하지 않는다."""
     try:
@@ -277,7 +281,8 @@ async def thinq_command(body: ThinqCommandRequest,
     purpose = await asyncio.to_thread(_purpose_of, command)
     try:
         # 기록 제목은 대응표 명령 문장('강풍으로 바꿔줘')이 아니라 한 일('공기청정기 바람을 세게 해요', 10/18 쉬운 말 3차).
-        job_id = await asyncio.to_thread(service.submit_command, command, purpose=purpose, action_title=True)
+        job_id = await asyncio.to_thread(ledger_of(request.app).admit, body.client_request_id,
+                                         service.submit_command, command, purpose=purpose, action_title=True)
     except UnknownIntentError as exc:
         raise HTTPException(422, str(exc)) from exc
     except RuntimeError as exc:
