@@ -382,35 +382,59 @@ class _AddApplianceWizardScreenState
       final draft = await _draftAppliance();
       // 1) 가전과 버튼 이름을 허브에 올린다 -- 매핑은 허브가 아는 버튼에만 붙는다.
       if (widget.initial == null) {
-        final body = await api.registerApplianceStrict(draft);
-        registered = true;
-        final r = (body['revision'] as num?)?.toInt();
-        seen = r != null && r > 0 ? r : null;
+        try {
+          final body = await api.registerApplianceStrict(draft);
+          registered = true;
+          final r = (body['revision'] as num?)?.toInt();
+          seen = r != null && r > 0 ? r : null;
+        } catch (e) {
+          if (!_answerLost(e)) rethrow;
+          // 답을 못 받았다 — 본체가 이미 올렸을 수 있다(검토 10/19: 올린 가전을 모른 채 실패로 끝나 본체에만 남았다).
+          // 본체 목록에서 이 가전을 찾아 맞춘다. 있으면 이어서 자리를 저장하고, 모르면 되돌리기(지우기)를 해 본다.
+          final hub = await _lookupOnHub(api);
+          if (hub == null || hub.item != null) registered = true;
+          seen = hub?.revision;
+          if (hub?.item == null) rethrow;
+        }
       }
       // 2) 사진 좌표 → mm. 거절(422)은 서버 문장 그대로.
-      final result = await api.saveMapping(
-        _id,
-        MappingRequest(
-          photoWidth: size.width.round(),
-          photoHeight: size.height.round(),
-          corners: _corners,
-          buttons: {for (final b in _buttons) b.id: b.point},
-          frameWidthMm: (_frame?.known ?? false) ? null : _parsedFrameW,
-          frameHeightMm: (_frame?.known ?? false) ? null : _parsedFrameH,
-          stopButton: _stopId,
-          stopPresses: _stopPresses,
-          parkPoint: _park,
-          expectedRevision: seen,
-        ),
-      );
+      MappingSaveResult result;
+      ApplianceMap? server;
+      try {
+        result = await api.saveMapping(
+          _id,
+          MappingRequest(
+            photoWidth: size.width.round(),
+            photoHeight: size.height.round(),
+            corners: _corners,
+            buttons: {for (final b in _buttons) b.id: b.point},
+            frameWidthMm: (_frame?.known ?? false) ? null : _parsedFrameW,
+            frameHeightMm: (_frame?.known ?? false) ? null : _parsedFrameH,
+            stopButton: _stopId,
+            stopPresses: _stopPresses,
+            parkPoint: _park,
+            expectedRevision: seen,
+          ),
+        );
+        server = switch (result.appliance) { final json? => ApplianceMap.fromJson(json), _ => null };
+      } catch (e) {
+        if (!_answerLost(e)) rethrow;
+        // 답을 못 받았다 — 본체가 자리를 이미 저장했을 수 있다(검토 10/19). 본체에 저장된 것을 보고 맞춘다. 저장됐으면 그 정의를
+        // 이 폰에 받아 끝내고, 아니면 지금 판으로 되돌리기를 한다(그사이 저장돼 판이 올랐으면 본체가 지우기를 거절한다).
+        final hub = await _lookupOnHub(api);
+        final item = hub?.item;
+        if (item == null || !_mappingLanded(item, seen)) {
+          seen = hub?.revision ?? seen;
+          rethrow;
+        }
+        result = const MappingSaveResult(saved: true);
+        server = item;
+      }
       mappingSaved = true;
       // 3) 이 폰에 남긴다. 서버가 돌려준 정의(판 번호·사진 매핑)에 이 폰의
       //    사진 경로와 방 이름을 얹는다. 대기열로 다시 올리지 않는다 -- 같은
       //    정의를 또 올리면 방금 계산한 mm 좌표를 덮을 수 있다.
-      final server = result.appliance;
-      final local = server == null
-          ? draft
-          : _withLocal(ApplianceMap.fromJson(server), draft);
+      final local = server == null ? draft : _withLocal(server, draft);
       final notifier = ref.read(customAppliancesProvider.notifier);
       if (ref.read(customAppliancesProvider).any((a) => a.id == _id)) {
         await notifier.replace(local);
@@ -440,6 +464,31 @@ class _AddApplianceWizardScreenState
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// 본체의 답을 못 받은 실패인가(시간 초과·연결 끊김·본체 오류) — 본체가 이미 저장했을 수 있다. 본체가 이유를 들어
+  /// 거절한 것(4xx)은 저장하지 않은 것이다.
+  static bool _answerLost(Object e) => e is! RpiApiException || e.statusCode == 0 || e.statusCode >= 500;
+
+  /// 본체 목록에서 이 가전을 찾는다. 목록을 못 받았으면 null(모름), 받았는데 없으면 item이 null.
+  Future<({ApplianceMap? item, int? revision})?> _lookupOnHub(RpiApiService api) async {
+    final List<ApplianceMap>? list;
+    try {
+      list = await api.listAppliances();
+    } catch (_) {
+      return null;
+    }
+    if (list == null) return null;
+    final item = list.where((a) => a.id == _id).firstOrNull;
+    return (item: item, revision: item != null && item.revision > 0 ? item.revision : null);
+  }
+
+  /// 본체의 [item]에 이번 자리 저장이 들어갔나. 새 가전은 자리가 생겼으면, 다시 맞추기는 내가 본 판([seen])보다 판이
+  /// 올랐고 자리가 있으면 들어간 것으로 본다. 판을 모르는 다시 맞추기는 가를 수 없어 아니라고 한다(실패로 알린다).
+  bool _mappingLanded(ApplianceMap item, int? seen) {
+    if (item.panelMapping == null) return false;
+    if (seen != null) return item.revision > seen;
+    return widget.initial == null;
   }
 
   /// 방금 올린 새 가전을 본체에서 다시 지운다(버튼 자리 저장이 거절·실패했을 때). 지웠거나 이미 없으면 true.

@@ -80,6 +80,14 @@ class _Server {
   /// 본체에 닿지 않는다(연결 오류).
   bool unreachable = false;
 
+  /// 등록·자리 저장을 본체가 해 놓고 답만 잃는다(검토 10/19). [mappingLostSaved]가 false면 자리 저장은 하지 않고 답을 잃는다.
+  bool registerAnswerLost = false;
+  bool mappingAnswerLost = false;
+  bool mappingLostSaved = true;
+
+  /// 본체 목록(GET /appliances)에 보이는 이 가전 — 등록·자리 저장이 고친다.
+  Map<String, dynamic>? stored;
+
   http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
         utf8.encode(jsonEncode(body)),
         status,
@@ -104,14 +112,19 @@ class _Server {
             deletes.add(req.url.queryParameters);
             return deleteFails ? _json({'detail': 'db error'}, 500) : _json({'ok': true});
           }
+          if (req.method == 'GET' && path == '/appliances') {
+            return _json([if (stored != null) stored]);
+          }
           if (req.method == 'PUT' && RegExp(r'^/appliances/[^/]+$').hasMatch(path)) {
             registerBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
-            return _json({
+            stored = {
               'id': path.split('/').last,
               ...registerBody!,
               'is_custom': true,
               'revision': registerRevision,
-            });
+            };
+            if (registerAnswerLost) throw http.ClientException('응답 받는 중 끊김');
+            return _json(stored!);
           }
           if (req.method == 'PUT' && path.endsWith('/mapping') && rejectMapping != null) {
             mappingBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
@@ -122,7 +135,24 @@ class _Server {
           }
           if (req.method == 'PUT' && path.endsWith('/mapping')) {
             mappingBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
+            if (mappingAnswerLost && !mappingLostSaved) throw http.ClientException('응답 받는 중 끊김');
             final id = path.split('/')[2];
+            final appliance = {
+              'id': id,
+              ...?(registerBody ?? existing),
+              'is_custom': true,
+              'revision': 2,
+              'stop_button': mappingBody!['stop_button'],
+              'panel_mapping': {
+                'photo': {'width': 1000, 'height': 800},
+                'corners_px': mappingBody!['corners_px'],
+                'buttons_px': mappingBody!['buttons_px'],
+                'stop_px': null,
+                'park_px': mappingBody!['park_px'],
+              },
+            };
+            stored = appliance;
+            if (mappingAnswerLost) throw http.ClientException('응답 받는 중 끊김');
             return _json({
               'saved': true,
               'unmapped_buttons': <String>[],
@@ -130,20 +160,7 @@ class _Server {
                 'status': 'unverified',
                 'notes': ['소프트 리밋이 없어 범위를 확인하지 못했어요'],
               },
-              'appliance': {
-                'id': id,
-                ...?(registerBody ?? existing),
-                'is_custom': true,
-                'revision': 2,
-                'stop_button': mappingBody!['stop_button'],
-                'panel_mapping': {
-                  'photo': {'width': 1000, 'height': 800},
-                  'corners_px': mappingBody!['corners_px'],
-                  'buttons_px': mappingBody!['buttons_px'],
-                  'stop_px': null,
-                  'park_px': mappingBody!['park_px'],
-                },
-              },
+              'appliance': appliance,
             });
           }
           if (path.endsWith('/verify-pass')) {
@@ -719,7 +736,69 @@ void main() {
     server.unreachable = true;
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
-    expect(find.text(kSaveOfflineMessage), findsOneWidget);
+    // 등록이 본체에 닿았는지 모르고(목록도 못 받음) 되돌리기도 못 했다 — 남았을 수 있다고 함께 말한다(검토 10/19).
+    expect(find.text('$kSaveOfflineMessage $kSaveOrphanNote'), findsOneWidget);
+  });
+
+  // 검토 10/19: 등록·자리 저장의 답만 잃으면(본체는 해 놓음) 실패로 알리고 정리도 건너뛰어, 본체에만 자리 없는 가전이 남거나
+  // 자리를 저장한 가전을 이 폰이 받지 않았다. 이제 본체 목록에서 이 가전을 찾아 맞춘 뒤에 알린다.
+  testWidgets('등록의 답을 잃어도 본체에 올라가 있으면 이어서 자리를 저장하고 끝낸다', (tester) async {
+    final server = _Server()
+      ..registerAnswerLost = true
+      ..registerRevision = 4;
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(server.requests, contains('GET /appliances'));
+    expect(server.mappingBody?['expected_revision'], 4, reason: '본체 목록에서 본 판을 싣는다');
+    expect(server.deletes, isEmpty);
+    expect(_title(tester), '5. 자리 확인');
+  });
+
+  testWidgets('자리 저장의 답을 잃어도 본체에 저장돼 있으면 그 정의를 받아 끝낸다', (tester) async {
+    final server = _Server()..mappingAnswerLost = true;
+    ProviderContainer? container;
+    _tall(tester);
+    await tester.pumpWidget(_build(server, onReady: (c) => container = c));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(server.deletes, isEmpty, reason: '저장된 가전을 지우지 않는다');
+    expect(find.textContaining(kSaveOfflineMessage), findsNothing);
+    expect(_title(tester), '5. 자리 확인');
+    final saved = container!.read(customAppliancesProvider).single;
+    expect(saved.revision, 2);
+    expect(saved.panelMapping, isNotNull);
+  });
+
+  testWidgets('자리 저장의 답을 잃고 본체에도 자리가 없으면 본 판으로 등록을 되돌린 뒤 알린다', (tester) async {
+    final server = _Server()
+      ..mappingAnswerLost = true
+      ..mappingLostSaved = false
+      ..registerRevision = 3;
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(server.requests, containsAllInOrder([
+      matches(r'^PUT /appliances/custom_\d+/mapping$'),
+      'GET /appliances',
+      matches(r'^DELETE /appliances/custom_\d+$'),
+    ]));
+    expect(server.deletes.single, {'expected_revision': '3'});
+    expect(find.text(kSaveOfflineMessage), findsOneWidget, reason: '되돌렸으면 남았다는 말은 붙이지 않는다');
   });
 
   // 검토 10/19: 매핑 저장이 판 번호를 싣지 않아 본체의 충돌 보호(409)를 건너뛰었다.
