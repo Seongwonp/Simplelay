@@ -1298,3 +1298,14 @@ class SuggestionEventsResponse(BaseModel):
     persistence_ok: bool
     capacity: int
     events: list[SuggestionEventResponse]
+
+
+class JobStatusResponse(StatusResponse):
+    """``GET /jobs/{job_id}`` — 실행 번호 하나의 상태·결과(검토 10/19). 필드는 ``StatusResponse``와 같고 그 실행 것만 싣는다.
+
+    기기 전체 값(``estop_*``·``hold_*``·``actuator_link_up``·``last_auto_run``·``developer_mode``)은 비운다(/status에서 읽는다)."""
+
+    #: 끝났나(true면 ``last_job_id``가 이 번호, last_*가 그 결과). 실행 중이면 false.
+    finished: bool
+    #: 여러 단계 실행의 단계 번호(``<기본>-<n>``)로 물었을 때 n. 아니면 null.
+    step: int | None = None

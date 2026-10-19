@@ -7,6 +7,8 @@
   다시 보내면 같은 ``job_id``를 돌려주고 다시 실행하지 않는다 — 첫 요청이 접수 중이면 기다린다. 접수 실패면 영수증이
   없고 같은 번호로 다시 시도할 수 있다. 메모리만(최근 256건, 재시작하면 사라짐).
 - ``GET /jobs/by-request/{client_request_id}`` → ``{"client_request_id", "job_id"}`` 또는 404.
+- ``GET /jobs/{job_id}`` → 그 실행 하나의 상태·결과. /status와 같은 필드 이름(실행 중이면 ``job_id``·진행, 끝났으면
+  ``last_job_id``·``last_*``) + ``finished``·``step``. 최근 64건, 모르면 404. /status의 last_*는 여전히 마지막 한 건이다.
 """
 
 import asyncio
@@ -87,6 +89,7 @@ from .schemas import (
     AcksResponse,
     ApproveSuggestionRequest,
     JobByRequestResponse,
+    JobStatusResponse,
     CareEventResponse,
     DemoCareEventRequest,
     ButtonStep,
@@ -1037,11 +1040,27 @@ async def status(
     service: SimpleLayService = Depends(get_service),
 ) -> StatusResponse:
     snapshot = service.status()
+    response = StatusResponse(developer_mode=developer_mode_enabled(), **snapshot_job_fields(snapshot))
+    from rpi.routines.wiring import last_auto_run_if_any  # noqa: PLC0415
+    from rpi.services.stop_park import hold_status_fields  # noqa: PLC0415
+
+    estop = service.estop_status() or {}
+    return response.model_copy(
+        update={**hold_status_fields(service.hold_status()),
+                "estop_latched": estop.get("latched"),
+                "estop_detail": estop.get("detail") if estop.get("latched") else None,
+                "actuator_link_up": service.actuator_link_up(),
+                "last_auto_run": last_auto_run_if_any(),
+                **_last_stop_fields(service)}
+    )
+
+
+def snapshot_job_fields(snapshot) -> dict:
+    """/status와 ``GET /jobs/{job_id}`` 공통 — 스냅샷 하나의 실행 필드(진행·마지막 결과·계약 필드)."""
     progress = snapshot.progress
     verification = progress.verification if progress else None
-    response = StatusResponse(
+    fields = dict(
         running=snapshot.running,
-        developer_mode=developer_mode_enabled(),
         last_status=snapshot.last_result.status.value if snapshot.last_result else None,
         last_outcome=outcome_of(snapshot.last_result).value if snapshot.last_result else None,
         last_buttons=_to_steps(snapshot.last_result) if snapshot.last_result else None,
@@ -1059,17 +1078,32 @@ async def status(
         last_execution_mode=snapshot.last_execution_mode.value,
         **result_detail_fields(snapshot.last_result),
     )
-    from rpi.routines.wiring import last_auto_run_if_any  # noqa: PLC0415
-    from rpi.services.stop_park import hold_status_fields  # noqa: PLC0415
+    fields.update(command_status_fields(snapshot))
+    return fields
 
-    estop = service.estop_status() or {}
-    return response.model_copy(
-        update={**command_status_fields(snapshot), **hold_status_fields(service.hold_status()),
-                "estop_latched": estop.get("latched"),
-                "estop_detail": estop.get("detail") if estop.get("latched") else None,
-                "actuator_link_up": service.actuator_link_up(),
-                "last_auto_run": last_auto_run_if_any(),
-                **_last_stop_fields(service)}
+
+@router.get("/jobs/{job_id}", response_model=JobStatusResponse)
+async def job_status(
+    job_id: str,
+    service: SimpleLayService = Depends(get_service),
+) -> JobStatusResponse:
+    """실행 번호 하나의 상태·결과(검토 10/19). 모양은 /status와 같고(그 실행 것만), ``finished``·``step``을 더한다.
+
+    실행 중이면 ``running: true``·``job_id``·진행 필드(last_*는 null), 끝났으면 ``finished: true``·``last_job_id``가 이 번호이고
+    last_*가 그 실행의 결과다. 여러 단계 실행의 단계 번호(``<기본>-<n>``)도 받는다. 기기 전체 값(비상정지·대기·링크)은 싣지
+    않는다(/status에서). 최근 64건(단계는 최근 32 실행)만 — 모르면 404.
+    """
+    lookup = service.job_status(job_id)
+    if lookup is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    stop = lookup.stop or {}
+    return JobStatusResponse(
+        **snapshot_job_fields(lookup.snapshot),
+        finished=not lookup.running,
+        step=lookup.step,
+        last_stop_level=stop.get("stop_level"),
+        last_stop_ack_ms=stop.get("ack_ms"),
+        last_stop_job_id=stop.get("job_id"),
     )
 
 

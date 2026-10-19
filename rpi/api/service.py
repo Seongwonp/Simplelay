@@ -1,8 +1,9 @@
 import logging
 import threading
 import uuid
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, wait
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from rpi.controller.models import RETRY_UNCONFIRMED, PRESS_UNCONFIRMED_DETAIL, button_behavior
@@ -41,7 +42,7 @@ from rpi.services import NodeRegistry
 from rpi.commands import ApprovalMismatchError, CommandStatus, Confirmation, ControlRoute, Receipt
 from rpi.services.appliance_registry import BUILTIN_APPLIANCES
 
-from .service_commands import CommandExecutionMixin, WrongRouteError
+from .service_commands import _LEGACY_STATUS, CommandExecutionMixin, WrongRouteError
 from rpi.services.history import (
     ButtonAttempt,
     ExecutionMode,
@@ -231,6 +232,22 @@ class StatusSnapshot:
     last_command_status: str | None = None
 
 
+#: 실행 번호별로 남기는 끝난 실행의 결과 수(``GET /jobs/{job_id}``, 검토 10/19).
+JOB_RESULTS_KEPT = 64
+
+
+@dataclass(frozen=True)
+class JobLookup:
+    """실행 번호 하나의 상태(``job_status``). ``snapshot``은 /status와 같은 스냅샷이되 **그 실행 것만** 담는다 —
+    실행 중이면 ``job_id``·진행 필드만(last_*는 비움), 끝났으면 ``last_job_id``가 그 번호다. ``step``은 여러 단계 실행의
+    단계 번호(``<기본 번호>-<n>``)로 물었을 때 n. ``stop``은 그 실행에 남은 정지 확인 단계 보고(없으면 None)."""
+
+    snapshot: StatusSnapshot
+    running: bool
+    step: int | None = None
+    stop: dict | None = None
+
+
 class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
     """Small framework-neutral API suitable for wrapping with FastAPI later.
 
@@ -291,6 +308,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         self._lock = threading.Lock()
         self._current_job_id: str | None = None
         self._last_job_id: str | None = None
+        #: 끝난 실행의 결과 — 실행 번호 → 끝날 때의 상태 스냅샷(최근 ``JOB_RESULTS_KEPT``건, 검토 10/19). /status의 last_*는
+        #: 마지막 한 건뿐이라, 그 사이 다른 실행이 끝나면 앞 실행의 결과를 잃었다. _lock으로 보호.
+        self._job_results: OrderedDict[str, StatusSnapshot] = OrderedDict()
+        #: 실행 번호 → 그 실행에 남은 정지 확인 단계 보고(최근 ``JOB_RESULTS_KEPT``건). _lock으로 보호.
+        self._job_stops: OrderedDict[str, dict] = OrderedDict()
         self._current_appliance_id: str | None = None
         self._last_appliance_id: str | None = None
         self._execution_mode = ExecutionMode.UNKNOWN
@@ -849,6 +871,9 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             self._current_job_id = None
             self._current_appliance_id = None
             self._current_total_steps = None
+            if self._last_job_id:
+                # 이 실행의 공개 결과를 끝나는 바로 그 잠금 안에서 번호별로 남긴다(검토 10/19).
+                _keep_bounded(self._job_results, self._last_job_id, self._snapshot_locked(False, None))
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
 
@@ -1505,6 +1530,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 log.info("emergency stop: a newer run started before the stop report came back; not kept")
             elif report.get("target") in ("run", "dev", "hold") or was_running:
                 self._last_motion_stop = {**report, "job_id": job_id}
+                if job_id:
+                    _keep_bounded(self._job_stops, job_id, dict(self._last_motion_stop))
         return report
 
     def last_motion_stop(self) -> dict | None:
@@ -1602,26 +1629,85 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         ready = self._ready and not self._shutting_down
         progress = self._progress_tracker.current() if self._progress_tracker else None
         with self._lock:
-            return StatusSnapshot(
-                self._running,
-                ready,
-                self._last_result,
-                progress,
-                job_id=self._current_job_id,
-                last_job_id=self._last_job_id,
-                total_steps=self._current_total_steps,
-                appliance_id=self._current_appliance_id,
-                last_appliance_id=self._last_appliance_id,
-                execution_mode=self._execution_mode,
-                last_execution_mode=self._last_execution_mode,
-                route=self._current_route.value if self._current_route else None,
-                last_route=self._last_route.value if self._last_route else None,
-                last_receipt=self._last_receipt.value if self._last_receipt else None,
-                last_confirmation=(
-                    self._last_confirmation.value if self._last_confirmation else None
-                ),
-                last_detail=self._last_detail,
-                last_command_status=(
-                    self._last_command_status.value if self._last_command_status else None
-                ),
-            )
+            return self._snapshot_locked(ready, progress)
+
+    def _snapshot_locked(self, ready: bool, progress) -> StatusSnapshot:
+        return StatusSnapshot(
+            self._running,
+            ready,
+            self._last_result,
+            progress,
+            job_id=self._current_job_id,
+            last_job_id=self._last_job_id,
+            total_steps=self._current_total_steps,
+            appliance_id=self._current_appliance_id,
+            last_appliance_id=self._last_appliance_id,
+            execution_mode=self._execution_mode,
+            last_execution_mode=self._last_execution_mode,
+            route=self._current_route.value if self._current_route else None,
+            last_route=self._last_route.value if self._last_route else None,
+            last_receipt=self._last_receipt.value if self._last_receipt else None,
+            last_confirmation=(
+                self._last_confirmation.value if self._last_confirmation else None
+            ),
+            last_detail=self._last_detail,
+            last_command_status=(
+                self._last_command_status.value if self._last_command_status else None
+            ),
+        )
+
+    def job_status(self, job_id: str) -> JobLookup | None:
+        """그 실행 번호의 지금 상태 또는 끝난 결과(검토 10/19). 모르는 번호(오래됐거나 없음)면 None.
+
+        - 지금 실행 중인 번호: 진행 스냅샷(직전 실행의 last_*는 비운다 — 이 실행 것이 아니다).
+        - 끝난 번호(최근 ``JOB_RESULTS_KEPT``건): 끝날 때 남긴 스냅샷 — 버튼 실행·ThinQ·여러 단계·루틴 구간 모두 같은 자리.
+        - 여러 단계 실행의 단계 번호(``<기본>-<n>``, 이력·완료 이벤트가 쓰는 번호): 기본 번호가 실행 중이면 진행 스냅샷,
+          끝났으면 실행 기록(최근 32건)의 n번째 단계 결과.
+        """
+        ready = self._ready and not self._shutting_down
+        progress = self._progress_tracker.current() if self._progress_tracker else None
+        base, sep, suffix = job_id.rpartition("-")
+        step = int(suffix) if sep and base and suffix.isdigit() and int(suffix) > 0 else None
+        with self._lock:
+            live_id = self._current_job_id
+            if live_id is not None and job_id == live_id:
+                return JobLookup(self._running_only(self._snapshot_locked(ready, progress)), True)
+            kept = self._job_results.get(job_id)
+            if kept is not None:
+                return JobLookup(kept, False, stop=self._job_stops.get(job_id))
+            if step is None:
+                return None
+            if live_id is not None and base == live_id:
+                return JobLookup(self._running_only(self._snapshot_locked(ready, progress)), True, step=step)
+            record = self._runs_by_job.get(base)
+        if record is None or step > len(record.results):
+            return None
+        result = record.results[step - 1]
+        legacy = result.physical or ExecutionResult(_LEGACY_STATUS[result.status], ())
+        snapshot = StatusSnapshot(
+            False, ready, legacy, None,
+            last_job_id=job_id,
+            last_appliance_id=result.command.target_id,
+            last_execution_mode=result.execution_mode,
+            last_route=result.route.value,
+            last_receipt=result.receipt.value,
+            last_confirmation=result.confirmation.value,
+            last_detail=result.detail or None,
+            last_command_status=result.status.value,
+        )
+        return JobLookup(snapshot, False, step=step)
+
+    @staticmethod
+    def _running_only(snapshot: StatusSnapshot) -> StatusSnapshot:
+        return replace(
+            snapshot, last_result=None, last_job_id=None, last_appliance_id=None,
+            last_execution_mode=ExecutionMode.UNKNOWN, last_route=None, last_receipt=None,
+            last_confirmation=None, last_detail=None, last_command_status=None,
+        )
+
+
+def _keep_bounded(store: OrderedDict, key: str, value) -> None:
+    store[key] = value
+    store.move_to_end(key)
+    while len(store) > JOB_RESULTS_KEPT:
+        store.popitem(last=False)
