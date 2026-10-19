@@ -682,7 +682,7 @@ class KioskApiService {
   }
 
   /// 돌려주는 값은 서버 `persisted`(2026-10-14 HIGH 재확인 M-R1): true 저장됨 · false 저장 실패(이번 세션만 적용 —
-  /// 화면이 알린다) · null 저장소 없는 구성·옛 서버·해석 불가.
+  /// 화면이 알린다) · null 저장소 없는 구성·옛 서버·해석 불가. 오류 응답(4xx·5xx)은 [KioskApiException] — 적용되지 않았다(검토 10/19 코어 6차).
   Future<bool?> setDnd(int minutes) async {
     final res = await _client
         .post(
@@ -691,11 +691,13 @@ class KioskApiService {
           headers: _jsonHeaders,
         )
         .timeout(_timeout);
+    _ensureOk(res);
     return _persisted(res);
   }
 
   Future<bool?> clearDnd() async {
     final res = await _client.delete(_base.replace(path: '/dnd')).timeout(_timeout);
+    _ensureOk(res);
     return _persisted(res);
   }
 

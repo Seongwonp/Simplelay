@@ -31,11 +31,13 @@ void main() {
     });
   });
 
-  test('오류 응답은 저장 결과를 지어내지 않는다(null)', () async {
+  // 오류 응답은 저장 결과를 지어내지 않고, 적용된 것처럼 null(옛 서버)로 넘기지도 않는다 — 화면이 '못 보냈다'고 말한다(검토 10/19 코어 6차 #12).
+  test('오류 응답은 적용되지 않았다고 던진다', () async {
     await http.runWithClient(() async {
       final api = KioskApiService(baseUrl: 'http://localhost:8000');
       try {
-        expect(await api.setDnd(30), isNull);
+        await expectLater(api.setDnd(30), throwsA(isA<KioskApiException>()));
+        await expectLater(api.clearDnd(), throwsA(isA<KioskApiException>()));
       } finally {
         api.dispose();
       }

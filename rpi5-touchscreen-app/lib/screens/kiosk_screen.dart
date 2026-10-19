@@ -42,6 +42,9 @@ import '../widgets/kiosk/top_progress_bar.dart';
 /// 잠시 쉬기 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 폰과 같은 문장.
 const kSettingNotSavedNotice = '저장하지 못해 지금만 바뀌어요. 본체를 다시 켜면 예전 설정으로 돌아가요.';
 
+/// 잠시 쉬기 요청이 본체에 닿지 않았다(통신 끊김·본체 오류) — 쉬는 줄 알지 않게 말하고 창을 둔다(검토 10/19 코어 6차).
+const kDndNotSentNotice = '잠시 쉬기를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.';
+
 /// 실행 접수 응답을 받지 못했을 때(검토 10/19) — 본체가 이미 시작했을 수 있다. 정지 단추는 그대로 둔다.
 const kAdmitUnknownMessage = "본체 답을 받지 못했어요. 시작됐을 수 있어요. 멈추려면 '정지'를 누르세요.";
 
@@ -2051,18 +2054,28 @@ class _KioskScreenState extends State<KioskScreen> {
     if (_dndBusy) return;
     setState(() => _dndBusy = true);
     bool? persisted;
+    var sent = true;
     try {
       persisted = await send();
-    } catch (_) {}
+    } catch (_) {
+      sent = false;
+    }
     try {
       await _checkHealth();
     } finally {
       if (mounted) {
         setState(() {
           _dndBusy = false;
-          _showDnd = false;
+          // 못 보냈으면 창을 둔다 — 닫고 말이 없으면 쉬는 줄 알았다(검토 10/19 코어 6차). 다시 누르거나 닫는다.
+          if (sent) _showDnd = false;
         });
       }
+    }
+    if (!sent) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(kDndNotSentNotice)));
+      }
+      return;
     }
     _notSaved(persisted);
   }

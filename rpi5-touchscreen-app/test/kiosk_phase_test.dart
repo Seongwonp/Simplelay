@@ -968,6 +968,27 @@ void main() {
     expect(api.dndSets, [30]);
   });
 
+  // 검토 10/19 코어 6차 #12: 보내지 못했는데 창을 닫고 아무 말도 하지 않아 쉬는 줄 알았다.
+  for (final clear in [false, true]) {
+    testWidgets('잠시 쉬기를 보내지 못하면 창을 두고 못 보냈다고 알린다 (${clear ? '쉬기 끝내기' : '1시간'})', (tester) async {
+      useKioskViewport(tester);
+      final api = FakeKioskApi()
+        ..dndError = Exception('connection reset')
+        ..healthResult = clear
+            ? HealthStatus(ok: true, dndUntil: DateTime.now().add(const Duration(hours: 1)))
+            : const HealthStatus(ok: true);
+      await _pumpKiosk(tester, api);
+      await tapIdleMenuItem(tester, 'dnd-entry');
+      await tester.pump();
+      await tester.tap(find.text(clear ? '쉬기 끝내기' : '1시간'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text(kDndNotSentNotice), findsOneWidget);
+      expect(find.byType(DndOverlay), findsOneWidget, reason: '다시 누를 수 있게 창을 둔다');
+      expect(find.text(kSettingNotSavedNotice), findsNothing);
+    });
+  }
+
   // ── 음성 안내 (TTS) ──────────────────────────────────────────────────────
 
   // 2026-10-14 5번: 조용한 시간에는 일반 안내 소리(제안 도착 낭독)를 내지 않는다. 화면 카드는 그대로.
