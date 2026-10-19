@@ -59,7 +59,7 @@ void main() {
 
     test('멈춘 실행의 끝 문장은 정지 단계를 따른다', () {
       expect(finishedMessage(kind: ResultKind.stopped),
-          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지는 집에서 확인이 필요해요.');
+          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 집에서 봐 주세요.');
       expect(finishedMessage(kind: ResultKind.stopped, stopLevel: 'sent'),
           '멈추라고 보냈어요. 멈췄는지는 아직 몰라요. 가전은 집에서 확인해야 해요.');
       expect(

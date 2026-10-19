@@ -104,7 +104,7 @@ class RunningStopStrip extends ConsumerWidget {
     final label = status.label;
     final line = unknown
         ? '지금 상태를 몰라요'
-        : (label == null || label.isEmpty ? '하는 중이에요' : '$label 하는 중');
+        : (label == null || label.isEmpty ? '하고 있어요' : '$label 하고 있어요');
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerHigh,
       child: SafeArea(

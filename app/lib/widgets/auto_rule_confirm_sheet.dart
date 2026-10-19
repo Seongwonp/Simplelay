@@ -15,7 +15,7 @@ Future<bool> showAutoRuleConfirmSheet(
   required String actionText,
   String? caveat = kCookCaveat,
   // 줄을 직접 나눈다 — 한글은 글자 단위로 끊겨 '자동으/로'처럼 갈렸다(외부 평가 10/16 p06).
-  String title = '이번에 실행하고\n다음부터 자동으로 할까요?',
+  String title = '이번에 하고,\n다음부터는 묻지 않고 할까요?',
   String confirmLabel = '허락하고 이번에도 하기',
 }) async {
   final allowed = await showModalBottomSheet<bool>(
@@ -49,7 +49,7 @@ Future<bool> showAutoRuleConfirmSheet(
             // 읽혔다. 버튼 누르기는 본체가 자동 규칙으로 받지 않는다(PHYSICAL_REFUSED).
             Text(
               '이 허락은 위에 적은 일에만 써요. 가전 버튼을 누르는 일은 자동으로 하지 않고 매번 물어봐요. '
-              '루틴 탭에서 언제든 끌 수 있어요.',
+              '루틴 화면에서 언제든 끌 수 있어요.',
               style: TextStyle(fontSize: AppFont.caption, color: sheetContext.appMuted),
             ),
             const SizedBox(height: AppSpace.lg),

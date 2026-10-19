@@ -100,7 +100,7 @@ void main() {
 
     final message = container.read(executionStatusProvider).message ?? '';
     expect(message, contains('멈추라고 해서 실행이 끝났어요'));
-    expect(message, contains('멈췄는지는 집에서 확인이 필요해요'));
+    expect(message, contains('멈췄는지 집에서 봐 주세요'));
   });
 
   test('내 job의 흔적이 계속 없으면 고착 대신 확인 불가로 탈출한다', () async {

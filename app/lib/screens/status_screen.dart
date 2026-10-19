@@ -348,9 +348,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       const Text('가전을 본 뒤 처음 화면에서 다시 해 주세요.'),
                     FilledButton(
                       onPressed: _returnToOrigin,
-                      child: Text(_retryAdvised(status) ? '다시 하기' : '확인'),
+                      child: Text(_retryAdvised(status) ? '다시 하기' : '닫기'),
                     ),
-                    // '확인'과 같은 일을 하는 '닫기'는 다시 시도할 때만 둔다(외부 평가 10/16 p08 — 중복 버튼).
+                    // 위 단추와 같은 일을 하는 '닫기'는 다시 시도할 때만 둔다(외부 평가 10/16 p08 — 중복 버튼).
                     if (_retryAdvised(status))
                       TextButton(onPressed: _returnToOrigin, child: const Text('닫기')),
                   ],
@@ -740,24 +740,24 @@ class _NowState {
     final evidence = [
       if (vDetail != null && vDetail.isNotEmpty) vDetail,
       // 센서 %는 일반 화면에 내지 않는다(2026-10-17 쉬운 말 규칙 6).
-      if (attempt > 1) '$attempt번째 시도',
+      if (attempt > 1) '$attempt번째 누르기',
     ].join('. ');
 
     switch (s.phase) {
       case ExecutionPhase.idle:
         return const _NowState(
-          headline: '실행하면 여기서 진행을 볼 수 있어요.',
+          headline: '가전에 일을 시키면 여기서 어디까지 했는지 볼 수 있어요.',
           idle: true,
         );
       case ExecutionPhase.waiting:
         return _NowState(headline: s.message ?? '실행하라고 보냈어요');
       case ExecutionPhase.running:
         if (s.currentButton == null) {
-          return const _NowState(headline: '하는 중이에요');
+          return const _NowState(headline: '하고 있어요');
         }
         return _NowState(
           button: s.currentButton,
-          headline: hasVerification ? '눌렸는지 보는 중' : '누르는 중',
+          headline: hasVerification ? '눌렸는지 보고 있어요' : '누르고 있어요',
           // 서버가 눌림 판정(누름 센서)을 보내지 않으면 보고 있다고 하지 않는다(10/18 §3-5) — 지금 실물 구성(누름 장치 보고만)은
           // 버튼별 판정 없이 끝에 결과만 알려 온다. 그때는 다음에 무엇이 오는지만 말한다.
           detail: hasVerification ? evidence : '다 누르면 결과를 알려 드려요.',
@@ -765,7 +765,7 @@ class _NowState {
       case ExecutionPhase.retrying:
         return _NowState(
           button: s.currentButton,
-          headline: '자리를 맞춰 다시 누르는 중',
+          headline: '자리를 맞춰 다시 누르고 있어요',
           detail: evidence.isEmpty ? null : evidence,
           tone: _Tone.caution,
           // '재시도'는 실패로 읽힌다. 눌림이 확인되지 않아 자리를 다시
@@ -818,11 +818,11 @@ enum _Tone { neutral, caution, done, failed }
 
 /// 할 일 한 가지(심사 의견 10/19) — 볼 것은 키오스크 순서 안내 첫 줄(`kPressRecoverySteps`·`kThinqRecoverySteps`)과 같고,
 /// 말투는 폰 규칙대로 '집에서 확인'이다(폰을 든 사람은 집 밖의 보호자일 수 있다 — heuristic_1018 C).
-const kPressFirstCheck = '가전 화면이 바뀌었는지 집에서 확인이 필요해요';
+const kPressFirstCheck = '가전 화면이 바뀌었는지 집에서 봐 주세요';
 const kThinqFirstCheck = '집에서 가전을 직접 확인해야 해요';
 
 /// 누름 장치가 걸려 멈췄을 때의 할 일 — 결과 문장의 그 말([finishedMessage])과 같다.
-const kMotionAbortCheck = '가전과 누름 장치는 집에서 확인이 필요해요';
+const kMotionAbortCheck = '가전과 누름 장치를 집에서 봐 주세요';
 
 /// 실패·확인 못 함 결과의 할 일 한 가지. 사용자 정지·보내지 못함(연결을 보고 다시)·LG 가전이 하지 않음·연습·서버 결과가
 /// 오기 전의 실패(시작 못 함 등)는 null — 결과 문장이 이미 짧거나 볼 가전이 없다.

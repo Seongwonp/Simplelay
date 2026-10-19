@@ -21,7 +21,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('이 허락은 위에 적은 일에만 써요. 가전 버튼을 누르는 일은 자동으로 하지 않고 매번 물어봐요. '
-        '루틴 탭에서 언제든 끌 수 있어요.'), findsOneWidget);
-    expect(find.text('버튼 누르기는 매번 허락을 받아요. 루틴 탭에서 언제든 끌 수 있어요.'), findsNothing);
+        '루틴 화면에서 언제든 끌 수 있어요.'), findsOneWidget);
+    expect(find.text('버튼 누르기는 매번 허락을 받아요. 루틴 화면에서 언제든 끌 수 있어요.'), findsNothing);
   });
 }

@@ -180,7 +180,7 @@ String? stopLevelSentence(String? level, {int? ackMs, bool detail = false}) {
 String stopLevelNextStep(String? level) => switch (level) {
       'verified' => '가전이 이미 켜졌다면 집에서 가전의 정지 버튼을 눌러야 해요',
       'mcu_ack' || 'sent' => '가전은 집에서 확인해야 해요',
-      _ => '누름 장치와 가전이 멈췄는지는 집에서 확인이 필요해요',
+      _ => '누름 장치와 가전이 멈췄는지 집에서 봐 주세요',
     };
 
 /// 다시 시도 위험(열린 문제 R1) — 자동 재시도·다시 시도는 가전 상태를 보지 않고 같은 버튼을 다시 누른다.
@@ -256,8 +256,8 @@ String finishedMessage({
       return executionMode == 'mock'
           ? '연습을 마쳤어요. 실제 가전은 누르지 않았어요.'
           : executionMode == 'real'
-              ? '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.'
-              : '누름 장치가 다 눌렀다고 알려 왔어요. 움직이는지는 집에서 확인이 필요해요.';
+              ? '버튼을 다 눌렀어요. 움직이는지는 집에서 봐 주세요.'
+              : '누름 장치가 다 눌렀다고 알려 왔어요. 움직이는지는 집에서 봐 주세요.';
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
     case ResultKind.stopped:
@@ -271,7 +271,7 @@ String finishedMessage({
     case ResultKind.safetyStop:
       // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
       final motion = motionAbortSentence(abortReason);
-      if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 누름 장치는 집에서 확인이 필요해요.';
+      if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 누름 장치를 집에서 봐 주세요.';
       return '눌렸는지 몰라서 멈췄어요. 다시 하기 전에 집에서 가전을 확인해야 해요. $kDontRetryIfOn.';
     case ResultKind.failed:
       // 실패라는 것만으로는 시작하지 않았는지 모른다 — 접수된 뒤 일부 버튼을 누르고 실패했을 수 있다(외부 평가

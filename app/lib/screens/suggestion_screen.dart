@@ -83,7 +83,7 @@ class SuggestionScreen extends ConsumerWidget {
     final rpiApi = ref.read(rpiApiServiceProvider);
     var paused = false;
     if (snooze && rpiApi == null) {
-      _notifyError(context, '쉬기를 본체에 알리지 못했어요. 연결을 봐 주세요.');
+      _notifyError(context, "'30분 동안 묻지 않기'를 본체에 알리지 못했어요. 폰과 본체가 같은 와이파이인지 보고 다시 눌러 주세요.");
       return;
     }
     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
@@ -282,7 +282,7 @@ class SuggestionScreen extends ConsumerWidget {
     if (suggestion == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('할까요?')),
-        body: const Center(child: Text('이 알림을 찾을 수 없어요.')),
+        body: const Center(child: Text('이 물음을 찾을 수 없어요. 홈으로 돌아가 주세요.')),
       );
     }
 
@@ -391,7 +391,7 @@ class SuggestionScreen extends ConsumerWidget {
           // ── 무엇을 ──────────────────────────────────────────────────────
           // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
           // 잘라내지 않는다. 긴 말은 줄바꿈해서 다 보여준다.
-          if (suggestion.isDemo) const Text('연습용으로 만든 알림이에요', style: AppText.body),
+          if (suggestion.isDemo) const Text('연습용으로 만든 물음이에요', style: AppText.body),
           // 낱말 중간에서 꺾이지 않게('할까|요' 방지, 평가 5차 10/18). 읽을 때는 원문.
           Text(keepWordsTogether('${suggestion.label}, 지금 할까요?'),
               semanticsLabel: '${suggestion.label}, 지금 할까요?', style: AppText.heading),
@@ -892,7 +892,7 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
         children: [
           if (suggestion.isDemo)
-            const Text('연습용으로 만든 알림이에요', style: AppText.body),
+            const Text('연습용으로 만든 물음이에요', style: AppText.body),
           if (name != null)
             Text(
               name,

@@ -3,7 +3,7 @@
 // 1. 루틴 목록: 설명은 이름 바로 아래(홈 '내 루틴'과 같은 촘촘한 틀), '자동' 48dp 손가락 칸은 줄 높이를 늘리지 않는다.
 // 2. '다음'·'자동'은 이름 옆 작은 표지 — 설명 줄은 '매일 오후 10:00 · 공기청정기'처럼 짧게, 가운뎃점 머리 줄 없음.
 //    큰 글씨 '지금 하기'는 이름 첫 글자와 같은 세로줄.
-// 3. 기록: 큰 글씨 '바로 실행' 한 덩어리, 본문과 칩 '확인 필요' 중복 없음, 볼 것 칩이 제목을 꺾으면 칩을 제목 아래로.
+// 3. 기록: 큰 글씨 '바로 실행' 한 덩어리, 본문과 칩 '봐 주세요' 중복 없음, 볼 것 칩이 제목을 꺾으면 칩을 제목 아래로.
 // 4. 홈: ! 아이콘은 머리에만, '(3번)' 대신 '· 3번 못 했어요', 가전은 바로 쓸 수 있는 것 먼저.
 // 5. 설정: 본체 아이콘, 개발자 줄 숨김(앱 정보 이름 7번), LG 가전 부제 한 문장.
 // 6. 말: 자동 규칙 안내 한 문장, 알려 주기만 하는 창은 '닫기'.
@@ -309,7 +309,8 @@ void main() {
       expect(p.dy - c.dy, lessThan(24));
       await tester.tapAt(p);
       await _settle(tester);
-      expect(findPlainText('자동 루틴'), findsOneWidget);
+      // 탭 이름과 열린 창 제목이 같은 이름(문구 기준 R9 10/19).
+      expect(findPlainText('자동으로 하기'), findsNWidgets(2));
     });
   });
 
@@ -354,8 +355,8 @@ void main() {
       expect(_rawText(tester, time).replaceAll('⁠', ''), contains('바로$_nbsp실행'));
       final reason = tester.widget<Text>(find.byKey(const Key('history-reason-press-1')));
       expect(reason.semanticsLabel, '버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요');
-      expect(reason.semanticsLabel, isNot(contains('확인 필요')));
-      expect(_in(find.byKey(const Key('history-result-press-1')), findPlainText('확인 필요', contains: true)),
+      expect(reason.semanticsLabel, isNot(contains('봐 주세요')));
+      expect(_in(find.byKey(const Key('history-result-press-1')), findPlainText('봐 주세요', contains: true)),
           findsOneWidget);
     });
 
@@ -440,7 +441,7 @@ void main() {
   group('6. 말', () {
     testWidgets('자동 규칙 안내는 자연스러운 한 문장', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await _settle(tester);
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
       expect(intro.semanticsLabel, '스위치가 켜져 있는 동안은 묻지 않고 바로 해요');

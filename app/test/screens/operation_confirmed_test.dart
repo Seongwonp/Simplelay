@@ -33,7 +33,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.',
+        message: '버튼을 다 눌렀어요. 움직이는지는 집에서 봐 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -59,7 +59,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.',
+        message: '버튼을 다 눌렀어요. 움직이는지는 집에서 봐 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -80,7 +80,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.',
+        message: '버튼을 다 눌렀어요. 움직이는지는 집에서 봐 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -104,9 +104,9 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.'), findsNothing);
+    expect(find.text('버튼을 다 눌렀어요. 움직이는지는 집에서 봐 주세요.'), findsNothing);
     // 실행 환경을 모르면 실제로 눌렀는지 사람에게 확인을 맡긴다.
-    expect(findPlainText('움직이는지는 집에서 확인이 필요해요', contains: true), findsOneWidget);
+    expect(findPlainText('움직이는지는 집에서 봐 주세요', contains: true), findsOneWidget);
     expect(find.textContaining('마쳤어요'), findsNothing);
   });
 

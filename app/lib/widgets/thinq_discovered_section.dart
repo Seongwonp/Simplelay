@@ -53,7 +53,7 @@ class _ThinqDiscoveredSectionState
           ),
           const SizedBox(height: AppSpace.sm),
           if (async.isLoading && data == null)
-            const Text('LG 앱에서 가전을 찾는 중이에요…',
+            const Text('LG 앱에서 가전을 찾고 있어요…',
                 key: Key('thinq-found-loading'))
           else if (data == null || !data.ok)
             _failure(context, data?.failure ?? 'LG 가전 목록을 불러오지 못했어요.')
@@ -133,7 +133,7 @@ class _ThinqDiscoveredSectionState
         key: Key('thinq-add-${d.key}'),
         onPressed: busy ? null : () => _add(d),
         style: FilledButton.styleFrom(minimumSize: const Size(64, 48)),
-        child: Text(busy ? '추가 중' : '추가'),
+        child: Text(busy ? '추가하고 있어요' : '추가'),
       );
     }
     return Padding(

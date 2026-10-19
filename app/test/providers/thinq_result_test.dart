@@ -101,7 +101,7 @@ void main() {
   test('옛 서버(last_outcome 없음)의 safety_stopped는 종전 문구', () async {
     final s = await _finish({'last_status': 'safety_stopped'});
     expect(s.phase, ExecutionPhase.failed);
-    expect(s.message, '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지는 집에서 확인이 필요해요.');
+    expect(s.message, '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 집에서 봐 주세요.');
     expect(s.outcome, isNull);
   });
 

@@ -196,7 +196,7 @@ void main() {
       expect(find.text('즉석밥'), findsOneWidget); // 누를 버튼(순서 목록)
       expect(find.text('누를 순서'), findsOneWidget);
       expect(find.text('연습'), findsOneWidget); // 모의(표본) 가전
-      expect(find.text('연습용으로 만든 알림이에요'), findsOneWidget);
+      expect(find.text('연습용으로 만든 물음이에요'), findsOneWidget);
       // 버튼 배치(지도)는 접혀 있다 — 제목만 보이고 지도는 없다.
       expect(findPlainText('전자레인지의 실제 버튼 배치'), findsOneWidget);
       expect(find.byType(ButtonMapGrid), findsNothing);
@@ -226,7 +226,7 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSuggestion('nonexistent', suggestions: []));
       await tester.pump();
-      expect(find.text('이 알림을 찾을 수 없어요.'), findsOneWidget);
+      expect(find.text('이 물음을 찾을 수 없어요. 홈으로 돌아가 주세요.'), findsOneWidget);
     });
   });
 

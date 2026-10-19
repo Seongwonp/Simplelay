@@ -197,7 +197,7 @@ Future<void> _settle(WidgetTester tester) async {
 
 /// 루틴 탭의 [자동으로 하기] 쪽을 연다(2026-10-18 세그먼트).
 Future<void> _openRules(WidgetTester tester) async {
-  await tester.tap(findPlainText('자동 규칙'));
+  await tester.tap(findPlainText('자동으로 하기'));
   await _settle(tester);
 }
 
@@ -286,7 +286,7 @@ void main() {
 
       await tester.tap(find.text('다음부터도 자동으로'));
       await _settle(tester);
-      expect(find.text('이번에 실행하고\n다음부터 자동으로 할까요?'), findsOneWidget);
+      expect(find.text('이번에 하고,\n다음부터는 묻지 않고 할까요?'), findsOneWidget);
       expect(find.text('언제: 전자레인지가 멈추면'), findsOneWidget);
       expect(find.text('무엇을: 거실 공기청정기 풍량 강으로'), findsOneWidget);
       // 짧아진 조건 문장의 한계(조리 완료가 아닐 수 있음)는 허용하는 이 시트에서 말한다(2026-10-14).

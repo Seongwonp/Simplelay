@@ -614,7 +614,7 @@ void main() {
 
     testWidgets('⋮ 메뉴는 읽는 이름에 안의 항목을 말한다', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await _settle(tester);
       final menu = tester.widget<Semantics>(find
           .ancestor(of: find.byKey(const Key('auto-rule-menu-ar-s')), matching: find.byType(Semantics))
@@ -719,7 +719,7 @@ void main() {
       final r = historyResult(RpiHistoryEntry.fromJson(_h('u', '2026-09-09T08:00:00',
           status: 'failed', outcome: 'unconfirmed', purpose: '즉석밥 데워줘')));
       expect(r.next, contains('집에서'));
-      expect(kPressedAllSentence, contains('집에서 확인이 필요해요'));
+      expect(kPressedAllSentence, contains('집에서 봐 주세요'));
     });
   });
 }

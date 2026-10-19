@@ -413,7 +413,7 @@ void main() {
     expect(find.text('지금 하기'), findsNothing);
     expect(find.textContaining('인터폰 호출 감지는 아직 없어요'), findsOneWidget);
 
-    await tester.tap(find.text('직접 실행으로 정하기'));
+    await tester.tap(find.text('필요할 때 하기로 정하기'));
     await tester.pump();
     await tester.tap(find.byKey(const Key('routine-save')));
     await _settle(tester);
@@ -602,7 +602,7 @@ void main() {
 
     server.triggerReply = (404, {'detail': '루틴을 찾을 수 없어요'});
     await runAndConfirm();
-    expect(findPlainText('이 루틴을 찾지 못했어요. 목록을 새로 고쳐 주세요.'), findsOneWidget);
+    expect(findPlainText('이 루틴을 찾지 못했어요. 루틴 화면에서 아래로 당겨 목록을 새로 봐 주세요.'), findsOneWidget);
   });
 
   testWidgets('알림만·꺼진 루틴에는 실행하기를 두지 않고 꺼짐을 말한다', (tester) async {
@@ -626,7 +626,7 @@ void main() {
     // 설명 줄 끝 '꺼짐'도 두지 않는다.
     expect(find.byKey(const Key('routine-off-badge-rt-off')), findsNothing);
     expect(tester.widget<Text>(find.byKey(const Key('routine-switch-text-rt-off'))).data, '꺼짐');
-    expect(tester.widget<Text>(find.byKey(const Key('routine-line-rt-off'))).semanticsLabel, endsWith(', 꺼 둠'));
+    expect(tester.widget<Text>(find.byKey(const Key('routine-line-rt-off'))).semanticsLabel, endsWith(', 꺼짐'));
     expect(findPlainText('전자레인지 · 누를 버튼 3개 · 꺼짐', contains: true), findsNothing);
   });
 
@@ -712,7 +712,7 @@ void main() {
       final seg = find.byType(SegmentedButton<int>);
       expect(seg, findsOneWidget);
       expect(find.descendant(of: seg, matching: findPlainText('내 루틴')), findsOneWidget);
-      expect(find.descendant(of: seg, matching: findPlainText('자동 규칙')), findsOneWidget);
+      expect(find.descendant(of: seg, matching: findPlainText('자동으로 하기')), findsOneWidget);
       expect(find.text('예시 루틴'), findsNothing, reason: '세그먼트에 예시 루틴을 두지 않는다');
       expect(find.textContaining('추천'), findsNothing);
 
@@ -748,16 +748,16 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_build(_Server()));
     await _settle(tester);
-    await tester.tap(findPlainText('자동 규칙'));
+    await tester.tap(findPlainText('자동으로 하기'));
     await _settle(tester);
     expect(
-        findPlainText('아직 자동 규칙이 없어요. "할까요?" 하고 물어볼 때 "다음부터도 자동으로"를 고르면 생겨요. '
+        findPlainText('아직 "자동으로 하기"가 없어요. "할까요?" 하고 물어볼 때 "다음부터도 자동으로"를 고르면 생겨요. '
             'LG 가전 일만 이렇게 할 수 있어요.'),
         findsOneWidget);
   });
 
   // 2026-10-14 4번: 사용 기록 → 루틴 초안 저장. 저장만 한다(실행 경로가 불리면 서버가 시험을 실패시킨다).
-  group('사용 기록으로 만든 루틴 초안', () {
+  group('자주 하신 일로 만든 루틴(아직 저장 안 했어요)', () {
     Map<String, dynamic> candidate() => {
           'key': 'hc-1',
           'appliance_id': 'microwave',
@@ -785,7 +785,7 @@ void main() {
       _tall(tester);
       await tester.pumpWidget(_build(server));
       await _settle(tester);
-      expect(find.text('사용 기록으로 만든 루틴 초안'), findsOneWidget);
+      expect(find.text('자주 하신 일로 만든 루틴(아직 저장 안 했어요)'), findsOneWidget);
       expect(find.text('전자레인지: 즉석밥 → 시작'), findsOneWidget);
       expect(find.text('최근 28일 중 아침에 4일 사용했어요'), findsOneWidget);
       expect(find.textContaining('추천'), findsNothing);
@@ -793,9 +793,9 @@ void main() {
       expect(tester.getSize(find.byKey(const Key('candidate-save-hc-1'))).height,
           greaterThanOrEqualTo(48));
       // 자동으로 하기 쪽에는 보이지 않는다.
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await _settle(tester);
-      expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
+      expect(find.text('자주 하신 일로 만든 루틴(아직 저장 안 했어요)'), findsNothing);
     });
 
     testWidgets('확인 시트에서 이름·언제만 고르고 저장 — 저장 요청 1회, 실행·카드 요청 0회', (tester) async {
@@ -829,7 +829,7 @@ void main() {
       expect(find.text('루틴으로 저장할까요?'), findsNothing);
       expect(find.text("'아침 밥' 루틴을 저장했어요. 아직 하지는 않았어요."), findsOneWidget);
       // 저장한 초안은 사라지고 내 루틴에 들어간다.
-      expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
+      expect(find.text('자주 하신 일로 만든 루틴(아직 저장 안 했어요)'), findsNothing);
       expect(findPlainText('아침 밥'), findsOneWidget);
     });
 
@@ -843,7 +843,7 @@ void main() {
       await tester.tap(find.byKey(const Key('candidate-cancel')));
       await _settle(tester);
       expect(saves(server), 0);
-      expect(find.text('사용 기록으로 만든 루틴 초안'), findsOneWidget);
+      expect(find.text('자주 하신 일로 만든 루틴(아직 저장 안 했어요)'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('candidate-save-hc-1')));
       await _settle(tester);
@@ -877,7 +877,7 @@ void main() {
       await _settle(tester);
       expect(server.requests, contains('POST /routines/candidates/hc-1/decline'));
       expect(saves(server), 0);
-      expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
+      expect(find.text('자주 하신 일로 만든 루틴(아직 저장 안 했어요)'), findsNothing);
     });
 
     testWidgets('실행 중에는 초안을 보이지 않는다(작업 도중 끼어들지 않는다)', (tester) async {
@@ -887,7 +887,7 @@ void main() {
         executionStatusProvider.overrideWith(_RunningNotifier.new),
       ]));
       await _settle(tester);
-      expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
+      expect(find.text('자주 하신 일로 만든 루틴(아직 저장 안 했어요)'), findsNothing);
       expect(findPlainText('아침 데우기'), findsOneWidget);
     });
   });

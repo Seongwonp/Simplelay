@@ -228,17 +228,17 @@ class _CareEventCard extends StatelessWidget {
         'danger_sound' => (
             Icons.warning_amber_rounded,
             context.appDanger,
-            '위험 신호음'
+            '위험 소리'
           ),
         'execution_failed' => (
             Icons.error_outline,
             context.appWarning,
-            '실행 실패'
+            '못 한 일'
           ),
         'emergency_stop' => (
             Icons.front_hand_outlined,
             context.appWarning,
-            '정지'
+            '멈춘 일'
           ),
         'quiet_routine' => (
             Icons.favorite_outline,
@@ -249,12 +249,12 @@ class _CareEventCard extends StatelessWidget {
         'appliance_done_undelivered' => (
             Icons.error_outline,
             context.appWarning,
-            '실행 실패'
+            '못 한 일'
           ),
         'routine_stopped' => (
             Icons.front_hand_outlined,
             context.appWarning,
-            '루틴 멈춤'
+            '멈춘 루틴'
           ),
         'auto_rule' => (AppIcons.auto, context.appInk, '자동으로 하기'),
         'routine_notice' || 'routine_announce' => (

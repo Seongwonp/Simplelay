@@ -223,7 +223,7 @@ void main() {
   testWidgets('루틴 탭 — 자동으로 하기 (라이트)', (t) async {
     await _shoot(t, 'routines_rules_light', const RoutinesScreen(),
         light: true, installed: _homeInstalled, hub: _demoHub(), before: (tester) async {
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await tester.pumpAndSettle();
     });
   });
@@ -387,7 +387,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 2,
     applianceId: 'microwave',
-    message: '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.',
+    message: '버튼을 다 눌렀어요. 움직이는지는 집에서 봐 주세요.',
   );
   const failed = ExecutionStatus(
     phase: ExecutionPhase.failed,

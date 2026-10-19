@@ -54,9 +54,9 @@ void main() {
           completedSteps: 1,
         ),
       );
-      expect(findPlainText('누르는 중'), findsOneWidget);
+      expect(findPlainText('누르고 있어요'), findsOneWidget);
       expect(findPlainText('눌렸는지 보고 있어요', contains: true), findsNothing);
-      expect(findPlainText('눌렸는지 보는 중', contains: true), findsNothing);
+      expect(findPlainText('눌렸는지 보고 있어요', contains: true), findsNothing);
       expect(findPlainText('다 누르면 결과를 알려 드려요.'), findsOneWidget);
     });
 
@@ -73,7 +73,7 @@ void main() {
           verificationDetail: '전류 변화 있음',
         ),
       );
-      expect(findPlainText('눌렸는지 보는 중'), findsOneWidget);
+      expect(findPlainText('눌렸는지 보고 있어요'), findsOneWidget);
       expect(find.textContaining('전류 변화 있음'), findsOneWidget);
     });
   });

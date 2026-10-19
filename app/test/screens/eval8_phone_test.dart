@@ -299,10 +299,10 @@ void main() {
   });
 
   group('B. 큰 글씨 위 탭', () {
-    testWidgets("200%에서 '자동 규칙'은 한 줄이고 탭 안에 다 보인다", (tester) async {
+    testWidgets("200%에서 '자동으로 하기'은 한 줄이고 탭 안에 다 보인다", (tester) async {
       await _pump(tester, const RoutinesScreen(), scale: 2.0);
       final seg = find.byType(SegmentedButton<int>);
-      for (final label in ['내 루틴', '자동 규칙']) {
+      for (final label in ['내 루틴', '자동으로 하기']) {
         final t = findPlainText(label);
         expect(t, findsOneWidget);
         expect(_lines(tester, t), 1, reason: '$label ${tester.getSize(t)}');
@@ -369,7 +369,7 @@ void main() {
   group('D. 자동으로 하기 탭', () {
     testWidgets('사용자가 끈 규칙은 스위치만 — 다른 까닭으로 꺼진 규칙은 배지 유지', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('auto-rule-switch-ar-heat')), findsOneWidget);
       expect(find.byKey(const Key('auto-rule-off-ar-heat')), findsNothing);
@@ -386,7 +386,7 @@ void main() {
 
     testWidgets('탭 머리에 이 목록이 무엇인지 한 줄', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await tester.pumpAndSettle();
       final intro = find.byKey(const Key('auto-rules-intro'));
       expect(intro, findsOneWidget);

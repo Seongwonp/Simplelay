@@ -3,9 +3,9 @@
 // 1. 기록: 연달아 같은 일·같은 결과는 한 줄로 묶는다('3번 못 했어요', 펼치면 각 회차). 실패 줄에는 기록에 있는
 //    이유 한 줄(서버 detail 첫 문장) — 근거가 없으면 지어내지 않는다. 'LG 가전'은 묶음에 한 번. 이름은 낱말 묶음으로
 //    꺾는다('중간으로 하기'). 성공 줄은 칩 없이 작은 기호·글자, 회색 원 아이콘도 없다.
-// 2. 루틴 탭: 시각 루틴에 붙은 자동 규칙은 '자동 규칙' 탭에 따로 두지 않고 루틴 줄의 '자동' 표시를 누르면 그 스위치.
+// 2. 루틴 탭: 시각 루틴에 붙은 자동 규칙은 '자동으로 하기' 탭에 따로 두지 않고 루틴 줄의 '자동' 표시를 누르면 그 스위치.
 //    루틴에 닿지 않는 규칙은 탭에 그대로 남는다(자동 실행을 끄는 길은 늘 한 군데 이상).
-// 3. 이름: 폰 홈·루틴 줄은 '자동', 탭은 '자동 규칙'. '자동으로 해요'·'자동으로 하기'는 화면에 없다.
+// 3. 이름: 폰 홈·루틴 줄은 '자동', 탭은 '자동으로 하기'. '자동으로 해요'·'자동으로 하기'는 화면에 없다.
 // 4. 장식: 루틴 묶음 머리 아이콘·규칙 카드 순환 아이콘·이름을 되풀이하는 설명 없음. 설정의 하트·해 아이콘 바꿈.
 // 5. 홈: '지금 우리 집'은 면 없이, '확인이 필요해요'는 할 일이 있을 때만 색, 가전 카드의 'LG 가전'은 작은 글자.
 // 6. 말투: 설정 LG 가전 부제·규칙 탭 안내는 '~해요'를 잇달아 쓰지 않는다.
@@ -323,11 +323,11 @@ void main() {
   });
 
   group('2·3. 루틴 탭 — 시각 루틴 규칙은 루틴 줄에서, 탭은 자동 규칙만', () {
-    testWidgets("탭 이름은 '자동 규칙', 시각 루틴 규칙은 탭에 따로 없다", (tester) async {
+    testWidgets("탭 이름은 '자동으로 하기', 시각 루틴 규칙은 탭에 따로 없다", (tester) async {
       await _pump(tester, const RoutinesScreen(), _Hub());
-      expect(findPlainText('자동 규칙'), findsOneWidget);
-      expect(findPlainText('자동으로 하기'), findsNothing);
-      await tester.tap(findPlainText('자동 규칙'));
+      // 탭 이름 하나만 — 시각 루틴의 '자동으로 하기' 창은 열리지 않았다.
+      expect(findPlainText('자동으로 하기'), findsOneWidget);
+      await tester.tap(findPlainText('자동으로 하기'));
       await _settle(tester);
       expect(find.byKey(const Key('auto-rule-ar-s')), findsOneWidget);
       expect(find.byKey(const Key('auto-rule-ar-t')), findsNothing);
@@ -352,7 +352,7 @@ void main() {
     testWidgets('루틴에 닿지 않는 시각 규칙은 탭에 남는다(끄는 길을 잃지 않게)', (tester) async {
       final hub = _Hub()..rules = [_rule('ar-x', '자동 실행', time: '06:00')];
       await _pump(tester, const RoutinesScreen(), hub);
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await _settle(tester);
       expect(find.byKey(const Key('auto-rule-switch-ar-x')), findsOneWidget);
     });
@@ -379,7 +379,7 @@ void main() {
 
     testWidgets('규칙 카드에 순환 아이콘이 없고, 이름을 되풀이하는 설명도 없다', (tester) async {
       await _pump(tester, const RoutinesScreen(), _Hub());
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await _settle(tester);
       final card = find.byKey(const Key('auto-rule-ar-s'));
       expect(_in(card, find.byIcon(AppIcons.auto)), findsNothing);

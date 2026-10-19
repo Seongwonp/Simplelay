@@ -42,14 +42,14 @@ void main() {
     test('단계를 모르면 정지 요청으로 실행이 끝났다고까지만', () {
       final m = finishedMessage(kind: ResultKind.stopped);
       expect(m, isNot(contains('실행을 멈췄어요')));
-      expect(m, contains('멈췄는지는 집에서 확인이 필요해요'));
+      expect(m, contains('멈췄는지 집에서 봐 주세요'));
     });
   });
 
   group('성공·안전 정지 문장', () {
     test('실제 실행 성공은 버튼을 다 눌렀다고, 가전은 직접', () {
       final m = finishedMessage(kind: ResultKind.success, executionMode: 'real');
-      expect(m, '버튼을 다 눌렀어요. 움직이는지는 집에서 확인이 필요해요.');
+      expect(m, '버튼을 다 눌렀어요. 움직이는지는 집에서 봐 주세요.');
     });
 
     test('연습 성공은 연습이라고 — 모의라고 섞어 쓰지 않는다', () {

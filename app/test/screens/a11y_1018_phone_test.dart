@@ -224,14 +224,14 @@ void main() {
     testWidgets('선택된 탭은 굵은 글자 + 밑줄 — 고르지 않은 탭은 밑줄 없음', (tester) async {
       await _pump(tester, const RoutinesScreen());
       var mine = _segmentStyle(tester, '내 루틴');
-      var rules = _segmentStyle(tester, '자동 규칙');
+      var rules = _segmentStyle(tester, '자동으로 하기');
       expect(mine.decoration, TextDecoration.underline);
       expect(mine.fontWeight!.value, greaterThanOrEqualTo(FontWeight.w700.value));
       expect(rules.decoration ?? TextDecoration.none, TextDecoration.none);
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await _settle(tester);
       mine = _segmentStyle(tester, '내 루틴');
-      rules = _segmentStyle(tester, '자동 규칙');
+      rules = _segmentStyle(tester, '자동으로 하기');
       expect(rules.decoration, TextDecoration.underline);
       expect(rules.fontWeight!.value, greaterThanOrEqualTo(FontWeight.w700.value));
       expect(mine.decoration ?? TextDecoration.none, TextDecoration.none);
@@ -240,7 +240,7 @@ void main() {
     for (final enabled in [true, false]) {
       testWidgets("자동 규칙 스위치 바로 아래 '${enabled ? '켜짐' : '꺼짐'}' 글자, ⋮ 누르는 자리 48dp 이상", (tester) async {
         await _pump(tester, const RoutinesScreen(), ruleEnabled: enabled);
-        await tester.tap(findPlainText('자동 규칙'));
+        await tester.tap(findPlainText('자동으로 하기'));
         await _settle(tester);
         final sw = find.byKey(const Key('auto-rule-switch-ar-1'));
         expect(sw, findsOneWidget);

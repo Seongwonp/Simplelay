@@ -38,7 +38,7 @@ Future<String?> runRoutineNow(
   } on RpiApiException catch (e) {
     return routineRunErrorText(e);
   } catch (_) {
-    return '카드를 만들지 못했어요. 연결을 봐 주세요.';
+    return '물어보는 화면을 띄우지 못했어요. 본체 연결을 보고 다시 눌러 주세요.';
   }
 }
 
@@ -67,12 +67,12 @@ Future<String?> confirmAndRunRoutine(
 /// 실행 요청 실패를 사람 말로. 서버 문장(409 '지금은 루틴 카드를 만들 수 없어요: …',
 /// 412 준비 안 됨)은 이미 한국어라 그대로 쓴다. 지워진 루틴(404)만 할 일을 붙인다.
 String routineRunErrorText(RpiApiException e) {
-  if (e.statusCode == 404) return '이 루틴을 찾지 못했어요. 목록을 새로 고쳐 주세요.';
+  if (e.statusCode == 404) return '이 루틴을 찾지 못했어요. 루틴 화면에서 아래로 당겨 목록을 새로 봐 주세요.';
   final message = e.message.trim();
   if (message.isNotEmpty) return message;
   return switch (e.statusCode) {
-    409 => '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.',
-    412 => '가전이 아직 준비되지 않았어요.',
-    _ => '카드를 만들지 못했어요. 연결을 봐 주세요.',
+    409 => '다른 일을 하고 있어요. 끝난 뒤 다시 눌러 주세요.',
+    412 => '가전이 아직 준비되지 않았어요. 가전 화면에서 남은 설정을 봐 주세요.',
+    _ => '물어보는 화면을 띄우지 못했어요. 본체 연결을 보고 다시 눌러 주세요.',
   };
 }

@@ -80,7 +80,7 @@ void main() {
     });
     expect(s.phase, ExecutionPhase.failed);
     expect(s.abortReason, 'motion_alarm: stall');
-    expect(s.message, '누름 장치가 움직이지 못해 멈췄어요. 다시 누르지 않았어요. 가전과 누름 장치는 집에서 확인이 필요해요.');
+    expect(s.message, '누름 장치가 움직이지 못해 멈췄어요. 다시 누르지 않았어요. 가전과 누름 장치를 집에서 봐 주세요.');
     expect(s.message, isNot(contains('눌림을 확인하지 못해')));
     expect(spoken.single, s.message);
   });
@@ -102,7 +102,7 @@ void main() {
       'abort_reason': 'motion_alarm: stall',
     }));
     expect(r.sentence, '누름 장치가 움직이지 못해 멈췄어요');
-    expect(r.next, '다시 누르지 않았어요. 누름 장치는 집에서 확인이 필요해요');
+    expect(r.next, '다시 누르지 않았어요. 누름 장치를 집에서 봐 주세요');
     final old = historyResult(_entry(const {'outcome': 'safety_stop', 'termination': 'retries_exhausted'}));
     expect(old.sentence, '한 번 더 눌렀지만 몰라서 스스로 멈췄어요');
   });
@@ -119,7 +119,7 @@ void main() {
     expect(findPlainText('누름 장치가 움직이지 못해 멈췄어요', contains: true), findsWidgets);
     expect(find.text('다시 하기'), findsNothing);
     expect(find.textContaining('다시 실행해 주세요'), findsNothing);
-    expect(find.widgetWithText(FilledButton, '확인'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '닫기'), findsOneWidget);
   });
 
   testWidgets('결과 화면: 원인 없는 안전 정지는 종전대로 다시 시도', (tester) async {

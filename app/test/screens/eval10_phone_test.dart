@@ -6,7 +6,7 @@
 // 2. 자동으로 하기 탭: 머리 안내는 낱말 단위 줄바꿈('자 / 동' 방지). 사용자가 끈 규칙은 짧은 '꺼 둠' 표시
 //    (예전 긴 '자동으로 하기를 꺼 두셨어요' 배지는 두지 않는다).
 // 3. 기록: '루틴 · 허락하고 실행' → '루틴 · 물어보고'. '직접' → '사람이 직접'(폰·본체 화면·말을 가를 자료가
-//    기록에 없다 — 사람이 시작했다는 것까지만). '확인 필요' 배지 줄에는 까닭 한 줄(결과 문장 그대로).
+//    기록에 없다 — 사람이 시작했다는 것까지만). '봐 주세요' 배지 줄에는 까닭 한 줄(결과 문장 그대로).
 // 4. 홈 가전 칸: 자리 확인 보조 줄과 '준비됐어요'가 엇갈리지 않게 — 보조 줄이 있으면 띠가 그 한 문장.
 // 5. 설정: 못 읽은 값은 까닭(본체 연결이 끊김처럼 근거가 있을 때만), '새로 보기'는 따로 단추.
 // 6. 루틴 편집: 기다리기 단계 '동작이 끝날 때까지 기다리기' → '[전자레인지] 끝나면' 한 줄.
@@ -337,7 +337,7 @@ void main() {
   group('2. 자동으로 하기 탭', () {
     testWidgets('머리 안내는 낱말 중간에서 꺾이지 않는다', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await tester.pumpAndSettle();
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
       expect(intro.data, contains('스$kWordJoiner위$kWordJoiner치'));
@@ -346,7 +346,7 @@ void main() {
     // 평가 11차(10/18): '꺼 둠'도 스위치와 같은 뜻이라 두지 않는다(eval11_phone_test 2).
     testWidgets("사용자가 끈 규칙은 스위치만 — 긴 문장 배지·'꺼 둠' 없음", (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동 규칙'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('auto-rule-paused-ar-heat')), findsNothing);
       expect(findPlainText('꺼 둠'), findsNothing);
@@ -363,7 +363,7 @@ void main() {
   });
 
   group('3. 기록', () {
-    testWidgets("'루틴 · 물어보고'·'사람이 직접', '확인 필요'에는 까닭 한 줄", (tester) async {
+    testWidgets("'루틴 · 물어보고'·'사람이 직접', '봐 주세요'에는 까닭 한 줄", (tester) async {
       await _pump(tester, const HistoryScreen());
       expect(findPlainText('허락하고 실행', contains: true), findsNothing);
       expect(_in(find.byKey(const ValueKey('history-j-ask')), findPlainText('루틴 · 물어보고', contains: true)),
@@ -374,7 +374,7 @@ void main() {
       // 출시 검토(10/18): 글자 대신 작은 구름 표식.
       expect(_in(find.byKey(const ValueKey('history-j-me')), find.byIcon(Icons.cloud_outlined)), findsOneWidget);
       final unk = find.byKey(const ValueKey('history-j-unk'));
-      expect(_in(unk, findPlainText('확인 필요')), findsOneWidget);
+      expect(_in(unk, findPlainText('봐 주세요')), findsOneWidget);
       final reason = find.byKey(const Key('history-reason-j-unk'));
       expect(_in(unk, reason), findsOneWidget);
       expect(find.descendant(of: reason, matching: findPlainText('눌렸는지 몰라요'), matchRoot: true), findsOneWidget);

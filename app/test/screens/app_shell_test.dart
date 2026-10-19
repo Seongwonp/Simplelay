@@ -151,7 +151,7 @@ void main() {
         label: '아침 데우기',
       ),
     );
-    expect(find.text('아침 데우기 하는 중'), findsOneWidget);
+    expect(find.text('아침 데우기 하고 있어요'), findsOneWidget);
     expect(find.byKey(const Key('shell-stop')), findsOneWidget);
 
     await tester.tap(find.text('루틴'));

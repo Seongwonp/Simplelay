@@ -51,7 +51,7 @@ bool historyIsNotDone(RpiHistoryEntry e) {
 }
 
 /// 됐는지 확인하지 못한 기록의 배지 말(보호자 과업 평가 10/18: '봐 주세요'는 멀리 있는 보호자가 할 수 없는 부탁이었다).
-const kCheckBadgeLabel = '확인 필요';
+const kCheckBadgeLabel = '봐 주세요';
 
 /// 기록 묶음은 바로 앞 회차와 이 간격 안일 때만(평가 15차 10/18).
 const kHistoryRunGap = Duration(minutes: 10);
@@ -144,7 +144,7 @@ class HistoryScreen extends ConsumerWidget {
                             Icon(Icons.help_outline, size: 20, color: context.appWarning),
                             const SizedBox(width: AppSpace.sm),
                             Expanded(
-                              child: Text('눌렸는지 모르는 일 $n건. 집에서 확인이 필요해요',
+                              child: Text('눌렸는지 모르는 일 $n건. 집에서 봐 주세요',
                                   style: TextStyle(
                                       fontSize: AppFont.caption,
                                       fontWeight: FontWeight.w600,
@@ -601,7 +601,12 @@ class _HistoryRowState extends ConsumerState<_HistoryRow> {
             : historyFailReason(entry, applianceName: applianceName);
     final reasonColor = look ? context.appWarning : context.appInk;
 
-    final label = count > 1 ? '$count번 ${badge.label}' : badge.label;
+    // '봐 주세요'는 할 일이라 횟수를 뒤에('2번 봐 주세요'는 어색하다, 문구 기준 R7 10/19).
+    final label = count <= 1
+        ? badge.label
+        : badge.label == kCheckBadgeLabel
+            ? '${badge.label} · $count번'
+            : '$count번 ${badge.label}';
     // 됐어요·연습은 칩 없이 작은 기호·글자. 볼 것만 칩.
     final quiet = badge.tone == BadgeTone.confirmed || badge.tone == BadgeTone.neutral;
     // 됐어요는 무엇을 확인했는지 짧게('켜진 걸 봤어요') — 기록의 확인 수준에서만([historyConfirmedPhrase]).

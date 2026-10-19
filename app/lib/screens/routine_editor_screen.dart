@@ -128,7 +128,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
             TextButton(onPressed: () {
               _whenChosen = true;
               _update(_draft.copyWith(trigger: const RoutineTrigger.manual()));
-            }, child: const Text('직접 실행으로 정하기')),
+            }, child: const Text('필요할 때 하기로 정하기')),
             const SizedBox(height: AppSpace.md),
           ],
 
@@ -239,7 +239,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           ),
           if (!_isNew)
             Text(
-              '할 일이나 실행 방식을 바꾸면 떠 있는 카드는 다시 허락해야 해요.',
+              '할 일이나 실행 방식을 바꾸면 지금 물어보던 것은 다시 허락해야 해요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           if (_error != null) ...[
@@ -373,7 +373,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
                 key: const Key('routine-add-thinq'),
                 leading: const Icon(Icons.cloud_outlined),
                 title: const Text('LG 가전 바꾸기'),
-                subtitle: const Text('공기청정기 전원, 바람 세기, 모드를 바꿔요'),
+                subtitle: const Text('공기청정기 전원, 바람 세기, 운전 방식을 바꿔요'),
                 onTap: () => Navigator.pop(sheet, RoutineStepKind.thinqCommand),
               ),
             ListTile(
@@ -580,7 +580,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
       context: context,
       builder: (dialog) => AlertDialog(
         title: const Text('이 루틴을 지울까요?'),
-        content: const Text('지우면 떠 있던 카드도 내려가요.'),
+        content: const Text('지우면 지금 물어보던 것도 사라져요.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dialog, false),
@@ -770,7 +770,7 @@ class _TriggerSheetState extends State<_TriggerSheet> {
       (RoutineTriggerKind.afterDone, '끝난 뒤'),
       if (widget.initial.kind == RoutineTriggerKind.event)
         (RoutineTriggerKind.event, '가전 알림'),
-      (RoutineTriggerKind.manual, '직접 실행'),
+      (RoutineTriggerKind.manual, '필요할 때'),
     ];
     return SafeArea(
       child: Padding(

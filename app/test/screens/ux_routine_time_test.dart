@@ -35,7 +35,7 @@ void main() {
     ]));
     await tester.pumpAndSettle();
     expect(find.text('오전 7:10로 정하기'), findsOneWidget);
-    await tester.tap(find.text('직접 실행으로 정하기'));
+    await tester.tap(find.text('필요할 때 하기로 정하기'));
     await tester.pump();
     expect(find.text('오전 7:10로 정하기'), findsNothing);
     expect(find.text('직접 실행할 때'), findsOneWidget);

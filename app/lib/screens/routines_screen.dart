@@ -120,8 +120,8 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                 // 큰 글씨에서도 한 줄 — 두 줄로 꺾이면 탭 위아래가 잘렸다(평가 8차 10/18). 칸보다 길 때만 그만큼 줄인다.
                 ButtonSegment(value: 0, label: _SegmentLabel('내 루틴', selected: _segment == 0)),
                 // 평가 14차(10/18): 폰 '자동으로 해요'·'자동'·'자동으로 하기'가 섞였다 — 표시는 '자동', 이 탭은 루틴이 아닌
-                // 규칙만 두므로 '자동 규칙'.
-                ButtonSegment(value: 1, label: _SegmentLabel('자동 규칙', selected: _segment == 1)),
+                // 규칙만 둔다. 이름은 '자동으로 하기'(문구 기준 R9 10/19 — '자동 규칙'·'자동 루틴'을 하나로).
+                ButtonSegment(value: 1, label: _SegmentLabel('자동으로 하기', selected: _segment == 1)),
               ],
               selected: {_segment},
               showSelectedIcon: false,
@@ -134,10 +134,10 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       _Note(rules.isEmpty
                           // 언제 묻는지와 무엇만 되는지를 함께(첫 사용자 검토 10/19 — '할까요? 카드'로는 길을 찾지 못했다).
                           // 버튼 누르기는 본체가 자동 규칙으로 받지 않는다.
-                          ? '아직 자동 규칙이 없어요. "할까요?" 하고 물어볼 때 "다음부터도 자동으로"를 고르면 생겨요. '
+                          ? '아직 "자동으로 하기"가 없어요. "할까요?" 하고 물어볼 때 "다음부터도 자동으로"를 고르면 생겨요. '
                               'LG 가전 일만 이렇게 할 수 있어요.'
                           // 시각 루틴 규칙만 있으면 어디서 끄는지 말한다(끄는 길을 잃지 않게).
-                          : "시각 루틴의 자동은 '내 루틴' 줄의 '자동'을 눌러 끄고 켜요."),
+                          : "정해진 시각 루틴은 '내 루틴'에서 '자동'을 눌러 켜고 꺼요."),
                     ]
                   : [
                       // 낱말 중간에서 꺾이지 않게(평가 10차 10/18). 평가 14차(10/18): '~이에요. ~않아요.'가 잇달아 단조로웠다 →
@@ -297,7 +297,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('자동 루틴', style: AppText.title),
+                Text('자동으로 하기', style: AppText.title),
                 const SizedBox(height: AppSpace.xs),
                 Text(keepWordsTogether('켜 두면 정해진 시각에 묻지 않고 해요.'),
                     style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
@@ -461,7 +461,7 @@ class _CandidateCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('사용 기록으로 만든 루틴 초안',
+          Text('자주 하신 일로 만든 루틴(아직 저장 안 했어요)',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           const SizedBox(height: AppSpace.xs),
           Text('${c.applianceName}: ${c.sequenceText}',
@@ -611,9 +611,9 @@ String thinqResultPhrase(String name, String? action, Map<String, dynamic> args)
       };
       return word == null ? '$name 바람 세기 바꾸기' : '$name 바람 $word';
     case 'set_job_mode':
-      return '$name 모드 바꾸기';
+      return '$name 운전 방식 바꾸기';
   }
-  return '$name 조작';
+  return '$name 설정 바꾸기';
 }
 
 /// 루틴 탭 시간축 묶음 — (키, 머리 말, 루틴들). 빈 묶음은 뺀다. 정해진 시각 묶음은 이른 시각부터.
@@ -679,7 +679,7 @@ const kRoutineMarkMeanings = [
 ];
 
 /// 표지 뜻 한 줄의 낭독.
-const kRoutineMarkLegend = '다음 표지는 다음에 할 루틴, 자동 표지는 묻지 않고 해요';
+const kRoutineMarkLegend = "'다음'은 곧 할 루틴, '자동'은 묻지 않고 하는 루틴이에요";
 
 /// 스위치 옆 상태 글자(접근성 감사 10/18 — 켜짐·꺼짐을 색만으로 말하지 않는다).
 const kSwitchOnText = '켜짐';
@@ -1007,13 +1007,13 @@ class _RoutineRow extends StatelessWidget {
       // 꺼 둔 루틴(보호자 과업 평가 10/18) — 스위치를 끈 뒤 줄에서도 보인다(설명 줄 끝 '꺼짐' 대신).
       // 이 줄 스위치가 루틴 자체를 켜고 끄면 스위치 아래 '꺼짐'이 같은 말을 한다 — 표지는 두지 않고 낭독만 남긴다(UI 정리 10/19).
       if (!r.isTemplate && !r.enabled && !offBySwitch)
-        _LineMark(key: Key('routine-off-badge-$key'), label: '꺼 둠', muted: true),
+        _LineMark(key: Key('routine-off-badge-$key'), label: '꺼짐', muted: true),
     ];
     final lineStyle = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
     // '누를 버튼 2개'·'매일 오전 7:00' 같은 묶음 안에서 줄이 갈리지 않게(평가 4차 10/18). 낭독은 원문.
     final lineShown = r.isTemplate ? keepWordsTogether(line) : keepPhrasesTogether(line, wholeParts: !big);
     // 표지를 두지 않은 '꺼 둠'도 낭독은 한다.
-    final offSpoken = !r.isTemplate && !r.enabled && offBySwitch ? ', 꺼 둠' : '';
+    final offSpoken = !r.isTemplate && !r.enabled && offBySwitch ? ', 꺼짐' : '';
     final Widget? lineText = line.isEmpty
         ? null
         : Text(lineShown, key: Key('routine-line-$key'), semanticsLabel: '$line$offSpoken', style: lineStyle);
@@ -1264,7 +1264,7 @@ Future<bool> setAutoRuleSwitch(BuildContext context, RpiApiService api, AutoRule
     actionText: rule.actionText,
     caveat: rule.caveat,
     title: '다음부터 자동으로 할까요?',
-    confirmLabel: '허락',
+    confirmLabel: '허락하기',
   );
   if (!ok) return false;
   await api.setAutoRuleEnabled(rule.id, true, fingerprint: fp);
@@ -1343,7 +1343,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
 
   Future<void> _delete(RpiApiService api) async {
     final ok = await confirmDelete(context,
-        title: '이 자동 규칙을 지울까요?',
+        title: "이 '자동으로 하기'를 지울까요?",
         body: autoRuleSentence(widget.rule));
     if (ok) await api.deleteAutoRule(widget.rule.id);
   }

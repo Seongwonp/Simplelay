@@ -432,7 +432,7 @@ void main() {
     // 허브가 거절로 답하면 잠금이 풀린다.
     pending.complete(_json({'detail': 'an execution is already in progress'}, 409));
     await _settle(tester);
-    expect(find.text('다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.'), findsOneWidget);
+    expect(find.text('다른 일을 하고 있어요. 끝난 뒤 다시 눌러 주세요.'), findsOneWidget);
     expect(_chip(tester, 'set_job_mode', 'SLEEP').onSelected, isNotNull);
   });
 
@@ -468,10 +468,10 @@ void main() {
     expect(thinqCommandRefusal(RpiApiException(412, '프로필을 확인하지 못했어요')),
         '프로필을 확인하지 못했어요');
     expect(thinqCommandRefusal(RpiApiException(409, 'an execution is already in progress')),
-        '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.');
+        '다른 일을 하고 있어요. 끝난 뒤 다시 눌러 주세요.');
     expect(thinqCommandRefusal(RpiApiException(409, '')),
-        '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.');
-    expect(thinqCommandRefusal(RpiApiException(422, ' ')), '지금은 이걸 바꿀 수 없어요.');
+        '다른 일을 하고 있어요. 끝난 뒤 다시 눌러 주세요.');
+    expect(thinqCommandRefusal(RpiApiException(422, ' ')), '지금은 이걸 바꿀 수 없어요. 가전이 켜져 있는지 보고 다시 해 주세요.');
     expect(thinqCommandRefusal(RpiApiException(500, 'boom')), isNull);
     expect(thinqCommandRefusal(RpiApiException(503, '준비 중')), isNull);
   });
@@ -495,7 +495,7 @@ void main() {
     expect(node('set_wind_strength', 'AUTO'),
         isSemantics(label: '바람 세기 자동', isSelected: true, isButton: true));
     expect(node('set_job_mode', 'AUTO'),
-        isSemantics(label: '모드 자동', isSelected: false));
+        isSemantics(label: '운전 방식 자동', isSelected: false));
     expect(node('set_power', 'POWER_ON'),
         isSemantics(label: '전원 켜기', isSelected: true));
     expect(node('set_power', 'POWER_OFF'),

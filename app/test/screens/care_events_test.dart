@@ -107,13 +107,13 @@ void main() {
     final (_, dispose) = await _pump(tester, _sampleEvents);
 
     expect(find.text('안부 신호'), findsOneWidget);
-    expect(find.text('위험 신호음'), findsOneWidget);
-    expect(find.text('실행 실패'), findsOneWidget);
+    expect(find.text('위험 소리'), findsOneWidget);
+    expect(find.text('못 한 일'), findsOneWidget);
     expect(find.textContaining('안부 전화 한번 어떨까요'), findsOneWidget);
 
     // 최신(안부 신호)이 맨 위
     final quietY = tester.getTopLeft(find.text('안부 신호')).dy;
-    final failY = tester.getTopLeft(find.text('실행 실패')).dy;
+    final failY = tester.getTopLeft(find.text('못 한 일')).dy;
     expect(quietY, lessThan(failY));
     dispose();
   });

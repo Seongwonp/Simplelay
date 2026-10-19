@@ -30,7 +30,7 @@ void main() {
     testWidgets('기본 안내 텍스트 표시', (tester) async {
       await _pumpStatus(tester, const ExecutionStatus());
       expect(find.text('지금 하는 일이 없어요'), findsOneWidget);
-      expect(findPlainText('실행하면 여기서 진행을 볼 수 있어요.'), findsOneWidget);
+      expect(findPlainText('가전에 일을 시키면 여기서 어디까지 했는지 볼 수 있어요.'), findsOneWidget);
     });
 
     testWidgets('긴급 정지 버튼 없음 (idle)', (tester) async {
@@ -84,7 +84,7 @@ void main() {
       // 따옴표 없이 '1분 추가 버튼'(출시 검토 10/18).
       expect(find.text("'1분 추가'"), findsNothing);
       expect(tester.widget<Text>(find.byKey(const Key('status-now-button'))).textSpan!.toPlainText(), '1분 추가 버튼');
-      expect(findPlainText('눌렸는지 보는 중'), findsOneWidget);
+      expect(findPlainText('눌렸는지 보고 있어요'), findsOneWidget);
       expect(find.textContaining('센서로 눌림 확인'), findsOneWidget);
       // 센서 %는 일반 화면에 내지 않는다(2026-10-17 쉬운 말 규칙 6).
       expect(find.textContaining('93%'), findsNothing);
@@ -126,16 +126,16 @@ void main() {
           totalSteps: 2,
         ),
       );
-      expect(findPlainText('누르는 중'), findsOneWidget);
+      expect(findPlainText('누르고 있어요'), findsOneWidget);
       expect(find.text('버튼이 눌렸는지 보고 있어요.'), findsNothing);
       expect(find.text('다 누르면 결과를 알려 드려요.'), findsOneWidget);
     });
 
     testWidgets('실행 중에는 idle 안내 문구를 쓰지 않는다', (tester) async {
       // 골든에서 잡혔던 결함: BLE 경로는 message가 비어 있어서, 실행 중인데
-      // 부제가 '실행하면 여기서 진행을 볼 수 있어요.'였다.
+      // 부제가 '가전에 일을 시키면 여기서 어디까지 했는지 볼 수 있어요.'였다.
       await _pumpStatus(tester, runningStatus);
-      expect(find.text('실행하면 여기서 진행을 볼 수 있어요.'), findsNothing);
+      expect(find.text('가전에 일을 시키면 여기서 어디까지 했는지 볼 수 있어요.'), findsNothing);
     });
 
     testWidgets('실행 대상 가전을 위에 말한다', (tester) async {
@@ -271,7 +271,7 @@ void main() {
 
     testWidgets('재시도는 실패가 아니라 보정으로 말한다', (tester) async {
       await _pumpStatus(tester, retryingStatus);
-      expect(findPlainText('자리를 맞춰 다시 누르는 중'), findsOneWidget);
+      expect(findPlainText('자리를 맞춰 다시 누르고 있어요'), findsOneWidget);
       expect(find.text('눌렸는지 몰라서 자리를 맞추고 다시 눌러요.'),
           findsOneWidget);
       expect(find.textContaining('못 했어요'), findsNothing);

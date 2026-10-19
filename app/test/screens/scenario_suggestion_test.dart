@@ -266,7 +266,7 @@ void main() {
     expect(find.text('내용이 바뀌었어요. 다시 보고 허락해 주세요'), findsOneWidget);
     expect(find.text('상태 화면'), findsNothing);
     // 서버가 내린 카드는 목록에서도 사라졌다(재조회).
-    expect(find.text('이 알림을 찾을 수 없어요.'), findsOneWidget);
+    expect(find.text('이 물음을 찾을 수 없어요. 홈으로 돌아가 주세요.'), findsOneWidget);
   });
 
   testWidgets('다른 작업 실행 중(409, 승인 문장 아님)은 종전 안내', (tester) async {
@@ -411,7 +411,7 @@ void main() {
     expect(find.text('공기청정기 전원 켜기'), findsOneWidget);
     expect(find.text('선풍기 전원 → 약풍'), findsOneWidget);
     expect(find.text('할 일'), findsOneWidget);
-    expect(find.text('연습용으로 만든 알림이에요'), findsOneWidget);
+    expect(find.text('연습용으로 만든 물음이에요'), findsOneWidget);
     expect(find.textContaining('LG 가전'), findsWidgets);
   });
 }

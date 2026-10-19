@@ -214,7 +214,7 @@ void main() {
 
       await _runAndConfirm(tester, hub);
 
-      expect(find.text('이 알림을 찾을 수 없어요.'), findsNothing);
+      expect(find.text('이 물음을 찾을 수 없어요. 홈으로 돌아가 주세요.'), findsNothing);
       expect(find.text('출발 $name'), findsOneWidget);
       // 폴링 타이머를 정리한다.
       await tester.pumpWidget(const SizedBox());
@@ -224,7 +224,7 @@ void main() {
   // 실제 StatusScreen(L1). 버튼마다·뒤로가기마다 출발한 곳으로 돌아가는지.
   for (final (initial, name) in [('/', '홈'), ('/routines', '루틴 목록')]) {
     // 성공 뒤에는 '확인' 하나만 둔다('닫기'는 다시 시도할 때만, 외부 평가 10/16 p08).
-    for (final how in ['확인', '뒤로가기']) {
+    for (final how in ['닫기', '뒤로가기']) {
       testWidgets('실제 실행 상태 화면: $name 출발 → 완료 뒤 $how → $name', (tester) async {
         _tall(tester);
         final hub = _Hub();
@@ -240,7 +240,7 @@ void main() {
         // 폴링(1초)이 완료를 받을 때까지.
         await tester.pump(const Duration(seconds: 2));
         await _settle(tester);
-        expect(find.text('확인'), findsOneWidget, reason: '완료 뒤 아래 버튼');
+        expect(find.text('닫기'), findsOneWidget, reason: '완료 뒤 아래 버튼');
 
         if (how == '뒤로가기') {
           await tester.binding.handlePopRoute();
@@ -251,7 +251,7 @@ void main() {
         await tester.pump(const Duration(seconds: 1)); // 화면 전환이 끝나도록
 
         expect(find.byType(StatusScreen), findsNothing);
-        expect(find.text('이 알림을 찾을 수 없어요.'), findsNothing);
+        expect(find.text('이 물음을 찾을 수 없어요. 홈으로 돌아가 주세요.'), findsNothing);
         expect(find.text('출발 $name'), findsOneWidget);
         await tester.pumpWidget(const SizedBox());
       });

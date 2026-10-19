@@ -133,7 +133,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       label: label,
       steps: steps,
       phase: ExecutionPhase.running,
-      message: '하는 중이에요',
+      message: '하고 있어요',
       isDemo: _demoNow(),
       requestId: requestId,
     );
@@ -152,8 +152,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   // 때만 꺼진다(그때만 그냥 '돌고 있는 실행'을 따라간다, 검토 10/19).
   bool _recoverByRequest = false;
   _Tracking? _beforeSubmit;
-  static const submittingNotice = '보내는 중이에요';
-  static const waitAdmissionNotice = '아까 보낸 것의 답을 기다리는 중이에요. 답이 온 뒤 다시 해 주세요.';
+  static const submittingNotice = '보내고 있어요';
+  static const waitAdmissionNotice = '아까 보낸 일의 답을 기다리고 있어요. 답이 온 뒤 다시 해 주세요.';
   static const stopWhileSubmittingNotice = '멈추라고 보냈어요. 받았다는 답이 오면 한 번 더 보낼게요.';
   static final _random = Random();
 
@@ -460,7 +460,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       sequenceId: jobId,
       label: label.isEmpty ? null : label,
       phase: ExecutionPhase.running,
-      message: '아까 맡긴 일을 다시 보는 중이에요…',
+      message: '아까 맡긴 일이 어떻게 됐는지 알아보고 있어요…',
       // 재시작 복원은 실제 서버의 job만 대상으로 한다 -- 모의 실행은
       // 앱 안에서만 살아 있어 남길 것도 이어붙일 것도 없다.
     );
@@ -562,10 +562,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           verificationDetail: status.verificationDetail,
           phase: retrying ? ExecutionPhase.retrying : ExecutionPhase.running,
           message: retrying
-              ? '답이 없어 다시 해 보는 중이에요.'
+              ? '답이 없어 한 번 더 해 보고 있어요.'
               : segment == null
-                  ? '루틴을 하는 중이에요'
-                  : '루틴 $segment번째 차례를 하는 중이에요',
+                  ? '루틴을 하고 있어요'
+                  : '루틴 $segment번째 차례를 하고 있어요',
         );
         return;
       }
@@ -587,7 +587,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           verificationConfidence: status.verificationConfidence,
           verificationDetail: status.verificationDetail,
           phase: retrying ? ExecutionPhase.retrying : ExecutionPhase.running,
-          message: retrying ? '답이 없어 다시 해 보는 중이에요.' : '하는 중이에요',
+          message: retrying ? '답이 없어 한 번 더 해 보고 있어요.' : '하고 있어요',
         );
         return;
       }
@@ -636,7 +636,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     state = state.copyWith(
       sequenceId: root,
       phase: ExecutionPhase.running,
-      message: segment == null ? '루틴을 하는 중이에요' : '루틴 $segment번째 차례를 하는 중이에요',
+      message: segment == null ? '루틴을 하고 있어요' : '루틴 $segment번째 차례를 하고 있어요',
     );
     _rememberPendingJob(root, state.label ?? '', _hubIdOf(api));
   }
@@ -726,14 +726,14 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     final key = state.sequenceId;
     if (api != null && _httpJobId == null && key != null && key.startsWith('unsent-')) {
       // 접수 답을 못 받은 실행 — 처음과 같은 방식(요청 번호 조회, 옛 본체만 상태)으로 다시 찾는다(다시 보내지는 않는다).
-      state = state.copyWith(message: '새로 보는 중이에요…');
+      state = state.copyWith(message: '다시 알아보고 있어요…');
       _recoverSubmission(api, key, state.label ?? '', state.steps, null);
       return;
     }
     if (_httpApi == null || _httpJobId == null) return;
     _missingPolls = 0;
     _lastPollSuccess = DateTime.now();
-    state = state.copyWith(message: '새로 보는 중이에요…');
+    state = state.copyWith(message: '다시 알아보고 있어요…');
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
   }
@@ -780,7 +780,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           soundDb: (message['sound_db'] as num?)?.toDouble(),
           completedSteps: (message['completed_steps'] as num?)?.toInt(),
           phase: nextPhase,
-          message: rawStatus == 'retrying' ? '답이 없어 다시 해 보는 중이에요.' : '하는 중이에요',
+          message: rawStatus == 'retrying' ? '답이 없어 한 번 더 해 보고 있어요.' : '하고 있어요',
         );
         return;
       case 'result':

@@ -42,7 +42,7 @@ class ThinqStateCard extends ConsumerStatefulWidget {
 }
 
 /// 전원이 꺼져 있을 때 전원 줄 아래에 놓는 문장.
-const kThinqPowerOffNote = '전원이 꺼져 있어요. 켜야 바람 세기와 모드를 바꿀 수 있어요.';
+const kThinqPowerOffNote = '전원이 꺼져 있어요. 켜야 바람 세기와 운전 방식을 바꿀 수 있어요.';
 
 /// 응답 없이 끝난 조작 요청(시간 초과·연결 끊김·응답 해석 실패).
 const kThinqUnknownOutcome = '바뀌었는지 몰라요. 새로 보기를 눌러 봐 주세요.';
@@ -63,7 +63,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
 
     Widget body;
     if (status == null) {
-      body = Text('LG 앱에서 불러오는 중…',
+      body = Text('LG 앱에서 불러오고 있어요…',
           style: TextStyle(fontSize: AppFont.caption, color: context.appMuted));
     } else if (!status.ok) {
       body = Row(
@@ -302,7 +302,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
 /// (비상 정지 잠금·프로필에 없는 값·다른 작업 실행 중 등). 영어 '실행 중' 문장과 빈 이유만
 /// 우리말로 바꾼다. 그 밖의 오류(5xx 등)는 허브가 어디까지 했는지 모르므로 null.
 String? thinqCommandRefusal(RpiApiException e) {
-  const busy = '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.';
+  const busy = '다른 일을 하고 있어요. 끝난 뒤 다시 눌러 주세요.';
   switch (e.statusCode) {
     case 401:
       return '연결 비밀번호가 맞지 않아요. 설정에서 봐 주세요.';
@@ -310,7 +310,7 @@ String? thinqCommandRefusal(RpiApiException e) {
       final message = e.message.trim();
       if (message.contains('already in progress')) return busy;
       if (message.isNotEmpty) return message;
-      return e.statusCode == 409 ? busy : '지금은 이걸 바꿀 수 없어요.';
+      return e.statusCode == 409 ? busy : '지금은 이걸 바꿀 수 없어요. 가전이 켜져 있는지 보고 다시 해 주세요.';
     default:
       return null;
   }
@@ -329,6 +329,13 @@ const _jobMode = {
   'AUTO': '자동',
   'SILENT': '조용',
 };
+// 상태 줄의 운전 방식 — '조용'만 말로 풀어 쓴다(단계 문장은 '조용으로 바꾸기' 그대로).
+const _jobModeRow = {
+  'CLEAN': '청정',
+  'SLEEP': '수면',
+  'AUTO': '자동',
+  'SILENT': '조용히',
+};
 // 바람 세기 이름은 고르는 버튼·본체 문장과 같게 '약·중·강'(2차 평가 10/18 — 상태는 약풍, 버튼은 약이었다).
 const _wind = {
   'LOW': '약',
@@ -336,6 +343,14 @@ const _wind = {
   'HIGH': '강',
   'AUTO': '자동',
   'POWER': '파워',
+};
+// 상태 줄의 바람 세기 — '파워'만 풀어 쓴다(LG 앱 이름은 괄호에).
+const _windRow = {
+  'LOW': '약',
+  'MID': '중',
+  'HIGH': '강',
+  'AUTO': '자동',
+  'POWER': '가장 세게(파워)',
 };
 // 세탁기 운전 상태(2026-10-18 연습 세탁기). 서버 모의·SDK 상태 이름(runState.currentState) — 모르는 값은 그대로 보인다.
 const _washState = {
@@ -347,7 +362,7 @@ const _washState = {
   'SPINNING': '탈수하는 중',
   'PAUSE': '잠시 멈춤',
   'END': '다 됐어요',
-  'ERROR': '오류',
+  'ERROR': '문제가 있어요. LG 앱에서 봐 주세요',
 };
 
 /// 세탁기 '시작'으로 칠 운전 상태(서버 `WASHER_RUNNING_STATES`와 같은 뜻).
@@ -397,7 +412,7 @@ class ThinqControl {
   String question(String value, String word) => switch (action) {
         'set_power' => value == 'POWER_OFF' ? '전원을 끌까요?' : '전원을 켤까요?',
         'set_operation' => value == 'STOP' ? '빨래를 잠시 멈출까요?' : '빨래를 시작할까요?',
-        'set_job_mode' => '모드를 $word${_ro(word)} 바꿀까요?',
+        'set_job_mode' => '운전 방식을 $word${_ro(word)} 바꿀까요?',
         _ => '$label${_eul(label)} $word${_ro(word)} 바꿀까요?',
       };
 
@@ -449,7 +464,7 @@ const kAirPurifierControls = <ThinqControl>[
     ],
   ),
   ThinqControl(
-    label: '모드',
+    label: '운전 방식',
     action: 'set_job_mode',
     arg: 'job_mode',
     choices: [('CLEAN', '청정'), ('SLEEP', '수면'), ('AUTO', '자동')],
@@ -532,7 +547,7 @@ const kThinqDustOffNote = '전원이 꺼져 있어 미세먼지 값이 오지 �
 String thinqStepPhrase(String? action, Map<String, dynamic> args) {
   final control =
       kAirPurifierControls.where((c) => c.action == action).firstOrNull;
-  if (control == null) return 'LG 가전 조작';
+  if (control == null) return 'LG 가전 설정 바꾸기';
   final raw = args[control.arg]?.toString();
   if (raw == null) return '${control.label} 바꾸기';
   final word = control.wordFor(raw) ??
@@ -569,10 +584,11 @@ List<(String, String)> thinqStateRows(Map<String, dynamic> state) {
   }
 
   final job = at('airPurifierJobMode', 'currentJobMode');
-  if (job != null) rows.add(('모드', word(_jobMode, job)));
+  if (job != null) rows.add(('운전 방식', word(_jobModeRow, job)));
 
   final wind = at('airFlow', 'windStrengthDetail') ?? at('airFlow', 'windStrength');
-  if (wind != null) rows.add(('바람 세기', word(_wind, wind)));
+  // 상태 줄은 풀어 쓰고 LG 앱 이름을 괄호에(문구 기준 R10 10/19). 단계 문장('바람 세기 파워로 바꾸기')은 짧은 이름 그대로.
+  if (wind != null) rows.add(('바람 세기', word(_windRow, wind)));
 
   String dust(String value, String level) {
     final v = at('airQualitySensor', value);

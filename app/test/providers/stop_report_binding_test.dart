@@ -136,7 +136,7 @@ void main() {
           );
       await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
       expect(c.read(executionStatusProvider).message,
-          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지는 집에서 확인이 필요해요.');
+          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 집에서 봐 주세요.');
     });
 
     test('정지 응답이 다른 실행(stop_job_id)을 멈췄다고 하면 단계를 내 화면에 쓰지 않는다', () async {
@@ -219,7 +219,7 @@ void main() {
         if (applied) {
           expect(message, '누름 장치가 멈췄어요. 가전이 이미 켜졌다면 집에서 가전의 정지 버튼을 눌러야 해요.');
         } else {
-          expect(message, '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지는 집에서 확인이 필요해요.');
+          expect(message, '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 집에서 봐 주세요.');
         }
       });
     }
@@ -247,7 +247,7 @@ void main() {
       status = _stopped('J1'); // 결과 먼저, 단계는 아직 없음
       await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
       expect(c.read(executionStatusProvider).message,
-          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지는 집에서 확인이 필요해요.');
+          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 집에서 봐 주세요.');
       final spoken = tts.spoken.length;
       stopGate.complete({
         'ok': true,
@@ -271,7 +271,7 @@ void main() {
           api: _api(status: () => status), jobId: 'J1', label: '아침 데우기');
       await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
       expect(c.read(executionStatusProvider).message,
-          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지는 집에서 확인이 필요해요.');
+          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 집에서 봐 주세요.');
       final spoken = tts.spoken.length;
       status = _stopped('J1', level: 'mcu_ack', ackMs: 12, stopJob: 'J1');
       await _until(() => c.read(executionStatusProvider).message?.contains('멈추라는 신호를 받았어요') ?? false);
@@ -295,7 +295,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 5000));
       expect(calls - after, lessThanOrEqualTo(3));
       expect(c.read(executionStatusProvider).message,
-          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지는 집에서 확인이 필요해요.');
+          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 집에서 봐 주세요.');
     });
 
     // 4차 평가 M-N3: /stop 응답이 서버 쪽 지연으로 늦어 폰 제한 시간을 넘겨도, 그사이 /status로 받은 같은 job의

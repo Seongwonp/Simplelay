@@ -670,7 +670,7 @@ class HistoryResult {
 }
 
 /// 누름 장치가 버튼을 다 눌렀지만 가전 동작은 확인하지 못한 기록의 한 줄(평가 12차 10/18).
-const kPressedAllSentence = '버튼은 다 눌렀어요. 움직였는지는 집에서 확인이 필요해요';
+const kPressedAllSentence = '버튼은 다 눌렀어요. 움직였는지는 집에서 봐 주세요';
 
 /// 폰을 보는 사람은 집 밖의 보호자일 수 있다(보호자 과업 평가 10/18) — 가전을 직접 '봐 주세요'라고 하지 않고, 집에서
 /// 확인해야 한다는 사실만 말한다('공기청정기를 집에서 확인해야 해요'). 집 안 사람용 말은 본체 화면(키오스크)이 한다.
@@ -724,7 +724,7 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
       return HistoryResult(
         kind: kind,
         sentence: motion,
-        next: '다시 누르지 않았어요. 누름 장치는 집에서 확인이 필요해요',
+        next: '다시 누르지 않았어요. 누름 장치를 집에서 봐 주세요',
         mockNote: mockNote,
       );
     }
@@ -825,7 +825,7 @@ HistoryResult _liveResult(
         return HistoryResult(
             kind: kind,
             sentence: '버튼을 눌렀어요',
-            next: '$target 동작은 집에서 확인이 필요해요');
+            next: '$target 동작은 집에서 봐 주세요');
       }
       // 평가 12차(10/18): '다 눌렀다고 알려 왔어요'는 기계 보고 말투였다 → 사람 말. 뜻은 그대로 — 누름 장치는 다
       // 눌렀지만 가전이 움직였는지는 확인하지 못했다(배지 '봐 주세요'·초록 아님). 볼 것은 이 한 줄이 함께 말한다.
@@ -845,7 +845,7 @@ HistoryResult _liveResult(
       return HistoryResult(
           kind: kind,
           sentence: '끝까지 하지 못했어요',
-          next: '$target 상태는 집에서 확인이 필요해요');
+          next: '$target 상태는 집에서 봐 주세요');
     case ResultKind.stopped:
     case ResultKind.safetyStop:
       throw StateError('handled above');

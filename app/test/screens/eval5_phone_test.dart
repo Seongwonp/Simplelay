@@ -317,10 +317,10 @@ void main() {
           ...extra,
         });
 
-    test("보고만 받은 것은 '확인 필요' — '받았어요' 없음", () {
+    test("보고만 받은 것은 '봐 주세요' — '받았어요' 없음", () {
       expect(historyBadgeOf(e({'execution_mode': 'real', 'route': 'physical', 'confirmation': 'mcu_ack'})).label,
-          '확인 필요');
-      expect(historyBadgeOf(e({'execution_mode': 'real', 'route': 'thinq', 'confirmation': 'sent'})).label, '확인 필요');
+          '봐 주세요');
+      expect(historyBadgeOf(e({'execution_mode': 'real', 'route': 'thinq', 'confirmation': 'sent'})).label, '봐 주세요');
     });
 
     test('배지는 됐어요·봐 주세요·못 했어요·연습 넷만', () {
@@ -339,8 +339,8 @@ void main() {
           }
         }
       }
-      // 평가 7차(10/18): 멈춘 기록은 '확인 필요'와 글자를 가른다 — 멈췄어요·스스로 멈췄어요.
-      expect(labels, {'됐어요', '확인 필요', '멈췄어요', '스스로 멈췄어요', '못 했어요', '연습'});
+      // 평가 7차(10/18): 멈춘 기록은 '봐 주세요'와 글자를 가른다 — 멈췄어요·스스로 멈췄어요.
+      expect(labels, {'됐어요', '봐 주세요', '멈췄어요', '스스로 멈췄어요', '못 했어요', '연습'});
     });
 
     for (final dev in [false, true]) {

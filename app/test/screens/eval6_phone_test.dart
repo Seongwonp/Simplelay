@@ -225,13 +225,13 @@ Future<void> _pump(WidgetTester tester, Widget screen,
 }
 
 Future<void> _openRules(WidgetTester tester) async {
-  await tester.tap(findPlainText('자동 규칙'));
+  await tester.tap(findPlainText('자동으로 하기'));
   for (var i = 0; i < 16; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
 }
 
-/// 시각 루틴에 붙은 규칙은 루틴 줄 '자동'을 눌러 연다(평가 14차 10/18 — '자동 규칙' 탭에는 없다).
+/// 시각 루틴에 붙은 규칙은 루틴 줄 '자동'을 눌러 연다(평가 14차 10/18 — '자동으로 하기' 탭에는 없다).
 Future<void> _openRoutineRule(WidgetTester tester, String routineId) async {
   await tester.tap(find.byKey(Key('routine-auto-badge-$routineId')));
   for (var i = 0; i < 16; i++) {
