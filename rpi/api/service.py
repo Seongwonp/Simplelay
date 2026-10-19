@@ -991,21 +991,29 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             stop_requested_at = self._stop_requested_at
             self._stop_requested_this_run = False
             self._stop_requested_at = None
-        self._record_history(
-            self._last_result,
-            purpose,
-            appliance_id,
-            stopped_by_user,
-            # 실제로 실행한 대상이 자기 모드를 말한다 -- 서버 전역 설정을
-            # 쓰면 가전별 원격 노드로 라우팅된 실행이 로컬 설정값으로
-            # 기록된다(실제 실행이 mock 통계에 섞인다).
-            controller,
-            calibration_version,
-            stop_requested_at,
-        )
-        self._record_care_outcome(
-            self._last_result, purpose, buttons, stopped_by_user
-        )
+        # 여기부터는 누름이 끝난 뒤의 기록이다(2026-10-19). 기록 고장(DB·알림·청취자)은 로그로만 남긴다 — 예외가 위로
+        # 올라가면 호출자가 컨트롤러 예외로 보고 '연결이 끊겨 눌렸는지 몰라요'로 바꿨다. 각 기록은 서로 막지 않게 따로 감싼다.
+        try:
+            self._record_history(
+                self._last_result,
+                purpose,
+                appliance_id,
+                stopped_by_user,
+                # 실제로 실행한 대상이 자기 모드를 말한다 -- 서버 전역 설정을
+                # 쓰면 가전별 원격 노드로 라우팅된 실행이 로컬 설정값으로
+                # 기록된다(실제 실행이 mock 통계에 섞인다).
+                controller,
+                calibration_version,
+                stop_requested_at,
+            )
+        except Exception:  # noqa: BLE001
+            log.exception("post-run history record failed")
+        try:
+            self._record_care_outcome(
+                self._last_result, purpose, buttons, stopped_by_user
+            )
+        except Exception:  # noqa: BLE001
+            log.exception("post-run care record failed")
         if (not stopped_by_user
                 and self._last_result.status is ExecutionStatus.SUCCEEDED
                 and run_mode is ExecutionMode.REAL
@@ -1026,20 +1034,26 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 if self._last_result.status is ExecutionStatus.SUCCEEDED and not stopped_by_user
                 else UsageOutcome.FAILED
             )
-            self._usage_log.append(
-                UsageRecord(
-                    self._clock.now(),
-                    learning_purpose or purpose.strip(),
-                    outcome,
-                    appliance_id=appliance_id,
-                    execution_mode=run_mode,
-                    source=usage_source,
+            try:
+                self._usage_log.append(
+                    UsageRecord(
+                        self._clock.now(),
+                        learning_purpose or purpose.strip(),
+                        outcome,
+                        appliance_id=appliance_id,
+                        execution_mode=run_mode,
+                        source=usage_source,
+                    )
                 )
-            )
+            except Exception:  # noqa: BLE001 -- ThinQ 경로(service_commands)와 같다
+                log.exception("usage log append failed")
         # 상태 표시용 계약 필드 + 완료 이벤트(시나리오 트리거가 듣는다).
-        self._after_physical_run(
-            self._last_result, buttons, controller, appliance_id, purpose, usage_source
-        )
+        try:
+            self._after_physical_run(
+                self._last_result, buttons, controller, appliance_id, purpose, usage_source
+            )
+        except Exception:  # noqa: BLE001
+            log.exception("post-run status/event update failed")
         return self._last_result
 
     def _controller_for(self, appliance_id: str | None) -> ButtonSequenceController:
