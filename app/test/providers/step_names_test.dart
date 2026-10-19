@@ -57,6 +57,10 @@ void main() {
     ];
     var poll = 0;
     final client = MockClient((request) async {
+      // 옛 본체 — 실행 번호별 조회(GET /jobs/{job_id})가 없어 /status로 본다.
+      if (request.url.path != '/status') {
+        return http.Response(jsonEncode({'detail': 'Not Found'}), 404);
+      }
       final body = replies[poll < replies.length ? poll : replies.length - 1];
       poll++;
       return http.Response.bytes(utf8.encode(jsonEncode(body)), 200,

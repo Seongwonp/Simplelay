@@ -204,7 +204,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       await Future<void>.delayed(const Duration(seconds: 2));
       if (!mounted || _unknownJobId != jobId) return;
       try {
-        final status = await api.status();
+        final status = await api.jobStatus(jobId);
         if (!mounted || _unknownJobId != jobId) return;
         if (status.lastJobId == jobId) {
           _unknownJobId = null;
@@ -254,7 +254,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     final deadline = DateTime.now().add(widget.resultWait);
     while (mounted && DateTime.now().isBefore(deadline)) {
       try {
-        final status = await api.status();
+        final status = await api.jobStatus(jobId); // 내 job만(옛 본체는 /status)
         // running 여부와 무관하게 lastJobId로 판정 — 완료 직후 다른
         // 클라이언트의 새 실행이 시작돼도(running=true) 내 결과를 놓치지 않는다
         if (status.lastJobId == jobId) return status;

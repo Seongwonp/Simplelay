@@ -109,6 +109,11 @@ class SimulatedExecutionService extends RpiApiService {
     );
   }
 
+  /// 흉내낸 job은 위 [status]가 답한다. 다른 job(데모를 켜기 전의 진짜 작업)은 실제 본체에 묻는다.
+  @override
+  Future<RpiStatusResult> jobStatus(String jobId) =>
+      jobId == _jobId ? status() : super.jobStatus(jobId);
+
   /// 모의 실행 정지. 진짜 작업이 함께 돌고 있을 수 있으므로 실제 `/stop`도
   /// 보낸다 — 여기서 아끼면 멈출 수단이 사라진다.
   @override

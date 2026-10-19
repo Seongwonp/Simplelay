@@ -92,7 +92,7 @@ class RpiExecuteResult {
 }
 
 // 실행 접수 응답(비동기 job 모델). 서버는 물리 실행을 기다리지 않고 즉시
-// job_id를 돌려주며, 진행·완료는 status() 폴링에서 lastJobId와 대조해 판정한다.
+// job_id를 돌려주며, 진행·완료는 jobStatus(job_id) 폴링에서 lastJobId와 대조해 판정한다(옛 본체는 status()).
 class RpiJobAccepted {
   const RpiJobAccepted(
       {required this.jobId, this.autoAllowFailure, this.status = 'accepted', this.stop});
@@ -1161,7 +1161,39 @@ class RpiApiService {
     final res =
         await _client.get(_base.replace(path: '/status'), headers: _headers).timeout(_timeout);
     _checkStatus(res);
-    final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    return _statusFrom(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+  }
+
+  // 옛 본체(GET /jobs/{job_id} 없음)로 한 번 알면 그 뒤로는 /status만 본다.
+  bool _jobsApiMissing = false;
+
+  /// GET /jobs/{job_id} — [jobId] 실행 하나의 진행·결과(검토 10/19). /status는 마지막 한 건만 보여, 그 사이 다른 실행(키오스크·
+  /// 자동 실행)이 끝나면 내 결과를 잃었다. 모양은 /status와 같다(실행 중이면 jobId, 끝났으면 lastJobId가 이 번호). 본체가 이
+  /// 실행을 모르면(최근 64건 밖·재시작) 흔적 없는 상태를 준다. 옛 본체(경로 없음)는 /status로 갈음한다. 기기 전체 값(비상정지
+  /// 등)은 비어 있다 — 그것은 /status에서 읽는다.
+  Future<RpiStatusResult> jobStatus(String jobId) async {
+    if (_jobsApiMissing) return status();
+    final res = await _client
+        .get(_base.replace(path: '/jobs/${Uri.encodeComponent(jobId)}'), headers: _headers)
+        .timeout(_timeout);
+    if (res.statusCode == 404 || res.statusCode == 405) {
+      if (_errorDetail(res) == _unknownJobDetail) return const RpiStatusResult(running: false);
+      _jobsApiMissing = true;
+      return status();
+    }
+    _checkStatus(res);
+    final body = _decodeMapOrNull(res);
+    if (body == null || body['finished'] is! bool || body['running'] is! bool) {
+      _jobsApiMissing = true; // 이 조회의 답 모양이 아니다
+      return status();
+    }
+    return _statusFrom(body);
+  }
+
+  // 새 본체가 GET /jobs/{job_id} 404에 싣는 문장(rpi/api/router.py).
+  static const _unknownJobDetail = 'job not found';
+
+  static RpiStatusResult _statusFrom(Map<String, dynamic> body) {
     final rawButtons = body['last_buttons'] as List<dynamic>?;
     return RpiStatusResult(
         executionMode: body['execution_mode'] as String? ?? 'unknown',

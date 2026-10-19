@@ -52,7 +52,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   }
 
   // ── HTTP job 추적 (비동기 job 모델) ──────────────────────────────────────
-  // 서버는 실행 접수 시 즉시 job_id를 돌려주고, 진행·완료는 /status 폴링으로
+  // 서버는 실행 접수 시 즉시 job_id를 돌려주고, 진행·완료는 그 job의 조회(GET /jobs/{job_id}, 옛 본체는 /status) 폴링으로
   // 확인한다. BLE 스트림(_onMessage)은 폴백 경로용으로 그대로 남는다.
   Timer? _pollTimer;
   RpiApiService? _httpApi;
@@ -451,7 +451,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     if (_pollInFlight) return; // 느린 응답에 요청이 겹겹이 쌓이는 것 방지
     _pollInFlight = true;
     try {
-      final status = await api.status();
+      // 내 job만 묻는다 — /status의 마지막 결과 한 칸은 그 사이 다른 실행이 끝나면 덮인다(검토 10/19). 옛 본체는 /status.
+      final status = await api.jobStatus(jobId);
       if (!mounted || _httpJobId != jobId) return;
       _lastPollSuccess = DateTime.now();
 
@@ -582,7 +583,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       tries++;
       inFlight = true;
       try {
-        final status = await api.status();
+        final status = await api.jobStatus(jobId);
         if (!mounted || !timer.isActive || state.sequenceId != jobId) return;
         if (status.lastJobId != jobId) {
           timer.cancel(); // 그사이 다른 실행이 끝났다
