@@ -621,6 +621,9 @@ class _AddApplianceWizardScreenState
       setState(() => _pass = pass);
       _poll?.cancel();
       var ticks = 0;
+      // 한 번에 하나만 묻는다 — 답(최대 몇 초)을 기다리지 않고 0.8초마다 물으면 요청이 겹쳐, 끝남을 받고 멈춘 뒤 늦게
+      // 온 앞 답('하는 중')이 덮어 '끝내기'가 영영 막혔다(검토 10/19). 멈춘 타이머의 답은 받지 않는다.
+      var inFlight = false;
       _poll = Timer.periodic(const Duration(milliseconds: 800), (t) async {
         ticks++;
         // 2분이 넘으면 더 기다리지 않는다 -- 상태를 모른다고 말한다.
@@ -629,13 +632,17 @@ class _AddApplianceWizardScreenState
           if (mounted) setState(() => _error = '자리 확인이 어떻게 됐는지 몰라요. 본체 화면을 봐 주세요.');
           return;
         }
+        if (inFlight) return;
+        inFlight = true;
         try {
           final next = await api.verifyPassStatus(_id);
-          if (!mounted) return;
+          if (!mounted || !t.isActive || !identical(_poll, t)) return;
           setState(() => _pass = next);
           if (!next.running) t.cancel();
         } catch (_) {
           // 일시적 통신 오류는 다음 주기에 다시 묻는다.
+        } finally {
+          inFlight = false;
         }
       });
     } on RpiApiException catch (e) {

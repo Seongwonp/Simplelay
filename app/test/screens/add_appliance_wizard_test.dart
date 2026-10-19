@@ -5,6 +5,7 @@
 // 모의라고 말하는지까지 본다.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show min;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -82,6 +83,9 @@ class _Server {
 
   /// 확인 주행 시작을 이 상태·문장으로 거절한다.
   (int, String)? rejectPass;
+
+  /// 자리 확인 상태 조회(GET)마다 (지연, 끝남) — 마지막 것이 이어진다. 없으면 첫 조회부터 끝남.
+  List<(Duration, bool)>? passScript;
 
   /// 본체에 닿지 않는다(연결 오류).
   bool unreachable = false;
@@ -170,7 +174,10 @@ class _Server {
             });
           }
           if (path.endsWith('/verify-pass')) {
-            final done = req.method == 'GET' && ++statusCalls >= 1;
+            final script = passScript;
+            final call = req.method == 'GET' ? ++statusCalls : 0;
+            if (script != null && call > 0) await Future<void>.delayed(script[min(call, script.length) - 1].$1);
+            final done = call >= 1 && (script == null || script[min(call, script.length) - 1].$2);
             return _json({
               'state': done ? 'done' : 'running',
               'execution_mode': 'mock',
@@ -652,6 +659,38 @@ void main() {
     await tester.tap(find.text('저장하지 않고 나가기'));
     await _settle(tester);
     expect(find.text('홈'), findsOneWidget);
+  });
+
+  // 검토 10/19(core6 7): 0.8초마다 묻되 답을 기다리지 않아 요청이 겹쳤고, 늦게 온 앞 답('하는 중')이 끝남을 덮어
+  // '끝내기'가 영영 막혔다(타이머는 이미 멈춤). 한 번에 하나만 묻고, 멈춘 뒤 온 답은 받지 않는다.
+  testWidgets('자리 확인 상태의 늦은 앞 답이 끝남을 덮지 않는다', (tester) async {
+    final server = _Server()
+      ..passScript = [
+        (const Duration(milliseconds: 2000), false),
+        (Duration.zero, true),
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(_title(tester), '5. 자리 확인');
+    await tester.tap(find.byKey(const Key('wizard-start-pass')));
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.text('도착했다고 알려 왔어요'), findsOneWidget);
+    final finish = tester.widget<ButtonStyleButton>(find.byKey(const Key('wizard-finish')));
+    expect(finish.onPressed, isNotNull, reason: '끝난 자리 확인 뒤에는 끝낼 수 있다');
+    final polls = server.requests.where((r) => r.startsWith('GET ') && r.endsWith('/verify-pass')).length;
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(server.requests.where((r) => r.startsWith('GET ') && r.endsWith('/verify-pass')).length, polls,
+        reason: '끝난 뒤에는 더 묻지 않는다');
   });
 
   testWidgets('본체가 자리 확인을 받지 않으면 쉬운 말과 다음 할 일로 — 다른 일 중이면 서버 문장 그대로(실화면 10/19)',
