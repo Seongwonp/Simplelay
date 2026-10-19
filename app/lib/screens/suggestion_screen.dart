@@ -165,6 +165,14 @@ class SuggestionScreen extends ConsumerWidget {
   }) async {
     final rpiApi = ref.read(rpiApiServiceProvider);
     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
+      final execution = ref.read(executionStatusProvider.notifier);
+      // 승인 뒤의 이름은 질문(purpose)이 아니다 — 루틴·시나리오 이름.
+      final label = suggestion.doneLabel(
+        scenarioName: ref.read(scenarioNamesProvider).valueOrNull?[suggestion.scenarioId],
+      );
+      // 보내기 전에 '보내는 중'으로 — 답을 기다리는 사이에도 본체는 이미 시작했을 수 있어 정지 띠를 남긴다(검토 10/19).
+      final requestId =
+          execution.beginSubmitting(api: rpiApi, label: label, steps: suggestion.steps);
       try {
         // HTTP: RPi에 승인 전송 — 즉시 job_id 접수, 이후 상태 화면이
         // /status 폴링으로 이 job의 진행·완료를 따라간다. '다음부터 자동으로'(allow)면
@@ -173,22 +181,19 @@ class SuggestionScreen extends ConsumerWidget {
             ? await rpiApi.approveSuggestion(suggestion.sequenceId)
             : await rpiApi.approveAndAllowSuggestion(
                 suggestion.sequenceId, allow.fingerprint);
-        ref.read(executionStatusProvider.notifier).beginHttpJob(
-              api: rpiApi,
-              jobId: accepted.jobId,
-              // 승인 뒤의 이름은 질문(purpose)이 아니다 — 루틴·시나리오 이름.
-              label: suggestion.doneLabel(
-                scenarioName: ref
-                    .read(scenarioNamesProvider)
-                    .valueOrNull?[suggestion.scenarioId],
-              ),
-              steps: suggestion.steps,
-            );
+        execution.beginHttpJob(
+          api: rpiApi,
+          jobId: accepted.jobId,
+          label: label,
+          steps: suggestion.steps,
+          requestId: requestId,
+        );
         // 이번 실행은 제출됐지만 자동 허용은 저장되지 않았다(허용 저장 사이 전체 정지 등, 3차 평가 H2) —
         // 실행 추적과 따로 서버 문장을 그대로 알린다. 규칙은 켜지지 않았다.
         final allowFailure = accepted.autoAllowFailure;
         if (allowFailure != null && context.mounted) _notifyError(context, allowFailure);
       } on RpiApiException catch (error) {
+        execution.abandonSubmission(requestId); // 본체가 답했다 — 받지 않았다
         if (error.isApprovalChanged) {
           // 승인한 대상·경로·동작이 바뀌었거나 승인이 만료됐다. 서버는 카드를
           // 내렸다 -- 옛 카드를 다시 누르지 않게 지우고 새 목록을 받는다.
@@ -223,20 +228,17 @@ class SuggestionScreen extends ConsumerWidget {
         // 보냈는데 답이 없다(시간 초과·연결 끊김) — 본체가 승인을 받아 이미 시작했을 수 있다(검토 10/19). '보내지 못했어요'라고
         // 하면 도는 실행을 멈출 길이 없었다. 모름으로 두고 정지를 남기며, 같은 승인을 다시 물어(이미 승인된 카드면 본체가 같은
         // 실행 번호를 준다) 또는 상태로 그 실행을 찾아 이어서 본다.
-        ref.read(executionStatusProvider.notifier).beginSubmissionUnknown(
-              api: rpiApi,
-              label: suggestion.doneLabel(
-                scenarioName: ref
-                    .read(scenarioNamesProvider)
-                    .valueOrNull?[suggestion.scenarioId],
-              ),
-              steps: suggestion.steps,
-              recoverJobId: () async => (allow == null
-                      ? await rpiApi.approveSuggestion(suggestion.sequenceId)
-                      : await rpiApi.approveAndAllowSuggestion(
-                          suggestion.sequenceId, allow.fingerprint))
-                  .jobId,
-            );
+        execution.beginSubmissionUnknown(
+          api: rpiApi,
+          label: label,
+          steps: suggestion.steps,
+          requestId: requestId,
+          recoverJobId: () async => (allow == null
+                  ? await rpiApi.approveSuggestion(suggestion.sequenceId)
+                  : await rpiApi.approveAndAllowSuggestion(
+                      suggestion.sequenceId, allow.fingerprint))
+              .jobId,
+        );
         if (context.mounted) context.pushReplacement('/status');
         return;
       }

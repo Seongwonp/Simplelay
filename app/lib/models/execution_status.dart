@@ -45,6 +45,7 @@ class ExecutionStatus {
     this.operationSource,
     this.operationDetail,
     this.abortReason,
+    this.requestId,
   });
 
   final String? sequenceId;
@@ -110,6 +111,10 @@ class ExecutionStatus {
 
   /// 모션 걸림 등으로 재시도 없이 멈춘 원인(서버 `last_abort_reason`). null이면 해당 없음.
   final String? abortReason;
+
+  /// 이 실행을 보낸 요청의 번호(폰이 보낼 때마다 새로 짓는다, 검토 10/19). 지금은 폰 안에서만 쓰고, 본체가 요청 번호를
+  /// 받게 되면 그대로 실어 같은 요청의 실행을 찾는다. 복원·BLE 실행은 null.
+  final String? requestId;
   final String executionMode;
   /// 실행 상태 화면 위 띠. 실제 실행이면 빈 문자열 — 평소 상태라 띠를 두지 않는다(2026-10-14 UX).
   String get modeLabel => isDemo || executionMode == 'mock'
@@ -144,6 +149,7 @@ class ExecutionStatus {
     String? operationSource,
     String? operationDetail,
     String? abortReason,
+    String? requestId,
   }) =>
       ExecutionStatus(
         executionMode: executionMode ?? this.executionMode,
@@ -171,6 +177,7 @@ class ExecutionStatus {
         operationSource: operationSource ?? this.operationSource,
         operationDetail: operationDetail ?? this.operationDetail,
         abortReason: abortReason ?? this.abortReason,
+        requestId: requestId ?? this.requestId,
         phase: phase ?? this.phase,
         message: message ?? this.message,
         // 실행 모드는 시작할 때 정해지고 그 job이 끝날 때까지 바뀌지

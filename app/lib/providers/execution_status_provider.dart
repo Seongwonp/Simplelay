@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -78,6 +79,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _supersedeRestore();
     _stopHttpTracking();
     _stopFollowTimer?.cancel();
+    _endSubmission();
     _bleTracking = true;
     state = ExecutionStatus(
       sequenceId: suggestion.sequenceId,
@@ -101,15 +103,21 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     }
   }
 
+  /// 접수된 [jobId]를 따라간다. [requestId]는 [beginSubmitting]이 준 번호 — 보내는 사이 정지를 눌렀으면 job_id가 온 지금
+  /// 정지를 한 번 더 보낸다(그 정지가 접수보다 먼저 닿아 '하던 일 없음'으로 끝났을 수 있다).
   void beginHttpJob({
     required RpiApiService api,
     required String jobId,
     required String label,
     List<String> steps = const [],
+    String? requestId,
   }) {
+    final resendStop =
+        requestId != null && requestId == _submitRequestId && _stopWhileSubmitting;
     _supersedeRestore();
     _stopHttpTracking();
     _stopFollowTimer?.cancel();
+    _endSubmission();
     _bleTracking = false;
     _httpApi = api;
     _httpJobId = jobId;
@@ -122,9 +130,86 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       phase: ExecutionPhase.running,
       message: '하는 중이에요',
       isDemo: _demoNow(),
+      requestId: requestId,
     );
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
     _rememberPendingJob(jobId, label, _hubIdOf(api));
+    if (resendStop) unawaited(emergencyStop());
+  }
+
+  // ── 보내는 중(검토 10/19) ────────────────────────────────────────────────
+  // 실행 요청(승인·말·버튼)의 접수 답(job_id)을 기다리는 사이에도 본체는 이미 받아 움직이고 있을 수 있다. 예전에는 답이 올
+  // 때까지(최대 시간 초과까지) 실행 상태가 없어 정지 띠가 없었다. 보내기 **전에** 이 단계로 들어가 정지를 남기고, 그사이 누른
+  // 정지는 바로 본체 전체 정지로 보낸 뒤 job_id가 오거나 복구가 그 실행을 찾으면 한 번 더 보낸다.
+  String? _submitRequestId;
+  bool _stopWhileSubmitting = false;
+  _Tracking? _beforeSubmit;
+  static const submittingNotice = '보내는 중이에요';
+  static const stopWhileSubmittingNotice = '멈추라고 보냈어요. 받았다는 답이 오면 한 번 더 보낼게요.';
+  static final _random = Random();
+
+  /// 요청 번호 — 보낼 때마다 새로 짓는다. 본체가 요청 번호를 받게 되면 이 값을 함께 싣는다.
+  static String newRequestId() =>
+      'app-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-'
+      '${_random.nextInt(1 << 32).toRadixString(36)}';
+
+  /// 실행 요청을 보내기 **직전에** 부른다. 돌려준 요청 번호로 결과에 따라 [beginHttpJob]·[beginSubmissionUnknown]·
+  /// [abandonSubmission] 중 하나를 부른다.
+  String beginSubmitting({
+    required RpiApiService api,
+    required String label,
+    List<String> steps = const [],
+  }) {
+    final before = _Tracking(state, _httpApi, _httpJobId, _foreignHub);
+    _supersedeRestore();
+    _stopHttpTracking(keepPending: true);
+    _stopFollowTimer?.cancel();
+    _bleTracking = false;
+    _httpApi = api;
+    final requestId = newRequestId();
+    _submitRequestId = requestId;
+    _stopWhileSubmitting = false;
+    _beforeSubmit = before;
+    state = ExecutionStatus(
+      sequenceId: 'submit-$requestId',
+      label: label,
+      steps: steps,
+      phase: ExecutionPhase.waiting,
+      message: submittingNotice,
+      isDemo: _demoNow(),
+      requestId: requestId,
+    );
+    return requestId;
+  }
+
+  /// 본체가 답해 받지 않았다(거절) — 보내기 전 화면으로 되돌린다. 그 사이 다른 실행이 시작됐으면 아무것도 하지 않는다.
+  void abandonSubmission(String requestId) {
+    if (requestId != _submitRequestId) return;
+    final before = _beforeSubmit;
+    _endSubmission();
+    if (!mounted || before == null) return;
+    _httpApi = before.api;
+    _httpJobId = before.jobId;
+    _foreignHub = before.foreignHub;
+    state = before.state;
+    final api = before.api;
+    final jobId = before.jobId;
+    if (api != null && jobId != null && !_finished) {
+      // 보내기 전에 따라가던 실행 — 다시 따라간다(정지·확인 대상이 사라지지 않게).
+      _lastPollSuccess = DateTime.now();
+      _missingPolls = 0;
+      _pollTimer?.cancel();
+      _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
+    } else if (_finished || before.state.phase == ExecutionPhase.idle) {
+      _httpApi = null;
+      _httpJobId = null;
+    }
+  }
+
+  void _endSubmission() {
+    _submitRequestId = null;
+    _stopWhileSubmitting = false;
+    _beforeSubmit = null;
   }
 
   // ── 보냈는데 접수 답을 못 받은 실행(검토 10/19) ──────────────────────────
@@ -138,17 +223,26 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   static const bleStopSentNotice = '멈추라고 보냈어요. 멈췄다는 답은 아직 없어요. 멈추지 않으면 정지를 다시 눌러 주세요.';
   static const submissionUnknownNotice = '보냈는데 답이 없어 시작됐는지 몰라요. 가전을 보고, 움직이면 정지를 눌러 주세요.';
 
+  /// [requestId]는 [beginSubmitting]이 준 번호 — 보내는 사이 누른 정지는 지금 한 번 더 보내고, 복구가 실행을 찾으면 또 보낸다.
   void beginSubmissionUnknown({
     required RpiApiService api,
     required String label,
     List<String> steps = const [],
     Future<String> Function()? recoverJobId,
+    String? requestId,
   }) {
+    final continuing = requestId != null && requestId == _submitRequestId;
+    final resendStop = continuing && _stopWhileSubmitting;
     _supersedeRestore();
     _stopHttpTracking();
     _stopFollowTimer?.cancel();
     _bleTracking = false;
     _httpApi = api;
+    final id = continuing ? requestId : newRequestId();
+    // 답을 모르는 동안에도 같은 보냄이다 — 정지를 누르면 기억해 두었다가 복구가 실행을 찾을 때 다시 보낸다. 되돌릴 화면은 없다.
+    _submitRequestId = id;
+    _stopWhileSubmitting = resendStop;
+    _beforeSubmit = null;
     final key = 'unsent-${DateTime.now().microsecondsSinceEpoch}';
     state = ExecutionStatus(
       sequenceId: key,
@@ -157,13 +251,16 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       phase: ExecutionPhase.unknown,
       message: submissionUnknownNotice,
       isDemo: _demoNow(),
+      requestId: id,
     );
     _announce(submissionUnknownNotice);
     _recoverSubmission(api, key, label, steps, recoverJobId);
+    if (resendStop) unawaited(emergencyStop());
   }
 
   void _recoverSubmission(RpiApiService api, String key, String label, List<String> steps,
       Future<String> Function()? recoverJobId) {
+    final requestId = state.requestId;
     _recoverTimer?.cancel();
     var recover = recoverJobId;
     var tries = 0;
@@ -185,7 +282,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
             final jobId = await ask();
             if (!mounted || !timer.isActive || state.sequenceId != key) return;
             timer.cancel();
-            beginHttpJob(api: api, jobId: jobId, label: label, steps: steps);
+            beginHttpJob(api: api, jobId: jobId, label: label, steps: steps, requestId: requestId);
             return;
           } on RpiApiException {
             recover = null; // 본체가 답했다(이미 승인됨·거절) — 다시 묻지 않고 상태로만 찾는다.
@@ -198,7 +295,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         final running = status.jobId;
         if (status.running && running != null) {
           timer.cancel();
-          beginHttpJob(api: api, jobId: running, label: label, steps: steps);
+          beginHttpJob(api: api, jobId: running, label: label, steps: steps, requestId: requestId);
         }
       } catch (_) {
         // 통신 실패 — 남은 횟수 안에서 다시 본다. 정지는 그대로 남는다.
@@ -298,6 +395,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   /// 재시작 후 이어붙이기. 이미 끝난 job이면 첫 폴링이 완료/실패로 정리하고,
   /// 서버가 응답하지 않으면 기존 규칙대로 '확인 불가'로 빠진다.
   void _resumeJob(RpiApiService api, String jobId, String label) {
+    _endSubmission();
     _foreignHub = null;
     _bleTracking = false;
     _httpApi = api;
@@ -500,7 +598,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   /// [keepTarget]이면 대상(api·job_id)은 남긴다 -- '확인 불가' 상태에서
   /// 정지 요청과 재확인이 계속 가능해야 하기 때문. 여기서 대상을 지우면
   /// emergencyStop이 HTTP 경로를 잃고 BLE로 빠져 실제로 멈추지 못한다.
-  void _stopHttpTracking({bool keepTarget = false}) {
+  /// [keepPending]이면 대상은 지우되 기기에 남긴 job은 둔다 — 보내는 중([beginSubmitting])이 거절로 끝나면 전 실행으로 돌아간다.
+  void _stopHttpTracking({bool keepTarget = false, bool keepPending = false}) {
     _pollTimer?.cancel();
     _pollTimer = null;
     _recoverTimer?.cancel();
@@ -508,6 +607,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     if (keepTarget) return;
     _httpApi = null;
     _httpJobId = null;
+    if (keepPending) return;
     // 결말이 난 job은 더 이상 이어붙일 것이 없다. '확인 불가'(keepTarget)는
     // 아직 결말이 아니므로 남겨둔다 -- 앱을 다시 열면 또 확인해야 한다.
     _forgetPendingJob();
@@ -620,9 +720,16 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       // 요청 때의 실행을 기억한다 — 응답을 기다리는 사이 새 실행이 시작되면 그 화면을 덮지 않는다(평가 H1).
       final jobId = _httpJobId;
       final sequenceId = state.sequenceId;
+      // 접수 답(job_id)을 아직 모른다(보내는 중·답 없음) — 이 정지가 접수보다 먼저 닿았을 수 있어, 실행을 찾으면 다시 보낸다.
+      final submitting = jobId == null && _submitRequestId != null;
+      if (submitting) _stopWhileSubmitting = true;
       try {
         final outcome = await api.stop();
         if (!mounted || state.sequenceId != sequenceId) return true;
+        if (submitting && state.phase == ExecutionPhase.waiting) {
+          state = state.copyWith(message: stopWhileSubmittingNotice);
+          return true;
+        }
         // 서버가 다른 실행을 멈췄다고 하거나(다른 job) 실행 중이 아니었다고 하면(명시적 null) 그 단계는
         // 이 화면의 것이 아니다. 필드가 없는 옛 서버만 종전처럼 싣는다(2차 평가 M-N1).
         final mine = outcome.belongsTo(jobId);
@@ -728,3 +835,12 @@ final executionStatusProvider =
     StateNotifierProvider<ExecutionStatusNotifier, ExecutionStatus>(
   ExecutionStatusNotifier.new,
 );
+
+/// 보내기 전에 따라가던 것 — 보내는 중이 거절로 끝나면 그대로 되돌린다([ExecutionStatusNotifier.abandonSubmission]).
+class _Tracking {
+  const _Tracking(this.state, this.api, this.jobId, this.foreignHub);
+  final ExecutionStatus state;
+  final RpiApiService? api;
+  final String? jobId;
+  final String? foreignHub;
+}
