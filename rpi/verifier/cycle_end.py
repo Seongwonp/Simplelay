@@ -14,7 +14,8 @@
               '최소 하강 지속 시간'이다 — 그보다 짧은 하강(담금·정지)은 ``dips``로 셀 뿐 끝이 아니다.
               **담금 정지가 settle_s보다 길면 끝으로 잘못 본다** — 실측으로 정한다.
   끊김        샘플 간격이 ``max_gap_s``를 넘거나 `note_gap()`(센서 끊김)이면 대기 연속을 처음부터 다시 센다.
-              보지 못한 시간을 대기로 세지 않는다.
+              보지 못한 시간을 대기로 세지 않는다. 확정 전 운전 후보도 버린다 — 보지 못한 시간을
+              운전으로 세지 않는다(끊김 뒤 ≥ ``run_min_w`` 샘플이면 그 시각부터 후보를 새로 센다).
 
 시각은 샘플의 ``t_s``(호스트 단조 시각에 맞춘 값)만 쓴다. 시스템 시계를 읽지 않는다. 끝을 낸 뒤에는
 처음 상태로 돌아가 다음 사이클을 본다. 이 모듈은 **릴레이를 건드리지 않는다**(세탁기는 CT 계측만).
@@ -169,8 +170,9 @@ class CycleEndTracker:
         self._standby: list[float] = []
 
     def note_gap(self) -> None:
-        """센서 끊김 — 대기 연속을 처음부터 다시 센다(보지 못한 시간을 대기로 세지 않는다)."""
-        self._drop_standby_run(count_dip=False)
+        """센서 끊김 — 대기 연속을 처음부터 다시 센다(보지 못한 시간을 대기로 세지 않는다).
+        확정 전 운전 후보도 버린다(보지 못한 시간을 운전으로 세지 않는다)."""
+        self._on_gap()
 
     def snapshot(self) -> dict:
         return {"phase": self.phase, "started_at_s": self._started, "running_at_s": self._running_at,
@@ -184,7 +186,7 @@ class CycleEndTracker:
             if t <= self._last_t:
                 return None
             if t - self._last_t > self._cfg.max_gap_s:
-                self._drop_standby_run(count_dip=False)
+                self._on_gap()
         self._last_t = t
         cfg = self._cfg
         if self.phase == "idle":
@@ -211,6 +213,12 @@ class CycleEndTracker:
             self.phase = "running"
             self._running_at = t
         return None
+
+    def _on_gap(self) -> None:
+        if self.phase == "candidate":
+            self._reset_cycle()
+            return
+        self._drop_standby_run(count_dip=False)
 
     def _add_run(self, w: float) -> None:
         self._peak = max(self._peak, w)

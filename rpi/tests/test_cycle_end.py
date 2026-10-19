@@ -138,3 +138,30 @@ def test_config_validation_and_env():
     assert cfg.run_min_w == 250.0 and cfg.settle_s == 90.0
     with pytest.raises(RuntimeError):
         CycleEndConfig.from_env({CYCLE_ENV_NAMES["min_run_s"]: "abc"})
+
+
+def test_gap_during_candidate_does_not_promote_to_running_via_unobserved_time():
+    """후보(≥run_min_w 한 번) → min_run_s보다 긴 끊김 → ≥run_min_w 한 번이면 운전 확정이 아니다(10/19 검토).
+    보지 못한 시간을 운전으로 세면 뒤이은 대기로 가짜 사이클 끝(가열 종료 자동 실행)이 난다."""
+    samples = [PowerSample(t_s=0.0, watts=400.0), PowerSample(t_s=100.0, watts=400.0)]
+    samples += _series([(40, 3)], t0=101.0)
+    assert detect_cycle_ends(samples, CFG) == []
+
+
+def test_note_gap_during_candidate_drops_candidate():
+    tracker = CycleEndTracker(CFG)
+    tracker.feed(PowerSample(t_s=0.0, watts=400.0))
+    assert tracker.phase == "candidate"
+    tracker.note_gap()
+    assert tracker.phase == "idle"
+    # 끊김 뒤 연속 관측만으로 후보를 새로 센다.
+    for t in range(1, 5):
+        tracker.feed(PowerSample(t_s=float(t), watts=400.0))
+    assert tracker.snapshot()["started_at_s"] == pytest.approx(1.0)
+
+
+def test_gap_after_running_confirmed_keeps_cycle():
+    samples = _series([(70, 400)])
+    samples.append(PowerSample(t_s=80.0, watts=400.0))  # 확정 뒤 끊김 — 운전은 유지
+    samples += _series([(40, 3)], t0=81.0)
+    assert len(detect_cycle_ends(samples, CFG)) == 1
