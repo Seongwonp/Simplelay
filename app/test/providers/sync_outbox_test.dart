@@ -63,6 +63,9 @@ class _FakeServer {
   /// 응답을 붙잡아 둔다 — single-flight 검증용.
   Completer<void>? gate;
 
+  /// PUT 응답만 붙잡아 둔다 — 보내는 사이 새 변경이 쌓이는 것을 흉내낸다.
+  Completer<void>? putGate;
+
   static Map<String, dynamic> _def(String id) => {
         'id': id,
         'name': id,
@@ -91,6 +94,7 @@ class _FakeServer {
             calls.add('PUT $id');
             putBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
             if (gate != null) await gate!.future;
+            if (putGate != null) await putGate!.future;
             if (refusePutWith409.contains(id)) {
               return http.Response.bytes(
                 utf8.encode('{"detail":"다른 기기에서 먼저 변경되었어요"}'),
@@ -382,6 +386,51 @@ void main() {
         reason: '같은 작업이 두 번 나가면 안 된다',
       );
       expect(container.read(applianceSyncProvider).pendingCount, 0);
+    });
+  });
+
+  // 검토 10/19(6): 동기화가 앞 작업의 응답을 기다리는 사이 저장한 변경이, 동기화가 끝날 때 처음 본 목록으로
+  // 대기열을 통째로 바꿔 써 메모리와 기기 저장에서 함께 사라졌다.
+  group('5-1. 보내는 사이 쌓인 변경', () {
+    test('동기화 중에 저장한 변경을 잃지 않는다', () async {
+      final server = _FakeServer();
+      final container = await _phone(
+        server,
+        prefs: {
+          'appliance_sync_outbox': [
+            jsonEncode({
+              'op_id': 'op-1',
+              'appliance_id': 'fan',
+              'kind': 'upsert',
+              'created_at': '2026-09-09T19:00:00+09:00',
+              'payload': _local('fan').toJson(),
+            }),
+          ],
+        },
+      );
+      final sync = container.read(applianceSyncProvider.notifier);
+      server.putGate = Completer<void>();
+
+      final first = sync.sync();
+      for (var i = 0; i < 50 && !server.calls.contains('PUT fan'); i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(server.calls, contains('PUT fan'));
+      final saved = sync.saveAppliance(_local('lamp'));
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      server.putGate!.complete();
+      await Future.wait([first, saved]);
+
+      final stored = await _storedOps();
+      expect(
+        server.calls.contains('PUT lamp') ||
+            stored.any((line) => line.contains('"appliance_id":"lamp"')),
+        isTrue,
+        reason: '동기화 중에 저장한 변경은 보내졌거나 대기열에 남아 있어야 한다',
+      );
+      expect(stored.any((line) => line.contains('"appliance_id":"fan"')), isFalse);
     });
   });
 

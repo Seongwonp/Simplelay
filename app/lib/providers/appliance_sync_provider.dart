@@ -224,6 +224,18 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     await _persist(next);
   }
 
+  /// 끝난 작업 하나를 **지금의** 대기열에서 뺀다 — 동기화가 처음 본 목록으로 대기열을 바꿔 쓰면, 그 사이 저장한
+  /// 변경이 메모리와 기기 저장에서 함께 사라진다(검토 10/19).
+  Future<void> _dequeue(String opId) async {
+    final next = [
+      for (final op in state.pending)
+        if (op.opId != opId) op,
+    ];
+    if (next.length == state.pending.length) return;
+    state = ApplianceSyncState(pending: next, lastFailed: state.lastFailed);
+    await _persist(next);
+  }
+
   String _nextOpId() => 'op-${DateTime.now().microsecondsSinceEpoch}-${_seq++}';
 
   /// 가전을 저장한다(등록·수정). 로컬 저장은 무조건 성립하고, 서버 전달은
@@ -354,18 +366,27 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
 
     var sent = 0;
     var conflicts = 0;
-    final remaining = <SyncOperation>[];
     // 이번 패스에서 더 손대면 안 되는 가전. 충돌한 가전이 여기 들어간다 --
     // 내 수정이 거절됐다는 것은 **서버에 내가 못 본 내용이 있다**는 뜻이고,
     // 그 상태에서 뒤의 삭제를 보내면 그걸 그대로 지워버린다.
     final blocked = <String>{};
-    for (final op in state.pending) {
+    // 앞 작업이 대기열에 남은(실패·충돌·보류) 가전.
+    final heldBack = <String>{};
+    // 이번 패스에서 다룬 작업. 대기열은 매번 **지금 것**을 다시 읽는다 — 보내는 사이 저장한 변경이 뒤에 붙어
+    // 있으면 같은 패스에서 이어 보낸다(검토 10/19).
+    final attempted = <String>{};
+    while (true) {
+      final op = state.pending
+          .where((o) => !attempted.contains(o.opId))
+          .firstOrNull;
+      if (op == null) break;
+      attempted.add(op.opId);
       // 앞의 작업이 실패했거나 충돌했으면 뒤의 것도 보내지 않는다 -- 보내면
       // 같은 가전의 순서가 뒤집히거나(지운 가전이 되살아나는 자리) 못 본
       // 내용을 지운다.
       if (blocked.contains(op.applianceId) ||
-          remaining.any((r) => r.applianceId == op.applianceId)) {
-        remaining.add(op);
+          heldBack.contains(op.applianceId)) {
+        heldBack.add(op.applianceId);
         continue;
       }
       var outcome = await _send(api, op);
@@ -378,6 +399,7 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
       switch (outcome) {
         case _SendOutcome.ok:
           sent++;
+          await _dequeue(op.opId);
         case _SendOutcome.conflict:
           // 다른 기기가 먼저 바꿨다. 자동으로 덮어쓰지도, 조용히 버리지도
           // 않는다 -- 대기 상태로 남겨 사용자가 확인하게 한다. 밀린 작업을
@@ -385,14 +407,12 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
           // 바뀌고, 순서 보장도 함께 무너진다.
           conflicts++;
           blocked.add(op.applianceId);
-          remaining.add(op);
+          heldBack.add(op.applianceId);
         case _SendOutcome.failed:
-          remaining.add(op);
+          heldBack.add(op.applianceId);
       }
     }
-    if (remaining.length != state.pending.length) {
-      await _persist(remaining);
-    }
+    final remaining = state.pending;
     state = ApplianceSyncState(
       pending: remaining,
       lastFailed: remaining.isNotEmpty,
@@ -445,14 +465,15 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
         (!onHub.contains(op.applianceId) &&
             op.kind == SyncOpKind.upsert &&
             op.expectedRevision > 0);
-    final kept = [
-      for (final op in state.pending)
-        if (!settledByHub(op)) op,
-    ];
     for (final id in gone) {
       await _ref.read(customAppliancesProvider.notifier).remove(id);
       _ref.read(serverApplianceCatalogProvider.notifier).forgetCustom(id);
     }
+    // 지금의 대기열에서 거른다 — 위에서 기다리는 사이 저장한 변경을 잃지 않게.
+    final kept = [
+      for (final op in state.pending)
+        if (!settledByHub(op)) op,
+    ];
     if (kept.length != state.pending.length) {
       state = ApplianceSyncState(pending: kept, lastFailed: state.lastFailed);
       await _persist(kept);
