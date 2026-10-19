@@ -515,14 +515,52 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         return false;
       }
     }
-    // 모의 BLE는 아무것도 보내지 않는다 — 화면 표시는 그대로 두되 보낸 것으로
-    // 치지 않는다(음성 '멈춰'가 다시 들을 수 있게, 10/8 리뷰).
-    final sent = await ref.read(bleServiceProvider).emergencyStop();
+    // 모의 BLE는 아무것도 보내지 않는다 — 실행 화면은 끝내되 보낸 것으로 치지 않고(음성 '멈춰'가 다시 들을 수 있게,
+    // 10/8 리뷰) 보냈다고 말하지도 않는다(검토 10/19).
+    final sequenceId = state.sequenceId;
+    final bool sent;
+    try {
+      sent = await ref.read(bleServiceProvider).emergencyStop();
+    } catch (_) {
+      // 블루투스가 끊겨 못 보냈다(검토 10/19 — 예외가 새어 나가 아무 문구 없이 실행이 계속됐다).
+      return _stopViaHub(sequenceId);
+    }
+    if (!mounted || state.sequenceId != sequenceId) return sent;
     state = state.copyWith(
       phase: ExecutionPhase.failed,
-      message: '멈추라고 했어요.',
+      message: sent ? '멈추라고 했어요.' : '연습 연결이라 실제로 보낸 정지는 없어요.',
     );
     return sent;
+  }
+
+  /// BLE 정지를 못 보냈을 때 — 설정된 본체가 있으면 본체에 정지를 보낸다. 보낸 것을 확인했을 때만 보냈다고 하고,
+  /// 못 보냈으면 실행 화면(정지 버튼)을 그대로 두고 못 보냈다고 말한다.
+  Future<bool> _stopViaHub(String? sequenceId) async {
+    RpiApiService? api;
+    try {
+      api = ref.read(rpiApiServiceProvider);
+    } catch (_) {}
+    if (api != null) {
+      try {
+        await api.stop();
+        if (!mounted || state.sequenceId != sequenceId) return true;
+        state = state.copyWith(
+          phase: ExecutionPhase.unknown,
+          message: '블루투스가 끊겨 본체에 멈추라고 보냈어요. 멈췄는지는 가전 앞에서 확인해 주세요.',
+        );
+        return true;
+      } catch (error) {
+        if (!mounted || state.sequenceId != sequenceId) return false;
+        state = state.copyWith(
+            message: error is TimeoutException
+                ? '블루투스가 끊겨 본체에 멈추라고 보냈는데 답이 없어요. 멈추지 않으면 정지를 다시 눌러 주세요.'
+                : '멈추라고 보내지 못했어요. 블루투스와 본체 연결을 보고 정지를 다시 눌러 주세요.');
+        return false;
+      }
+    }
+    if (!mounted || state.sequenceId != sequenceId) return false;
+    state = state.copyWith(message: '멈추라고 보내지 못했어요. 블루투스 연결을 보고 정지를 다시 눌러 주세요.');
+    return false;
   }
 
   @override

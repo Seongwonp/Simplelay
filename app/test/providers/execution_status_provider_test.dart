@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/services/rpi_api_service.dart';
 
 ProviderContainer makeContainer() {
   final c = ProviderContainer();
@@ -199,7 +203,7 @@ void main() {
       await c.read(executionStatusProvider.notifier).emergencyStop();
 
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
-      expect(c.read(executionStatusProvider).message, contains('멈추라고'));
+      expect(c.read(executionStatusProvider).message, contains('정지'));
     });
 
     // 10/8 리뷰 LOW: 모의 BLE는 아무것도 보내지 않는다 — 음성 '멈춰'가 이것을
@@ -214,7 +218,40 @@ void main() {
 
       expect(sent, isFalse);
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
-      expect(c.read(executionStatusProvider).message, '멈추라고 했어요.');
+      // 보낸 것이 없으니 '멈추라고 했어요'라고 하지 않는다(검토 10/19).
+      expect(c.read(executionStatusProvider).message, '연습 연결이라 실제로 보낸 정지는 없어요.');
+    });
+
+    // 검토 10/19(4): 블루투스가 끊겨 정지 프레임을 못 보내면 예외가 그대로 새어 나가 아무 문구도 없이
+    // 실제 실행이 계속됐다.
+    test('블루투스가 끊겨 정지를 못 보내면 못 보냈다고 말하고 실행 화면을 남긴다', () async {
+      final c = ProviderContainer(overrides: [rpiApiServiceProvider.overrideWithValue(null)]);
+      addTearDown(c.dispose);
+      c.read(executionStatusProvider.notifier).begin(_suggestion);
+
+      final sent = await c.read(executionStatusProvider.notifier).emergencyStop();
+
+      expect(sent, isFalse);
+      final status = c.read(executionStatusProvider);
+      expect(status.phase, ExecutionPhase.waiting);
+      expect(status.message, contains('멈추라고 보내지 못했어요'));
+    });
+
+    test('블루투스가 끊기면 설정된 본체로 정지를 보내고, 보낸 뒤에만 보냈다고 한다', () async {
+      var stops = 0;
+      final api = RpiApiService('http://rpi5.local:8000', client: MockClient((request) async {
+        if (request.url.path == '/stop') stops++;
+        return http.Response('{"ok": true}', 200);
+      }));
+      final c = ProviderContainer(overrides: [rpiApiServiceProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      c.read(executionStatusProvider.notifier).begin(_suggestion);
+
+      final sent = await c.read(executionStatusProvider.notifier).emergencyStop();
+
+      expect(sent, isTrue);
+      expect(stops, 1);
+      expect(c.read(executionStatusProvider).message, contains('본체에 멈추라고 보냈어요'));
     });
   });
 }
