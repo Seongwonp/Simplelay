@@ -1005,12 +1005,15 @@ class AcksResponse(BaseModel):
     - failures_seen_id: 이 알림 번호까지의 '못 한 일' 알림(execution_failed·appliance_done_undelivered)은 봤다(2026-10-19
       검토 — 번호 비교라 본체 시계가 뒤로 가도 새 실패를 덮지 않는다).
     - failures_seen_until: 옛 앱 호환 파생값(시각) — 안 본 못 한 일 알림을 덮지 않는 시각. 새 앱은 failures_seen_id를 쓴다.
-    - job_answers: 실행 하나에 남긴 답(seen·moved·not_moved), 최근 200건."""
+    - job_answers: 실행 하나에 남긴 답(seen·moved·not_moved), 최근 200건.
+    - persisted(``POST``만, 검토 10/19 D): true 저장됨(재시작 뒤 유지) · false 저장 실패(이번 세션에만 적용 — 재시작하면
+      마지막으로 저장된 값으로 돌아간다) · null 저장소 없는 구성. ``GET`` 응답에는 싣지 않는다. 저장 실패여도 200이다(옛 클라이언트 호환)."""
 
     care_seen_id: int
     failures_seen_id: int = 0
     failures_seen_until: datetime | None = None
     job_answers: dict[str, str] = {}
+    persisted: bool | None = None
 
 
 class AckRequest(BaseModel):

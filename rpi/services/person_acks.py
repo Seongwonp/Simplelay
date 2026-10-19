@@ -24,7 +24,7 @@
 - ``job_id`` + ``answer``(seen·moved·not_moved): **그 실행 하나만** 바꾼다. 못 한 일 표시(``failures_seen_id``)는 건드리지 않는다
   (다른 실행의 실패를 아무도 안 봤는데 사라지면 안 된다).
 
-응답(``GET``·``POST`` 같음):
+응답(``GET``·``POST`` 같음 — ``POST``만 ``persisted``를 더 싣는다):
 
 - ``care_seen_id``: int — 종전 그대로.
 - ``failures_seen_id``: int — 이 번호까지의 못 한 일 알림(``FAILURE_CARE_KINDS``)은 봤다. **새 기준**(번호 비교, 시계 무관).
@@ -41,7 +41,8 @@
 알림까지 지우면 안 된다). ``seen``은 이미 남긴 답(움직임 여부)을 덮지 않는다.
 
 ``SIMPLELAY_DB_PATH``가 있으면 저장해 재시작 뒤에도 남는다. 없으면 메모리(개발 PC·시험).
-메모리에 먼저 적용하고 저장한다 — 저장이 실패해도 이번 세션에는 적용된다(로그만 남긴다).
+메모리에 먼저 적용하고 저장한다 — 저장이 실패해도 이번 세션에는 적용된다(로그를 남기고, ``POST /acks`` 응답의
+``persisted``가 false — 검토 10/19 D. 저장소 없는 구성은 null, 저장됨은 true. ``GET``에는 없음).
 """
 
 from __future__ import annotations
@@ -158,6 +159,22 @@ class PersonAckStore:
         answer: str | None = None,
     ) -> AckSnapshot:
         """한 번에 적용한다. 번호 둘은 늘기만 한다. 실행 답은 그 실행(과 여러 단계면 실행 번호)만 바꾼다."""
+        return self.change_reporting(
+            care_seen_id=care_seen_id, failures_seen_id=failures_seen_id, seen_job_ids=seen_job_ids,
+            job_id=job_id, answer=answer,
+        )[0]
+
+    def change_reporting(
+        self,
+        *,
+        care_seen_id: int | None = None,
+        failures_seen_id: int | None = None,
+        seen_job_ids: Iterable[str] = (),
+        job_id: str | None = None,
+        answer: str | None = None,
+    ) -> tuple[AckSnapshot, bool | None]:
+        """:meth:`change`와 같고 저장 결과를 함께 돌려준다 — True 저장됨 · False 저장 실패(이번 세션에만 적용) ·
+        None 저장소 없음(검토 10/19 D: 예전에는 저장 실패를 삼켜 응답이 '저장됨'과 같았다)."""
         if answer is not None and answer not in ANSWERS:
             raise ValueError(f"answer must be one of {ANSWERS}")
         if answer is not None and not job_id:
@@ -186,12 +203,12 @@ class PersonAckStore:
                 seen = old.care_seen_id if care_seen_id is None else max(old.care_seen_id, care_seen_id)
                 new = AckSnapshot(care_seen_id=seen, failures_seen_id=failures, job_answers=answers)
                 self._snap = new
-            self._persist(new)
-            return new
+            persisted = self._persist(new)
+            return new, persisted
 
-    def _persist(self, snap: AckSnapshot) -> None:
+    def _persist(self, snap: AckSnapshot) -> bool | None:
         if self._db is None:
-            return
+            return None
         try:
             self._db.save_setting(
                 SETTING_KEY,
@@ -206,3 +223,5 @@ class PersonAckStore:
             )
         except Exception:  # noqa: BLE001 - 저장 실패여도 이번 세션에는 적용된다
             log.exception("person acks save failed")
+            return False
+        return True

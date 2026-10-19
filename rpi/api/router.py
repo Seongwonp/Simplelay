@@ -378,8 +378,9 @@ def list_care_events(
     ]
 
 
-def _acks_response(snap, care) -> AcksResponse:
+def _acks_response(snap, care, persisted: bool | None = None) -> AcksResponse:
     return AcksResponse(
+        persisted=persisted,
         care_seen_id=snap.care_seen_id,
         failures_seen_id=snap.failures_seen_id,
         # 옛 앱 호환 시각 — 안 본 못 한 일을 덮지 않게 알림 목록으로 만든다(person_acks 머리말).
@@ -388,7 +389,7 @@ def _acks_response(snap, care) -> AcksResponse:
     )
 
 
-@router.get("/acks", response_model=AcksResponse)
+@router.get("/acks", response_model=AcksResponse, response_model_exclude={"persisted"})
 def get_acks(acks=Depends(get_person_acks), care=Depends(get_care_events)) -> AcksResponse:
     """사람이 확인한 것(2026-10-19) — 폰 홈 못 한 일 경고·설정 탭 배지·키오스크 지난 일·가전 칸 표시가 같은 값을 읽는다."""
     return _acks_response(acks.snapshot(), care)
@@ -436,14 +437,15 @@ def post_acks(
         # 옛 폰(커서 없음) 호환 — 본체에 있는 가장 새 못 한 일까지. 새 앱은 화면에 보인 번호를 싣는다.
         newest_failure = next((e for e in care.recent(limit=CARE_ACK_SCAN) if e.kind in FAILURE_CARE_KINDS), None)
         failures_id = newest_failure.event_id if newest_failure is not None else None
-    snap = acks.change(
+    snap, persisted = acks.change_reporting(
         care_seen_id=_clamp_to_newest_care(body.care_seen_id, care),
         failures_seen_id=_clamp_to_newest_care(failures_id, care),
         seen_job_ids=_seen_jobs(body, history),
         job_id=body.job_id,
         answer=body.answer,
     )
-    return _acks_response(snap, care)
+    # 저장 실패여도 200(이번 세션에는 적용됨, 옛 클라이언트 호환) — ``persisted: false``로 알린다(검토 10/19 D).
+    return _acks_response(snap, care, persisted)
 
 
 #: '기록 보기'가 '봤다'로 적는 최근 실행 기록 수(``person_acks.JOB_LIMIT``와 같은 폭).
