@@ -464,7 +464,15 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
           stillPending.any((op) => op.applianceId == incoming.id)) {
         continue;
       }
-      if (_sameDefinition(mine, incoming)) continue;
+      if (_sameDefinition(mine, incoming)) {
+        // 내용은 같아도 판 번호는 본체를 따른다. 다시 보내기(PUT)가 본체 판을 올린 뒤 옛 판을 들고 있으면
+        // 다음 지우기·고치기가 '다른 기기에서 먼저 변경'으로 거절돼 폰에서만 지워지고 본체에는 남았다(실화면 10/19).
+        if (incoming.revision > 0 && incoming.revision != mine.revision) {
+          await notifier.replace(
+              ApplianceMap.fromJson({...mine.toJson(), 'revision': incoming.revision}));
+        }
+        continue;
+      }
       // 사진은 이 폰에만 있는 데이터다 -- 서버는 모른다.
       await notifier.replace(incoming.withPhotoFrom(mine));
     }

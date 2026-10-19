@@ -608,6 +608,27 @@ void _auditTests() {
       expect(container.read(applianceSyncProvider).pendingCount, 0);
     });
 
+    test('내용이 같아도 본체 판 번호를 받아 둔다 — 다시 보내기 뒤 지우기가 옛 판으로 거절되지 않는다(실화면 10/19)',
+        () async {
+      // 이 폰이 다시 보내서 본체 판이 3으로 올랐다. 내용은 같다.
+      final server = _FakeServer(['fan']);
+      server.customs['fan']!['revision'] = 3;
+      final container = await _phone(server, prefs: {
+        'custom_appliances': [
+          jsonEncode({..._local('fan').toJson(), 'revision': 1}),
+        ],
+      });
+
+      await container.read(applianceSyncProvider.notifier).sync();
+      expect(container.read(customAppliancesProvider).single.revision, 3);
+      expect(container.read(customAppliancesProvider).single.photoPath, '/phone/fan.jpg',
+          reason: '판 번호만 바꾸고 이 폰의 사진은 그대로');
+
+      await container.read(applianceSyncProvider.notifier).deleteAppliance('fan');
+      expect(server.customs.containsKey('fan'), isFalse, reason: '본체에서도 지워져야 한다');
+      expect(container.read(applianceSyncProvider).pendingCount, 0);
+    });
+
     test('이미 지워진 가전의 삭제는 여전히 멱등 성공이다', () async {
       final server = _FakeServer();
       final container = await _phone(server);
