@@ -676,8 +676,36 @@ void main() {
       });
 
       await container.read(applianceSyncProvider.notifier).sync();
+      // 검토 10/19(6): 첫 맞춤이 받아 온 그 본체 가전(other-hub-fan)이 다음 맞춤에서 '겹침'으로 잡혀 옛 가전을 지웠다.
+      await container.read(applianceSyncProvider.notifier).sync();
 
       expect(_localIds(container), contains('washer'));
+    });
+
+    // 검토 10/19(6): 지난 본체 주소 기록이 없으면 같은 본체로 쳐, 새(빈) 본체에 붙자마자 맞춰 둔 가전과 대기 작업을 모두 지웠다.
+    test('지난 본체를 모르고 맞춘 가전이 하나도 이 본체에 없으면 지우지 않고 대기 작업도 남긴다', () async {
+      final server = _FakeServer(['other-hub-fan'])..refusePutWith409 = {'washer'};
+      final container = await _phone(server, prefs: {
+        'custom_appliances': [
+          jsonEncode(_syncedJson('washer', revision: 3)),
+          jsonEncode(_syncedJson('intercom', revision: 2)),
+        ],
+        'appliance_sync_outbox': [
+          jsonEncode({
+            'op_id': 'op-1',
+            'appliance_id': 'washer',
+            'kind': 'upsert',
+            'created_at': '2026-10-19T19:00:00+09:00',
+            'payload': _syncedJson('washer', revision: 3),
+          }),
+        ],
+      });
+
+      await container.read(applianceSyncProvider.notifier).sync();
+      await container.read(applianceSyncProvider.notifier).sync();
+
+      expect(_localIds(container), containsAll(['washer', 'intercom']));
+      expect((await _storedOps()).length, 1);
     });
 
     test('본체 목록에서 맞춘 가전이 빠진 걸 보면 누르지 않아도 맞춘다', () async {

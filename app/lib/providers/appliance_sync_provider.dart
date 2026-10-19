@@ -15,6 +15,10 @@ const _kOutboxKey = 'appliance_sync_outbox';
 /// 마지막으로 목록을 맞춰 본 본체 주소 — 본체에서 지워진 가전을 폰에서도 뺄 때 '같은 본체인가'를 가린다.
 const _kHubUrlKey = 'appliance_sync_hub_url';
 
+/// 같은 본체인지 몰라 지우지 않고 넘긴 본체 주소(검토 10/19). 넘긴 뒤 병합이 그 본체의 가전을 받아 오면 '겹침'이 생기는데,
+/// 그것은 같은 본체라는 증거가 아니다 — 이 주소에서는 겹침을 근거로 쓰지 않는다. 맞춘 가전이 모두 그 본체에 있게 되면 푼다.
+const _kHubUnconfirmedKey = 'appliance_sync_hub_unconfirmed';
+
 enum SyncOpKind { upsert, delete }
 
 /// 서버로 보내야 하는 변경 하나.
@@ -446,23 +450,40 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
         if (a.isCustom && !a.isDemo && a.revision > 0) a,
     ];
     String? lastHub;
+    String? unconfirmed;
     SharedPreferences? prefs;
     try {
       prefs = await SharedPreferences.getInstance();
       lastHub = prefs.getString(_kHubUrlKey);
+      unconfirmed = prefs.getString(_kHubUnconfirmedKey);
     } catch (_) {}
-    final sameHub = lastHub == null ||
-        lastHub == hubUrl ||
-        synced.any((a) => onHub.contains(a.id));
-    if (!sameHub) return;
-    try {
-      if (lastHub != hubUrl) await prefs?.setString(_kHubUrlKey, hubUrl);
-    } catch (_) {}
-
     final gone = {
       for (final a in synced)
         if (!onHub.contains(a.id)) a.id,
     };
+    final overlap = unconfirmed != hubUrl && synced.any((a) => onHub.contains(a.id));
+    // 지난 본체 주소를 모르면(옛 버전에서 올림·기록이 지워짐) 맞춘 가전이 하나라도 이 본체에 있을 때만 같은 본체로 본다(검토
+    // 10/19) — 모름을 같은 본체로 치면 새(빈) 본체에 붙자마자 맞춰 둔 가전과 그 대기 작업을 모두 지웠다. 맞춘 가전이 없으면
+    // 잃을 것이 없으니 이 본체를 적어 둔다.
+    final sameHub = lastHub == hubUrl || overlap || (lastHub == null && synced.isEmpty);
+    if (!sameHub) {
+      // 지우지 않는다. 이 주소를 '모름'으로 적어 두면 뒤의 병합이 받아 온 그 본체 가전이 겹침으로 잡히지 않는다. 맞춘
+      // 가전이 모두 이 본체에 있게 되면(다시 보내기 등) 같은 본체로 적는다 — 그때는 지울 것이 없다.
+      try {
+        if (gone.isEmpty) {
+          await prefs?.setString(_kHubUrlKey, hubUrl);
+          await prefs?.remove(_kHubUnconfirmedKey);
+        } else if (unconfirmed != hubUrl) {
+          await prefs?.setString(_kHubUnconfirmedKey, hubUrl);
+        }
+      } catch (_) {}
+      return;
+    }
+    try {
+      if (lastHub != hubUrl) await prefs?.setString(_kHubUrlKey, hubUrl);
+      if (unconfirmed != null) await prefs?.remove(_kHubUnconfirmedKey);
+    } catch (_) {}
+
     // 본체가 본 판을 들고 있는 고치기는 본체에서 지워진 가전의 것이다. 판 없는 고치기(처음 등록)는 남긴다 — 보내면
     // 본체에 생긴다. 그 밖의 없는 가전 지우기는 그대로 보낸다 — 앞의 처음 등록이 먼저 만들 수 있고, 이미 없으면 404가 끝낸다.
     bool settledByHub(SyncOperation op) =>
