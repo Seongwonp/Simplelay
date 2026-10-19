@@ -231,8 +231,9 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
           if (_connected)
             FilledButton(
                 onPressed: () {
+                  // 첫 안내(온보딩)는 이 값으로 연결을 마쳤는지 안다.
                   if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
+                    Navigator.of(context).pop(true);
                   } else {
                     context.go('/');
                   }

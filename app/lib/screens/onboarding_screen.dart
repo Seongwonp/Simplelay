@@ -24,6 +24,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (mounted) context.go('/');
   }
 
+  /// 첫 화면의 할 일은 본체 연결이다 — '시작하기'는 연결 없이 홈으로만 가서, 처음 쓰는 사람은 연결한 줄 알았다
+  /// (첫 사용 검토 10/19). 연결 화면에서 연결을 마치고 돌아오면 홈으로 간다. 못 했으면 이 화면에 남는다.
+  Future<void> _pair() async {
+    final paired = await context.push<bool>('/pair');
+    if (paired == true && mounted) await _start();
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -109,7 +116,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _loading ? null : _start,
+                  key: const Key('onboarding-pair'),
+                  onPressed: _loading ? null : _pair,
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(0, 52),
                     backgroundColor: context.appPrimary,
@@ -131,7 +139,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         )
                       : const Text(
-                          '시작하기',
+                          '본체 연결하기',
                           style: TextStyle(
                             fontSize: AppFont.caption,
                             fontWeight: FontWeight.w600,
@@ -139,8 +147,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                 ),
               ),
+              // 본체가 아직 없거나 설치하는 분이 나중에 연결할 때 — 홈의 연결 안내로 이어진다.
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  key: const Key('onboarding-later'),
+                  onPressed: _loading ? null : _start,
+                  style: TextButton.styleFrom(minimumSize: const Size(0, 48)),
+                  child: const Text('나중에 연결할게요'),
+                ),
+              ),
 
-              const SizedBox(height: AppSpace.xxxl),
+              const SizedBox(height: AppSpace.xl),
             ],
           ),
         ),
