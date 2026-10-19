@@ -108,4 +108,31 @@ void main() {
     expect(_mark, findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  // 검토 10/19(/acks 계약 — 사람이 본 것만): 키오스크는 보호자 알림 목록을 보이지 않는다. 지난 일 '확인'은 그 실행 하나만
+  // (job_id + answer) 적고, 실행 번호를 모르는 지난 일(접수 전에 끊긴 실행)은 아무것도 적지 않는다 — 예전에는 맨
+  // failures_seen:true를 보내 본체의 못 한 일·최근 실행 기록 전체를 '봤다'로 올렸다(아무도 안 본 실패까지 폰에서 사라졌다).
+  testWidgets("실행 번호를 모르는 지난 일 '확인'은 본체에 아무것도 적지 않는다", (tester) async {
+    final api = await _start(tester);
+    api
+      ..suggestionList = [
+        const KioskSuggestion(id: 's1', purpose: '즉석밥 데워줘', occurrences: 3, applianceId: 'microwave'),
+      ]
+      ..executeError = Exception('server down');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    api.suggestionList = [];
+    await tester.tap(find.byKey(const ValueKey('suggestion-approve')));
+    await tester.pump(); // 접수 실패 — 실행 번호 없음
+    await tester.pump();
+    expect(find.byType(KioskDoneView), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('done-home')));
+    await tester.pump();
+    expect(_past, findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('idle-past-result-ok')));
+    await tester.pump();
+    expect(_past, findsNothing, reason: '화면에서는 닫는다');
+    expect(api.ackPosts, isEmpty, reason: "본체에 댈 번호가 없다 — 맨 failures_seen으로 못 한 일 전체를 '봤다'로 올리지 않는다");
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

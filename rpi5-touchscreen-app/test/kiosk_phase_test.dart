@@ -84,15 +84,15 @@ class FakeKioskApi implements KioskApiService {
 
   // 사람이 확인함(본체 /acks, 2026-10-19). null이면 옛 본체(조회 실패)처럼.
   Map<String, String>? ackedJobsResult = const {};
-  final ackPosts = <(String?, String)>[];
+  final ackPosts = <(String, String)>[];
 
   @override
   Future<Map<String, String>?> ackedJobs() async => ackedJobsResult;
 
   @override
-  Future<bool> postAck({String? jobId, String answer = 'seen'}) async {
+  Future<bool> postAck({required String jobId, String answer = 'seen'}) async {
     ackPosts.add((jobId, answer));
-    if (jobId != null && ackedJobsResult != null) ackedJobsResult = {...ackedJobsResult!, jobId: answer};
+    if (ackedJobsResult != null) ackedJobsResult = {...ackedJobsResult!, jobId: answer};
     return true;
   }
 

@@ -564,8 +564,10 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   /// 사람이 봤다·답했다를 본체에 적는다(2026-10-19) — 화면은 바로 반영하고, 적지 못해도 막지 않는다.
+  /// 화면에 보인 그 실행 하나만(검토 10/19). 실행 번호를 모르면(접수 전에 끊긴 실행) 적지 않는다 — 무엇을 봤는지 댈 수 없다.
   void _ack(String? jobId, String answer) {
-    if (jobId != null) _applyAcks({..._ackedJobs, jobId: answer});
+    if (jobId == null) return;
+    _applyAcks({..._ackedJobs, jobId: answer});
     unawaited(_api.postAck(jobId: jobId, answer: answer));
   }
 

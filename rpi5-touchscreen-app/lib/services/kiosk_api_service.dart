@@ -577,14 +577,15 @@ class KioskApiService {
   }
 
   /// 사람이 봤다·답했다를 본체에 적는다(POST /acks) — 폰 홈 못 한 일 경고·설정 탭 배지에서도 사라진다.
-  /// [answer]: seen(지난 일 '확인') · moved · not_moved. [jobId]가 없으면 '못 한 일을 봤다'(failures_seen)로 적는다.
+  /// [answer]: seen(지난 일 '확인') · moved · not_moved — 화면에 보인 그 실행 하나만(본체 `/acks` 계약, 검토 10/19).
+  /// 맨 failures_seen은 보내지 않는다: 키오스크는 보호자 알림 목록을 보이지 않으므로 '못 한 일을 이 번호까지 봤다'고 댈 번호가 없다.
   /// 적지 못하면 false(키오스크 화면은 그래도 닫는다 — 다음 조회에서 다시 보일 수 있다).
-  Future<bool> postAck({String? jobId, String answer = 'seen'}) async {
+  Future<bool> postAck({required String jobId, String answer = 'seen'}) async {
     try {
       final res = await _client
           .post(_base.replace(path: '/acks'),
               headers: _jsonHeaders,
-              body: jsonEncode(jobId == null ? {'failures_seen': true} : {'job_id': jobId, 'answer': answer}))
+              body: jsonEncode({'job_id': jobId, 'answer': answer}))
           .timeout(_timeout);
       return res.statusCode == 200;
     } catch (_) {
