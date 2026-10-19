@@ -116,17 +116,20 @@ def test_concurrent_double_approve_executes_exactly_once():
         assert suggestion is not None
         barrier = threading.Barrier(2)
         successes: list[bool] = []
+        jobs: list[str] = []
         lock = threading.Lock()
 
         def approve_side(sid: str = suggestion.suggestion_id) -> None:
             barrier.wait()
             try:
-                service.approve_submit(sid)
+                job = service.approve_submit(sid)
                 ok = True
             except (UnknownSuggestionError, SuggestionAlreadyApprovedError):
                 ok = False
             with lock:
                 successes.append(ok)
+                if ok:
+                    jobs.append(job)
 
         threads = [threading.Thread(target=approve_side) for _ in range(2)]
         for t in threads:
@@ -134,6 +137,8 @@ def test_concurrent_double_approve_executes_exactly_once():
         for t in threads:
             t.join()
 
-        # 폰과 키오스크가 동시에 승인해도 물리 실행은 1회
-        assert successes.count(True) == 1, f"round {round_no}: {successes}"
+        # 폰과 키오스크가 동시에 승인해도 물리 실행은 1회. 뒤의 승인이 접수 뒤에 닿으면 같은 실행 번호를 받는다
+        # (승인 영수증, 검토 10/19 A) — 접수 중에 닿으면 종전처럼 '이미 승인'이다.
+        assert successes.count(True) >= 1, f"round {round_no}: {successes}"
+        assert len(set(jobs)) == 1, f"round {round_no}: {jobs}"
         assert executor.submitted.count(f"저녁 준비 {round_no}") == 1

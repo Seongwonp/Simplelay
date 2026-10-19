@@ -1210,6 +1210,8 @@ async def approve_suggestion(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> JobAcceptedResponse:
     # 승인도 job 모델 — 게이트를 닫고 실행을 제출한 뒤 즉시 job_id 반환.
+    # 이미 접수한 승인의 재요청(응답 유실 뒤 재시도)은 200과 같은 job_id(다시 실행하지 않음, 검토 10/19 A).
+    # 접수 중이거나 접수 없이 승인된 카드는 종전처럼 409.
     try:
         job_id = await asyncio.to_thread(svc.approve_submit, suggestion_id)
     except UnknownSuggestionError:

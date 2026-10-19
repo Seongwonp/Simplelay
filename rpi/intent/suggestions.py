@@ -3,6 +3,7 @@
 import json
 import logging
 import threading
+from collections import OrderedDict
 from dataclasses import replace
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -25,6 +26,10 @@ PAUSE_SCOPE_ALL = "suggestions_and_auto"
 #: 업데이트 전 서버에서 켠 잠시 쉬기를 이어받은 것 — 남은 시간 동안 옛 범위(새 제안만 쉼) 그대로, 자동 실행은 막지 않는다.
 PAUSE_SCOPE_SUGGESTIONS = "suggestions_only"
 _PAUSE_SCOPES = (PAUSE_SCOPE_ALL, PAUSE_SCOPE_SUGGESTIONS)
+
+
+#: 승인 영수증(제안 번호 → 실행 번호)을 기억하는 최근 건수(검토 10/19 A).
+RECEIPT_LIMIT = 256
 
 
 def _current(purpose: str) -> str:
@@ -104,6 +109,10 @@ class ProactiveSuggestionService:
         # 스레드에서 온다 — 상태 확인+전이를 원자화하지 않으면 "폰에서
         # 거부했는데 키오스크 승인이 되살려 실행"되는 레이스가 가능하다.
         self._state_lock = threading.Lock()
+        #: 승인 접수 영수증(검토 10/19 A) — 제안 번호 → 접수한 실행 번호. 승인이 소비되고 실행이 접수됐는데 HTTP 응답만
+        #: 잃으면, 다시 보낸 승인이 409('이미 승인')만 받아 클라이언트가 실행 번호를 알 길이 없었다. 같은 제안의 재승인은
+        #: 이 영수증으로 같은 실행 번호를 돌려준다(다시 실행하지 않는다). 메모리만(재시작하면 사라짐), 최근 RECEIPT_LIMIT건.
+        self._accepted_jobs: OrderedDict[str, str] = OrderedDict()
         # 공간 맥락 게이트(선택) — False를 돌려주는 동안 자동 제안 생성을
         # 보류한다(부재 중인 공간에 제안을 띄우지 않기). None이면 무시.
         # 수동 데모 트리거는 예외지만 자연 제안은 노출·승인도 재검사한다.
@@ -852,28 +861,46 @@ class ProactiveSuggestionService:
         한다(SimpleLayService가 지원; 없으면 AttributeError로 즉시 드러남)."""
         # 화면이 보여준 대상 가전으로 실행한다 -- 전역 선택값이 그 사이
         # 바뀌어도 승인한 제안의 대상은 달라지지 않아야 한다.
-        suggestion = self._claim_for_approval(suggestion_id)
-        if suggestion.commands:
-            try:
-                result = self._approve_commands(suggestion, background=True)
-                self._record(suggestion, "submitted", "job_accepted", job_id=result)
-                return result
-            except Exception as exc:
-                self._fail_approval(suggestion, exc)
-                raise
+        receipt = self.accepted_job(suggestion_id)
+        if receipt is not None:
+            return receipt  # 이미 접수한 승인의 재요청(응답 유실 뒤 재시도) — 같은 실행 번호, 다시 실행하지 않는다
         try:
-            self._check_target_snapshot(suggestion)
-            result = self._executor.submit_purpose(
-                suggestion.purpose, suggestion.appliance_id,
-                usage_source=(UsageSource.DEMO if suggestion.time_band == "데모" or suggestion.is_demo
-                              else UsageSource.SUGGESTION),
-                **self._approval_options(suggestion),
-            )
-            self._record(suggestion, "submitted", "job_accepted", job_id=result)
-            return result
+            suggestion = self._claim_for_approval(suggestion_id)
+        except SuggestionAlreadyApprovedError:
+            # 확인과 승인 소비 사이에 다른 요청이 접수를 마쳤을 수 있다 — 영수증이 생겼으면 그것을 돌려준다.
+            receipt = self.accepted_job(suggestion_id)
+            if receipt is not None:
+                return receipt
+            raise
+        try:
+            if suggestion.commands:
+                result = self._approve_commands(suggestion, background=True)
+            else:
+                self._check_target_snapshot(suggestion)
+                result = self._executor.submit_purpose(
+                    suggestion.purpose, suggestion.appliance_id,
+                    usage_source=(UsageSource.DEMO if suggestion.time_band == "데모" or suggestion.is_demo
+                                  else UsageSource.SUGGESTION),
+                    **self._approval_options(suggestion),
+                )
         except Exception as exc:
             self._fail_approval(suggestion, exc)
             raise
+        # 여기부터는 실행이 이미 접수됐다 — 기록이 실패해도 승인 게이트를 되돌리지 않는다(이중 실행 방지).
+        with self._state_lock:
+            self._accepted_jobs[suggestion_id] = result
+            while len(self._accepted_jobs) > RECEIPT_LIMIT:
+                self._accepted_jobs.popitem(last=False)
+        try:
+            self._record(suggestion, "submitted", "job_accepted", job_id=result)
+        except Exception:  # noqa: BLE001
+            log.exception("suggestion submit record failed")
+        return result
+
+    def accepted_job(self, suggestion_id: str) -> str | None:
+        """이 제안의 승인으로 접수한 실행 번호(없으면 None) — 승인 영수증(검토 10/19 A)."""
+        with self._state_lock:
+            return self._accepted_jobs.get(suggestion_id)
 
     def _fail_approval(self, suggestion: ProactiveSuggestion, exc: Exception) -> None:
         """승인 실행 실패. 승인 내용 불일치·만료·무효는 카드를 **내린다**(재승인 필요)."""
