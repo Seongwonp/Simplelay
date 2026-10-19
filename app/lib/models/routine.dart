@@ -8,6 +8,13 @@ library;
 /// 요일 이름(0=월 … 6=일). 서버 `WEEKDAY_LABELS`와 같다.
 const kWeekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
 
+/// 본체에 없는(지운) 가전을 가리키는 루틴의 가전 이름 — 내부 ID('washer')를 화면에 내지 않는다(평가 10/19).
+const kDeletedApplianceName = '지운 가전';
+
+/// 루틴이 가리키는 가전의 보일 이름. 목록에 없으면 [kDeletedApplianceName], 가전을 정하지 않았으면 '가전'.
+String routineApplianceName(Map<String, String> applianceNames, String? applianceId) =>
+    applianceNames[applianceId] ?? (applianceId == null ? '가전' : kDeletedApplianceName);
+
 /// 단계 종류.
 enum RoutineStepKind {
   pressSequence('press_sequence'),
@@ -215,9 +222,11 @@ class RoutineTrigger {
         };
       case RoutineTriggerKind.afterDone:
         if (routineId != null) {
-          return "'${routineNames[routineId] ?? routineId}' 루틴이 끝나면";
+          // 지운 루틴의 ID는 내지 않는다(평가 10/19).
+          final routineName = routineNames[routineId];
+          return routineName == null ? '앞 루틴이 끝나면' : "'$routineName' 루틴이 끝나면";
         }
-        return '${applianceNames[applianceId] ?? applianceId ?? '가전'} 동작이 끝나면';
+        return '${routineApplianceName(applianceNames, applianceId)} 동작이 끝나면';
       case RoutineTriggerKind.event:
         return knownEventLabel(event) ?? "가전 알림 '${event ?? ''}'이 오면";
       case RoutineTriggerKind.manual:

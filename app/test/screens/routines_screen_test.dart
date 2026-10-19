@@ -344,8 +344,9 @@ void main() {
     expect(findPlainText('세탁기 · 누를 버튼 1개'), findsOneWidget);
     expect(find.textContaining('home_mw'), findsNothing);
     expect(find.textContaining('washer'), findsNothing);
-    // 이름을 모르는 가전만 ID로 남는다.
-    expect(findPlainText('ghost · 누를 버튼 1개'), findsOneWidget);
+    // 이름을 모르는(본체에서 지운) 가전도 ID를 내지 않는다 — '지운 가전'(평가 10/19).
+    expect(findPlainText('지운 가전 · 누를 버튼 1개'), findsOneWidget);
+    expect(find.textContaining('ghost'), findsNothing);
   });
 
   testWidgets('루틴을 열어 알림만으로 바꿔 저장하면 PUT하고 목록이 다시 읽힌다',

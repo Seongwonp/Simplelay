@@ -263,10 +263,13 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
   Widget _stepToken(int index, List<ApplianceMap> appliances) {
     final s = _draft.steps[index];
     final a = appliances.where((a) => a.id == s.applianceId).firstOrNull;
-    final who = a?.name ?? s.applianceId ?? '';
+    // 지운 가전이면 내부 ID('washer'·'start')를 내지 않는다 — '지운 가전'·'버튼 N개'(평가 10/19).
+    final who = a?.name ?? (s.applianceId == null ? '' : kDeletedApplianceName);
     switch (s.kind) {
       case RoutineStepKind.pressSequence:
-        final labels = s.buttons.map((b) => a?.labelFor(b) ?? b).join(' → ');
+        final labels = a == null
+            ? '버튼 ${s.buttons.length}개'
+            : s.buttons.map(a.labelFor).join(' → ');
         return Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: AppSpace.sm,

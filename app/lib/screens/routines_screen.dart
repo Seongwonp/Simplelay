@@ -533,7 +533,7 @@ String routineListLine(Routine r, Map<String, String> applianceNames) {
   var presses = 0;
   final results = <String>[];
   for (final s in r.steps) {
-    final target = applianceNames[s.applianceId] ?? s.applianceId ?? '가전';
+    final target = routineApplianceName(applianceNames, s.applianceId);
     if (s.kind == RoutineStepKind.pressSequence) {
       if (!targets.contains(target)) targets.add(target);
       presses += s.buttons.length;
@@ -574,7 +574,7 @@ List<String> routineDoParts(Routine r, Map<String, String> applianceNames) {
   var presses = 0;
   final results = <String>[];
   for (final s in r.steps) {
-    final name = applianceNames[s.applianceId] ?? s.applianceId ?? '가전';
+    final name = routineApplianceName(applianceNames, s.applianceId);
     if (s.kind == RoutineStepKind.pressSequence) {
       if (!pressTargets.contains(name)) pressTargets.add(name);
       presses += s.buttons.length;
