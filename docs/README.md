@@ -64,7 +64,7 @@ SimpleLay 설계·시연·실측·제출 문서. 검증 수준(실물 확인 / �
 
 | 문서 | 내용 |
 | --- | --- |
-| [architecture.md](architecture.md) · [inference-boundary.md](inference-boundary.md) | 계층 계약·데이터 흐름(8/17 기록 — 현재 구조는 [코드 구조](코드-구조.md)), 온디바이스/클라우드 추론 경계 |
+| [architecture.md](architecture.md) · [inference-boundary.md](inference-boundary.md) | 현재 하드웨어 구성·계층 계약·데이터 흐름(10/19 갱신, 코드 위치는 [코드 구조](코드-구조.md)), 온디바이스/클라우드 추론 경계 |
 | [개발현황](개발현황.md) | 9/29 기준 기능 현황·환경 변수 기록(현재 기준 아님 — 검증 수준은 README 표) |
 | [UI 확정](UI-확정-2026-09-30.md) · [design-system.md](design-system.md) · [용어와 화면 문구](용어와-화면문구.md) | 폰·키오스크 화면 구조·색·문구 기준 |
 | [사용자 편의 가이드 체크리스트](사용자편의-가이드-체크리스트.md) | 접근성 기준(국가표준 매핑) |
