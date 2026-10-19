@@ -18,6 +18,7 @@ payload가 ``{resource: {property: value}}`` 모양이라는 가정 위에 있�
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from rpi.commands import Command
 from rpi.commands.args import ArgumentError
@@ -143,14 +144,90 @@ class ThinqBinding:
         cap.validate(command.args_dict())
         return cap
 
-    def command_for_purpose(self, target_id: str, purpose: str) -> Command | None:
-        # 음성 인식은 띄어쓰기를 제멋대로 넣는다('공기 청정기 켜 줘' — 10/19 실기기). 띄어쓰기와 끝 문장부호만
-        # 무시하고 나머지는 그대로 같아야 한다(뜻을 짐작해 맞추지 않는다).
-        key = _purpose_key(purpose)
+    def command_for_purpose(self, target_id: str, purpose: str, *, names: tuple[str, ...] = ()) -> Command | None:
+        """목적 문장 → 명령. 등록된 목적 문장과 **다듬은 키**가 같을 때만(2026-10-19 말 다듬기·같은 뜻 사전).
+
+        음성 인식은 띄어쓰기를 제멋대로 넣고('공기 청정기 켜 줘' — 10/19 실기기) 사람은 '좀'·'해 주세요'·'공청기'처럼
+        말한다. 다듬기·별칭 표(`rpi/intent/voice_lexicon.py`)에 있는 차이만 무시하고, 없으면 None(뜻을 짐작하지 않는다).
+        부정('켜지 마')·다듬은 결과가 정지어인 말은 일치시키지 않는다. 두 동작이 같은 키가 되면 어느 쪽도 고르지 않는다.
+        ``names``: 사용자가 붙인 가전 이름(예: '거실 공기청정기') — 말 앞의 그 이름은 가전 종류 이름으로 본다."""
+        fn = self._match_function(purpose, names)
+        if fn is None:
+            return None
+        return self.command(target_id, fn.action, dict(fn.args))
+
+    # ── 말 다듬기 비교(2026-10-19) ─────────────────────────────────────────
+    def _device_names(self) -> tuple[str, ...]:
+        from rpi.intent.voice_lexicon import DEVICE_NAMES  # noqa: PLC0415
+
+        return DEVICE_NAMES.get(self.device_type, ())
+
+    def _function_keys(self, fn: ThinqFunction) -> tuple[str, ...]:
+        """등록 목적 문장 하나의 비교 키들 — 다듬은 문장·사전 별칭, 그리고 각각 앞에 가전 종류 이름을 붙인 꼴."""
+        return _function_keys(self.device_type, fn)
+
+    def _utterance_keys(self, purpose: str, names: tuple[str, ...]) -> tuple[str, ...]:
+        """말의 비교 키들. 첫째가 대표 키 — 사용자가 붙인 가전 이름으로 시작하면 그 이름을 종류 이름으로 바꾼 꼴이
+        대표, 다듬기만 한 꼴·이름을 뺀 꼴이 뒤에 붙는다."""
+        from rpi.intent.normalize import normalize_utterance  # noqa: PLC0415
+
+        key = normalize_utterance(purpose)
+        if not key:
+            return ()
+        out = [key]
+        device = self._device_names()
+        for name in sorted({normalize_utterance(n) for n in names if n}, key=len, reverse=True):
+            if name and key.startswith(name) and len(key) > len(name):
+                rest = key[len(name):]
+                renamed = device[0] + rest if device and not rest.startswith(device[0]) else rest
+                out = [renamed, *(v for v in (key, rest) if v != renamed)]
+                break
+        return tuple(out)
+
+    def _match_function(self, purpose: str, names: tuple[str, ...] = ()) -> ThinqFunction | None:
+        from rpi.intent.normalize import refuses_matching  # noqa: PLC0415
+
+        if refuses_matching(purpose):
+            return None
+        table = _purpose_table(self.device_type, self.functions)
+        found = {table[k] for k in self._utterance_keys(purpose, names) if k in table}
+        if len(found) != 1 or None in found:
+            return None
+        return next(iter(found))
+
+    def function_label(self, fn: ThinqFunction, name: str | None = None) -> str:
+        """동작 하나를 사람이 볼 이름으로('공기청정기 전원 켜기'·'공기청정기 바람 세기 강')."""
+        cap = self.capability(fn.action)
+        text = f"{cap.label} {cap.value_label(str(dict(fn.args).get(cap.arg)))}"
+        return f"{name} {text}" if name else text
+
+    def choices(self, name: str | None = None) -> tuple[tuple[str, str], ...]:
+        """이 가전이 할 수 있는 동작 목록 — (등록 목적 문장, 이름). 못 알아들었을 때 버튼으로 고르게 응답에 싣는다."""
+        out = []
         for fn in self.functions:
-            if _purpose_key(fn.purpose) == key:
-                return self.command(target_id, fn.action, dict(fn.args))
-        return None
+            try:
+                out.append((fn.purpose, self.function_label(fn, name)))
+            except CapabilityError:
+                continue
+        return tuple(out)
+
+    def suggestion_for(self, purpose: str, name: str | None = None,
+                       names: tuple[str, ...] = ()) -> tuple[str, str] | None:
+        """'혹시 이것인가요?' 후보 하나 — (등록 목적 문장, 이름). **실행하지 않는다.** 일치가 없을 때만 부른다."""
+        from rpi.intent.normalize import Candidate, suggest  # noqa: PLC0415
+
+        keys = self._utterance_keys(purpose, names)
+        if not keys:
+            return None
+        candidates = []
+        for fn in self.functions:
+            try:
+                label = self.function_label(fn, name)
+            except CapabilityError:
+                continue
+            candidates.append(Candidate(fn.purpose, label, self._function_keys(fn)))
+        hit = suggest(purpose, candidates, utterance_key=keys[0])
+        return (hit.purpose, hit.label) if hit is not None else None
 
     def purpose_for(self, command: Command) -> str | None:
         """명령과 동작·인자가 똑같은 목적 문장(예: "공기청정기 켜줘"). 대응표에 없으면 None(2026-10-16).
@@ -298,6 +375,40 @@ def dehumidifier_binding(device_id: str) -> ThinqBinding:
     )
 
 
+@lru_cache(maxsize=256)
+def _function_keys(device_type: str, fn: ThinqFunction) -> tuple[str, ...]:
+    """:meth:`ThinqBinding._function_keys` — 표가 바뀌지 않으므로 기기 종류·목적 문장별로 한 번만 만든다."""
+    from rpi.intent import voice_lexicon as lex  # noqa: PLC0415
+    from rpi.intent.normalize import normalize_utterance  # noqa: PLC0415
+
+    raw = [fn.purpose, *lex.PHRASE_ALIASES.get(device_type, {}).get(fn.purpose, ())]
+    for value in lex.SETTING_VALUES.get(device_type, {}).get(fn.purpose, ()):
+        raw.extend(value + tail for tail in lex.SETTING_TAILS)
+    names = lex.DEVICE_NAMES.get(device_type, ())
+    keys: list[str] = []
+    for text in raw:
+        key = normalize_utterance(text)
+        if not key:
+            continue
+        for variant in (key, *(name + key for name in names if not key.startswith(name))):
+            if variant not in keys:
+                keys.append(variant)
+    return tuple(keys)
+
+
+@lru_cache(maxsize=64)
+def _purpose_table(device_type: str, functions: tuple[ThinqFunction, ...]) -> dict[str, ThinqFunction | None]:
+    """비교 키 → 목적. 두 동작이 같은 키가 되면(사전 실수) 그 키는 None — 그 키로는 고르지 않는다."""
+    table: dict[str, ThinqFunction | None] = {}
+    for fn in functions:
+        for key in _function_keys(device_type, fn):
+            prev = table.get(key, fn)
+            table[key] = fn if prev is not None and (prev.action, prev.args) == (fn.action, fn.args) else None
+    return table
+
+
 def _purpose_key(text: str) -> str:
-    """목적 문장 비교 키 — 공백을 모두 빼고 끝의 . ! ? 를 뗀다."""
-    return "".join(text.split()).rstrip(".!?")
+    """목적 문장 비교 키 — 본체 공통 말 다듬기(`rpi/intent/normalize.py`)와 같다(2026-10-19)."""
+    from rpi.intent.normalize import normalize_utterance  # noqa: PLC0415
+
+    return normalize_utterance(text)

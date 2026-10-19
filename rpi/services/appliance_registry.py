@@ -264,11 +264,21 @@ class ApplianceDef:
     panel_mapping: "dict | None" = field(default=None, hash=False, compare=False)
 
     def function_steps(self, purpose: str) -> tuple[FunctionStep, ...] | None:
+        """등록한 기능 이름 → 단계. 정확히 같은 이름이 먼저, 없으면 본체 공통 말 다듬기(`rpi/intent/normalize.py`)로
+        같은 키가 되는 이름이 **하나뿐일 때만**(2026-10-19 — '밥 하기'·'밥하기 해 줘'). 부정·정지어는 다듬어 맞추지 않는다."""
         key = purpose.strip()
         for name, steps in self.functions:
             if name == key:
                 return tuple(parse_function_step(s) for s in steps)
-        return None
+        from rpi.intent.normalize import normalize_utterance, refuses_matching  # noqa: PLC0415
+
+        normalized = normalize_utterance(purpose)
+        if not normalized or refuses_matching(purpose):
+            return None
+        hits = [steps for name, steps in self.functions if normalize_utterance(name) == normalized]
+        if len(hits) != 1:
+            return None
+        return tuple(parse_function_step(s) for s in hits[0])
 
     @property
     def icon(self) -> str:

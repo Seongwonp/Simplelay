@@ -29,8 +29,8 @@ from rpi.intent import (
 )
 from rpi.intent.models import UsageSource
 from rpi.intent.completed_actions import CompletedActions
-from rpi.intent.rules import UnknownIntentError, RuleBasedIntentResolver
-from rpi.intent.stop_words import refuse_stop_phrase
+from rpi.intent.rules import UnknownIntentError, RuleBasedIntentResolver, UnrecognizedPurposeError
+from rpi.intent.stop_words import StopPhraseError, refuse_stop_phrase
 from rpi.services import NodeRegistry
 from rpi.commands import ApprovalMismatchError, CommandStatus, Confirmation, ControlRoute, Receipt
 from rpi.services.appliance_registry import BUILTIN_APPLIANCES
@@ -459,7 +459,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
     ) -> ExecutionResult:
         defined = self._function_sequence(purpose, appliance_id)
         buttons = self._validate_resolved_sequence(
-            defined if defined is not None else tuple(resolver.resolve(purpose))
+            defined if defined is not None else tuple(self._resolve_or_explain(resolver, purpose, appliance_id))
         )
         _check_approved(buttons, approved_buttons)
         if expected_buttons is not None:
@@ -531,7 +531,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 approved_command=approved_command,
             )
         defined = self._function_sequence(purpose, appliance_id)
-        buttons = defined if defined is not None else self._intent.resolve(purpose)
+        buttons = (defined if defined is not None
+                   else self._resolve_or_explain(self._intent, purpose, appliance_id))
         if approved_buttons is not None:
             # 상한 거절(422, 카드 유지)이 불일치(409, 재승인)보다 먼저다.
             _check_approved(self._validate_resolved_sequence(tuple(buttons)), approved_buttons)
@@ -542,6 +543,33 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         return self._submit(
             tuple(buttons), appliance_id, purpose, usage_source, approval_guard,
             self._learning_purpose(purpose, buttons, self._intent, appliance_id, defined),
+        )
+
+    def _resolve_or_explain(self, resolver, purpose: str, appliance_id: str | None) -> tuple[str, ...]:
+        """해석기를 부르고, 못 알아들었으면 '혹시 이것?' 후보·고를 수 있는 동작 목록을 실은 오류로 바꾼다(2026-10-19).
+
+        후보·목록은 **실행하지 않는다** — 라우터가 422 본문에 싣고, 사람이 고르면 그 목적 문장으로 기존 경로를 다시 탄다.
+        정지어 거절(G7)은 그대로 올린다."""
+        try:
+            return tuple(resolver.resolve(purpose))
+        except (StopPhraseError, UnrecognizedPurposeError):
+            raise
+        except UnknownIntentError as exc:
+            raise self._not_understood(purpose, appliance_id) from exc
+
+    def _not_understood(self, purpose: str, appliance_id: str | None) -> UnrecognizedPurposeError:
+        from rpi.intent.normalize import Candidate, normalize_utterance, suggest  # noqa: PLC0415
+
+        try:
+            names = list(self.revision_options(appliance_id))
+        except Exception:  # noqa: BLE001 — 목록을 못 만들어도 '모름' 응답은 간다
+            names = []
+        choices = [(name, name) for name in names]
+        hit = suggest(purpose, [Candidate(name, name, (normalize_utterance(name),)) for name in names])
+        return UnrecognizedPurposeError(
+            purpose,
+            suggestion=(hit.purpose, hit.label) if hit is not None else None,
+            choices=choices,
         )
 
     def revision_options(self, appliance_id: str | None) -> dict[str, tuple[str, ...]]:
@@ -590,7 +618,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         if defined is not None:
             return self._submit(defined, appliance_id, purpose)
         resolver = LlmIntentResolver(self._llm_client, known_buttons=known_buttons)
-        return self._submit(tuple(resolver.resolve(purpose)), appliance_id, purpose)
+        return self._submit(self._resolve_or_explain(resolver, purpose, appliance_id), appliance_id, purpose)
 
     def submit_buttons(
         self, buttons: tuple[str, ...], appliance_id: str | None = None

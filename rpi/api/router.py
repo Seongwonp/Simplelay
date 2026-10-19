@@ -6,10 +6,10 @@ import time
 from collections import deque
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
 from rpi.controller import ExecutionResult, outcome_of
-from rpi.intent.rules import UnknownIntentError
+from rpi.intent.rules import UnknownIntentError, UnrecognizedPurposeError
 from rpi.intent.stop_words import is_stop_phrase
 from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestionError
 
@@ -181,6 +181,20 @@ async def _stop_phrase_response(service: SimpleLayService) -> JobAcceptedRespons
     return JobAcceptedResponse(job_id=stop.stop_job_id or "", status="stopped", stop=stop)
 
 
+def _not_understood_response(exc: UnknownIntentError):
+    """해석 실패 422. 못 알아들은 말이면(2026-10-19) ``detail`` 옆에 후보·동작 목록을 싣는다::
+
+        {"detail": "'공기청전기 켜 줘'을(를) 알아듣지 못했어요",
+         "suggestion": {"purpose": "공기청정기 켜줘", "label": "공기청정기 전원 켜기"} | null,
+         "choices": [{"purpose": "공기청정기 켜줘", "label": "공기청정기 전원 켜기"}, ...]}
+
+    ``suggestion``·``choices``는 **실행하지 않은 후보**다 — 고르면 클라이언트가 그 ``purpose``로 기존 경로(확인 → /execute)를
+    다시 탄다. 그 밖의 해석 거절(상한 초과·정지어 등)은 종전처럼 ``detail``만."""
+    if isinstance(exc, UnrecognizedPurposeError):
+        return JSONResponse(status_code=422, content=exc.body())
+    raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.post("/execute", response_model=JobAcceptedResponse)
 async def execute(
     body: ExecuteRequest,
@@ -196,7 +210,7 @@ async def execute(
             service.submit_purpose, body.text, body.appliance_id
         )
     except UnknownIntentError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return _not_understood_response(exc)
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return JobAcceptedResponse(job_id=job_id)
@@ -237,7 +251,7 @@ async def execute_for_appliance(
     except LlmNotConfiguredError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except UnknownIntentError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return _not_understood_response(exc)
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return JobAcceptedResponse(job_id=job_id)

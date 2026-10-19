@@ -240,13 +240,21 @@ class CommandExecutionMixin:
         binding = self._binding(appliance_id)
         if binding is None:
             raise UnknownIntentError(f"'{appliance_id}'는 ThinQ 등록 정보가 없어요")
+        name = self._history_name(appliance_id)
+        names = (name,) if name else ()
         try:
-            command = binding.command_for_purpose(appliance_id, purpose)
+            command = binding.command_for_purpose(appliance_id, purpose, names=names)
         except CapabilityError as exc:
             raise UnknownIntentError(str(exc)) from exc
         if command is None:
-            raise UnknownIntentError(
-                f"'{purpose.strip()}'은(는) 이 가전에 등록된 동작이 아니에요"
+            # 못 알아들음(2026-10-19): '혹시 이것?' 후보 하나와 이 가전이 할 수 있는 동작 목록을 함께 싣는다 — 둘 다
+            # 실행하지 않는다. 고르면 클라이언트가 그 목적 문장으로 기존 경로(확인 카드 → /execute)를 다시 탄다.
+            from rpi.intent.rules import UnrecognizedPurposeError  # noqa: PLC0415
+
+            raise UnrecognizedPurposeError(
+                purpose,
+                suggestion=binding.suggestion_for(purpose, name, names),
+                choices=binding.choices(name),
             )
         return command
 

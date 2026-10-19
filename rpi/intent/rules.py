@@ -1,20 +1,46 @@
-import re
 from collections.abc import Mapping, Sequence
 
 from .base import IntentResolver
+from .normalize import is_negated, normalize_utterance
 
 
 class UnknownIntentError(ValueError):
     pass
 
 
-def _normalize(text: str) -> str:
-    """STT 출력 편차(공백·문장부호)를 매칭 키에서 제거한다.
+def not_understood_message(text: str) -> str:
+    """못 알아들었을 때 사람에게 보일 쉬운 말."""
+    return f"'{text.strip()}'을(를) 알아듣지 못했어요"
 
-    "즉석밥 데워 줘", "즉석밥데워줘!", "즉석밥 데워줘."가 전부 같은 키가 되어,
-    규칙이 문자열 하나의 정확 일치에 걸려 있던 취약함을 없앤다.
+
+class UnrecognizedPurposeError(UnknownIntentError):
+    """말을 등록된 동작 어느 것과도 맞추지 못했다(2026-10-19).
+
+    ``suggestion``은 '혹시 이것인가요?' 후보 하나(등록 목적 문장, 이름) — **실행하지 않는다**. ``choices``는 그 가전이 할 수
+    있는 동작 목록(등록 목적 문장, 이름). 라우터가 422 본문 ``detail`` 옆에 그대로 싣는다."""
+
+    def __init__(self, text: str, *, suggestion: tuple[str, str] | None = None,
+                 choices: Sequence[tuple[str, str]] = ()) -> None:
+        super().__init__(not_understood_message(text))
+        self.suggestion = suggestion
+        self.choices = tuple(choices)
+
+    def body(self) -> dict:
+        return {
+            "detail": str(self),
+            "suggestion": (None if self.suggestion is None
+                           else {"purpose": self.suggestion[0], "label": self.suggestion[1]}),
+            "choices": [{"purpose": p, "label": label} for p, label in self.choices],
+        }
+
+
+def _normalize(text: str) -> str:
+    """STT 출력 편차를 매칭 키에서 없앤다 — 본체 공통 말 다듬기(`rpi/intent/normalize.py`, 2026-10-19).
+
+    "즉석밥 데워 줘", "즉석밥데워줘!", "즉석밥 좀 데워 주세요"가 전부 같은 키가 된다. 같은 뜻 사전에 없는 말은
+    바꾸지 않는다(짐작 금지).
     """
-    return re.sub(r"[\s.,!?~·]+", "", text.strip())
+    return normalize_utterance(text)
 
 
 class RuleBasedIntentResolver(IntentResolver):
@@ -77,22 +103,28 @@ class RuleBasedIntentResolver(IntentResolver):
 
     def __init__(self, rules: Mapping[str, Sequence[str]] | None = None) -> None:
         selected = rules if rules is not None else self.DEFAULT_RULES
-        self._canonical = {_normalize(key): key.strip() for key in selected}
-        self._rules = {
-            _normalize(key): tuple(value) for key, value in selected.items()
-        }
+        self._canonical: dict[str, str] = {}
+        self._rules: dict[str, tuple[str, ...]] = {}
+        #: 다듬은 키가 같은데 버튼이 다른 규칙 — 그 키로는 고르지 않는다(짐작 금지).
+        self._ambiguous: set[str] = set()
+        for key, value in selected.items():
+            self._add(_normalize(key), tuple(value), key.strip())
         if rules is None:
             for alias, canonical in self.DEFAULT_ALIASES.items():
-                self._rules[_normalize(alias)] = self._rules[_normalize(canonical)]
-                self._canonical[_normalize(alias)] = canonical
+                self._add(_normalize(alias), self._rules[_normalize(canonical)], canonical)
+
+    def _add(self, key: str, buttons: tuple[str, ...], canonical: str) -> None:
+        if key in self._rules and self._rules[key] != buttons:
+            self._ambiguous.add(key)
+        self._rules.setdefault(key, buttons)
+        self._canonical.setdefault(key, canonical)
 
     def resolve(self, purpose: str) -> tuple[str, ...]:
-        try:
-            return self._rules[_normalize(purpose)]
-        except KeyError as exc:
-            raise UnknownIntentError(
-                f"unsupported purpose: {purpose.strip()}"
-            ) from exc
+        key = _normalize(purpose)
+        # 부정('데워 주지 마')·사전 충돌 키는 일치시키지 않는다.
+        if is_negated(purpose) or key in self._ambiguous or key not in self._rules:
+            raise UnknownIntentError(not_understood_message(purpose))
+        return self._rules[key]
 
     def learning_purpose(self, purpose: str, buttons: tuple[str, ...]) -> str:
         key = _normalize(purpose)
