@@ -310,6 +310,8 @@ PHASE_ACTIVE = "active"
 PHASE_STOPPING = "stopping"
 PHASE_FAULT = "fault"
 PHASE_EXECUTION_BUSY = "execution_busy"
+#: 개발자 세션 밖에서 기계를 움직이는 제어권 이름 — 일반 실행과 확인 주행(자리 확인). 둘 다 ``execution_busy``다.
+_MOVING_HOLDERS = frozenset({ControlArbiter.EXECUTION, ControlArbiter.VERIFY_PASS})
 
 
 @dataclass(frozen=True)
@@ -485,7 +487,7 @@ class DeveloperSessionManager:
             phase = PHASE_STOPPING
         elif session is not None:
             phase = PHASE_ACTIVE
-        elif holder == ControlArbiter.EXECUTION:
+        elif holder in _MOVING_HOLDERS:
             phase = PHASE_EXECUTION_BUSY
         else:
             phase = PHASE_IDLE
@@ -533,12 +535,14 @@ class DeveloperSessionManager:
             except ControlConflictError as exc:
                 # holder가 DEVELOPER인데 세션이 없다면 stopping 상태다 --
                 # 이전 세션의 진행 중 명령이 무효화 확인을 기다리고 있다.
-                by_execution = exc.holder == ControlArbiter.EXECUTION
-                busy = (
-                    "일반 실행이 진행 중"
-                    if by_execution
-                    else "이전 세션의 정지를 정리하는 중"
-                )
+                # 확인 주행(자리 확인)도 일반 실행처럼 기계를 움직이는 중이다(검토 10/19).
+                by_execution = exc.holder in _MOVING_HOLDERS
+                if exc.holder == ControlArbiter.VERIFY_PASS:
+                    busy = "자리 확인이 진행 중"
+                elif by_execution:
+                    busy = "일반 실행이 진행 중"
+                else:
+                    busy = "이전 세션의 정지를 정리하는 중"
                 self._record("start_rejected", None, busy,
                              appliance_id=appliance_id)
                 raise DevSessionConflict(

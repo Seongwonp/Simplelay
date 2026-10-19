@@ -19,13 +19,14 @@ import uuid
 from typing import Any
 
 from rpi.controller import ExecutionMode
+from rpi.services.control_arbiter import ControlArbiter
 
 log = logging.getLogger(__name__)
 
 
 #: 확인 주행이 기계 제어권을 잡을 때의 이름(ControlArbiter holder). 일반 실행(``execution``)의
 #: 반납과 섞이지 않게 따로 둔다.
-VERIFY_PASS_HOLDER = "verify_pass"
+VERIFY_PASS_HOLDER = ControlArbiter.VERIFY_PASS
 
 
 class VerifyPassUnavailable(RuntimeError):

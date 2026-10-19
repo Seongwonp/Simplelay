@@ -60,6 +60,8 @@ class ControlArbiter:
 
     EXECUTION = "execution"
     DEVELOPER = "developer"
+    #: 확인 주행(자리 확인) — 일반 실행처럼 기계를 움직인다. 일반 실행의 반납과 섞이지 않게 이름을 따로 둔다(10/19).
+    VERIFY_PASS = "verify_pass"
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
