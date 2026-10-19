@@ -26,6 +26,17 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   StreamSubscription<Map<String, dynamic>>? _subscription;
   ProviderSubscription<RpiApiService?>? _apiWait;
 
+  // 실행을 시작할 때마다 오른다 — 재시작 복원이 기다리는 사이 새 실행이 시작되면 옛 job을 이어붙이지 않는다
+  // (검토 10/19: BLE 실행은 _httpJobId를 남기지 않아, 늦게 준비된 주소가 옛 job으로 새 실행 화면을 덮었다).
+  int _executionGen = 0;
+
+  /// 새 실행이 시작됐다 — 기다리던 복원을 버린다.
+  void _supersedeRestore() {
+    _executionGen++;
+    _apiWait?.close();
+    _apiWait = null;
+  }
+
   // ── HTTP job 추적 (비동기 job 모델) ──────────────────────────────────────
   // 서버는 실행 접수 시 즉시 job_id를 돌려주고, 진행·완료는 /status 폴링으로
   // 확인한다. BLE 스트림(_onMessage)은 폴백 경로용으로 그대로 남는다.
@@ -51,6 +62,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   static const _unreachableAfter = Duration(seconds: 30);
 
   void begin(Suggestion suggestion) {
+    _supersedeRestore();
     _stopHttpTracking();
     _stopFollowTimer?.cancel();
     state = ExecutionStatus(
@@ -81,6 +93,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     required String label,
     List<String> steps = const [],
   }) {
+    _supersedeRestore();
     _stopHttpTracking();
     _stopFollowTimer?.cancel();
     _httpApi = api;
@@ -124,6 +137,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   }
 
   Future<void> _restorePendingJob() async {
+    final gen = _executionGen;
     String? jobId;
     String label = '';
     try {
@@ -134,8 +148,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       return;
     }
     if (jobId == null || !mounted) return;
-    // 이미 새 실행이 시작됐으면 옛 job으로 덮지 않는다.
-    if (_httpJobId != null) return;
+    // 이미 새 실행이 시작됐으면(HTTP든 BLE든) 옛 job으로 덮지 않는다.
+    if (gen != _executionGen || _httpJobId != null) return;
 
     final api = ref.read(rpiApiServiceProvider);
     if (api != null) {
@@ -145,9 +159,12 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     // 서버 주소는 기기에서 비동기로 읽힌다 -- 준비되면 그때 이어붙인다.
     final pendingId = jobId;
     _apiWait = ref.listen<RpiApiService?>(rpiApiServiceProvider, (_, next) {
-      if (next == null || !mounted || _httpJobId != null) return;
+      if (next == null || !mounted) return;
       _apiWait?.close();
       _apiWait = null;
+      if (gen != _executionGen || _httpJobId != null || state.phase != ExecutionPhase.idle) {
+        return;
+      }
       _resumeJob(next, pendingId, label);
     });
   }

@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/providers/tts_provider.dart';
@@ -120,5 +121,35 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     expect(container.read(executionStatusProvider).phase, ExecutionPhase.idle);
+  });
+
+  // 검토 10/19(3): 본체 주소가 늦게 읽혀 옛 job 이어붙이기가 기다리는 사이 새 실행(BLE)이 시작됐다.
+  // 주소가 그 뒤에 준비되면 옛 job이 새 실행 화면을 덮고, 정지는 옛 job을 겨누고 BLE 결과는 버려졌다.
+  test('이어붙이기를 기다리는 사이 새 실행이 시작되면 옛 job으로 덮지 않는다', () async {
+    SharedPreferences.setMockInitialValues({
+      'pending_job_id': 'J1',
+      'pending_job_label': '즉석밥 데워줘',
+    });
+    final container = _container(null);
+    container.read(executionStatusProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    container.read(executionStatusProvider.notifier).begin(const Suggestion(
+          sequenceId: 'ble-1',
+          label: '공기청정기 켜기',
+          steps: ['BT-01'],
+        ));
+    // 이제야 주소가 준비된다.
+    container.updateOverrides([
+      ttsServiceProvider.overrideWithValue(_FakeTts()),
+      rpiApiServiceProvider.overrideWithValue(
+          _apiReturning({'running': true, 'job_id': 'J1'})),
+    ]);
+    container.read(rpiApiServiceProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+
+    final state = container.read(executionStatusProvider);
+    expect(state.sequenceId, 'ble-1');
+    expect(state.phase, ExecutionPhase.waiting);
   });
 }
