@@ -37,6 +37,7 @@ INTENTIONALLY_PUBLIC: dict[tuple[str, str], tuple[str, str | None]] = {
     ("POST", "/pair/approve"): ("허브 화면의 연결 승인", "_local_screen"),
     ("POST", "/pair"): ("폰이 6자리 코드로 연결 요청 — 5분 창·허브 화면 승인이 따로 막는다 (pairing.py)", None),
     ("POST", "/pair/result"): ("폰이 받은 일회용 토큰으로 결과 조회 (pairing.py)", None),
+    ("POST", "/pair/ack"): ("폰이 같은 토큰으로 키를 받았다고 알림 — 토큰을 끝낼 뿐 키를 주지 않는다 (pairing.py)", None),
 }
 
 # 프레임워크가 붙이는 API 문서 경로(`/docs`·`/redoc`·`/openapi.json`). 의존성 나무가 없는 일반 경로라

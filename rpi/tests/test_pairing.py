@@ -54,6 +54,8 @@ def test_approval_then_one_time_key(window):
     response = phone().post("/pair/result", json={"token": pending["token"]})
     assert response.json() == {"state": "approved", "api_key": "test-pair-key"}
     assert response.headers["cache-control"] == "no-store"
+    # 받았음 알림(ack) 전에는 같은 키를 다시 받을 수 있고, 알린 뒤에는 그 토큰이 끝난다(검토 10/19).
+    assert phone().post("/pair/ack", json={"token": pending["token"]}).status_code == 200
     assert phone().post("/pair/result", json={"token": pending["token"]}).status_code == 404
     assert phone().post("/pair", json={"code": data["code"]}).status_code == 409
 
@@ -126,3 +128,44 @@ def test_two_phones_cannot_claim_same_code(window):
             return exc.status_code
     with ThreadPoolExecutor(2) as pool:
         assert sorted(pool.map(lambda _: claim(), range(2))) == [200, 409]
+
+
+# ── 검토 2026-10-19: 키를 돌려준 응답을 폰이 잃으면 같은 토큰이 영영 404였다 ──
+
+
+def _approved():
+    data, pending = begin()
+    local().post("/pair/approve", json={"request_id": pending["request_id"], "approved": True})
+    return data, pending
+
+
+def test_lost_result_response_can_be_fetched_again_until_ack(window):
+    _, pending = _approved()
+    first = phone().post("/pair/result", json={"token": pending["token"]})
+    assert first.json() == {"state": "approved", "api_key": "test-pair-key"}
+    # 응답을 잃은 폰이 다시 물으면 같은 키를 받는다(창이 열려 있는 동안).
+    again = phone().post("/pair/result", json={"token": pending["token"]})
+    assert again.status_code == 200 and again.json() == {"state": "approved", "api_key": "test-pair-key"}
+    # 허브 화면은 키를 보낸 것으로 본다(옛 화면 문구 그대로).
+    assert local().get("/pair/session").json()["state"] == "consumed"
+    ack = phone().post("/pair/ack", json={"token": pending["token"]})
+    assert ack.status_code == 200 and ack.json() == {"state": "consumed"}
+    assert ack.headers["cache-control"] == "no-store"
+    assert phone().post("/pair/result", json={"token": pending["token"]}).status_code == 404
+    # 받았음 알림의 응답을 잃어 다시 보내도 같은 답이다.
+    assert phone().post("/pair/ack", json={"token": pending["token"]}).json() == {"state": "consumed"}
+
+
+def test_refetch_still_expires_and_wrong_token_cannot_ack(window):
+    _, pending = _approved()
+    assert phone().post("/pair/result", json={"token": pending["token"]}).status_code == 200
+    assert phone().post("/pair/ack", json={"token": "x" * 32}).status_code == 404
+    window[1][0] += 300
+    assert phone().post("/pair/result", json={"token": pending["token"]}).status_code == 410
+    assert phone().post("/pair/ack", json={"token": pending["token"]}).status_code == 410
+
+
+def test_ack_before_approval_is_refused(window):
+    _, pending = begin()
+    assert phone().post("/pair/ack", json={"token": pending["token"]}).status_code == 409
+    assert phone().post("/pair/result", json={"token": pending["token"]}).json() == {"state": "pending"}

@@ -1,4 +1,18 @@
-"""5분짜리 한 폰 연결 창. 생성·승인은 같은 허브의 화면에서만 한다."""
+"""5분짜리 한 폰 연결 창. 생성·승인은 같은 허브의 화면에서만 한다.
+
+계약(검토 10/19 — 키 응답을 잃은 폰 복구, 옛 폰은 그대로 동작):
+
+- ``POST /pair/session``(허브 화면) → 6자리 코드·QR. 새 창을 열면 앞 창의 요청·토큰은 모두 무효.
+- ``POST /pair`` ``{code, phone}`` → ``{token, request_id, state: "pending"}``. 창 하나에 폰 하나(두 번째는 409), 코드 확인은
+  창마다 5번까지(429).
+- ``POST /pair/approve``(허브 화면) → 허락·거절.
+- ``POST /pair/result`` ``{token}`` → ``{"state": "pending"|"denied"}`` 또는 허락됐으면 ``{"state": "approved", "api_key"}``.
+  **허락된 뒤에는 받았음 알림 전까지(창이 열려 있는 5분 안) 같은 토큰으로 몇 번이고 같은 키를 돌려준다** — 예전에는 첫
+  응답에서 토큰을 지워, 그 응답을 잃은 폰은 영영 404였다. 허브 화면 상태는 키를 한 번 보냈으면 ``consumed``.
+- ``POST /pair/ack`` ``{token}``(선택) → ``{"state": "consumed"}``. 폰이 키를 저장한 뒤 보내면 그 토큰으로는 더 받을 수 없다
+  (결과 조회는 404). 다시 보내도 같은 답, 허락 전이면 409, 모르는 토큰 404.
+- 창이 끝나면(5분·닫기·새 창·허브 키 변경) 결과·알림 모두 410 — 받았음 알림을 보내지 않은 옛 폰도 키 재조회는 창 안에서만.
+"""
 
 import base64
 import hmac
@@ -71,14 +85,16 @@ class PairingWindow:
                 raise HTTPException(503, "허브 키를 먼저 설정해 주세요.")
             self.session = {"code": f"{secrets.randbelow(1000000):06d}", "key": key,
                 "host": host, "deadline": self.clock() + 300, "attempts": 0,
-                "request_id": None, "token": None, "state": "open", "phone": None}
+                "request_id": None, "token": None, "state": "open", "phone": None, "delivered": False}
             return self.snapshot()
 
     def snapshot(self):
         with self.lock:
             s = self._active()
-            return {k: s[k] for k in ("code", "host", "request_id", "state", "phone")} | {
-                "expires_in": max(0, math.ceil(s["deadline"] - self.clock()))}
+            # 허브 화면에는 키를 한 번 보냈으면 'consumed'(옛 화면 문구 '폰에 연결 정보를 보냈어요' 그대로).
+            state = "consumed" if s["state"] == "approved" and s.get("delivered") else s["state"]
+            return {k: s[k] for k in ("code", "host", "request_id", "phone")} | {
+                "state": state, "expires_in": max(0, math.ceil(s["deadline"] - self.clock()))}
 
     def claim(self, code, phone):
         with self.lock:
@@ -101,17 +117,33 @@ class PairingWindow:
             s["state"] = "approved" if approved else "denied"
             return {"state": s["state"]}
 
+    def _owned(self, token):
+        s = self._active()
+        if not hmac.compare_digest(s["token"] or "", token):
+            raise HTTPException(404, "연결 요청을 찾지 못했어요.")
+        return s
+
     def result(self, token):
         with self.lock:
-            s = self._active()
-            if not hmac.compare_digest(s["token"] or "", token):
+            s = self._owned(token)
+            if s["state"] == "consumed":
                 raise HTTPException(404, "연결 요청을 찾지 못했어요.")
-            result = {"state": s["state"]}
             if s["state"] == "approved":
-                result["api_key"] = s["key"]
-                s["state"] = "consumed"
-                s["token"] = None
-            return result
+                # 응답을 잃은 폰이 다시 물어도 같은 키를 준다(검토 10/19) — 받았음 알림(ack)이나 창 만료까지.
+                s["delivered"] = True
+                return {"state": "approved", "api_key": s["key"]}
+            return {"state": s["state"]}
+
+    def ack(self, token):
+        with self.lock:
+            s = self._owned(token)
+            if s["state"] == "consumed":
+                return {"state": "consumed"}
+            if s["state"] != "approved":
+                raise HTTPException(409, "아직 허브에서 연결을 허락하지 않았어요.")
+            # 토큰은 지우지 않고 상태만 끝낸다 — 받았음 알림을 다시 보내도 같은 답(결과 조회는 이제 404).
+            s["state"] = "consumed"
+            return {"state": "consumed"}
 
     def cancel(self):
         with self.lock:
@@ -169,3 +201,8 @@ def approve(body: Decision):
 @pairing_router.post("/result")
 def result(body: Receipt):
     return pairing_window.result(body.token)
+
+
+@pairing_router.post("/ack")
+def ack(body: Receipt):
+    return pairing_window.ack(body.token)
