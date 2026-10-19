@@ -220,9 +220,24 @@ class SuggestionScreen extends ConsumerWidget {
         }
         return;
       } catch (_) {
-        if (context.mounted) {
-          _notifyError(context, '본체에 보내지 못했어요. 연결을 봐 주세요.');
-        }
+        // 보냈는데 답이 없다(시간 초과·연결 끊김) — 본체가 승인을 받아 이미 시작했을 수 있다(검토 10/19). '보내지 못했어요'라고
+        // 하면 도는 실행을 멈출 길이 없었다. 모름으로 두고 정지를 남기며, 같은 승인을 다시 물어(이미 승인된 카드면 본체가 같은
+        // 실행 번호를 준다) 또는 상태로 그 실행을 찾아 이어서 본다.
+        ref.read(executionStatusProvider.notifier).beginSubmissionUnknown(
+              api: rpiApi,
+              label: suggestion.doneLabel(
+                scenarioName: ref
+                    .read(scenarioNamesProvider)
+                    .valueOrNull?[suggestion.scenarioId],
+              ),
+              steps: suggestion.steps,
+              recoverJobId: () async => (allow == null
+                      ? await rpiApi.approveSuggestion(suggestion.sequenceId)
+                      : await rpiApi.approveAndAllowSuggestion(
+                          suggestion.sequenceId, allow.fingerprint))
+                  .jobId,
+            );
+        if (context.mounted) context.pushReplacement('/status');
         return;
       }
     }
