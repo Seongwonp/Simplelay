@@ -416,6 +416,10 @@ void main() {
       await _pump15(tester, _thinqDone(confirmed: false));
       final texts = _texts(tester);
       expect(_count(texts, '봐 주세요'), lessThanOrEqualTo(1));
+      // 순서 안내는 '더 볼 것' 뒤에 접혀 있다(심사 의견 10/19) — 펴서도 되풀이가 없어야 한다.
+      await tester.tap(find.byKey(const ValueKey('done-recovery-more')));
+      await tester.pump();
+      expect(_count(_texts(tester), '봐 주세요'), lessThanOrEqualTo(1));
       final steps = [
         for (var i = 0; i < 3; i++)
           tester.widget<RichText>(find.descendant(

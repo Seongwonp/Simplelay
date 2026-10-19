@@ -18,6 +18,7 @@ import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/services/kiosk_settings_store.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_tokens.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
@@ -482,6 +483,12 @@ void main() {
   });
 
   group("5. '확인 못 함' 순서 안내", () {
+    // 접힌 나머지('더 볼 것')를 펴고 읽는다(심사 의견 10/19 — 할 일 한 가지만 먼저).
+    Future<void> openMore(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('done-recovery-more')));
+      await tester.pump();
+    }
+
     List<String> steps(WidgetTester tester) => [
           for (var i = 0; i < 3; i++)
             if (find.byKey(ValueKey('done-recovery-step-$i')).evaluate().isNotEmpty)
@@ -500,6 +507,7 @@ void main() {
           KioskDoneView(
               success: false, executionMode: 'real', label: '즉석밥 데워줘', target: _microwave, onDismiss: () {}));
       expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
+      await openMore(tester);
       expect(steps(tester), kPressRecoverySteps);
       expect(find.text('한 번 더 하기'), findsNothing);
       expect(find.byKey(const ValueKey('done-retry')), findsNothing);
@@ -520,6 +528,7 @@ void main() {
             onDismiss: () {},
           ));
       expect(find.byKey(const ValueKey('thinq-result')), findsOneWidget);
+      await openMore(tester);
       expect(steps(tester), kThinqRecoverySteps);
       expect(kThinqRecoverySteps.any((s) => s.contains('휴대폰')), isFalse);
     });
@@ -536,6 +545,7 @@ void main() {
             route: 'thinq',
             onDismiss: () {},
           ));
+      await openMore(tester);
       expect(steps(tester), kThinqRecoverySteps);
     });
 
@@ -569,6 +579,57 @@ void main() {
         await _pumpView(tester, view);
         expect(find.byKey(const ValueKey('done-recovery-steps')), findsNothing);
       }
+    });
+
+    // 심사 의견(10/19, HW는 동작한다고 보고): 가전 불빛·누름 장치 자리·손으로 누르기를 한꺼번에 보이면 많았다 — 가장 중요한
+    // 할 일 하나만 크게 먼저, 나머지는 '더 볼 것' 뒤. 화면 읽기는 접어도 모든 단계를 듣는다.
+    testWidgets('누름 장치 눌렸는지 모름 — 할 일 하나만 크게, 나머지는 더 볼 것 뒤, 화면 읽기는 다 듣는다', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await _pumpView(
+          tester,
+          KioskDoneView(
+              success: false, executionMode: 'real', label: '즉석밥 데워줘', target: _microwave, onDismiss: () {}));
+      expect(steps(tester), [kPressRecoverySteps.first]);
+      expect(kPressRecoverySteps.first, '가전 화면이 바뀌었는지 봐 주세요');
+      // 할 일 한 줄과 같은 크기(상태 크기)로 크게.
+      expect(tester.widget<Text>(find.byKey(const ValueKey('done-recovery-step-0'))).style?.fontSize, KioskType.status);
+      expect(tester.getSize(find.byKey(const ValueKey('done-recovery-more'))).height, greaterThanOrEqualTo(48));
+      expect(find.bySemanticsLabel(RegExp('손으로 누르기')), findsWidgets);
+      await openMore(tester);
+      expect(steps(tester), kPressRecoverySteps);
+      semantics.dispose();
+    });
+
+    testWidgets('LG 가전 결과 창 — 할 일 하나만 크게(폰과 같은 말), 나머지는 더 볼 것 뒤', (tester) async {
+      await _pumpView(
+          tester,
+          KioskDoneView(
+            success: false,
+            executionMode: 'real',
+            label: '공기청정기를 켤까요?',
+            target: _purifier,
+            reason: KioskFailureReason.unconfirmed,
+            route: 'thinq',
+            thinqOnly: true,
+            onDismiss: () {},
+          ));
+      expect(steps(tester), ['가전 앞에 가서 직접 봐 주세요']);
+      expect(find.byKey(const ValueKey('done-recovery-more')), findsOneWidget);
+    });
+
+    testWidgets('누름 장치가 멈췄는지 모름 — 안전 안내라 접지 않는다', (tester) async {
+      await _pumpView(
+          tester,
+          KioskDoneView(
+              success: false,
+              executionMode: 'real',
+              label: '즉석밥',
+              target: _microwave,
+              reason: KioskFailureReason.stopped,
+              stopLevel: 'sent',
+              onDismiss: () {}));
+      expect(steps(tester), kStopUnknownSteps);
+      expect(find.byKey(const ValueKey('done-recovery-more')), findsNothing);
     });
 
     test('안내는 짧은 말 2~3단계, 엔지니어 말 없음', () {

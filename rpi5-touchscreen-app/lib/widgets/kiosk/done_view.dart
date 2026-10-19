@@ -659,7 +659,7 @@ class KioskDoneView extends StatelessWidget {
             ),
           ],
           // '확인 못 함'이면 순서 안내 2~3단계(사용자 결정 10/18). 자동 재시도 단추는 두지 않는다.
-          if (steps != null) KioskRecoverySteps(steps: steps),
+          if (steps != null) KioskRecoverySteps(steps: steps, fold: !_stopUnknown),
           // '다시 멈추기'를 누른 뒤 — 본체가 받았으면 사람이 볼 상태로, 닿지 않았으면 손으로 할 일(hold_view 정지 미확인과 같은 말).
           if (_stopUnknown && stopAgain != null) ...[
             const SizedBox(height: KioskSpace.xs),
@@ -1581,8 +1581,9 @@ const kManualEntryLabel = '누름 장치로 골라 누르기';
 /// 말끝을 서로 다르게·짧게(평가 15차 10/18 — 제목·번호 셋이 모두 '~봐 주세요'였다).
 /// 벽 화면 앞 어르신에게 '휴대폰 앱에서 지금 상태 보기'는 맞지 않았다(2차 독립 평가 E, 10/18) — 가전을 직접 보고,
 /// 모르면 가족에게. 다 본 뒤 아래 '켜졌어요 / 안 켜졌어요'로 답한다.
+/// 첫 줄은 할 일 한 가지(크게), 나머지는 '더 볼 것' 뒤([KioskRecoverySteps], 심사 의견 10/19) — 첫 줄은 폰 결과 화면과 같은 말.
 const kThinqRecoverySteps = [
-  '가전 앞에 가서 직접 보기',
+  '가전 앞에 가서 직접 봐 주세요',
   '가전 화면·불빛이 바뀌었는지 확인',
   '모르겠으면 가족에게 물어보기',
 ];
@@ -1845,8 +1846,9 @@ class _KioskCheckActionsState extends State<KioskCheckActions> {
 
 /// 누름 장치가 눌렀는지 모를 때의 순서 안내(사용자 결정 10/18). 바뀌지 않았을 때만 손으로 누르게 한다 — 이미 눌렸으면 한 번 더
 /// 눌려 꺼질 수 있다(열린 문제 R1과 같은 이유). 말끝은 서로 다르게·짧게(평가 15차 10/18).
+/// 첫 줄은 할 일 한 가지(크게), 나머지는 '더 볼 것' 뒤(심사 의견 10/19) — 첫 줄은 폰 결과 화면과 같은 말.
 const kPressRecoverySteps = [
-  '가전 화면·불빛이 바뀌었는지 보기',
+  '가전 화면이 바뀌었는지 봐 주세요',
   '누름 장치가 버튼 앞에 있는지 확인',
   '안 바뀌었으면 가전 버튼을 손으로 누르기',
 ];
@@ -1866,58 +1868,101 @@ String recoveryStepsSpoken(List<String> steps) {
   ].join('. ');
 }
 
-/// 순서 안내 — 동그라미 숫자 + 짧은 한 줄씩(본문 크기, 흰 글자). 결과 화면의 큰 글자·할 일 한 줄 아래에 둔다.
-class KioskRecoverySteps extends StatelessWidget {
-  const KioskRecoverySteps({super.key, required this.steps, this.center = false});
+/// 순서 안내 — 결과 화면의 큰 글자 아래에 둔다.
+///
+/// [fold]면 가장 중요한 할 일 **하나만** 크게(첫 줄) 보이고 나머지는 '더 볼 것' 뒤에 접는다(심사 의견 10/19 — 가전 불빛·누름 장치
+/// 자리·손으로 누르기를 한꺼번에 보이면 눈이 어둡거나 나이 든 사용자에게 많았다). 화면 읽기는 접어도 모든 단계를 듣는다 — 위
+/// 결과 묶음의 말([recoveryStepsSpoken])이 다 말한다. 정지를 확인 못 한 안내([kStopUnknownSteps])는 둘 다 안전에 걸려 접지 않는다.
+class KioskRecoverySteps extends StatefulWidget {
+  const KioskRecoverySteps({super.key, required this.steps, this.center = false, this.fold = true});
 
   final List<String> steps;
 
   /// 가운데 정렬 결과 화면(누른 자리 그림이 없을 때)이면 묶음째 가운데에 둔다. 줄 안 글은 늘 왼쪽 정렬.
   final bool center;
 
+  /// 첫 줄만 크게 보이고 나머지는 '더 볼 것' 뒤에.
+  final bool fold;
+
+  @override
+  State<KioskRecoverySteps> createState() => _KioskRecoveryStepsState();
+}
+
+class _KioskRecoveryStepsState extends State<KioskRecoverySteps> {
+  bool _open = false;
+
+  Widget _row(int i, {bool big = false}) => Padding(
+        padding: const EdgeInsets.only(top: KioskSpace.xs),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              margin: EdgeInsets.only(top: big ? 6 : 0),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: KioskColors.muted, width: 1.5),
+              ),
+              child: Text('${i + 1}',
+                  textScaler: TextScaler.noScaling,
+                  style: const TextStyle(
+                      fontSize: KioskType.caption, height: 1, fontWeight: FontWeight.w700, color: Colors.white)),
+            ),
+            const SizedBox(width: KioskSpace.sm),
+            Flexible(
+              child: KioskText(
+                widget.steps[i],
+                textKey: ValueKey('done-recovery-step-$i'),
+                style: big
+                    // 할 일 한 줄과 같은 크기(상태 크기·굵게) — 처음 보는 사람도 이것 하나는 읽는다.
+                    ? const TextStyle(
+                        fontSize: KioskType.status, fontWeight: FontWeight.w700, height: 1.3, color: Colors.white)
+                    : const TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
+    final steps = widget.steps;
+    final folds = widget.fold && steps.length > 1;
     final list = Column(
       key: const ValueKey('done-recovery-steps'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var i = 0; i < steps.length; i++)
+        if (!folds)
+          for (var i = 0; i < steps.length; i++) _row(i)
+        else ...[
+          _row(0, big: true),
+          if (_open)
+            for (var i = 1; i < steps.length; i++) _row(i),
           Padding(
             padding: const EdgeInsets.only(top: KioskSpace.xs),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: KioskColors.muted, width: 1.5),
-                  ),
-                  child: Text('${i + 1}',
-                      textScaler: TextScaler.noScaling,
-                      style: const TextStyle(
-                          fontSize: KioskType.caption, height: 1, fontWeight: FontWeight.w700, color: Colors.white)),
-                ),
-                const SizedBox(width: KioskSpace.sm),
-                Flexible(
-                  child: KioskText(
-                    steps[i],
-                    textKey: ValueKey('done-recovery-step-$i'),
-                    style: const TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
-                  ),
-                ),
-              ],
+            child: TextButton.icon(
+              key: const ValueKey('done-recovery-more'),
+              onPressed: () => setState(() => _open = !_open),
+              icon: Icon(_open ? Icons.expand_less : Icons.expand_more, size: KioskType.status),
+              label: Text(_open ? '접기' : '더 볼 것 ${steps.length - 1}가지',
+                  style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, KioskSizes.secondaryButton),
+                padding: const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
+              ),
             ),
           ),
+        ],
       ],
     );
     return Padding(
       padding: const EdgeInsets.only(top: KioskSpace.sm),
-      child: ExcludeSemantics(child: center ? Center(child: list) : list),
+      child: ExcludeSemantics(child: widget.center ? Center(child: list) : list),
     );
   }
 }
