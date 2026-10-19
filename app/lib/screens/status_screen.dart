@@ -151,7 +151,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       if (operationSentence(status) case final o?) o,
                     if (totalSteps > 1 && status.phase != ExecutionPhase.idle)
                       '$totalSteps개 중 ${status.completedSteps}개 했어요',
-                  ].join('. '),
+                  ].fold<String>('', _joinSentence),
                   child: ExcludeSemantics(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -416,6 +416,13 @@ ResultKind _kindOf(ExecutionStatus s) => s.outcome != null
 /// 물리 경로 칩은 두지 않는다 — 결과 문장("버튼 조작을 마쳤어요"·"누름 장치가
 /// 응답했어요")이 이미 말한다(2026-10-13, 기록 문구 규칙과 같은 원칙). ThinQ는
 /// 결과 문장만으로 경로가 드러나지 않을 수 있어 남긴다.
+/// 낭독 문장 잇기. 이미 마침표·물음표로 끝난 문장 뒤에는 '. '를 또 붙이지 않는다 — '…않았어요.. 됐어요'처럼
+/// 점이 겹쳤다(2026-10-19 에뮬레이터 점검).
+String _joinSentence(String acc, String part) {
+  if (acc.isEmpty) return part;
+  return RegExp(r'[.?!…]$').hasMatch(acc.trimRight()) ? '${acc.trimRight()} $part' : '$acc. $part';
+}
+
 List<String> _resultFactWords(ExecutionStatus s) {
   final kind = _kindOf(s);
   return [
