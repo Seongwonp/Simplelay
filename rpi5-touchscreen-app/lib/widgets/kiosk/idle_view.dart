@@ -729,6 +729,28 @@ class _NextRunLine extends StatelessWidget {
   static double _sepWidth(BuildContext context) =>
       _textWidth(context, _sep, _wordStyle) + 2 * _wordGap;
 
+  /// 건너뛴 회차의 '되돌리기'는 머리말 '○○ 루틴 · 오늘은 안 해요' 끝에 붙인다 — 되돌리는 바로 그 말 옆(평가 10/19
+  /// 실패널: 시각·이름 줄 아래 혼자 떨어져 무엇을 되돌리는지 몰랐다). 시각·이름 줄 끝에 두면 이름이 말줄임으로 잘려
+  /// 그 줄은 비운다. 끝 줄에 다른 말(실패 안내)이 있거나 머리말 옆 폭이 모자라면(넓은 글꼴·큰 글씨) 종전대로 끝 줄.
+  /// 머리말 옆에서는 단추 오른쪽 여백을 두지 않는다(줄 끝이라 필요 없다) — 누르는 높이 48은 그대로. 사이는 [_wordGap].
+  /// 넓은 글꼴로 조금 모자라면 '오늘은 안 해요'만 10% 안에서 줄인다(머리말의 FittedBox) — 그보다 모자라면 끝 줄.
+  static bool _undoOnHead(BuildContext context, KioskNextRun n, String? label, String word, double width) {
+    final h = n.skippedHead;
+    if (label == null || h == null || word.isNotEmpty) return false;
+    final skippedW = _textWidth(context, h, _headStyle.copyWith(fontWeight: FontWeight.w700));
+    final head = _headIcon +
+        _iconGap +
+        _textWidth(context, n.kindLabel, _headStyle) +
+        _textWidth(context, ' · ', _headStyle) +
+        skippedW;
+    return head + _wordGap + _headButtonWidth(context, label) - width <= skippedW * 0.1;
+  }
+
+  static double _headButtonWidth(BuildContext context, String label) {
+    final w = _textWidth(context, label, _buttonStyle) + 2;
+    return w > _buttonMin ? w : _buttonMin;
+  }
+
   static double _headHeight(BuildContext context) {
     final t = _textHeight(context, '자동 루틴', _headStyle, double.infinity);
     return t > _headIcon ? t : _headIcon;
@@ -737,10 +759,15 @@ class _NextRunLine extends StatelessWidget {
   /// 폭 [width]에서 이 묶음이 차지할 높이.
   static double heightFor(BuildContext context, KioskNextRun n, double width,
       {bool withButton = true, String? notice}) {
-    var h = _headHeight(context) + _headGap;
-    h += _textHeight(context, '오후 10:00', _lineStyle, double.infinity);
+    final headH = _headHeight(context);
+    final lineH = _textHeight(context, '오후 10:00', _lineStyle, double.infinity);
     final word = keepWords(_wordOf(n, notice));
     final label = _buttonLabel(n, withButton);
+    if (_undoOnHead(context, n, label, word, width)) {
+      final bh = _buttonHeight(context, label!);
+      return (headH > bh ? headH : bh) + _headGap + lineH;
+    }
+    var h = headH + _headGap + lineH;
     if (label == null) {
       if (word.isNotEmpty) h += _lineGap + _textHeight(context, word, _wordStyle, width);
     } else {
@@ -780,8 +807,22 @@ class _NextRunLine extends StatelessWidget {
                     style: _wordStyle.copyWith(
                         color: skipped ? Colors.white : KioskColors.muted,
                         fontWeight: skipped ? FontWeight.w700 : null));
+        final undoOnHead = _undoOnHead(context, next, label, shownNotice ?? word, width);
+        final undoButton = undoOnHead
+            ? _SkipButton(
+                key: const ValueKey('idle-next-run-unskip'),
+                label: label!,
+                width: _headButtonWidth(context, label),
+                padRight: 0,
+                minHeight: _buttonMin,
+                busy: busy,
+                onTap: () => onToggle?.call(next),
+              )
+            : null;
         Widget? last;
-        if (label == null) {
+        if (undoOnHead) {
+          last = null;
+        } else if (label == null) {
           last = wordText == null
               ? null
               : Padding(padding: const EdgeInsets.only(top: _lineGap), child: wordText);
@@ -819,68 +860,99 @@ class _NextRunLine extends StatelessWidget {
             ]);
           }
         }
+        final spoken = [
+          next.kindLabel,
+          if (next.skippedHead case final h?) h,
+          next.whenShort,
+          next.name,
+          if (word.isNotEmpty) word,
+        ].join(', ');
+        final head = SizedBox(
+          height: _headHeight(context),
+          child: Row(key: const ValueKey('idle-next-run-kind'), mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.schedule, size: _headIcon, color: KioskColors.muted),
+            const SizedBox(width: _iconGap),
+            Text(next.kindLabel,
+                maxLines: 1,
+                softWrap: false,
+                style: _headStyle.copyWith(color: KioskColors.muted)),
+            // 건너뛴 회차 — 머리말 옆에 말로(2차 독립 평가 B). 시각·이름 줄은 그대로 남기되 흐리게.
+            // 폭이 모자라면(넓은 글꼴·큰 글씨) 이 말만 칸에 맞춰 조금 줄인다 — 잘리지 않게.
+            if (next.skippedHead case final h?)
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(' · ', style: _headStyle.copyWith(color: KioskColors.muted)),
+                    Text(h,
+                        key: const ValueKey('idle-next-run-skipped-head'),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: _headStyle.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+                  ]),
+                ),
+              ),
+          ]),
+        );
+        // 조금 넘치면(15% 안) 글자를 살짝 줄여 이름 끝('켜기')까지 보이고, 그보다 길면 이름 끝만 말줄임.
+        final Widget lineWidget = () {
+          final line = Text.rich(_lineSpan(next),
+              key: const ValueKey('idle-next-run-text'),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              // 건너뛴 회차는 흐리게 — 무엇을 건너뛰는지는 그대로 읽힌다.
+              style: _lineStyle.copyWith(color: skipped ? KioskColors.muted : Colors.white));
+          final natural = _spanWidth(context, _lineSpan(next), _lineStyle);
+          if (natural <= width || natural * 0.85 > width) return line;
+          return SizedBox(
+              width: width,
+              child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: line));
+        }();
+        final undo = undoButton;
+        if (undo != null) {
+          // 머리말 끝에 '되돌리기' — 글은 한 덩이로 읽고, 단추는 그 뒤 따로 누르는 자리로 남긴다.
+          return Semantics(
+            container: true,
+            label: spoken,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  key: const ValueKey('idle-next-run-head-row'),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Flexible(child: ExcludeSemantics(child: head)),
+                    // 구분점은 두지 않는다(10/19 — '되돌리기'만) — 간격으로만 가른다.
+                    const SizedBox(width: _wordGap),
+                    // 글 덩이에 합쳐지지 않게 제 낭독 칸으로.
+                    Semantics(container: true, child: undo),
+                  ],
+                ),
+                const SizedBox(height: _headGap),
+                ExcludeSemantics(child: lineWidget),
+              ],
+            ),
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             Semantics(
               container: true,
-              label: [
-                next.kindLabel,
-                if (next.skippedHead case final h?) h,
-                next.whenShort,
-                next.name,
-                if (word.isNotEmpty) word,
-              ].join(', '),
+              label: spoken,
               excludeSemantics: true,
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(
-                      height: _headHeight(context),
-                      child: Row(key: const ValueKey('idle-next-run-kind'), mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.schedule, size: _headIcon, color: KioskColors.muted),
-                        const SizedBox(width: _iconGap),
-                        Text(next.kindLabel,
-                            maxLines: 1,
-                            softWrap: false,
-                            style: _headStyle.copyWith(color: KioskColors.muted)),
-                        // 건너뛴 회차 — 머리말 옆에 말로(2차 독립 평가 B). 시각·이름 줄은 그대로 남기되 흐리게.
-                        // 폭이 모자라면(넓은 글꼴·큰 글씨) 이 말만 칸에 맞춰 조금 줄인다 — 잘리지 않게.
-                        if (next.skippedHead case final h?)
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Text(' · ', style: _headStyle.copyWith(color: KioskColors.muted)),
-                                Text(h,
-                                    key: const ValueKey('idle-next-run-skipped-head'),
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    style: _headStyle.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
-                              ]),
-                            ),
-                          ),
-                      ]),
-                    ),
+                    head,
                     const SizedBox(height: _headGap),
-                    // 조금 넘치면(15% 안) 글자를 살짝 줄여 이름 끝('켜기')까지 보이고, 그보다 길면 이름 끝만 말줄임.
-                    () {
-                      final line = Text.rich(_lineSpan(next),
-                          key: const ValueKey('idle-next-run-text'),
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.ellipsis,
-                          // 건너뛴 회차는 흐리게 — 무엇을 건너뛰는지는 그대로 읽힌다.
-                          style: _lineStyle.copyWith(color: skipped ? KioskColors.muted : Colors.white));
-                      final natural = _spanWidth(context, _lineSpan(next), _lineStyle);
-                      if (natural <= width || natural * 0.85 > width) return line;
-                      return SizedBox(
-                          width: width,
-                          child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: line));
-                    }(),
+                    lineWidget,
                   ]),
             ),
             if (last != null) last,
@@ -900,10 +972,14 @@ class _SkipButton extends StatelessWidget {
     required this.minHeight,
     required this.busy,
     required this.onTap,
+    this.padRight = 2 * _NextRunLine._buttonPadH,
   });
 
   final String label;
   final double width;
+
+  /// 글자 오른쪽 여백 — 머리말 옆 '되돌리기'는 0([_NextRunLine._undoOnHead]).
+  final double padRight;
   final double minHeight;
   final bool busy;
   final VoidCallback onTap;
@@ -925,7 +1001,7 @@ class _SkipButton extends StatelessWidget {
                 constraints: BoxConstraints(minHeight: minHeight),
                 child: Padding(
                   // 글자 왼쪽을 위 줄과 맞춘다 — 여백은 오른쪽에만.
-                  padding: const EdgeInsets.only(right: 2 * _NextRunLine._buttonPadH),
+                  padding: EdgeInsets.only(right: padRight),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     heightFactor: 1,
