@@ -28,6 +28,12 @@ import 'package:simplelay/widgets/panel_photo_view.dart';
 
 import '../helpers/test_helpers.dart';
 
+/// 시험 중에 본체 연결 상태를 바꿀 수 있는 연결 상태.
+class _SwitchableConnection extends FixedRpiConnection {
+  _SwitchableConnection(super.ref, super.fixed);
+  void set(RpiConnectionState next) => state = next;
+}
+
 /// 카메라 없이 사진 한 장을 돌려준다. 크기는 1000x800으로 정해 둔다.
 class _FakePhoto extends PhotoService {
   @override
@@ -183,7 +189,8 @@ Widget _build(_Server server,
     {void Function(ProviderContainer)? onReady,
     _FakePhoto? photo,
     List<ApplianceMap> installed = const [],
-    RpiConnectionState hub = RpiConnectionState.connected}) {
+    RpiConnectionState hub = RpiConnectionState.connected,
+    Override? connection}) {
   final router = GoRouter(
     initialLocation: '/',
     routes: [
@@ -205,12 +212,16 @@ Widget _build(_Server server,
         path: '/appliance/new',
         builder: (_, __) => const Scaffold(body: Text('버튼판 편집기')),
       ),
+      GoRoute(
+        path: '/settings/hub',
+        builder: (_, __) => const Scaffold(body: Text('본체 연결 화면')),
+      ),
     ],
   );
   return buildWithProviderState(
     overrides: [
       ...connectedOverrides(),
-      rpiServerOverride(hub),
+      connection ?? rpiServerOverride(hub),
       ...installedOverrides(installed),
       photoServiceProvider.overrideWithValue(photo ?? _FakePhoto()),
       rpiApiServiceProvider.overrideWithValue(server.api()),
@@ -714,14 +725,34 @@ void main() {
     expect(field.controller!.selection, const TextSelection(baseOffset: 0, extentOffset: 4));
   });
 
-  testWidgets('본체와 연결되지 않았으면 가전 추가를 시작할 때 말한다(실화면 10/19)',
+  // 첫 사용 검토 10/19: 연결이 없다는 말만 하고 다음으로 가게 둬, 사진·귀퉁이·버튼을 다 고른 뒤 저장에서야 막혔다.
+  testWidgets('본체와 연결되지 않았으면 첫 단계에서 말하고 다음으로 가지 않으며, 연결하고 돌아오면 이어서 간다',
       (tester) async {
+    late _SwitchableConnection hub;
     _tall(tester);
-    await tester.pumpWidget(_build(_Server(), hub: RpiConnectionState.unreachable));
+    await tester.pumpWidget(_build(_Server(),
+        connection: rpiConnectionProvider.overrideWith(
+            (ref) => hub = _SwitchableConnection(ref, RpiConnectionState.unreachable))));
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
     expect(find.byKey(const Key('wizard-offline')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    await tester.enterText(find.byKey(const Key('wizard-name')), '전자레인지');
+    await tester.pump();
+    FilledButton next() => tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
+    expect(next().onPressed, isNull, reason: '연결 없이 끝까지 고르고 저장에서 막히지 않게');
+
+    await tester.tap(find.text('본체 연결하기'));
+    await _settle(tester);
+    expect(find.text('본체 연결 화면'), findsOneWidget);
+    hub.set(RpiConnectionState.connected);
+    GoRouter.of(tester.element(find.text('본체 연결 화면'))).pop();
+    await _settle(tester);
+    expect(find.byKey(const Key('wizard-offline')), findsNothing);
+    expect(tester.widget<TextField>(find.byKey(const Key('wizard-name'))).controller!.text, '전자레인지');
+    expect(next().onPressed, isNotNull);
   });
 
   testWidgets('본체에 닿지 못해 저장하지 못하면 다시 누를 단추와 남아 있는 것을 말한다', (tester) async {

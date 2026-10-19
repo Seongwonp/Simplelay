@@ -177,12 +177,21 @@ class _AddApplianceWizardScreenState
         0 => _photo != null &&
             _photoSize != null &&
             _name.text.trim().isNotEmpty &&
-            !_nameTaken,
+            !_nameTaken &&
+            !_offline,
         1 => _corners.length == 4 && _frameReady,
         2 => _buttons.isNotEmpty,
         3 => !_busy,
         _ => false,
       };
+
+  /// 본체와 연결되지 않았나. 첫 단계에서 다음으로 가지 않는다 — 안내만 하니 사진·귀퉁이·버튼을 다 고른 뒤 저장에서야
+  /// 막혔다(첫 사용 검토 10/19). 연결 화면에 다녀와도 고른 것은 이 화면에 그대로 있다.
+  bool get _offline => const {
+        RpiConnectionState.unreachable,
+        RpiConnectionState.unconfigured,
+        RpiConnectionState.keyRequired,
+      }.contains(ref.read(rpiConnectionProvider));
 
   /// 새로 등록하는 이름이 이미 있는가(이름·방이 모두 같은 가전). 위치를 다시 맞출 때는 이름을 바꾸지 않으니 보지 않는다.
   bool get _nameTaken =>
@@ -625,6 +634,8 @@ class _AddApplianceWizardScreenState
 
   @override
   Widget build(BuildContext context) {
+    // 연결이 바뀌면 다시 그린다 — 첫 단계의 '다음'과 연결 안내가 [_offline]을 본다.
+    ref.watch(rpiConnectionProvider);
     return InputGuard(
       dirty: _dirty,
       // 시스템 뒤로 가기는 한 단계 앞으로(2~4단계). 등록 전체를 닫는 것은 위 X다.
@@ -750,13 +761,23 @@ class _AddApplianceWizardScreenState
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         ),
         // 끝까지 고른 뒤 저장에서야 연결이 없다는 것을 알았다(실화면 10/19) — 시작할 때 말한다.
-        if (const {RpiConnectionState.unreachable, RpiConnectionState.unconfigured, RpiConnectionState.keyRequired}
-            .contains(ref.watch(rpiConnectionProvider)))
+        if (_offline)
           Padding(
             key: const Key('wizard-offline'),
             padding: const EdgeInsets.only(bottom: AppSpace.md),
-            child: Text('지금 본체와 연결되지 않았어요. 연결된 뒤에 저장할 수 있어요.',
-                style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('지금 본체와 연결되지 않아 다음으로 갈 수 없어요. 연결하고 돌아오면 찍은 사진과 적은 이름은 그대로 있어요.',
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
+                OutlinedButton.icon(
+                  key: const Key('wizard-connect'),
+                  onPressed: () => context.push('/settings/hub'),
+                  icon: const Icon(Icons.wifi_rounded),
+                  label: const Text('본체 연결하기'),
+                ),
+              ],
+            ),
           ),
         if (_photo == null || _photoSize == null)
           Container(
