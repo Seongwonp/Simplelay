@@ -11,6 +11,9 @@ dependencies:
     path: ../packages/routine_rehearsal
   flutter:
     sdk: flutter
+  # 화면 낭독(TalkBack)이 '뒤로'·'삭제'·'닫기' 같은 기본 버튼 이름을 한국어로 읽게(SDK 동봉, 검토 10/19)
+  flutter_localizations:
+    sdk: flutter
   flutter_blue_plus: ^1.35.5
   speech_to_text: ^7.0.0
   flutter_riverpod: ^2.6.1

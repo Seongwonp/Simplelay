@@ -1,5 +1,6 @@
 import 'models/appliance.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -35,6 +36,12 @@ void main() {
 }
 
 final _router = buildAppRouter();
+
+/// 앱 언어 — 한국어만. 기본(영어) 문구로 두면 화면 낭독(TalkBack)이 뒤로 가기·지우기·닫기 같은 기본 버튼을
+/// 'Back'·'Delete'·'Dismiss'로 읽었다(접근성 검토 10/19). 기기 언어가 달라도 화면 글이 한국어라 맞춘다.
+const kAppLocale = Locale('ko');
+const kAppSupportedLocales = [kAppLocale];
+const kAppLocalizationsDelegates = GlobalMaterialLocalizations.delegates;
 
 /// 앱의 경로표. 테스트가 **실제 경로 구성**으로 뒤로 가기 같은 내비게이션
 /// 동작을 확인할 수 있게 함수로 뺐다(시작 위치만 바꿀 수 있다).
@@ -187,6 +194,9 @@ class SimpleLayApp extends ConsumerWidget {
       title: 'SimpleLay',
       debugShowCheckedModeBanner: false,
       routerConfig: _router,
+      locale: kAppLocale,
+      supportedLocales: kAppSupportedLocales,
+      localizationsDelegates: kAppLocalizationsDelegates,
       themeMode: themeMode,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
