@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -440,22 +441,20 @@ class _AddApplianceWizardScreenState
       // 2) 사진 좌표 → mm. 거절(422)은 서버 문장 그대로.
       MappingSaveResult result;
       ApplianceMap? server;
+      final request = MappingRequest(
+        photoWidth: size.width.round(),
+        photoHeight: size.height.round(),
+        corners: _corners,
+        buttons: {for (final b in _buttons) b.id: b.point},
+        frameWidthMm: (_frame?.known ?? false) ? null : _parsedFrameW,
+        frameHeightMm: (_frame?.known ?? false) ? null : _parsedFrameH,
+        stopButton: _stopId,
+        stopPresses: _stopPresses,
+        parkPoint: _park,
+        expectedRevision: seen,
+      );
       try {
-        result = await api.saveMapping(
-          _id,
-          MappingRequest(
-            photoWidth: size.width.round(),
-            photoHeight: size.height.round(),
-            corners: _corners,
-            buttons: {for (final b in _buttons) b.id: b.point},
-            frameWidthMm: (_frame?.known ?? false) ? null : _parsedFrameW,
-            frameHeightMm: (_frame?.known ?? false) ? null : _parsedFrameH,
-            stopButton: _stopId,
-            stopPresses: _stopPresses,
-            parkPoint: _park,
-            expectedRevision: seen,
-          ),
-        );
+        result = await api.saveMapping(_id, request);
         server = switch (result.appliance) { final json? => ApplianceMap.fromJson(json), _ => null };
       } catch (e) {
         if (!_answerLost(e)) rethrow;
@@ -463,7 +462,7 @@ class _AddApplianceWizardScreenState
         // 이 폰에 받아 끝내고, 아니면 지금 판으로 되돌리기를 한다(그사이 저장돼 판이 올랐으면 본체가 지우기를 거절한다).
         final hub = await _lookupOnHub(api);
         final item = hub?.item;
-        if (item == null || !_mappingLanded(item, seen)) {
+        if (item == null || !_mappingLanded(item, seen, request)) {
           seen = hub?.revision ?? seen;
           rethrow;
         }
@@ -523,12 +522,19 @@ class _AddApplianceWizardScreenState
     return (item: item, revision: item != null && item.revision > 0 ? item.revision : null);
   }
 
-  /// 본체의 [item]에 이번 자리 저장이 들어갔나. 새 가전은 자리가 생겼으면, 다시 맞추기는 내가 본 판([seen])보다 판이
-  /// 올랐고 자리가 있으면 들어간 것으로 본다. 판을 모르는 다시 맞추기는 가를 수 없어 아니라고 한다(실패로 알린다).
-  bool _mappingLanded(ApplianceMap item, int? seen) {
-    if (item.panelMapping == null) return false;
-    if (seen != null) return item.revision > seen;
-    return widget.initial == null;
+  /// 본체의 [item]에 이번 자리 저장([request])이 들어갔나. 본체의 자리가 보낸 것과 **같아야** 한다 — 판이 오르고 자리가
+  /// 있다는 것만 보면 그사이 다른 폰이 저장한 자리를 이 폰의 저장으로 받아 '저장했어요'라고 했다(검토 10/19). 다시 맞추기는
+  /// 내가 본 판([seen])보다 판도 올라야 하고, 판을 모르는 다시 맞추기는 가를 수 없어 아니라고 한다(실패로 알린다).
+  bool _mappingLanded(ApplianceMap item, int? seen, MappingRequest request) {
+    final mapping = item.panelMapping;
+    if (mapping == null) return false;
+    if (seen != null ? item.revision <= seen : widget.initial != null) return false;
+    return mapping.photoWidth.round() == request.photoWidth &&
+        mapping.photoHeight.round() == request.photoHeight &&
+        listEquals(mapping.corners, request.corners) &&
+        request.buttons.entries.every((e) => mapping.buttons[e.key] == e.value) &&
+        mapping.parkPoint == request.parkPoint &&
+        item.stopButton == request.stopButton;
   }
 
   /// 방금 올린 새 가전을 본체에서 다시 지운다(버튼 자리 저장이 거절·실패했을 때). 지웠거나 이미 없으면 true.

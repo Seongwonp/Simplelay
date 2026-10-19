@@ -901,6 +901,67 @@ void main() {
     expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
   });
 
+  // 검토 10/19(core6 6): 다시 맞추기의 답을 잃었을 때 판이 오르고 자리가 있기만 하면 다른 폰이 그사이 저장한 자리를 이 폰의
+  // 저장으로 받아 '저장했어요'로 넘어갔다. 본체의 자리가 보낸 것과 같을 때만 저장된 것으로 본다.
+  testWidgets('다시 맞추기의 답을 잃고 본체에 다른 폰의 자리가 있으면 내 저장으로 받지 않는다', (tester) async {
+    const mapped = ApplianceMap(
+      id: 'custom_washer',
+      name: '세탁기',
+      category: ApplianceCategory.washingMachine,
+      rows: 1,
+      cols: 1,
+      buttons: [ApplianceButton(id: 'B01', label: '시작', x: 0, y: 0)],
+      isCustom: true,
+      revision: 7,
+      photoPath: '/photos/custom_washer.jpg',
+      panelMapping: PanelMapping(
+        photoWidth: 1000,
+        photoHeight: 800,
+        corners: [PhotoPoint(100, 80), PhotoPoint(900, 80), PhotoPoint(900, 720), PhotoPoint(100, 720)],
+        buttons: {'B01': PhotoPoint(300, 300)},
+      ),
+    );
+    final server = _Server()
+      ..mappingAnswerLost = true
+      ..mappingLostSaved = false
+      // 다른 폰이 그사이 저장한 자리(판 8, 귀퉁이·버튼 자리가 다르다).
+      ..stored = {
+        'id': 'custom_washer',
+        'name': '세탁기',
+        'icon': 'washer',
+        'rows': 1,
+        'cols': 1,
+        'is_custom': true,
+        'revision': 8,
+        'buttons': [
+          {'id': 'B01', 'label': '시작', 'x': 0, 'y': 0},
+        ],
+        'panel_mapping': {
+          'photo': {'width': 1000, 'height': 800},
+          'corners_px': [[50, 40], [950, 40], [950, 760], [50, 760]],
+          'buttons_px': {'B01': [500, 500]},
+          'stop_px': null,
+          'park_px': null,
+        },
+      };
+    ProviderContainer? container;
+    _tall(tester);
+    await tester.pumpWidget(_build(server, installed: const [mapped], onReady: (c) => container = c));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/setup', extra: mapped);
+    await _settle(tester);
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byKey(const Key('wizard-next')));
+      await _settle(tester);
+    }
+    await _saveWithoutStop(tester);
+    expect(server.requests, contains('GET /appliances'));
+    expect(_title(tester), '4. 정지 버튼과 기다리는 자리', reason: '남의 저장을 내 저장으로 알리지 않는다');
+    expect(find.text(kSaveOfflineMessage), findsOneWidget);
+    final local = container!.read(customAppliancesProvider).where((a) => a.id == 'custom_washer');
+    expect(local.every((a) => a.revision == 7), isTrue, reason: '남의 정의를 이 폰에 받아 두지 않는다');
+  });
+
   // 검토 10/19: 등록은 됐는데 버튼 자리 저장이 거절되면 자리 없는 가전이 본체에 남았다.
   testWidgets('새 가전의 버튼 자리 저장이 거절되면 방금 올린 등록을 그 판으로 되돌린다', (tester) async {
     final server = _Server()
