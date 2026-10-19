@@ -189,6 +189,10 @@ const kDontRetryIfOn = '가전이 이미 움직이고 있으면 다시 시도하
 
 /// 수동 조작에서 방금 누른 버튼 한 줄(2026-10-15) — 확인한 만큼만. 예전에는 실행이 성공으로 끝나기만 하면
 /// "눌림을 확인했어요"라고 했다(연습·누름 장치 보고만인 경우에도).
+/// 직접 누르기에서 정한 시간 안에 결과를 못 본 한 줄 — 실패가 아니라 모름이다(검토 10/19). 아직 돌거나 이미 눌렸을 수 있다.
+String manualPressUnknownSentence(String label) =>
+    "'$label' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요";
+
 String manualPressSentence(String label,
     {required bool success, String? confirmation, String executionMode = 'unknown'}) {
   if (!success) return "'$label' 눌렸는지 몰라요. 집에서 가전을 확인해야 해요";

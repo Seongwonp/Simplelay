@@ -9,7 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../models/display_status.dart' show isPracticeAppliance;
-import '../models/command_result.dart' show manualPressSentence;
+import '../models/command_result.dart' show manualPressSentence, manualPressUnknownSentence;
 import '../providers/appliance_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -31,7 +31,10 @@ enum _CellState { idle, pending, success, failure }
 /// 말한다. 백엔드가 동시 실행을 막기 때문에(409) 한 번에 하나만 보내고,
 /// 결과가 올 때까지 나머지 버튼도 잠근다.
 class ManualControlScreen extends ConsumerStatefulWidget {
-  const ManualControlScreen({super.key});
+  const ManualControlScreen({super.key, this.resultWait = const Duration(seconds: 45)});
+
+  /// 누른 결과를 이 화면에서 기다리는 시간. 넘으면 '아직 모름'으로 두고 계속 지켜본다.
+  final Duration resultWait;
 
   @override
   ConsumerState<ManualControlScreen> createState() =>
@@ -49,6 +52,10 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   String? _resultSentence;
   Timer? _resultClearTimer;
 
+  // 결과를 아직 모르는 누름(검토 10/19) — 그 job을 계속 지켜보고, 같은 버튼은 확인을 받은 뒤에만 다시 보낸다.
+  String? _unknownJobId;
+  String? _unknownButtonId;
+
   @override
   void dispose() {
     _resultClearTimer?.cancel();
@@ -61,6 +68,13 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     String applianceId,
   ) async {
     if (_pendingButtonId != null) return; // 이미 실행 중 — 무시
+    if (_unknownButtonId == button.id) {
+      // 아까 누른 것이 눌렸는지 모른다 — 그대로 보내면 두 번 눌릴 수 있다.
+      if (!await _confirmRepeat(button.label) || !mounted) return;
+      if (_pendingButtonId != null) return;
+      _unknownJobId = null;
+      _unknownButtonId = null;
+    }
     _resultClearTimer?.cancel();
     setState(() {
       _pendingButtonId = button.id;
@@ -73,6 +87,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     bool success;
     String? confirmation;
     var mode = 'unknown';
+    String? unknownJobId;
     try {
       // job 모델: 접수 즉시 job_id가 오고, 완료는 /status 폴링으로 판정한다.
       final accepted = await api.executeButtons(
@@ -90,6 +105,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
         steps: [button.label],
       );
       final done = await _waitJobDone(api, accepted.jobId);
+      if (done == null) unknownJobId = accepted.jobId;
       success = done?.lastStatus == 'succeeded';
       confirmation = done?.lastConfirmation;
       mode = done?.lastExecutionMode ?? 'unknown';
@@ -98,6 +114,31 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     }
 
     if (!mounted) return;
+    if (unknownJobId != null) {
+      // 실패로 보이지 않는다 — 아직 돌거나 이미 눌렸을 수 있다. 같은 버튼은 확인 뒤에만, 결과는 계속 지켜본다.
+      setState(() {
+        _pendingButtonId = null;
+        _pendingLabel = null;
+        _resultButtonId = null;
+        _resultLabel = button.label;
+        _resultSuccess = null;
+        _resultSentence = manualPressUnknownSentence(button.label);
+        _unknownJobId = unknownJobId;
+        _unknownButtonId = button.id;
+      });
+      _trackUnknown(api, unknownJobId, button);
+      return;
+    }
+    _showResult(button, success: success, confirmation: confirmation, mode: mode);
+  }
+
+  void _showResult(
+    ApplianceButton button, {
+    required bool success,
+    String? confirmation,
+    String mode = 'unknown',
+  }) {
+    _resultClearTimer?.cancel();
     setState(() {
       _pendingButtonId = null;
       _pendingLabel = null;
@@ -114,12 +155,61 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     });
   }
 
+  /// 결과를 모르는 [jobId]를 계속 지켜본다. 끝난 결과가 보이면 그 결과를 말하고 같은 버튼 확인을 거둔다. 다른 실행이
+  /// 시작돼 결과 자리를 잃으면 그만두고 모름으로 둔다(확인은 남는다).
+  Future<void> _trackUnknown(RpiApiService api, String jobId, ApplianceButton button) async {
+    while (mounted && _unknownJobId == jobId) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted || _unknownJobId != jobId) return;
+      try {
+        final status = await api.status();
+        if (!mounted || _unknownJobId != jobId) return;
+        if (status.lastJobId == jobId) {
+          _unknownJobId = null;
+          _unknownButtonId = null;
+          if (_pendingButtonId == null && _resultSuccess == null && _resultLabel == button.label) {
+            _showResult(button,
+                success: status.lastStatus == 'succeeded',
+                confirmation: status.lastConfirmation,
+                mode: status.lastExecutionMode);
+          }
+          return;
+        }
+        if (status.running && status.jobId != null && status.jobId != jobId) return;
+      } catch (_) {
+        // 일시적 통신 오류는 다음에 다시 본다
+      }
+    }
+  }
+
+  Future<bool> _confirmRepeat(String label) async {
+    final again = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('다시 누를까요?'),
+        content: Text("아까 누른 '$label' 버튼은 눌렸는지 아직 몰라요. 다시 누르면 두 번 눌릴 수 있어요. "
+            '가전을 보고 안 눌렸을 때만 다시 눌러 주세요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('그만두기'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('다시 누르기'),
+          ),
+        ],
+      ),
+    );
+    return again ?? false;
+  }
+
   // 내 job이 끝날 때까지 /status를 폴링한다. 버튼 1개 실행은 재시도를
   // 포함해도 수십 초 안에 끝나므로 45초를 상한으로 두고, 그 안에 판정이
-  // 안 나면(서버 유실 등) 실패로 처리해 pending 잠금에서 탈출한다.
+  // 안 나면(서버 유실 등) '아직 모름'으로 pending 잠금에서 탈출한다(실패가 아니다).
   /// 내 job이 끝난 /status(확인 근거·실행 환경까지). 시간 안에 판정이 안 나면 null.
   Future<RpiStatusResult?> _waitJobDone(RpiApiService api, String jobId) async {
-    final deadline = DateTime.now().add(const Duration(seconds: 45));
+    final deadline = DateTime.now().add(widget.resultWait);
     while (mounted && DateTime.now().isBefore(deadline)) {
       try {
         final status = await api.status();
@@ -340,6 +430,29 @@ class _FeedbackLine extends StatelessWidget {
             child: Text("'$pendingLabel' 누르는 중…",
                 style:
                     const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      );
+    }
+    if (resultLabel != null && resultSuccess == null) {
+      // 아직 모름 — 실패 색·표지로 보이지 않는다. 정지·자세한 상태는 상태 화면에 있다.
+      return Row(
+        children: [
+          Icon(Icons.help_outline, size: 22, color: context.appWarning),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Text(
+              resultSentence ?? manualPressUnknownSentence(resultLabel!),
+              style: TextStyle(
+                fontSize: AppFont.body,
+                fontWeight: FontWeight.w600,
+                color: context.appWarning,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onSeeStatus,
+            child: const Text('자세히'),
           ),
         ],
       );

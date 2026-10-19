@@ -188,6 +188,73 @@ void main() {
     expect(find.byIcon(Icons.check), findsNothing);
   });
 
+  // 검토 10/19(11): 정한 시간 안에 내 결과를 못 보면 실패로 보이고 버튼이 풀려, 아직 돌거나 이미 눌린 버튼을
+  // 한 번 더 누를 수 있었다. 이제 '아직 모름'으로 남겨 계속 보고, 같은 버튼은 확인을 받은 뒤에만 다시 보낸다.
+  testWidgets('결과를 못 기다리면 모름으로 남기고, 같은 버튼은 확인 뒤에만 다시 보낸다', (tester) async {
+    var executeCallCount = 0;
+    var finished = false;
+    final client = MockClient((request) async {
+      if (request.url.path == '/execute-buttons') {
+        executeCallCount++;
+        return jsonRes({'job_id': 'job-t$executeCallCount', 'status': 'accepted'});
+      }
+      if (finished) {
+        return jsonRes({
+          'running': false,
+          'last_status': 'succeeded',
+          'last_buttons': [
+            {'button': '켜기', 'success': true},
+          ],
+          'last_job_id': 'job-t$executeCallCount',
+        });
+      }
+      return jsonRes({'running': true, 'job_id': 'job-t1'});
+    });
+    final api = RpiApiService('http://rpi5.local:8000', client: client);
+    final container = await _makeContainerWithAppliance(
+      tester,
+      extra: [rpiApiServiceProvider.overrideWithValue(api)],
+    );
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: ManualControlScreen(resultWait: Duration.zero)),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    await tester.pump();
+    expect(executeCallCount, 1);
+    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
+    expect(find.byIcon(Icons.cancel_outlined), findsNothing, reason: '모름을 실패로 보이지 않는다');
+
+    // 같은 버튼 — 묻고, 그만두면 보내지 않는다.
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    expect(find.text('다시 누를까요?'), findsOneWidget);
+    await tester.tap(find.text('그만두기'));
+    await tester.pump();
+    expect(executeCallCount, 1);
+
+    // 계속 지켜보다 결과가 오면 그 결과를 말한다.
+    finished = true;
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 집에서 확인해야 해요"), findsOneWidget);
+
+    // 결과를 안 뒤에는 묻지 않는다.
+    await tester.pump(const Duration(seconds: 3)); // 셀 결과 표지가 걷힌다
+    finished = false;
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    expect(find.text('다시 누를까요?'), findsNothing);
+    expect(executeCallCount, 2);
+    finished = true;
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 3));
+  });
+
   testWidgets('실행 중에는 다른 버튼 탭이 무시된다', (tester) async {
     var executeCallCount = 0;
     final client = MockClient((request) async {
