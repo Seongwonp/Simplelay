@@ -437,9 +437,17 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     // 내장 가전(전자레인지)만 실제로 매칭되는 규칙이 있어서 그 예시를 쓰고,
     // 사용자 정의 가전은 등록된 실제 버튼 라벨로 예시를 만든다 — 안 그러면
     // "즉석밥 데워줘" 힌트가 즉석밥 버튼도 없는 가전에서도 그대로 보이게 된다.
-    final hintExample = appliance.isCustom && appliance.buttons.isNotEmpty
-        ? '예: ${appliance.buttons.first.label} 해줘'
-        : '예: 즉석밥 데워줘';
+    // LG 가전은 누를 버튼이 없어서 종류 이름으로 말한다(본체 규칙: '공기청정기 켜줘'·'세탁 시작해줘',
+    // 이름 없는 '켜 줘'는 받지 않는다 — 첫 사용자 검토 10/19).
+    final hintExample = appliance.isThinq
+        ? switch (appliance.category) {
+            ApplianceCategory.washingMachine => '예: 세탁 시작해 줘',
+            ApplianceCategory.other => '예: ${appliance.name} 켜 줘',
+            final c => '예: ${c.label} 켜 줘',
+          }
+        : appliance.isCustom && appliance.buttons.isNotEmpty
+            ? '예: ${appliance.buttons.first.label} 해줘'
+            : '예: 즉석밥 데워줘';
 
     // 큰 글씨에서는 두 버튼을 나란히 두면 '다시 말하기'가 단어 중간에서
     // 꺾인다. 세로로 쌓고 주 행동을 위에 둔다(제안 화면과 같은 규칙).

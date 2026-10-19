@@ -409,6 +409,28 @@ void main() {
       expect(find.text('예: 즉석밥 데워줘'), findsOneWidget);
     });
 
+    // 공기청정기 화면에 전자레인지 예시를 보이면 안 되는 말을 가르친다(첫 사용자 검토 10/19 #10).
+    testWidgets('LG 공기청정기는 그 가전의 말 예시를 보여준다', (tester) async {
+      const purifier = ApplianceMap(
+        id: 'thinq_air',
+        name: '거실 공기청정기',
+        category: ApplianceCategory.airPurifier,
+        rows: 0,
+        cols: 0,
+        isCustom: true,
+        buttons: [],
+        controlPath: 'thinq',
+      );
+      final container = ProviderContainer(overrides: installedOverrides([purifier]));
+      addTearDown(container.dispose);
+      await container.read(customAppliancesProvider.notifier).ensureLoaded();
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+
+      expect(find.text('예: 공기청정기 켜 줘'), findsOneWidget);
+      expect(find.text('예: 즉석밥 데워줘'), findsNothing);
+    });
+
     testWidgets('전송 시 /execute를 호출하고 상태 화면으로 이동한다', (tester) async {
       http.Request? captured;
       final client = MockClient((request) async {
