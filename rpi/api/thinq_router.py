@@ -214,8 +214,15 @@ async def thinq_power(service: SimpleLayService = Depends(get_service),
     for entry in entries:
         appliance = await asyncio.to_thread(registry.get, entry["appliance_id"])
         if appliance is not None and appliance.thinq is not None:
-            known.append(entry)
+            known.append(_with_mode(controller, entry))
     return {"execution_mode": controller.execution_mode.value, "appliances": known}
+
+
+def _with_mode(controller, entry: dict) -> dict:
+    """기억 한 칸에 그 가전의 실행 환경을 싣는다(검토 10/19 #7) — 실제 모드 안의 연습 기기는 mock.
+
+    맨 위 ``execution_mode``는 서버 전체 값(종전 그대로)이라 연습 기기 칸이 연습 값인지 알 수 없었다."""
+    return {**entry, "execution_mode": controller.execution_mode_for(entry["appliance_id"]).value}
 
 
 @router.get("/thinq/air")
@@ -235,7 +242,7 @@ async def thinq_air(service: SimpleLayService = Depends(get_service),
     for entry in get_power_cache().air_snapshot():
         appliance = await asyncio.to_thread(registry.get, entry["appliance_id"])
         if appliance is not None and appliance.thinq is not None:
-            known.append(entry)
+            known.append(_with_mode(controller, entry))
     return {"execution_mode": controller.execution_mode.value, "appliances": known}
 
 
