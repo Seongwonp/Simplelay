@@ -219,6 +219,11 @@ class RoutineRun:
     results: list = field(default_factory=list)
     cancel: threading.Event = field(default_factory=threading.Event)
     active: bool = False
+    #: 지금 구간의 실행 번호(검토 10/19) — 루틴 정지는 이 실행일 때만 장치를 멈춘다. 번호를 아직 모르는 동기 구간은
+    #: 시작 게이트에서 본 '마지막 실행 번호'(``active_fence``)로 가린다 — 그 구간이 도는 동안에만 마지막 번호가 그대로다.
+    active_job_id: str | None = None
+    active_fence: object = None
+    active_fence_set: bool = False
     #: 마지막 장치 구간을 보내기 전의 가전 끝 기록 표(`ApplianceDoneLog.mark`). 이 뒤에 온 끝만 센다.
     done_mark: int = 0
     #: 시작할 때 본 비상정지 횟수(평가 B5) — 실행 중 늘면 해제 확인 뒤에도 남은 단계를 보내지 않는다.
@@ -322,9 +327,21 @@ class RoutineRunner:
         if run is None or run.status is not RunStatus.RUNNING:
             return False
         run.cancel.set()
-        if run.active and self._service.status().running:
+        if run.active and self._owns_running_job(run):
             self._service.emergency_stop_report()
         return True
+
+    def _owns_running_job(self, run: RoutineRun) -> bool:
+        """지금 도는 실행이 이 루틴 구간의 것인가(검토 10/19). 예전에는 '실행 중'만 봐서, 구간이 끝난 뒤 순서기가 알아채기
+        전(``active``가 아직 참)에 시작된 상관없는 실행에 긴급 정지를 보냈다."""
+        status = self._service.status()
+        if not status.running:
+            return False
+        if run.active_job_id is not None:
+            return getattr(status, "job_id", None) == run.active_job_id
+        if run.active_fence_set:
+            return getattr(status, "last_job_id", None) == run.active_fence
+        return False
 
     def halt_all(self, reason: str = "전체 정지 요청") -> int:
         """진행 중인 루틴 모두에 정지 표시만 세운다 — 입출력·로그 없음(이벤트 루프에서 바로 불러도 된다).
@@ -426,7 +443,7 @@ class RoutineRunner:
     def _start(self, routine: Routine, scenario_id: str, job_id: str) -> RoutineRun:
         run = RoutineRun(run_id=job_id, routine_id=routine.routine_id, routine_name=routine.name,
                          scenario_id=scenario_id, started_at=self._clock.now(), job_ids=[job_id],
-                         active=True)
+                         active=True, active_job_id=job_id)
         run.estop_trips = self._estop_snapshot()[1]
         with self._lock:
             self._runs.append(run)
@@ -443,7 +460,7 @@ class RoutineRunner:
     def _continue(self, run, routine, rest, job_id, record, scenario_id, kwargs) -> None:
         if record is None:
             record = self._await_job(job_id)
-        run.active = False
+        self._clear_active(run)
         if record is None:
             self._finish(run, routine, RunStatus.UNCONFIRMED, "첫 할 일이 됐는지 몰라요. 가전을 봐 주세요.", notify=True)
             return
@@ -481,25 +498,27 @@ class RoutineRunner:
                 return
             approved = tuple(replace(a, expires_at=None) for a in payload)
             run.done_mark = self._done_mark()
+            run.active_job_id = None
+            run.active_fence_set = False
             run.active = True
             try:
                 # G3: 실행 시작 게이트(서비스 잠금 안)에서 루틴 정지를 한 번 더 본다 — 위 확인과 실행 시작 사이에 온 정지를
                 # 실행 시작의 정지 기록 초기화가 덮지 못하게.
-                record = self._service.execute_approved(approved, approval_guard=self._start_guard(run),
+                record = self._service.execute_approved(approved, approval_guard=self._start_guard(run, self._service),
                                                         scenario_id=scenario_id, **kwargs)
             except RoutineHaltedError:
-                run.active = False
+                self._clear_active(run)
                 self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
                 return
             except Exception as exc:  # noqa: BLE001 -- 재검사 거절(바뀜·준비 안 됨·바쁨)
-                run.active = False
+                self._clear_active(run)
                 if self._halted(run):
                     self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
                     return
                 self._finish(run, routine, RunStatus.FAILED,
                              f"다음 할 일을 시작하지 못했어요. {exc}", notify=True)
                 return
-            run.active = False
+            self._clear_active(run)
             run.job_ids.append(record.job_id)
             if not self._absorb(run, record):
                 self._finish_unabsorbed(run, routine, record)
@@ -511,7 +530,13 @@ class RoutineRunner:
                      "모든 할 일을 마쳤어요." + (" 연습으로 한 일도 있어요." if run.is_demo else ""))
 
     @staticmethod
-    def _start_guard(run: RoutineRun):
+    def _clear_active(run: RoutineRun) -> None:
+        run.active = False
+        run.active_job_id = None
+        run.active_fence_set = False
+
+    @staticmethod
+    def _start_guard(run: RoutineRun, service=None):
         """다음 구간의 실행 시작 게이트(``approval_guard``) — 실행 서비스가 **자기 잠금 안**에서 부른다.
 
         루틴 정지 표시만 본다(메모리 읽기 하나 — 서비스 잠금 안이라 서비스 조회·비상정지 조회는 부르지 않는다. 비상정지
@@ -519,6 +544,11 @@ class RoutineRunner:
         def guard() -> None:
             if run.cancel.is_set():
                 raise RoutineHaltedError("멈추기를 눌러서 다음 할 일을 시작하지 않았어요.")
+            # 이 구간의 실행이 바로 이 잠금 안에서 시작된다 — 그 직전의 '마지막 실행 번호'를 적어 둔다(검토 10/19). 그 실행이
+            # 도는 동안에만 마지막 번호가 이 값이라, 루틴 정지가 이 구간의 실행만 멈춘다. 서비스 잠금 안이라 조회 함수는 부르지
+            # 않고 값만 읽는다.
+            run.active_fence = getattr(service, "_last_job_id", None)
+            run.active_fence_set = True
         return guard
 
     def _finish_unabsorbed(self, run: RoutineRun, routine: Routine, record) -> None:
