@@ -340,6 +340,7 @@ class ProactiveSuggestionService:
                     command_summaries=summaries,
                     routine_id=routine[0] if routine else None,
                     routine_name=routine[1] if routine else None,
+                    target_snapshot=self._target_snapshot(candidate.appliance_id, commands),
                 )
                 self._next_id += 1
                 self._suggestions[suggestion.suggestion_id] = suggestion
@@ -386,6 +387,7 @@ class ProactiveSuggestionService:
                         expires_at=self._clock.now() + timedelta(minutes=15),
                         commands=env_commands,
                         command_summaries=env_summaries,
+                        target_snapshot=self._target_snapshot(env.appliance_id, env_commands),
                     )
                     self._next_id += 1
                     self._suggestions[env_suggestion.suggestion_id] = (
@@ -460,6 +462,7 @@ class ProactiveSuggestionService:
                 expires_at=self._clock.now() + timedelta(minutes=15),
                 commands=commands,
                 command_summaries=summaries,
+                target_snapshot=self._target_snapshot(appliance_id, commands),
             )
             self._next_id += 1
             self._suggestions[suggestion.suggestion_id] = suggestion
@@ -546,16 +549,55 @@ class ProactiveSuggestionService:
                 routine_id=routine_id,
                 routine_name=routine_name,
                 user_started=user_started,
+                target_snapshot=self._target_snapshot(commands[0].target_id, commands),
             )
             self._next_id += 1
             self._suggestions[suggestion.suggestion_id] = suggestion
             self._record(suggestion, "created", "user_request" if user_started else "scenario_trigger")
             return suggestion
 
+    def _target_snapshot(self, appliance_id, commands=()) -> tuple:
+        """카드가 묶일 대상 가전 설정 — 가전마다 ``(ID, 판 번호, 보정 버전, ThinQ 기기 ID)``(검토 10/19 #1).
+
+        메모리 읽기만 한다(가전 목록의 짧은 메모리 잠금) — 실행 서비스의 시작 게이트 안에서도 부른다. 실행기가 가전 목록을
+        모르면 빈 튜플(대조하지 않는다). 없는 가전은 ``(ID, None, None, None)``."""
+        ids = [appliance_id] if appliance_id else []
+        return self._target_snapshot_of(ids + [c.target_id for c in commands])
+
+    def _target_snapshot_of(self, ids) -> tuple:
+        registry = getattr(self._executor, "_appliance_registry", None)
+        if registry is None:
+            return ()
+        snapshot = []
+        for aid in dict.fromkeys(ids):
+            appliance = registry.get(aid)
+            if appliance is None:
+                snapshot.append((aid, None, None, None))
+                continue
+            binding = getattr(appliance, "thinq", None)
+            snapshot.append((aid, getattr(appliance, "revision", None),
+                             getattr(appliance, "calibration_version", None),
+                             getattr(binding, "device_id", None)))
+        return tuple(snapshot)
+
+    def _check_target_snapshot(self, suggestion: ProactiveSuggestion) -> None:
+        """카드를 만들 때 본 대상 설정과 지금이 다르면 재승인 — 다시 보정했거나(판 번호·보정 버전) ThinQ 연결이 다른 기기로
+        바뀌었다(검토 10/19 #1). 승인한 내용이 사용자가 본 가전 설정이 아니므로 실행하지 않는다."""
+        from rpi.commands import ApprovalMismatchError  # noqa: PLC0415
+
+        expected = suggestion.target_snapshot
+        if not expected:
+            return
+        current = self._target_snapshot_of(item[0] for item in expected)
+        # 지금 없는 가전은 여기서 거르지 않는다 — 실행 서비스의 '없는 가전' 거절(카드는 남고 승인 게이트는 쓰지 않음)이 맡는다.
+        if any(now != then and now[1:] != (None, None, None) for now, then in zip(current, expected)):
+            raise ApprovalMismatchError("가전 설정이 바뀌었어요")
+
     def _approved_commands(self, suggestion: ProactiveSuggestion) -> tuple:
         """카드의 명령을 승인 1건으로 묶는다. 정의가 바뀌었으면 재승인(결정 #1)."""
         from rpi.commands import ApprovalMismatchError, ApprovedCommand  # noqa: PLC0415
 
+        self._check_target_snapshot(suggestion)
         if self._scenario_resolver is not None and suggestion.scenario_id is not None:
             current = tuple(self._scenario_resolver(suggestion.scenario_id))
             if (len(current) != len(suggestion.commands)
@@ -788,6 +830,7 @@ class ProactiveSuggestionService:
                 self._fail_approval(suggestion, exc)
                 raise
         try:
+            self._check_target_snapshot(suggestion)
             result = self._executor.execute_purpose(
                 suggestion.purpose, suggestion.appliance_id,
                 usage_source=(UsageSource.DEMO if suggestion.time_band == "데모" or suggestion.is_demo
@@ -819,6 +862,7 @@ class ProactiveSuggestionService:
                 self._fail_approval(suggestion, exc)
                 raise
         try:
+            self._check_target_snapshot(suggestion)
             result = self._executor.submit_purpose(
                 suggestion.purpose, suggestion.appliance_id,
                 usage_source=(UsageSource.DEMO if suggestion.time_band == "데모" or suggestion.is_demo
@@ -993,6 +1037,17 @@ class ProactiveSuggestionService:
 
     def _approval_options(self, suggestion):
         options = self._base_approval_options(suggestion)
+        if suggestion.target_snapshot:
+            # 검토 10/19 #1: 대상 설정 대조를 실행 서비스의 시작 게이트(그 잠금 안)에서도 한다 — 승인 확인과 실행 시작 사이에
+            # 끝난 다시 보정·ThinQ 기기 바꾸기도 막는다. 메모리 읽기만이다.
+            inner = options.get("approval_guard")
+
+            def target_guard():
+                self._check_target_snapshot(suggestion)
+                if inner is not None:
+                    inner()
+
+            options = {**options, "approval_guard": target_guard}
         # 결정 #1(승인 고정): 카드가 구체적 시퀀스를 보여 줬으면 그 시퀀스에 묶는다.
         # 승인 뒤 해석이 달라지면 실행하지 않고 재승인(ApprovalMismatchError).
         # 미리보기가 비어 있던 카드(해석 실패·리졸버 없음)는 보여 준 명령이 없어

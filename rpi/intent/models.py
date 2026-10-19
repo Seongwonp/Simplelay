@@ -130,3 +130,7 @@ class ProactiveSuggestion:
     routine_name: str | None = None
     #: 사용자가 직접 요청해 생긴 카드(루틴 '지금 실행', 2026-10-14). 조용한 시간에도 만들고 내리지 않는다.
     user_started: bool = False
+    #: 카드를 만들 때 본 대상 가전 설정(검토 10/19 #1) — ``((가전 ID, 판 번호, 보정 버전, ThinQ 기기 ID), …)``. 명령 지문은
+    #: 대상 이름·동작·버튼 이름뿐이라 다시 보정하거나 ThinQ 기기를 바꿔도 같았다. 승인 때 지금 설정과 다르면 재승인.
+    #: 비어 있으면(가전 목록을 모르는 실행기) 대조하지 않는다.
+    target_snapshot: tuple = ()
