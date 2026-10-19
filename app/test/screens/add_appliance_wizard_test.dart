@@ -250,11 +250,24 @@ Future<void> _tapPhoto(WidgetTester tester, double fx, double fy) async {
   await tester.pump();
 }
 
-/// ①~③을 지나 ④(정지 버튼과 기다리는 자리)까지 간다. 버튼은 '시작' 하나.
-Future<void> _walkToStopStep(WidgetTester tester, {String name = '전자레인지'}) async {
+/// ①~③을 지나 ④(정지 버튼과 기다리는 자리)까지 간다. 버튼은 '시작' 하나. [stop]이면 그 버튼을 정지로,
+/// 기다리는 자리도 골라 둔다(안 고르면 저장 전에 묻는다).
+Future<void> _walkToStopStep(WidgetTester tester, {String name = '전자레인지', bool stop = true}) async {
   await tester.tap(find.byKey(const Key('wizard-take-photo')));
   await _settle(tester);
   await _walkToStopStepFromPhoto(tester, name: name);
+  if (!stop) return;
+  await tester.tap(find.byKey(const Key('wizard-stop-B01')));
+  await tester.pump();
+  await tester.tap(find.byKey(const Key('wizard-park')));
+  await tester.pump();
+  await _tapPhoto(tester, 0.8, 0.8);
+}
+
+/// 정지 버튼·기다리는 자리 없이 저장하느냐고 물으면 '이대로 저장'.
+Future<void> _saveWithoutStop(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('wizard-save-without-stop')));
+  await _settle(tester);
 }
 
 /// 사진을 찍은 ①에서 ④까지.
@@ -492,6 +505,7 @@ void main() {
     await _walkToStopStepFromPhoto(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
+    await _saveWithoutStop(tester);
     expect(_title(tester), '5. 자리 확인');
     final saved = container.read(customAppliancesProvider).single;
     expect(saved.photoPath, '/photos/${photo.persisted.last}.jpg');
@@ -878,6 +892,7 @@ void main() {
       await tester.tap(find.byKey(const Key('wizard-next')));
       await _settle(tester);
     }
+    await _saveWithoutStop(tester);
     expect(server.requests.where((r) => r == 'PUT /appliances/custom_washer'), isEmpty,
         reason: '다시 맞추기는 등록을 다시 올리지 않는다');
     expect(server.mappingBody!['expected_revision'], 7);
@@ -951,9 +966,60 @@ void main() {
       await tester.tap(find.byKey(const Key('wizard-next')));
       await _settle(tester);
     }
+    await _saveWithoutStop(tester);
     expect(server.mappingBody, isNotNull);
     expect(server.deletes, isEmpty);
     expect(find.text('기다리는 자리가 버튼판 밖이에요'), findsOneWidget);
+  });
+
+  // 첫 사용 검토 10/19: '나중에 정해도 돼요'라고 안심시켜 처음 쓰는 사람이 정지 버튼·기다리는 자리를 건너뛰고, 가전이 도는
+  // 중에 멈출 때에야 가전의 정지 버튼을 누를 수 없다는 것을 알았다.
+  testWidgets('정지 버튼·기다리는 자리 없이 저장하려 하면 생기는 일을 말하고 묻는다 — 돌아가면 저장하지 않는다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester, stop: false);
+    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+    expect(find.textContaining('나중에 정해도'), findsNothing);
+    expect(find.textContaining('중간에 안전하게 멈추려면'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(find.text('정지 버튼 없이 저장할까요?'), findsOneWidget);
+    expect(find.text(kNoStopConsequence), findsOneWidget);
+    await tester.tap(find.text('돌아가서 정하기'));
+    await _settle(tester);
+    expect(server.mappingBody, isNull, reason: '돌아가면 저장하지 않는다');
+    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+
+    // 정지 버튼만 고르고 기다리는 자리가 없어도 묻는다(둘 다 있어야 기다린다).
+    await tester.tap(find.byKey(const Key('wizard-stop-B01')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(find.text('정지 버튼 없이 저장할까요?'), findsOneWidget);
+    await _saveWithoutStop(tester);
+    expect(server.mappingBody, isNotNull, reason: '그래도 저장할 수는 있다 — 켜고 끄는 버튼 하나뿐인 가전');
+    expect(_title(tester), '5. 자리 확인');
+  });
+
+  testWidgets('정지 버튼과 기다리는 자리를 다 정했으면 묻지 않고 저장한다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    expect(find.byKey(const Key('wizard-stop-missing')), findsNothing);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(find.text('정지 버튼 없이 저장할까요?'), findsNothing);
+    expect(server.mappingBody!['stop_button'], 'B01');
+    expect(server.mappingBody!['park_px'], isNotNull);
   });
 
   test('같은 이름 경고의 예시는 적은 그 이름으로 든다', () {

@@ -55,6 +55,10 @@ const _stepTitles = [
 
 const _cornerNames = ['왼쪽 위', '오른쪽 위', '오른쪽 아래', '왼쪽 아래'];
 
+/// 정지 버튼이나 기다리는 자리 없이 저장하려 할 때 묻는 창의 본문.
+const kNoStopConsequence = '정지 버튼과 기다리는 자리를 둘 다 정하지 않으면, 가전이 도는 중에 멈춰 달라고 해도 '
+    '누름 장치가 가전의 정지 버튼을 눌러 드리지 못해요.';
+
 /// 본체에 닿지 못해 저장하지 못했을 때 — 무엇을 보고 무엇을 다시 누를지, 고른 것은 남아 있다는 것까지(실화면 10/19).
 const kSaveOfflineMessage = '본체와 연결되지 않아 저장하지 못했어요. 와이파이를 확인하고 "저장하고 다음"을 다시 눌러 주세요. 고른 자리는 그대로 있어요.';
 
@@ -211,6 +215,7 @@ class _AddApplianceWizardScreenState
 
   Future<void> _next() async {
     if (_step == 3) {
+      if ((_stopId == null || _park == null) && !await _confirmNoStop()) return;
       await _saveMapping();
       return;
     }
@@ -223,6 +228,32 @@ class _AddApplianceWizardScreenState
       _error = null;
     });
     if (_step == 1 && !_frameLoaded) unawaited(_loadFrame());
+  }
+
+  /// 정지 버튼이나 기다리는 자리 없이 저장하려 할 때 한 번 묻는다. 둘 중 하나라도 없으면 가전이 도는 중에 멈춰 달라고 해도
+  /// 가전의 정지 버튼을 누르지 못한다 — '나중에 정해도 돼요'라고 안심시켜 처음 쓰는 사람이 건너뛰었다(첫 사용 검토 10/19).
+  /// 막지는 않는다: 켜고 끄는 버튼 하나뿐인 가전은 정지로 고를 버튼이 없고, 그런 버튼을 정지로 고르면 멈출 때 도리어
+  /// 다시 켠다.
+  Future<bool> _confirmNoStop() async {
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('정지 버튼 없이 저장할까요?'),
+        content: const Text(kNoStopConsequence),
+        actions: [
+          TextButton(
+            key: const Key('wizard-save-without-stop'),
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('이대로 저장'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('돌아가서 정하기'),
+          ),
+        ],
+      ),
+    );
+    return save ?? false;
   }
 
   bool get _dirty => !_transferring && _saved == null && _snapshot() != _initialSnapshot;
@@ -1043,8 +1074,9 @@ class _AddApplianceWizardScreenState
           Padding(
             padding: const EdgeInsets.only(top: AppSpace.sm),
             child: Text(
-              '정지 버튼과 기다리는 자리를 둘 다 정해야 누름 장치가 정지 버튼 위에서 기다려요. '
-              '나중에 정해도 돼요.',
+              '중간에 안전하게 멈추려면 정지 버튼과 기다리는 자리를 모두 정해 주세요. '
+              '정하지 않으면 가전이 도는 중에 멈춰 달라고 해도 누름 장치가 가전의 정지 버튼을 눌러 드리지 못해요.',
+              key: const Key('wizard-stop-missing'),
               style: TextStyle(fontSize: AppFont.caption, color: context.appWarning),
             ),
           ),
