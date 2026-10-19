@@ -33,4 +33,25 @@ void main() {
     final park = find.descendant(of: find.byKey(const Key('mark-park')), matching: find.byType(CustomPaint)).first;
     expect(tester.getSize(park), const Size(40, 40));
   });
+
+  testWidgets("귀퉁이 표시는 가전 추가 화면과 같은 말('귀퉁이')로 읽어요", (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 400,
+          child: PanelPhotoView(
+            photoWidth: 1000,
+            photoHeight: 800,
+            semanticsLabel: '사진',
+            marks: [PanelMark(id: 'corner-0', kind: PanelMarkKind.corner, point: PhotoPoint(100, 80), number: 1)],
+          ),
+        ),
+      ),
+    ));
+    // 표시의 이름은 사진 이름과 한 마디로 합쳐 읽힌다('사진' 다음 줄).
+    expect(find.bySemanticsLabel(RegExp('1번 귀퉁이')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('모서리')), findsNothing);
+    handle.dispose();
+  });
 }

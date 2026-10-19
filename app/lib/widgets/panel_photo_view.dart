@@ -190,7 +190,8 @@ class PanelPhotoView extends StatelessWidget {
   static String _semantic(PanelMark m) => switch (m.kind) {
         PanelMarkKind.stop => '정지 버튼 ${m.label ?? ''}'.trim(),
         PanelMarkKind.park => '기다리는 자리',
-        PanelMarkKind.corner => '모서리 ${m.number ?? ''}',
+        // 가전 추가 화면과 같은 말 — '모서리'는 사진 모서리로 읽혔다(실화면 10/19, 첫 사용 검토 10/19 #4).
+        PanelMarkKind.corner => '${m.number ?? ''}번 귀퉁이',
         PanelMarkKind.pin => '${m.number}번째 ${m.label ?? ''}'.trim(),
         _ => m.label ?? '버튼',
       };
