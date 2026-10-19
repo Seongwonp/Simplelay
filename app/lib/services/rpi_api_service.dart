@@ -1754,12 +1754,7 @@ class RpiApiService {
               // id나 'custom'을 넣어서, 식별자와 종류가 뭉개지고
               // 커스텀 가전의 종류는 아예 사라졌다.
               'category': appliance.category.value,
-              'rows': appliance.rows,
-              'cols': appliance.cols,
-              'buttons': [
-                for (final b in appliance.buttons)
-                  {'id': b.id, 'label': b.label, 'x': b.x, 'y': b.y},
-              ],
+              ..._layoutBody(appliance),
             }),
           )
           .timeout(_timeout);
@@ -1775,6 +1770,29 @@ class RpiApiService {
       return false;
     }
   }
+
+  /// 등록 PUT의 격자·버튼·목적 부분. 폰이 고치지 않는 서버 필드(다이얼 `kind`·`detents`·`press_ms`·`behavior`·
+  /// 모르는 키, `functions`)는 받은 그대로 다시 싣는다 — 빼면 본체가 기본값으로 갈아 끼우고 목적을 지웠다(검토 10/19).
+  ///
+  /// mm 좌표(`x_mm`·`y_mm`)만은 싣지 않는다. 본체가 같은 칸에 남은 버튼의 보정 좌표를 스스로 이어받는데, 실으면
+  /// '손으로 가르친 값'으로 이겨 이 폰이 받은 뒤 다시 맞춘 좌표를 옛 값으로 덮는다. 정지·보관(`stop_button`·
+  /// `park_xy`)도 싣지 않는다 — 셋 다 없을 때만 본체가 사진 매핑과 함께 이어받는다.
+  static Map<String, dynamic> _layoutBody(ApplianceMap appliance) => {
+        'rows': appliance.rows,
+        'cols': appliance.cols,
+        'buttons': [
+          for (final b in appliance.buttons)
+            {
+              for (final e in b.extra.entries)
+                if (e.key != 'x_mm' && e.key != 'y_mm') e.key: e.value,
+              'id': b.id,
+              'label': b.label,
+              'x': b.x,
+              'y': b.y,
+            },
+        ],
+        if (appliance.functions case final f?) 'functions': f,
+      };
 
   String _detailOf(http.Response res) {
     try {
@@ -2209,12 +2227,7 @@ class RpiApiService {
           body: jsonEncode({
             'name': appliance.name,
             'category': appliance.category.value,
-            'rows': appliance.rows,
-            'cols': appliance.cols,
-            'buttons': [
-              for (final b in appliance.buttons)
-                {'id': b.id, 'label': b.label, 'x': b.x, 'y': b.y},
-            ],
+            ..._layoutBody(appliance),
           }),
         )
         .timeout(_timeout);

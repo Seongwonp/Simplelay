@@ -424,6 +424,7 @@ class _AddApplianceWizardScreenState
         photoPath: draft.photoPath,
         revision: server.revision,
         controlPath: server.controlPath,
+        functions: server.functions,
         panelMapping: server.panelMapping ??
             PanelMapping(
               photoWidth: _photoSize!.width,

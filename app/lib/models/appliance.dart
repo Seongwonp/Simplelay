@@ -8,6 +8,7 @@ class ApplianceButton {
     required this.label,
     required this.x,
     required this.y,
+    this.extra = const {},
   });
 
   final String id;
@@ -15,14 +16,24 @@ class ApplianceButton {
   final int x;
   final int y;
 
+  /// 이 폰이 고치지 않는 서버 버튼 필드(`kind`·`detents`·`press_ms`·`behavior`·`x_mm`·`y_mm`, 모르는 키 포함) —
+  /// **받은 그대로** 들고 있다가 다시 올린다. 버리고 올리면 본체가 다이얼을 기본 누름 버튼으로 바꿨다(검토 10/19).
+  final Map<String, dynamic> extra;
+
+  static const _own = {'id', 'label', 'x', 'y'};
+
   factory ApplianceButton.fromJson(Map<String, dynamic> json) => ApplianceButton(
         id: json['id'] as String,
         label: json['label'] as String,
         x: json['x'] as int,
         y: json['y'] as int,
+        extra: {
+          for (final e in json.entries)
+            if (!_own.contains(e.key)) e.key: e.value,
+        },
       );
 
-  Map<String, dynamic> toJson() => {'id': id, 'label': label, 'x': x, 'y': y};
+  Map<String, dynamic> toJson() => {...extra, 'id': id, 'label': label, 'x': x, 'y': y};
 }
 
 /// 가전의 **종류**. 개별 기기의 식별자(`id`)와 다른 개념이다.
@@ -106,7 +117,12 @@ class ApplianceMap {
     this.controlPath = 'physical',
     this.panelMapping,
     this.stopButton,
+    this.functions,
   });
+
+  /// 목적별 단계(서버 `functions`). 폰은 고치지 않고 **받은 그대로** 다시 올린다 — 빼고 올리면 본체가 지웠다
+  /// (검토 10/19). null은 '모른다'(기기 저장분·옛 서버)라 올리지 않는다.
+  final Map<String, dynamic>? functions;
 
   /// 등록 때 짚은 **사진 위 버튼 자리**(서버 `panel_mapping`). 없으면 사진
   /// 패널 대신 버튼판을 그린다 -- 자리를 지어내지 않는다.
@@ -269,6 +285,7 @@ class ApplianceMap {
         controlPath: json['control_path'] as String? ?? 'physical',
         panelMapping: PanelMapping.fromJson(json['panel_mapping']),
         stopButton: json['stop_button'] as String?,
+        functions: json['functions'] as Map<String, dynamic>?,
       );
 
   /// 서버에서 받은 정의에 **이 폰의 사진 경로**를 얹는다.
@@ -295,6 +312,7 @@ class ApplianceMap {
         // 서버가 아직 매핑을 모르면(예: 등록 직후 동기화 순서) 이 폰의 기록을 잃지 않는다.
         panelMapping: panelMapping ?? other.panelMapping,
         stopButton: stopButton ?? other.stopButton,
+        functions: functions,
       );
 
   Map<String, dynamic> toJson() => {
@@ -316,6 +334,7 @@ class ApplianceMap {
         // 싣지 않는다(registerAppliance가 따로 조립한다).
         if (panelMapping != null) 'panel_mapping': panelMapping!.toJson(),
         if (stopButton != null) 'stop_button': stopButton,
+        if (functions != null) 'functions': functions,
       };
 }
 
