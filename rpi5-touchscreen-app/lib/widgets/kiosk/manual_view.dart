@@ -352,8 +352,21 @@ class _PressConfirm extends StatelessWidget {
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
 
+  // 화면 읽기에도 창이다(첫 사용 검토 10/19 #17) — 색만 덮으면 창 뒤 판 버튼까지 읽혀 눌렸다.
+  // 이름 있는 한 화면으로 읽히고, 처음 머무는 곳은 실물을 움직이지 않는 '그만두기'.
   @override
-  Widget build(BuildContext context) => ColoredBox(
+  Widget build(BuildContext context) => BlockSemantics(
+        child: Semantics(
+          key: const ValueKey('manual-press-confirm'),
+          scopesRoute: true,
+          namesRoute: true,
+          explicitChildNodes: true,
+          label: "'${button.label}' 버튼을 눌러 드릴까요?",
+          child: _box(),
+        ),
+      );
+
+  Widget _box() => ColoredBox(
         color: Colors.black.withValues(alpha: 0.6),
         child: Center(
           child: Container(
@@ -389,6 +402,7 @@ class _PressConfirm extends StatelessWidget {
                     Expanded(
                       flex: 2,
                       child: OutlinedButton(
+                        autofocus: true,
                         onPressed: onCancel,
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 60),

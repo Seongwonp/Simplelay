@@ -88,6 +88,25 @@ void main() {
     handle.dispose();
   });
 
+  // 첫 사용 검토 10/19 #17 — 누르기 확인 창이 판 위에 색만 덮어, 화면 읽기가 창 뒤 판 버튼까지 읽고 누를 수 있었다.
+  testWidgets('누르기 확인 창은 화면 읽기에도 창이다 — 뒤 판은 읽히지 않고, 그만두기에 먼저 머문다', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, kMicrowaveAppliance);
+    await tester.tap(find.text('시작'));
+    await tester.pump();
+
+    // 창 뒤 판 버튼은 읽히지 않는다.
+    expect(find.semantics.byLabel('10초 버튼 누르기'), findsNothing);
+    // 창은 이름이 있는 한 화면으로 읽힌다.
+    final node = tester.getSemantics(find.byKey(const ValueKey('manual-press-confirm')));
+    expect(node.label, contains("'시작' 버튼을 눌러 드릴까요?"));
+    expect(node.flagsCollection.scopesRoute, isTrue);
+    expect(node.flagsCollection.namesRoute, isTrue);
+    // 실물을 움직이지 않는 쪽에 먼저 머문다.
+    expect(Focus.of(tester.element(find.text('그만두기'))).hasPrimaryFocus, isTrue);
+    handle.dispose();
+  });
+
   testWidgets('준비 안 된 가전은 이유를 말하고 눌러도 맡기지 않는다', (tester) async {
     final pressed = await _pump(
       tester,
