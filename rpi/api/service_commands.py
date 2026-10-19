@@ -43,6 +43,7 @@ from rpi.commands import (
 )
 from rpi.commands.physical import confirmation_of, receipt_of
 from rpi.controller import ExecutionResult, ExecutionStatus
+from rpi.controller.models import stopped_before_dispatch
 from rpi.intent import UsageOutcome, UsageRecord
 from rpi.intent.models import UsageSource
 from rpi.intent.rules import UnknownIntentError
@@ -444,25 +445,35 @@ class CommandExecutionMixin:
         # 실행 환경(/status)은 **보낸 단계**로만 정하고, 실제로 보낸 단계가 하나라도 있으면 real을 지킨다(검토 10/19 #6).
         # 예전에는 보내지 않은 뒷단계(연습·모의)가 값을 덮어써, 앞단계에서 실제 가전이 바뀌었을 수 있는 실행이 '연습'으로 보였다.
         sent_real = False
+        # 정지로 보내지 않은 첫 단계(검토 10/19): 앞 단계가 모두 성공했는데 정지로 멈췄다면 이 실행의 공개 결과(/status·이력)는
+        # '멈춤·보내지 않음'이다. 예전에는 실행 기록(RunRecord)에만 넣어 /status가 첫 단계 성공·직전 실행을 그대로 보였다.
+        stop_skipped: CommandResult | None = None
         for index, step in enumerate(steps):
             command = step.command
-            halted = results and results[-1].status is not CommandStatus.SUCCEEDED
+            halted = bool(results) and results[-1].status is not CommandStatus.SUCCEEDED
             with self._lock:
                 stop = self._stop_sticky
-                self._current_appliance_id = command.target_id
-                self._current_route = command.route
-                if not (stop or halted or sent_real):
-                    self._execution_mode = _thinq_mode(step.controller, command.target_id)
+                if not (stop or halted):
+                    # 보내지 않는 단계는 표시 대상·경로를 바꾸지 않는다 — 누르지 않은 가전이 '마지막 실행 가전'으로 보였다.
+                    self._current_appliance_id = command.target_id
+                    self._current_route = command.route
+                    if not sent_real:
+                        self._execution_mode = _thinq_mode(step.controller, command.target_id)
                 self._step_suffix = f"{index + 1}" if multi else None
             if stop or halted:
-                results.append(CommandResult(
+                skipped = CommandResult(
                     command=command, status=CommandStatus.STOPPED if stop else CommandStatus.FAILED,
                     receipt=Receipt.NOT_DISPATCHED, confirmation=Confirmation.NONE,
                     execution_mode=_thinq_mode(step.controller, command.target_id),
                     detail=("멈추기를 눌러서 하지 않았어요." if stop
                             else "앞의 일이 됐는지 몰라서 하지 않았어요."),
                     observed_at=self._clock.now(), stop_requested=stop,
-                ))
+                )
+                results.append(skipped)
+                if stop and not halted and stop_skipped is None:
+                    # 앞 단계의 실패·미확인은 그 단계 결과가 이미 공개돼 있다 — 정지로 덮지 않는다(미확인을 '멈춤'으로 바꾸지 않게).
+                    stop_skipped = skipped
+                    self._record_command_history(skipped, purpose, step, None)
                 continue
             if command.route is ControlRoute.THINQ:
                 result = self._run_thinq_step(job_id, step, purpose, usage_source, scenario_id,
@@ -478,6 +489,14 @@ class CommandExecutionMixin:
                            tuple(s.summary for s in steps), self._clock.now())
         with self._lock:
             self._step_suffix = None
+            if stop_skipped is not None:
+                # 이 실행의 공개 결과를 실행 기록과 같은 잠금 안에서 함께 바꾼다.
+                self._last_command_result = stop_skipped
+                self._last_receipt = stop_skipped.receipt
+                self._last_confirmation = stop_skipped.confirmation
+                self._last_detail = stop_skipped.detail
+                self._last_command_status = stop_skipped.status
+                self._last_result = stopped_before_dispatch()
             self._remember_run(record)
         return record
 
