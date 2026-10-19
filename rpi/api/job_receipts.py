@@ -103,3 +103,41 @@ def ledger_of(app) -> JobRequestLedger:
         ledger = JobRequestLedger()
         app.state.job_request_ledger = ledger
     return ledger
+
+
+class ApproveAllowReceipts:
+    """'이번에 실행하고 다음부터 자동으로'(approve-and-allow)의 묶음 응답 영수증 (검토 10/19).
+
+    - 요청 번호별: 묶음 응답 전체(``job_id`` + ``rule`` + ``auto_allow``). 같은 번호의 재요청은 대기 중 제안 확인보다 **먼저**
+      이 영수증을 보고 같은 응답을 돌려준다. 실행 번호만 담는 ``/execute`` 장부와 섞이지 않게 장부를 따로 둔다.
+    - 제안별: 접수한 실행 번호와 자동 허용 결과, 그 규칙을 다시 찾을 열쇠. 번호 없는 재요청에 쓴다.
+    - 메모리만(재시작하면 사라짐), 최근 ``RECEIPTS_KEPT``건.
+    """
+
+    def __init__(self, kept: int = RECEIPTS_KEPT) -> None:
+        self.requests = JobRequestLedger(kept)
+        self._kept = kept
+        self._lock = threading.Lock()
+        self._by_suggestion: OrderedDict[str, dict] = OrderedDict()
+
+    def remember(self, suggestion_id: str, *, job_id: str, rule_key: tuple, auto_allow: dict) -> None:
+        with self._lock:
+            self._by_suggestion[suggestion_id] = {"job_id": job_id, "rule_key": rule_key,
+                                                  "auto_allow": dict(auto_allow)}
+            self._by_suggestion.move_to_end(suggestion_id)
+            while len(self._by_suggestion) > self._kept:
+                self._by_suggestion.popitem(last=False)
+
+    def for_suggestion(self, suggestion_id: str) -> dict | None:
+        with self._lock:
+            hit = self._by_suggestion.get(suggestion_id)
+            return None if hit is None else {**hit, "auto_allow": dict(hit["auto_allow"])}
+
+
+def approve_allow_receipts_of(app) -> ApproveAllowReceipts:
+    """앱마다 하나(``app.state``). 이벤트 루프 스레드에서 부른다."""
+    receipts = getattr(app.state, "approve_allow_receipts", None)
+    if receipts is None:
+        receipts = ApproveAllowReceipts()
+        app.state.approve_allow_receipts = receipts
+    return receipts

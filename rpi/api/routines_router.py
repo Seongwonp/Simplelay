@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 
 from rpi.routines import (
     RoutineNotFoundError,
@@ -304,31 +304,81 @@ async def delete_auto_rule(rule_id: str) -> dict:
 
 
 @router.post("/suggestions/{suggestion_id}/approve-and-allow")
-async def approve_and_allow(suggestion_id: str, body: dict = Body(...)) -> dict:
+async def approve_and_allow(suggestion_id: str, request: Request, body: dict = Body(...)) -> dict:
     """'이번에 실행하고 다음부터 자동으로' — 카드의 허용 내용(``auto_rule_offer.fingerprint``)을 확인한 뒤
     이번 실행은 종전 승인 경로로 제출하고, 같은 내용을 자동 실행 규칙으로 저장한다.
 
     물리 누름이 있는 카드는 422(자동 실행 불가), 허용 내용이 화면과 다르면 409(저장·실행 둘 다 안 함).
 
     3차 평가 H2: 요청을 시작할 때의 정지 세대를 저장 단계까지 넘긴다. 이번 실행을 제출한 뒤 전체 정지가 끼면 규칙은
-    켜지지 않고, 응답은 이번 실행(``job_id``)과 자동 허용 결과(``auto_allow: {ok: false, reason}``)를 나눠 돌려준다."""
-    from rpi.commands import ControlRoute  # noqa: PLC0415
-    from rpi.intent.rules import UnknownIntentError  # noqa: PLC0415
-    from rpi.intent.suggestions import UnknownSuggestionError  # noqa: PLC0415
-    from rpi.routines.auto_rules import PHYSICAL_REFUSED, AutoRuleError  # noqa: PLC0415
+    켜지지 않고, 응답은 이번 실행(``job_id``)과 자동 허용 결과(``auto_allow: {ok: false, reason}``)를 나눠 돌려준다.
+
+    재요청 영수증(검토 10/19): 본문에 선택 ``client_request_id``(``[A-Za-z0-9_-]{1,64}``, 실행 요청과 같은 규칙)를 받는다.
+    같은 번호의 재요청은 대기 중 제안 확인보다 먼저 영수증을 보고 **같은 묶음 응답**(job_id·rule·auto_allow)을 돌려준다
+    (다시 실행·저장하지 않음, ``GET /jobs/by-request/{id}``로도 실행 번호를 찾을 수 있다). 번호 없이 다시 보냈는데 이 카드의
+    실행이 이미 접수돼 있으면 같은 ``job_id``와 저장된 자동 허용 결과, 그 규칙의 **지금 상태**를 돌려준다."""
     from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
 
     from .deps import build_off_loop, get_suggestion_service  # noqa: PLC0415
+    from .job_receipts import (  # noqa: PLC0415
+        CLIENT_REQUEST_ID_PATTERN,
+        AdmissionPendingError,
+        approve_allow_receipts_of,
+        ledger_of,
+        valid_client_request_id,
+    )
 
+    client_request_id = body.get("client_request_id")
+    if client_request_id is not None and not (isinstance(client_request_id, str)
+                                              and valid_client_request_id(client_request_id)):
+        raise HTTPException(status_code=422, detail="client_request_id must match " + CLIENT_REQUEST_ID_PATTERN)
     await build_off_loop(get_suggestion_service)  # 최초 생성은 루프 밖에서(외부 재확인 3차)
     svc = get_suggestion_service()
     engine = await asyncio.to_thread(get_auto_rule_engine)
     start_generation = engine.generation()
-    pending = await asyncio.to_thread(svc.pending)
-    suggestion = next((s for s in pending if s.suggestion_id == suggestion_id), None)
+    receipts = approve_allow_receipts_of(request.app)
+    jobs = ledger_of(request.app)
+    try:
+        result = await asyncio.to_thread(receipts.requests.admit, client_request_id, _approve_and_allow_once,
+                                         svc, engine, receipts, suggestion_id, body, start_generation)
+    except AdmissionPendingError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if client_request_id is not None:
+        job_id = result["job_id"]
+        await asyncio.to_thread(jobs.admit, client_request_id, lambda: job_id)  # 실행 번호 조회에도 남긴다
+    return result
+
+
+def _rule_by_key(engine, rule_key: tuple):
+    scenario_id, target_appliance_id, action = rule_key
+    return next((r for r in engine.store.list() if r.scenario_id == scenario_id
+                 and r.target_appliance_id == target_appliance_id and r.action == action), None)
+
+
+#: 이 카드의 실행은 접수했지만 자동 허용 결과를 모를 때(그냥 승인으로 실행했거나 결과를 남기기 전에 실패).
+ALLOW_RESULT_UNKNOWN = "이번 실행은 이미 접수됐어요. 자동 실행은 켜지지 않았을 수 있어요 — 자동 실행 목록에서 확인해 주세요"
+
+
+def _approve_and_allow_once(svc, engine, receipts, suggestion_id: str, body: dict, start_generation) -> dict:
+    """approve-and-allow 한 번(루프 밖 스레드). 같은 요청 번호로는 한 번만 불린다(영수증 장부)."""
+    from rpi.commands import ControlRoute  # noqa: PLC0415
+    from rpi.intent.rules import UnknownIntentError  # noqa: PLC0415
+    from rpi.intent.suggestions import UnknownSuggestionError  # noqa: PLC0415
+    from rpi.routines.auto_rules import PHYSICAL_REFUSED, AutoRuleError  # noqa: PLC0415
+
+    suggestion = next((s for s in svc.pending() if s.suggestion_id == suggestion_id), None)
     if suggestion is None:
-        raise HTTPException(status_code=404, detail="suggestion not found")
-    draft = await asyncio.to_thread(engine.offer_for, suggestion)
+        # 이미 승인돼 대기 목록에서 빠진 카드 — 접수한 실행이 있으면 응답 유실 뒤 재요청으로 보고 같은 결과를 돌려준다.
+        job_id = svc.accepted_job(suggestion_id)
+        if job_id is None:
+            raise HTTPException(status_code=404, detail="suggestion not found")
+        stored = receipts.for_suggestion(suggestion_id)
+        if stored is None or stored["job_id"] != job_id:
+            return {"job_id": job_id, "rule": None, "auto_allow": {"ok": False, "reason": ALLOW_RESULT_UNKNOWN}}
+        current = _rule_by_key(engine, stored["rule_key"])
+        return {"job_id": job_id, "rule": engine.payload(current) if current is not None else None,
+                "auto_allow": stored["auto_allow"]}
+    draft = engine.offer_for(suggestion)
     if draft is None:
         physical = not suggestion.commands or any(c.route is ControlRoute.PHYSICAL for c in suggestion.commands)
         raise HTTPException(status_code=422, detail=PHYSICAL_REFUSED if physical
@@ -336,22 +386,26 @@ async def approve_and_allow(suggestion_id: str, body: dict = Body(...)) -> dict:
     if body.get("offer_fingerprint") != draft.fingerprint():
         raise HTTPException(status_code=409, detail="허용할 내용이 바뀌었어요 — 다시 확인하고 승인해 주세요")
     try:
-        job_id = await asyncio.to_thread(svc.approve_submit, suggestion_id)
+        job_id = svc.approve_submit(suggestion_id)
     except UnknownSuggestionError as exc:
         raise HTTPException(status_code=404, detail="suggestion not found") from exc
     except UnknownIntentError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    rule_key = (draft.scenario_id, draft.target_appliance_id, draft.action)
     try:
-        rule = await asyncio.to_thread(engine.allow_from_offer, draft, start_generation)
+        rule = engine.allow_from_offer(draft, start_generation)
     except AutoRuleError as exc:
         # 이번 실행은 이미 제출했다(결과는 job으로) — 자동 허용만 실패. 규칙은 켜지지 않았다.
-        current = next((r for r in engine.store.list() if r.scenario_id == draft.scenario_id
-                        and r.target_appliance_id == draft.target_appliance_id and r.action == draft.action), None)
+        current = _rule_by_key(engine, rule_key)
+        auto_allow = {"ok": False, "reason": exc.message}
+        receipts.remember(suggestion_id, job_id=job_id, rule_key=rule_key, auto_allow=auto_allow)
         return {"job_id": job_id, "rule": engine.payload(current) if current is not None else None,
-                "auto_allow": {"ok": False, "reason": exc.message}}
-    return {"job_id": job_id, "rule": engine.payload(rule), "auto_allow": {"ok": True, "reason": None}}
+                "auto_allow": auto_allow}
+    auto_allow = {"ok": True, "reason": None}
+    receipts.remember(suggestion_id, job_id=job_id, rule_key=rule_key, auto_allow=auto_allow)
+    return {"job_id": job_id, "rule": engine.payload(rule), "auto_allow": auto_allow}
 
 
 @router.get("/routines/{routine_id}")
