@@ -112,8 +112,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     List<String> steps = const [],
     String? requestId,
   }) {
-    final resendStop =
-        requestId != null && requestId == _submitRequestId && _stopWhileSubmitting;
+    // 늦게 온 옛 보냄의 답이다(그사이 다른 보냄·실행이 시작됐다) — 새 실행과 그 정지 대상을 덮지 않는다(검토 10/19).
+    if (requestId != null && requestId != _submitRequestId) return;
+    final resendStop = requestId != null && _stopWhileSubmitting;
     _supersedeRestore();
     _stopHttpTracking();
     _stopFollowTimer?.cancel();
@@ -145,6 +146,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   bool _stopWhileSubmitting = false;
   _Tracking? _beforeSubmit;
   static const submittingNotice = '보내는 중이에요';
+  static const waitAdmissionNotice = '아까 보낸 것의 답을 기다리는 중이에요. 답이 온 뒤 다시 해 주세요.';
   static const stopWhileSubmittingNotice = '멈추라고 보냈어요. 받았다는 답이 오면 한 번 더 보낼게요.';
   static final _random = Random();
 
@@ -152,6 +154,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   static String newRequestId() =>
       'app-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-'
       '${_random.nextInt(1 << 32).toRadixString(36)}';
+
+  /// 접수 답을 기다리는 중이다 — 답이 오기 전에는 새 실행을 보내지 않는다(옛 답이 새 실행을 덮거나 두 번 보내진다).
+  bool get admissionInFlight =>
+      _submitRequestId != null && (state.sequenceId?.startsWith('submit-') ?? false);
 
   /// 실행 요청을 보내기 **직전에** 부른다. 돌려준 요청 번호로 결과에 따라 [beginHttpJob]·[beginSubmissionUnknown]·
   /// [abandonSubmission] 중 하나를 부른다.
@@ -236,7 +242,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     String? requestId,
     bool byRequest = false,
   }) {
-    final continuing = requestId != null && requestId == _submitRequestId;
+    // 늦게 온 옛 보냄의 실패다 — 보낸 적 없는 번호를 지어 새 실행을 덮지 않는다(검토 10/19).
+    if (requestId != null && requestId != _submitRequestId) return;
+    final continuing = requestId != null;
     final resendStop = continuing && _stopWhileSubmitting;
     _supersedeRestore();
     _stopHttpTracking();

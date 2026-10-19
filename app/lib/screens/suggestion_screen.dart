@@ -166,6 +166,11 @@ class SuggestionScreen extends ConsumerWidget {
     final rpiApi = ref.read(rpiApiServiceProvider);
     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
       final execution = ref.read(executionStatusProvider.notifier);
+      // 아까 보낸 승인의 답을 기다리는 중 — 또 보내면 두 번 보내지고 늦은 답이 엇갈린다(검토 10/19).
+      if (execution.admissionInFlight) {
+        _notifyError(context, ExecutionStatusNotifier.waitAdmissionNotice);
+        return;
+      }
       // 승인 뒤의 이름은 질문(purpose)이 아니다 — 루틴·시나리오 이름.
       final label = suggestion.doneLabel(
         scenarioName: ref.read(scenarioNamesProvider).valueOrNull?[suggestion.scenarioId],

@@ -262,6 +262,11 @@ class ApplianceDetailScreen extends ConsumerWidget {
       );
       return;
     }
+    // 아까 보낸 것의 접수 답을 기다리는 중 — 또 보내면 늦은 답이 새 실행과 정지 대상을 엇갈리게 한다(검토 10/19).
+    if (ref.read(executionStatusProvider.notifier).admissionInFlight) {
+      _snack(context, ExecutionStatusNotifier.waitAdmissionNotice);
+      return;
+    }
     // 아까 보낸 같은 버튼이 눌렸는지 모르면 다시 누를지부터 묻는다(그 확인이 누르기 확인을 대신한다).
     final repeat = await _confirmRepeatIfUnknown(context, ref, b);
     if (repeat == false || !context.mounted) return;
