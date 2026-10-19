@@ -420,15 +420,19 @@ class CommandExecutionMixin:
     def _run_plan(self, job_id, steps, purpose, usage_source, scenario_id, dispatch_guard=None) -> RunRecord:
         results: list[CommandResult] = []
         multi = len(steps) > 1
+        # 실행 환경(/status)은 **보낸 단계**로만 정하고, 실제로 보낸 단계가 하나라도 있으면 real을 지킨다(검토 10/19 #6).
+        # 예전에는 보내지 않은 뒷단계(연습·모의)가 값을 덮어써, 앞단계에서 실제 가전이 바뀌었을 수 있는 실행이 '연습'으로 보였다.
+        sent_real = False
         for index, step in enumerate(steps):
             command = step.command
+            halted = results and results[-1].status is not CommandStatus.SUCCEEDED
             with self._lock:
                 stop = self._stop_sticky
                 self._current_appliance_id = command.target_id
                 self._current_route = command.route
-                self._execution_mode = _thinq_mode(step.controller, command.target_id)
+                if not (stop or halted or sent_real):
+                    self._execution_mode = _thinq_mode(step.controller, command.target_id)
                 self._step_suffix = f"{index + 1}" if multi else None
-            halted = results and results[-1].status is not CommandStatus.SUCCEEDED
             if stop or halted:
                 results.append(CommandResult(
                     command=command, status=CommandStatus.STOPPED if stop else CommandStatus.FAILED,
@@ -445,6 +449,10 @@ class CommandExecutionMixin:
             else:
                 result = self._run_physical_step(step, usage_source, scenario_id)
             results.append(result)
+            sent_real = sent_real or result.execution_mode is ExecutionMode.REAL
+            if sent_real:
+                with self._lock:
+                    self._execution_mode = ExecutionMode.REAL
         record = RunRecord(job_id, scenario_id, purpose, tuple(results),
                            tuple(s.summary for s in steps), self._clock.now())
         with self._lock:
