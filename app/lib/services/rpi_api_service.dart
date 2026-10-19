@@ -990,6 +990,15 @@ class RpiApiService {
     return _decodeMap(res);
   }
 
+  /// POST /pair/ack — 키를 이 폰에 저장했다고 알린다(검토 10/19 본체). 그 뒤로 그 토큰으로는 키를 다시 받을 수 없다. 본체는
+  /// 알림 전까지 같은 키를 몇 번이고 돌려주므로(결과 응답을 잃어도 다시 묻는다) 저장한 **뒤에만** 보낸다. 옛 본체는 404.
+  Future<void> pairingAck(String token) async {
+    final res = await _client.post(_base.replace(path: '/pair/ack'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'token': token})).timeout(_timeout);
+    _checkStatus(res);
+  }
+
   Future<bool> ping() async {
     try {
       final res = await _client

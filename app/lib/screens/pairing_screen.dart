@@ -170,8 +170,11 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     }
     setState(() {});
     _polling = true;
+    final api = _api!;
+    final token = _token!;
     try {
-      final result = await _api!.pairingResult(_token!);
+      // 응답을 잃어도(시간 초과·끊김) 다음 차례에 같은 토큰으로 다시 묻는다 — 새 본체는 받았음 알림 전까지 같은 키를 준다.
+      final result = await api.pairingResult(token);
       if (!mounted) return;
       if (result['state'] == 'approved') {
         final key = result['api_key'] as String?;
@@ -189,6 +192,8 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
           if (!mounted) return;
           await ref.read(rpiUrlProvider.notifier).save(_host.text);
           keySaved = true;
+          // 키와 주소를 저장한 뒤에만 받았음을 알린다(검토 10/19). 실패해도(옛 본체 404·끊김) 창이 끝나면 본체가 지운다.
+          unawaited(api.pairingAck(token).catchError((Object _) {}));
           if (!mounted) return;
           if (_resolvedHost != null) {
             ref.read(resolvedRpiUrlProvider.notifier).state =
