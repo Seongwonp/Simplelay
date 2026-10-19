@@ -851,6 +851,54 @@ void _auditTests() {
       expect(server.customs['fan']!['revision'], 6);
     });
 
+    // 검토 10/19(7): 판만 어긋났는지 가를 때 이름·격자·버튼만 봐서, 다른 기기가 바꾼 놓인 곳(방)·목적 등을
+    // '판만 다름'으로 보고 옛 내용을 새 판으로 다시 보내 덮었다. 병합도 판만 받고 옛 화면을 그대로 두었다.
+    test('다른 기기가 놓인 곳만 바꿨으면 판만 받지 않고 본체 내용을 가져온다', () async {
+      final server = _FakeServer(['fan']);
+      server.customs['fan']!
+        ..['revision'] = 2
+        ..['location'] = '안방';
+      final container = await _phone(server, prefs: {
+        'custom_appliances': [
+          jsonEncode({..._local('fan').toJson(), 'revision': 1, 'location': '거실'}),
+        ],
+      });
+
+      await container.read(applianceSyncProvider.notifier).sync();
+
+      final fan = container.read(customAppliancesProvider).single;
+      expect(fan.location, '안방');
+      expect(fan.revision, 2);
+      expect(fan.photoPath, '/phone/fan.jpg');
+    });
+
+    test('다른 기기가 목적을 바꿨으면 판만 바꿔 다시 보내지 않는다(충돌로 남긴다)', () async {
+      final server = _FakeServer(['fan']);
+      server.customs['fan']!
+        ..['revision'] = 2
+        ..['functions'] = {
+          'power_on': ['전원'],
+        };
+      final container = await _phone(server, prefs: {
+        'appliance_sync_outbox': [
+          jsonEncode({
+            'op_id': 'op-1',
+            'appliance_id': 'fan',
+            'kind': 'upsert',
+            'created_at': '2026-09-09T19:00:00+09:00',
+            'payload': {..._local('fan').toJson(), 'revision': 1},
+          }),
+        ],
+      });
+      server.checkPutRevision = true;
+
+      final result = await container.read(applianceSyncProvider.notifier).sync();
+
+      expect(result.conflicts, 1);
+      expect(server.putBodies.map((b) => b['expected_revision']).toList(), [1],
+          reason: '본체 판으로 바꿔 다시 보내면 다른 기기가 정한 목적을 지운다');
+    });
+
     test('이미 지워진 가전의 삭제는 여전히 멱등 성공이다', () async {
       final server = _FakeServer();
       final container = await _phone(server);

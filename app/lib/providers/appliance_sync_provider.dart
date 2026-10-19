@@ -528,13 +528,8 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     final server = remote?.where((a) => a.id == op.applianceId).firstOrNull;
     if (server == null || server.revision <= 0) return null;
     final mine = ApplianceMap.fromJson(seen);
-    // 목록 병합보다 엄하게 — 종류·정지 버튼·사진 위 자리까지 같아야 남의 수정이 없었다고 본다.
-    if (!_sameDefinition(server, mine) ||
-        server.category != mine.category ||
-        server.stopButton != mine.stopButton ||
-        jsonEncode(server.panelMapping?.toJson()) != jsonEncode(mine.panelMapping?.toJson())) {
-      return null;
-    }
+    // 본체와 맞추는 정의 전부가 같아야 남의 수정이 없었다고 본다 — 놓인 곳·목적까지(검토 10/19).
+    if (!_sameDefinition(server, mine)) return null;
     return SyncOperation(
       opId: op.opId,
       applianceId: op.applianceId,
@@ -590,7 +585,8 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
           stillPending.any((op) => op.applianceId == incoming.id)) {
         continue;
       }
-      if (_sameDefinition(mine, incoming)) {
+      // 사진을 얹은 모습으로 견준다 — 이 폰에만 있는 것은 차이가 아니다.
+      if (_sameDefinition(mine, incoming.withPhotoFrom(mine))) {
         // 내용은 같아도 판 번호는 본체를 따른다. 다시 보내기(PUT)가 본체 판을 올린 뒤 옛 판을 들고 있으면
         // 다음 지우기·고치기가 '다른 기기에서 먼저 변경'으로 거절돼 폰에서만 지워지고 본체에는 남았다(실화면 10/19).
         if (incoming.revision > 0 && incoming.revision != mine.revision) {
@@ -605,12 +601,34 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     return adopted;
   }
 
+  /// 본체와 맞추는 정의가 같은가 — 이름·놓인 곳·종류·조작 경로·격자·버튼(모르는 키까지)·사진 위 자리·정지 버튼·
+  /// 목적. 이 폰에만 있는 것(사진)·판 번호·살아 있는 준비 상태는 뺀다. 이름·격자·버튼만 보면 다른 기기가 바꾼
+  /// 놓인 곳·목적을 '판만 다름'으로 보고 옛 내용을 새 판으로 다시 보내 덮었다(검토 10/19).
   bool _sameDefinition(ApplianceMap a, ApplianceMap b) =>
-      a.name == b.name &&
-      a.rows == b.rows &&
-      a.cols == b.cols &&
-      jsonEncode(a.buttons.map((x) => x.toJson()).toList()) ==
-          jsonEncode(b.buttons.map((x) => x.toJson()).toList());
+      _canonical(a) == _canonical(b);
+
+  static String _canonical(ApplianceMap a) => jsonEncode(_sortedKeys({
+        'name': a.name,
+        'location': (a.location?.trim().isEmpty ?? true) ? null : a.location!.trim(),
+        'category': a.category.value,
+        'control_path': a.controlPath,
+        'rows': a.rows,
+        'cols': a.cols,
+        'buttons': [for (final b in a.buttons) b.toJson()],
+        'panel_mapping': a.panelMapping?.toJson(),
+        'stop_button': a.stopButton,
+        'functions': a.functions,
+      }));
+
+  /// 키 순서가 달라도 같은 값이면 같은 글이 되게.
+  static Object? _sortedKeys(Object? value) => switch (value) {
+        Map() => {
+            for (final k in (value.keys.map((k) => '$k').toList()..sort()))
+              k: _sortedKeys(value[k]),
+          },
+        List() => [for (final v in value) _sortedKeys(v)],
+        _ => value,
+      };
 }
 
 enum _SendOutcome { ok, conflict, failed }
