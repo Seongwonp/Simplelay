@@ -9,6 +9,7 @@ import '../../models/thinq.dart';
 import '../../theme/kiosk_colors.dart';
 import 'appliance_strip.dart';
 import 'connection_status.dart';
+import 'dnd_overlay.dart' show kDndCarriedScopeText, kDndName, kDndScopeText;
 import 'help_guide.dart';
 import 'idle_top.dart';
 import '../../theme/kiosk_tokens.dart';
@@ -40,6 +41,7 @@ class KioskIdleView extends StatelessWidget {
     this.on = const {},
     this.off = const {},
     this.dndUntil,
+    this.dndScope,
     this.quietUntil,
     this.temperature,
     this.humidity,
@@ -87,7 +89,10 @@ class KioskIdleView extends StatelessWidget {
   final Set<String> off;
   final DateTime? dndUntil;
 
-  /// 매일 조용한 시간대 안이면 끝 시각("07:00", 2026-10-14). 잠시 쉬기(방해 금지)가 켜져 있으면 그쪽이 먼저 보인다.
+  /// 방해 금지 범위(서버 `dnd_scope`) — `suggestions_only`면 새 제안만 쉰다고 말한다.
+  final String? dndScope;
+
+  /// 매일 조용한 시간대 안이면 끝 시각("07:00", 2026-10-14). 방해 금지가 켜져 있으면 그쪽이 먼저 보인다.
   final String? quietUntil;
   final double? temperature;
   final double? humidity;
@@ -1081,16 +1086,16 @@ class _DndEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     final quiet = remaining == null ? quietUntil : null;
     final on = remaining != null || quiet != null;
-    // '방해 금지'는 제안만 쉬는 줄 알았다(2026-10-15 검토) — '제안 쉬는 중' / 'N 남음'.
-    final title = quiet != null ? '조용한 시간' : '쉬는 중';
-    final sub = quiet != null ? '$quiet까지' : '$remaining 남음';
+    // 칩은 자리가 좁아 이름과 남은 시간만 — 쉬는 범위는 누르면 열리는 창과 메뉴가 늘 말한다(UX 문구 기준 10/19 §4).
+    final title = quiet != null ? '조용한 시간' : kDndName;
+    final sub = quiet != null ? '$quiet까지' : '$remaining 남았어요';
     return Semantics(
       button: true,
       label: quiet != null
           ? '조용한 시간, $quiet까지. 새 제안과 일반 안내 소리를 쉬어요'
           : on
-              ? '잠시 쉬는 중, $remaining 남음. 끝내려면 누르세요'
-              : '잠시 쉬기',
+              ? '방해 금지 켜짐, $remaining 남았어요. 끄려면 누르세요'
+              : kDndName,
       child: ExcludeSemantics(
         child: Material(
           // 쉬는 중은 일상 상태 — 중립 회색 면(2026-10-16 디자인 규격 §1-4). 앰버 채움은 주요 행동 몫이다.
@@ -1112,10 +1117,10 @@ class _DndEntry extends StatelessWidget {
                       // 꺼져 있으면 아이콘 아래 이름(UI 평가 3차 10/17) — 켜지면 오른쪽 두 줄이 같은 말을 한다.
                       Column(mainAxisSize: MainAxisSize.min, children: [
                         Icon(Icons.pause_circle_outline, size: 28, color: KioskColors.muted),
-                        KioskTopIconLabel('쉬기'),
+                        KioskTopIconLabel(kDndName),
                       ])
                     else
-                      // 아이콘 규칙(평가 7차 10/18, 폰과 같이): 조용한 시간 = 달, 잠시 쉬기 = 일시정지.
+                      // 아이콘 규칙(평가 7차 10/18, 폰과 같이): 조용한 시간 = 달, 방해 금지 = 일시정지.
                       Icon(quiet != null ? Icons.bedtime : Icons.pause_circle, size: 30, color: Colors.white),
                     if (on) ...[
                       const SizedBox(width: 6),
@@ -1732,12 +1737,10 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
     ));
     if (_sheet == _Sheet.none) return body;
     final dnd = v.dndUntil != null && v.dndUntil!.isAfter(v.now) ? v.dndUntil : null;
-    final restSub = dnd != null
-        ? '쉬는 중이에요. ${v._dndRemaining(dnd)} 남음'
-        : v.quietUntil != null
-            ? '조용한 시간이에요. ${spokenHhmm(v.quietUntil!)}까지'
-            // 잠시 쉬기 창과 같은 말(평가 8차 10/18) — 새로 켜는 잠시 쉬기는 새 제안과 자동으로 하는 일을 함께 쉰다.
-            : '새 제안과 자동으로 하는 일을 잠시 쉬어요';
+    // 방해 금지 창과 같은 범위 문장을 늘 둔다(UX 문구 기준 10/19 §4 — 이름을 되돌린 조건). 조용한 시간은 다른 기능이라
+    // 이 줄에 섞지 않는다(조용한 시간은 위 줄 칩과 설정이 말한다).
+    final scope = dnd != null && v.dndScope == 'suggestions_only' ? kDndCarriedScopeText : kDndScopeText;
+    final restSub = dnd != null ? '켜져 있어요. ${v._dndRemaining(dnd)} 남았어요. $scope' : scope;
     return Stack(children: [
       body,
       Positioned.fill(
@@ -1751,10 +1754,11 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                 children: [
                   KioskSheetRow(
                     key: const ValueKey('dnd-entry'),
-                    // 잠시 쉬기 = 일시정지(평가 7차 10/18 — 달은 폰에서 조용한 시간이다).
+                    // 방해 금지 = 일시정지(평가 7차 10/18 — 달은 폰에서 조용한 시간이다).
                     icon: dnd != null ? Icons.pause_circle : Icons.pause_circle_outline,
-                    label: '잠시 쉬기',
+                    label: kDndName,
                     sub: restSub,
+                    subMaxLines: null,
                     onTap: () {
                       _close();
                       v.onDndGesture();

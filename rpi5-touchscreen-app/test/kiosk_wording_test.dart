@@ -831,21 +831,21 @@ void main() {
     testWidgets('B8 — 제안 쉬는 중 칩은 큰 글씨에서 같이 커지고 남은 시간이라고 말한다', (tester) async {
       final until = DateTime(2026, 9, 30, 8, 38);
       await _pumpView(tester, idle(dnd: until));
-      expect(find.text('쉬는 중'), findsOneWidget);
-      expect(find.text('1시간 30분 남음'), findsOneWidget);
-      final small = tester.getSize(find.text('1시간 30분 남음')).height;
+      expect(find.text('방해 금지'), findsOneWidget);
+      expect(find.text('1시간 30분 남았어요'), findsOneWidget);
+      final small = tester.getSize(find.text('1시간 30분 남았어요')).height;
       await _pumpView(tester, idle(dnd: until), scale: 1.22);
       expect(tester.takeException(), isNull);
-      final large = tester.getSize(find.text('1시간 30분 남음')).height;
+      final large = tester.getSize(find.text('1시간 30분 남았어요')).height;
       expect(large, greaterThan(small));
     });
 
-    testWidgets('잠시 쉬기 창 — 이름과 쉬는 범위, 쉬기 끝내기', (tester) async {
+    testWidgets('방해 금지 창 — 이름과 쉬는 범위(직접 누르기·정지는 그대로), 방해 금지 끄기', (tester) async {
       await _pumpView(tester, DndOverlay(dndUntil: null, onSet: (_) {}, onClear: () {}, onDismiss: () {}));
-      expect(find.text('잠시 쉬기'), findsOneWidget);
-      // 자동 계열 이름 하나로(평가 4차 10/18) — 문장 안에서는 '자동으로 하는 일'.
-      expect(find.text('새 제안과 자동으로 하는 일을 잠시 쉬어요'), findsOneWidget);
-      expect(find.textContaining('방해 금지'), findsNothing);
+      expect(find.text('방해 금지'), findsOneWidget);
+      // 자동 계열 이름 하나로(평가 4차 10/18) — 문장 안에서는 '자동으로 하는 일'. 이름을 되돌린 조건(10/19): 범위 문장을 늘 둔다.
+      expect(find.text('새 제안과 자동으로 하는 일을 잠시 쉬어요. 직접 누르기와 정지는 그대로 돼요.'), findsOneWidget);
+      expect(find.textContaining('잠시 쉬기'), findsNothing);
       await _pumpView(
           tester,
           DndOverlay(
@@ -854,8 +854,8 @@ void main() {
               onSet: (_) {},
               onClear: () {},
               onDismiss: () {}));
-      expect(find.text('쉬기 끝내기'), findsOneWidget);
-      expect(find.textContaining('새 제안만 쉬어요. 자동으로 하는 일은 그대로예요'), findsOneWidget);
+      expect(find.text('방해 금지 끄기'), findsOneWidget);
+      expect(find.textContaining('새 제안만 쉬어요. 자동으로 하는 일은 그대로 해요.'), findsOneWidget);
     });
 
     testWidgets('B4 — 연결 창: 다시 연결해 보기, 본체 풀이 줄 없음, 큰 글씨에서 잘리지 않고 막대가 보인다', (tester) async {
@@ -942,9 +942,9 @@ void main() {
       expect(find.textContaining('모의'), findsNothing);
     });
 
-    test('사용자에게 보이는 문자열에 옛 말(허브·다시 연결하기·방해 금지·녹화·추천 숨김·작은 팔)이 없다', () {
+    test('사용자에게 보이는 문자열에 옛 말(허브·다시 연결하기·잠시 쉬기·녹화·추천 숨김·작은 팔)이 없다 — 방해 금지는 10/19에 되돌린 이름', () {
       final literal = RegExp(r"'[^'\n]*'");
-      final old = ['허브', '다시 연결하기', '방해 금지', '녹화', '추천 숨김', '작은 팔', '작은팔'];
+      final old = ['허브', '다시 연결하기', '잠시 쉬기', '잠시 쉬는', '쉬는 중', '쉬기 끝내기', '녹화', '추천 숨김', '작은 팔', '작은팔'];
       for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
         if (!f.path.endsWith('.dart')) continue;
         for (final line in f.readAsLinesSync()) {

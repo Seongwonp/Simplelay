@@ -65,7 +65,7 @@ void main() {
     expect(find.text('최근 28일 중 2일, 모두 5번'), findsOneWidget);
     expect(find.text('주방 전자레인지 · 아침'), findsOneWidget);
     expect(find.text('이 제안은 보이지 않게 해 뒀어요'), findsOneWidget);
-    expect(find.textContaining('잠시 쉬는 중'), findsOneWidget);
+    expect(find.textContaining('방해 금지가 켜져 있어'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

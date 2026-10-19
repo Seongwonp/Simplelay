@@ -988,7 +988,7 @@ void main() {
 
   // 검토 10/19 코어 6차 #12: 보내지 못했는데 창을 닫고 아무 말도 하지 않아 쉬는 줄 알았다.
   for (final clear in [false, true]) {
-    testWidgets('잠시 쉬기를 보내지 못하면 창을 두고 못 보냈다고 알린다 (${clear ? '쉬기 끝내기' : '1시간'})', (tester) async {
+    testWidgets('잠시 쉬기를 보내지 못하면 창을 두고 못 보냈다고 알린다 (${clear ? '방해 금지 끄기' : '1시간'})', (tester) async {
       useKioskViewport(tester);
       final api = FakeKioskApi()
         ..dndError = Exception('connection reset')
@@ -998,7 +998,7 @@ void main() {
       await _pumpKiosk(tester, api);
       await tapIdleMenuItem(tester, 'dnd-entry');
       await tester.pump();
-      await tester.tap(find.text(clear ? '쉬기 끝내기' : '1시간'));
+      await tester.tap(find.text(clear ? '방해 금지 끄기' : '1시간'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text(kDndNotSentNotice), findsOneWidget);
@@ -1435,17 +1435,17 @@ void main() {
     expect(find.text('30분'), findsOneWidget);
   });
 
-  testWidgets('설정에도 방해 금지 줄이 있고 같은 선택을 열어요', (tester) async {
+  testWidgets('설정에는 방해 금지 단추가 없고 조용한 시간만 — 방해 금지는 메뉴를 가리킨다(사용자 결정 10/19)', (tester) async {
     useKioskViewport(tester);
     await _pumpKiosk(tester, FakeKioskApi());
     await tapIdleMenuItem(tester, 'settings-entry');
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byKey(const ValueKey('settings-dnd')), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const ValueKey('settings-dnd')));
-    await tester.tap(find.byKey(const ValueKey('settings-dnd')));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('본체 화면 설정'), findsNothing);
-    expect(find.byType(DndOverlay), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-dnd')), findsNothing);
+    expect(find.byKey(const ValueKey('settings-quiet')), findsOneWidget);
+    expect(find.text('조용한 시간'), findsOneWidget);
+    expect(find.textContaining('휴대폰 앱 설정에서'), findsOneWidget);
+    expect(find.text("지금부터 잠깐만 쉬게 하려면 처음 화면 메뉴의 '방해 금지'를 눌러 주세요."), findsOneWidget);
+    expect(find.byIcon(Icons.pause_circle_outline), findsNothing);
   });
 
   testWidgets('설정은 보이는 버튼을 한 번 눌러 열어요', (tester) async {

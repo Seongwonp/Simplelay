@@ -42,8 +42,9 @@ import '../widgets/kiosk/top_progress_bar.dart';
 /// 잠시 쉬기 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 폰과 같은 문장.
 const kSettingNotSavedNotice = '저장하지 못해 지금만 바뀌어요. 본체를 다시 켜면 예전 설정으로 돌아가요.';
 
-/// 잠시 쉬기 요청이 본체에 닿지 않았다(통신 끊김·본체 오류) — 쉬는 줄 알지 않게 말하고 창을 둔다(검토 10/19 코어 6차).
-const kDndNotSentNotice = '잠시 쉬기를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.';
+/// 방해 금지 요청이 본체에 닿지 않았다(통신 끊김·본체 오류) — 바뀐 줄 알지 않게 말하고 창을 둔다(검토 10/19 코어 6차).
+/// 켜기·끄기 둘 다 같은 창에서 보내므로 '바꾸지 못했어요'로 말한다.
+const kDndNotSentNotice = '방해 금지를 바꾸지 못했어요. 잠시 뒤 다시 눌러 주세요.';
 
 /// 실행 접수 응답을 받지 못했을 때(검토 10/19) — 본체가 이미 시작했을 수 있다. 정지 단추는 그대로 둔다.
 const kAdmitUnknownMessage = "본체 답을 받지 못했어요. 시작됐을 수 있어요. 멈추려면 '정지'를 누르세요.";
@@ -2310,11 +2311,8 @@ class _KioskScreenState extends State<KioskScreen> {
                             _persistSettings();
                           },
                           onDismiss: () => setState(() => _showSettings = false),
-                          // 설정을 닫고 평소 화면 위 줄과 같은 방해 금지 선택을 연다.
-                          onOpenDnd: () => setState(() {
-                            _showSettings = false;
-                            _showDnd = true;
-                          }),
+                          // 조용한 시간은 보여 주기만 — 방해 금지는 메뉴 한 곳에만 둔다(사용자 결정 10/19).
+                          quietSchedule: _health.quietSchedule,
                         ),
                       ),
                   ],
@@ -2482,6 +2480,7 @@ class _KioskScreenState extends State<KioskScreen> {
           nextRunNotice: _nextRunNotice,
           onToggleNextRunSkip: _toggleNextRunSkip,
           dndUntil: _health.dndUntil,
+          dndScope: _health.dndScope,
           quietUntil: _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
           temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
           humidity: _sensorData?.mocked == false ? _sensorData?.humidity : null,

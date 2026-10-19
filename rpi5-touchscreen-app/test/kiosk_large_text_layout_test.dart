@@ -260,8 +260,8 @@ void main() {
         await _pump(tester, _idle(dndUntil: DateTime(2026, 9, 30, 8, 38)),
             scale: scale, panel15: panel15);
         expect(tester.takeException(), isNull);
-        _expectFullyVisible(tester, find.text('쉬는 중'));
-        _expectFullyVisible(tester, find.text('1시간 30분 남음'));
+        _expectFullyVisible(tester, find.text('방해 금지'));
+        _expectFullyVisible(tester, find.text('1시간 30분 남았어요'));
         _expectFullyVisible(tester, find.text('9월 30일 수요일'));
       }
     });

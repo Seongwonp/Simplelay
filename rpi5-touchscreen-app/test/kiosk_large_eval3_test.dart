@@ -249,7 +249,7 @@ void main() {
     final chipOff = tester.getRect(find.byKey(const ValueKey('idle-status-chip')));
     final menuOff = tester.getRect(find.byKey(const ValueKey('idle-menu')));
     await _pump(tester, idle(dnd: DateTime(2026, 10, 17, 10, 8)), scale: 1.0, panel15: true);
-    expect(find.text('쉬는 중'), findsOneWidget);
+    expect(find.text('방해 금지'), findsOneWidget);
     expect(tester.getRect(find.byKey(const ValueKey('idle-status-chip'))), chipOff);
     expect(tester.getRect(find.byKey(const ValueKey('idle-menu'))), menuOff);
   });

@@ -447,7 +447,7 @@ class KioskIdleMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
         button: true,
-        label: '메뉴. 잠시 쉬기, 설정, 연결, 사용 방법',
+        label: '메뉴. 방해 금지, 설정, 연결, 사용 방법',
         excludeSemantics: true,
         child: InkWell(
           key: const ValueKey('idle-menu'),
@@ -550,11 +550,15 @@ class KioskSheetRow extends StatelessWidget {
     this.badgeKey,
     required this.onTap,
     this.semanticsLabel,
+    this.subMaxLines = 2,
   });
 
   final IconData icon;
   final String label;
   final String? sub;
+
+  /// 아래 작은 줄의 최대 줄 수. null이면 자르지 않는다(방해 금지 범위 문장처럼 잘리면 뜻이 바뀌는 말).
+  final int? subMaxLines;
   final Color iconColor;
 
   /// 문제 표시('!' 배지) — 색만으로 말하지 않는다.
@@ -596,8 +600,8 @@ class KioskSheetRow extends StatelessWidget {
                                   color: Colors.white)),
                           if (sub != null && sub!.isNotEmpty)
                             KioskText(sub!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                                maxLines: subMaxLines,
+                                overflow: subMaxLines == null ? null : TextOverflow.ellipsis,
                                 style: TextStyle(
                                     fontSize: KioskType.caption,
                                     color: KioskColors.muted)),

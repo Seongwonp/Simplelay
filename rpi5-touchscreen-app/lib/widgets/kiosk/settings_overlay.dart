@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../../theme/kiosk_tokens.dart';
 
 import '../../models/appliance.dart';
+import '../../models/kiosk_time.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_timings.dart';
+import 'kiosk_text.dart';
 import 'pairing_view.dart';
 import '../learning_status_dialog.dart';
 
@@ -25,7 +27,7 @@ class KioskSettingsOverlay extends StatefulWidget {
     this.onHighContrastChanged,
     this.countdownSeconds = KioskTimings.countdownSeconds,
     this.onCountdownChanged,
-    this.onOpenDnd,
+    this.quietSchedule,
   });
 
   final ApplianceMap currentAppliance;
@@ -52,8 +54,9 @@ class KioskSettingsOverlay extends StatefulWidget {
   final int countdownSeconds;
   final ValueChanged<int>? onCountdownChanged;
 
-  /// 방해 금지 선택 열기 — 평소 화면 위 줄의 방해 금지 단추와 같은 선택이 열린다.
-  final VoidCallback? onOpenDnd;
+  /// 켜 둔 매일 조용한 시간대 (시작, 끝) — 보여 주기만 한다(바꾸기는 휴대폰 앱 설정). null이면 정해 두지 않았다.
+  /// 방해 금지(지금부터 잠깐)는 메뉴 한 곳에만 둔다 — 두 곳에 있으면 같은 기능인지 헷갈린다(사용자 결정 10/19).
+  final (String, String)? quietSchedule;
 
   @override
   State<KioskSettingsOverlay> createState() => _KioskSettingsOverlayState();
@@ -199,15 +202,8 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                             label: const Text('생활 습관 알아가기'),
                             onPressed: () => setState(() => _showLearning = true),
                           ),
-                          if (widget.onOpenDnd != null) ...[
-                            const SizedBox(height: 8),
-                            TextButton.icon(
-                              key: const ValueKey('settings-dnd'),
-                              icon: const Icon(Icons.pause_circle_outline), // 잠시 쉬기 = 일시정지(평가 7차 10/18)
-                              label: const Text('잠시 쉬기'),
-                              onPressed: widget.onOpenDnd,
-                            ),
-                          ],
+                          const SizedBox(height: 16),
+                          _buildQuietSection(),
                           const SizedBox(height: 16),
                           _buildTtsSection(),
                           const SizedBox(height: 16),
@@ -249,6 +245,47 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           ),
         ],
       );
+
+  /// 조용한 시간(매일 정한 시간대) — 보여 주기만 한다. 범위는 서버 `SCOPE_TEXT`와 같다(새 제안·일반 안내 소리를 쉬고,
+  /// 아직 시작하지 않은 자동으로 하는 일은 건너뛴다). 방해 금지는 다른 기능이라 메뉴를 가리키기만 한다.
+  Widget _buildQuietSection() {
+    final q = widget.quietSchedule;
+    return Row(
+      key: const ValueKey('settings-quiet'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(Icons.bedtime_outlined, color: KioskColors.muted, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '조용한 시간',
+                style: TextStyle(fontSize: KioskType.caption, color: Color(0xFFFAF7F2)),
+              ),
+              KioskText(
+                q == null
+                    ? '정해 두지 않았어요. 휴대폰 앱 설정에서 정할 수 있어요.'
+                    : '매일 ${spokenHhmm(q.$1)}부터 ${spokenHhmm(q.$2)}까지 새 제안과 일반 안내 소리를 쉬고, '
+                        '자동으로 하는 일도 하지 않아요. 휴대폰 앱 설정에서 바꿀 수 있어요.',
+                style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+              ),
+              const SizedBox(height: 4),
+              KioskText(
+                "지금부터 잠깐만 쉬게 하려면 처음 화면 메뉴의 '방해 금지'를 눌러 주세요.",
+                key: const ValueKey('settings-dnd-pointer'),
+                style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildTtsSection() => Column(
         children: [

@@ -128,8 +128,8 @@ void main() {
       ),
     ));
     // 자동 계열 이름 하나로·시각은 오전/오후(평가 4차 10/18).
-    expect(find.text('새 제안과 자동으로 하는 일을 잠시 쉬어요'), findsOneWidget);
-    expect(find.text('매일 오후 10시부터 오전 7시까지 조용한 시간이에요. 폰 설정에서 바꿔요'), findsOneWidget);
+    expect(find.text('새 제안과 자동으로 하는 일을 잠시 쉬어요. 직접 누르기와 정지는 그대로 돼요.'), findsOneWidget);
+    expect(find.text('매일 오후 10시부터 오전 7시까지 조용한 시간이에요. 휴대폰 앱 설정에서 바꿀 수 있어요'), findsOneWidget);
     expect(find.textContaining('모든'), findsNothing);
     expect(find.textContaining('사용 습관 제안'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -150,8 +150,8 @@ void main() {
         ),
       ),
     ));
-    expect(find.text('오후 11시 30분까지 새 제안과 자동으로 하는 일을 쉬어요'), findsOneWidget);
-    expect(find.text('쉬기 끝내기'), findsOneWidget);
+    expect(find.text('오후 11시 30분까지 새 제안과 자동으로 하는 일을 쉬어요. 직접 누르기와 정지는 그대로 돼요.'), findsOneWidget);
+    expect(find.text('방해 금지 끄기'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

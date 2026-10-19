@@ -130,7 +130,7 @@ void main() {
       final menuOff = tester.getRect(find.byKey(const ValueKey('idle-menu')));
       await _pump(tester, _idle(connections: _pressDown, dnd: DateTime(2026, 10, 18, 9, 30)));
       expect(find.byKey(const ValueKey('dnd-chip')), findsOneWidget);
-      expect(find.text('쉬는 중'), findsOneWidget);
+      expect(find.text('방해 금지'), findsOneWidget);
       expect(tester.getRect(find.byKey(const ValueKey('idle-status-chip'))), chipOff);
       expect(tester.getRect(find.byKey(const ValueKey('idle-menu'))), menuOff);
     });

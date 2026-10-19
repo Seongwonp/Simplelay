@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/kiosk_tokens.dart';
 import '../models/learning_status.dart';
+import 'kiosk/kiosk_text.dart';
 
 /// Opened on demand; failures never masquerade as an empty learning history.
 class LearningStatusDialog extends StatefulWidget {
@@ -83,7 +84,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                           const SizedBox(height: 16),
                         ],
                         if (status.paused)
-                          const Text('잠시 쉬는 중이에요. 새 제안을 쉬고 있어요.',
+                          const KioskText('방해 금지가 켜져 있어 새 제안을 묻지 않아요.',
                               style: TextStyle(fontSize: KioskType.body)),
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,

@@ -128,11 +128,11 @@ void main() {
     await _pump(tester,
         dndUntil: DateTime(2026, 9, 13, 10, 5), onDnd: () => opened++);
     // 색만으로 말하지 않는다 — 채운 칩 + 아이콘 + 글자.
-    // 2026-10-15: '방해 금지' → '쉬는 중'(이름만 보면 제안만 쉬는 줄 알았다) · 남은 시간에 '남음'.
-    expect(find.text('쉬는 중'), findsOneWidget);
-    expect(find.text('1시간 남음'), findsOneWidget);
+    // 10/19: 이름을 '방해 금지'로 되돌렸다(범위 문장은 창·메뉴에 늘 있다) · 남은 시간은 '남았어요'.
+    expect(find.text('방해 금지'), findsOneWidget);
+    expect(find.text('1시간 남았어요'), findsOneWidget);
     expect(find.byIcon(Icons.pause_circle), findsOneWidget);
-    expect(find.bySemanticsLabel('잠시 쉬는 중, 1시간 남음. 끝내려면 누르세요'), findsOneWidget);
+    expect(find.bySemanticsLabel('방해 금지 켜짐, 1시간 남았어요. 끄려면 누르세요'), findsOneWidget);
     // 위 줄 안, 시계 열이 아니다.
     final chip = tester.getRect(find.byKey(const ValueKey('dnd-chip')));
     expect(chip.bottom, lessThanOrEqualTo(10 + 80 + 0.5));
@@ -145,7 +145,7 @@ void main() {
 
   testWidgets('끝난 방해 금지 시각은 켜진 것으로 보이지 않는다', (tester) async {
     await _pump(tester, dndUntil: DateTime(2026, 9, 13, 9, 0));
-    expect(find.text('쉬는 중'), findsNothing);
+    expect(find.text('방해 금지'), findsNothing);
     expect(find.byKey(const ValueKey('dnd-chip')), findsNothing);
   });
 
