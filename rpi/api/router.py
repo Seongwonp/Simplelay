@@ -1,7 +1,19 @@
+"""실행·상태·제안 HTTP 경로.
+
+실행 영수증 계약(검토 10/19, 모두 선택 — 옛 클라이언트는 그대로):
+
+- ``POST /execute``·``/execute-buttons``·``/execute-for-appliance``·``/suggestions/{id}/approve``는 선택 필드
+  ``client_request_id``(``[A-Za-z0-9_-]{1,64}``)를 받는다(승인은 선택 JSON 본문 ``{"client_request_id": ...}``). 같은 번호로
+  다시 보내면 같은 ``job_id``를 돌려주고 다시 실행하지 않는다 — 첫 요청이 접수 중이면 기다린다. 접수 실패면 영수증이
+  없고 같은 번호로 다시 시도할 수 있다. 메모리만(최근 256건, 재시작하면 사라짐).
+- ``GET /jobs/by-request/{client_request_id}`` → ``{"client_request_id", "job_id"}`` 또는 404.
+"""
+
 import asyncio
 import json
 import logging
 import os
+import re
 import time
 from collections import deque
 from dataclasses import replace
@@ -73,6 +85,8 @@ from .schemas import (
     ApplianceResponse,
     AckRequest,
     AcksResponse,
+    ApproveSuggestionRequest,
+    JobByRequestResponse,
     CareEventResponse,
     DemoCareEventRequest,
     ButtonStep,
@@ -118,6 +132,7 @@ from .service import (
     SimpleLayService,
     UnknownApplianceError,
 )
+from .job_receipts import CLIENT_REQUEST_ID_PATTERN, ledger_of
 from .readiness_view import readiness_view
 from .stop_lane import resolve_without_shared_pool, run_on_stop_lane
 from .thinq_router import command_payloads
@@ -200,6 +215,7 @@ def _not_understood_response(exc: UnknownIntentError):
 @router.post("/execute", response_model=JobAcceptedResponse)
 async def execute(
     body: ExecuteRequest,
+    request: Request,
     service: SimpleLayService = Depends(get_service),
 ) -> JobAcceptedResponse:
     # 안전 보고 G7(2026-10-16): 해석 **맨 앞**에서 정지어를 본다. 발화 전체가 "멈춰"·"그만"·"정지해줘" 같은 정지어면
@@ -209,7 +225,8 @@ async def execute(
         return await _stop_phrase_response(service)
     try:
         job_id = await asyncio.to_thread(
-            service.submit_purpose, body.text, body.appliance_id
+            ledger_of(request.app).admit, body.client_request_id,
+            service.submit_purpose, body.text, body.appliance_id,
         )
     except UnknownIntentError as exc:
         return _not_understood_response(exc)
@@ -221,12 +238,14 @@ async def execute(
 @router.post("/execute-buttons", response_model=JobAcceptedResponse)
 async def execute_buttons(
     body: ExecuteButtonsRequest,
+    request: Request,
     service: SimpleLayService = Depends(get_service),
 ) -> JobAcceptedResponse:
     # 의도 해석 규칙이 없는 사용자 정의 가전용 — 목적 문자열 없이 버튼을 직접 실행.
     try:
         job_id = await asyncio.to_thread(
-            service.submit_buttons, tuple(body.buttons), body.appliance_id
+            ledger_of(request.app).admit, body.client_request_id,
+            service.submit_buttons, tuple(body.buttons), body.appliance_id,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -236,6 +255,7 @@ async def execute_buttons(
 @router.post("/execute-for-appliance", response_model=JobAcceptedResponse)
 async def execute_for_appliance(
     body: ExecuteForApplianceRequest,
+    request: Request,
     service: SimpleLayService = Depends(get_service),
 ) -> JobAcceptedResponse:
     # 사용자 정의 가전용 음성 명령 — 요청에 실린 버튼 어휘를 기준으로 LLM이
@@ -245,6 +265,7 @@ async def execute_for_appliance(
         return await _stop_phrase_response(service)
     try:
         job_id = await asyncio.to_thread(
+            ledger_of(request.app).admit, body.client_request_id,
             service.submit_purpose_for_appliance,
             body.text,
             frozenset(body.known_buttons),
@@ -257,6 +278,17 @@ async def execute_for_appliance(
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return JobAcceptedResponse(job_id=job_id)
+
+
+@router.get("/jobs/by-request/{client_request_id}", response_model=JobByRequestResponse)
+async def job_by_request(client_request_id: str, request: Request) -> JobByRequestResponse:
+    """요청 번호로 접수한 실행 번호(검토 10/19). 접수 중이면 끝날 때까지(상한) 기다린다. 모르는 번호·접수 실패는 404."""
+    if not re.fullmatch(CLIENT_REQUEST_ID_PATTERN, client_request_id):
+        raise HTTPException(status_code=422, detail="client_request_id must match " + CLIENT_REQUEST_ID_PATTERN)
+    job_id = await asyncio.to_thread(ledger_of(request.app).wait_job_for, client_request_id)
+    if job_id is None:
+        raise HTTPException(status_code=404, detail="no job for this client_request_id")
+    return JobByRequestResponse(client_request_id=client_request_id, job_id=job_id)
 
 
 # ── 가전 레지스트리 — 폰·키오스크가 공유하는 가전 정의 ──────────────────────
@@ -1209,13 +1241,18 @@ def _auto_rule_offers(pending) -> dict[str, dict]:
 @router.post("/suggestions/{suggestion_id}/approve", response_model=JobAcceptedResponse)
 async def approve_suggestion(
     suggestion_id: str,
+    request: Request,
+    body: ApproveSuggestionRequest | None = Body(default=None),
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> JobAcceptedResponse:
     # 승인도 job 모델 — 게이트를 닫고 실행을 제출한 뒤 즉시 job_id 반환.
     # 이미 접수한 승인의 재요청(응답 유실 뒤 재시도)은 200과 같은 job_id(다시 실행하지 않음, 검토 10/19 A).
     # 접수 중이거나 접수 없이 승인된 카드는 종전처럼 409.
     try:
-        job_id = await asyncio.to_thread(svc.approve_submit, suggestion_id)
+        job_id = await asyncio.to_thread(
+            ledger_of(request.app).admit, body.client_request_id if body is not None else None,
+            svc.approve_submit, suggestion_id,
+        )
     except UnknownSuggestionError:
         raise HTTPException(status_code=404, detail="suggestion not found")
     except UnknownIntentError as exc:

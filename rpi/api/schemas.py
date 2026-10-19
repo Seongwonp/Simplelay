@@ -12,6 +12,7 @@ import math
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+from .job_receipts import CLIENT_REQUEST_ID_PATTERN
 
 # ── 물리 실행 입력의 제품 계약(상한) ─────────────────────────────────────────
 # 무한 입력은 장시간 물리 실행·거대 LLM 프롬프트·로그/DB 팽창으로 이어진다.
@@ -92,6 +93,8 @@ def _validate_button_list(
 class ExecuteRequest(BaseModel):
     text: str
     source: str = "voice"
+    #: 선택(검토 10/19) — 클라이언트 요청 번호(영문·숫자·_·- 1~64자). 같은 번호로 다시 보내면 같은 job_id(다시 실행 안 함).
+    client_request_id: str | None = Field(default=None, pattern=CLIENT_REQUEST_ID_PATTERN)
     # 지정하면 NodeRegistry에 등록된 해당 가전 노드로 라우팅, 없으면(또는
     # 등록 안 돼있으면) 로컬 기본 컨트롤러로 실행된다 — rpi/api/service.py의
     # SimpleLayService._controller_for() 참고.
@@ -115,6 +118,8 @@ class ExecuteButtonsRequest(BaseModel):
 
     buttons: list[str]
     appliance_id: str | None = None
+    #: 선택(검토 10/19) — 클라이언트 요청 번호(영문·숫자·_·- 1~64자). 같은 번호로 다시 보내면 같은 job_id(다시 실행 안 함).
+    client_request_id: str | None = Field(default=None, pattern=CLIENT_REQUEST_ID_PATTERN)
 
     @field_validator("buttons")
     @classmethod
@@ -138,6 +143,8 @@ class ExecuteForApplianceRequest(BaseModel):
     text: str
     known_buttons: list[str]
     appliance_id: str | None = None
+    #: 선택(검토 10/19) — 클라이언트 요청 번호(영문·숫자·_·- 1~64자). 같은 번호로 다시 보내면 같은 job_id(다시 실행 안 함).
+    client_request_id: str | None = Field(default=None, pattern=CLIENT_REQUEST_ID_PATTERN)
 
     @field_validator("text")
     @classmethod
@@ -684,6 +691,19 @@ class ButtonStep(BaseModel):
 class ExecuteResponse(BaseModel):
     status: str
     buttons: list[ButtonStep]
+
+
+class ApproveSuggestionRequest(BaseModel):
+    """``POST /suggestions/{id}/approve``의 선택 본문(검토 10/19). 본문 없이 보내도 종전 그대로."""
+
+    client_request_id: str | None = Field(default=None, pattern=CLIENT_REQUEST_ID_PATTERN)
+
+
+class JobByRequestResponse(BaseModel):
+    """``GET /jobs/by-request/{client_request_id}`` — 그 요청 번호로 접수한 실행 번호."""
+
+    client_request_id: str
+    job_id: str
 
 
 class JobAcceptedResponse(BaseModel):
