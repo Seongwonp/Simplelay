@@ -6,7 +6,8 @@ Wi-Fi가 조용히 끊기면(FIN 없음) 두 보드 모두 TCP keepalive(약 11 
 - RPi4는 ``act_info``에 ``heartbeat_protocol: 1``과 자기 제한 시간 ``heartbeat_timeout_s``를 알린다.
 - 그것을 본 RPi5만 ``execute``에 ``heartbeat_s``(보내는 주기)를 싣고, 그 실행의 결과를 받을 때까지 ``heartbeat
   {sequence_id}``를 그 주기로 보낸다(링크 이벤트 루프의 작업 — 공용 스레드 풀·정지 경로와 무관하다).
-- RPi4는 ``heartbeat_s``가 실린 실행에서만, 인증된 줄(어떤 종류든)이 ``max(제한 시간, 주기 × 3)`` 넘게 오지 않으면 받은 정지와
+- RPi4는 ``heartbeat_s``가 실린 실행에서만, **그 실행 번호를 실은** ``heartbeat``가 ``max(제한 시간, 주기 × 3)`` 넘게 오지
+  않으면(2026-10-19 — 예전에는 인증된 줄이면 무엇이든 셌다) 또는 실행 중에 ``hello``(RPi5가 다시 이음)가 오면 받은 정지와
   같은 길로 멈추고 결과를 ``safety_stop``·``abort_reason: motion_link_lost``로 적는다. 다음 ``act_info``에 ``last_link_stop``을
   한 번 싣는다 — RPi5는 다시 이은 뒤 보호자 알림으로 남긴다.
 - 옛 RPi5(``heartbeat_s`` 없음)·쉬는 중에는 요구하지 않는다. 옛 RPi4(알림 없음)에는 보내지 않는다. RPi4·RPi5는 같은 커밋으로

@@ -24,7 +24,8 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
   abort {run_ref} (쉬는 중)       →  (기억) 같은 run_ref의 execute → result {success:false, outcome:"stopped",
                                     button_results:[]} — 누르지 않는다(2026-10-15 G2, run_ref 없는 옛 RPi5는 종전대로 버림)
   execute {…, heartbeat_s} + heartbeat (실행 중 생존 신호, 2026-10-16 G5 — 답 없음)
-                                 →  인증된 줄이 max(제한 시간, 주기×3) 넘게 없으면 스스로 정지(받은 abort와 같은 길) →
+                                 →  이 실행의 heartbeat가 max(제한 시간, 주기×3) 넘게 없거나 실행 중 hello가 오면
+                                    스스로 정지(받은 abort의 구동부 정지와 같은 길, 2026-10-19) →
                                     result {success:false, outcome:"safety_stop", abort_reason:"motion_link_lost"}
                                     + 다음 act_info에 last_link_stop 한 번(heartbeat_s 없는 옛 RPi5·쉬는 중은 감시 안 함)
   verify_pass {sequence_id,      →  progress {phase:"verify", ...} + verify_result
@@ -327,7 +328,7 @@ class ActExecutor:
         #: 쉬는 중에 받은 abort의 실행 표지(``run_ref``, 2026-10-15 G2). 같은 표지의 execute는 누르지 않고 정지 결과로
         #: 답한다(한 번 쓰면 지운다). 다른 표지의 execute가 오면 그 실행은 이미 끝난 것이라 지운다.
         self._aborted_run_ref: str | None = None
-        #: 실행 중 생존 신호 감시(2026-10-16 G5). 인증된 줄을 받을 때마다 시각을 적고, ``heartbeat_s``가 실린 실행 동안
+        #: 실행 중 생존 신호 감시(2026-10-16 G5). 이 실행의 heartbeat를 받을 때마다(2026-10-19) 시각을 적고, ``heartbeat_s``가 실린 실행 동안
         #: 그 시각에서 제한 시간이 지나면 스스로 멈춘다.
         self._clock = clock or time.monotonic
         self._heartbeat_timeout = timeout_from_env() if heartbeat_timeout_s is None else heartbeat_timeout_s
@@ -871,7 +872,7 @@ class ActExecutor:
         self._abort("drive")
 
     def check_link_watchdog(self) -> bool:
-        """감시 중인 실행에서 마지막 인증된 줄 뒤 제한 시간이 지났으면 **받은 정지와 같은 길**로 멈추고 True.
+        """감시 중인 실행에서 마지막으로 받은 이 실행의 heartbeat 뒤 제한 시간이 지났으면 **받은 정지와 같은 길**로 멈추고 True.
 
         같은 길 = ``_abort("drive")``: 실행 중이면 컨트롤러 ``request_stop``(모션 어댑터가 MCU에 정지를 써 큐를 비운다 —
         재홈·재누름 없음). 정지 버튼 위 대기 중이 아니므로 정지 버튼을 누르지 않는다. 한 실행에 한 번만."""
