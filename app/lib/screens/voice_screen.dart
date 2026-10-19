@@ -9,14 +9,12 @@ import 'package:go_router/go_router.dart';
 import '../models/command_result.dart';
 import '../models/execution_status.dart';
 import '../providers/appliance_provider.dart';
-import '../providers/demo_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/voice_provider.dart';
 import '../providers/voice_stop_provider.dart' show isStopPhrase;
-import '../services/ble_service.dart';
 import '../services/rpi_api_service.dart';
 import '../services/voice_service.dart';
 import '../theme/app_colors.dart';
@@ -213,30 +211,20 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       return;
     }
 
+    if (appliance.isCustom && rpiApi == null) {
+      // 사용자 정의 가전은 서버 고정 규칙이 없어서 LLM으로 해석해야 하고,
+      // BLE 릴레이(ESP32)는 의도 해석을 못 하므로 RPi5 HTTP 직통만 지원한다
+      // (버튼 직접 실행 — manual_control_screen과 같은 제약).
+      setState(() => _sending = false);
+      _notice('말로 하려면 본체와 연결해야 해요. 설정에서 본체 연결을 봐 주세요.');
+      return;
+    }
+    if (rpiApi != null) {
+      await _sendToHub(rpiApi, appliance, trimmed);
+      return;
+    }
     try {
-      if (appliance.isCustom) {
-        // 사용자 정의 가전은 서버 고정 규칙이 없어서 LLM으로 해석해야 하고,
-        // BLE 릴레이(ESP32)는 의도 해석을 못 하므로 RPi5 HTTP 직통만 지원한다
-        // (버튼 직접 실행 — manual_control_screen과 같은 제약).
-        if (rpiApi == null) {
-          _notice('말로 하려면 본체와 연결해야 해요. 설정에서 본체 연결을 봐 주세요.');
-          return;
-        }
-        final accepted = await rpiApi.executeForAppliance(
-          trimmed,
-          appliance.buttons.map((b) => b.label).toList(),
-          applianceId: appliance.id,
-        );
-        _trackOrShowStop(rpiApi, accepted, trimmed);
-      } else if (rpiApi != null) {
-        // RPi HTTP 직통 — 즉시 접수(job_id) 후 상태 화면에서 진행 확인
-        final accepted = await rpiApi.execute(
-          trimmed,
-          source: 'voice',
-          applianceId: appliance.id,
-        );
-        _trackOrShowStop(rpiApi, accepted, trimmed);
-      } else if (appliance.isThinq) {
+      if (appliance.isThinq) {
         // ThinQ 가전은 서버를 거쳐야 한다 -- BLE 릴레이(ESP32)는 누를 버튼이
         // 없는 가전을 조작할 수 없다.
         _notice('LG 가전은 본체와 연결돼야 쓸 수 있어요. 설정에서 연결을 봐 주세요.');
@@ -247,7 +235,35 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
             .sendCommand(trimmed, source: 'voice');
         if (mounted) _notice('보냈어요.');
       }
+    } catch (_) {
+      if (mounted) _notice('블루투스로 보내지 못했어요. 연결을 봐 주세요.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  /// 본체로 보낸다. 보내기 **전에** '보내는 중'으로 들어가 답을 기다리는 사이에도 정지 띠가 있다(검토 10/19).
+  ///
+  /// 본체가 답하지 않은 실패(시간 초과·연결 끊김·응답 해석 실패)는 **보내지 못했다는 뜻이 아니다** — 본체가 받아 이미
+  /// 누르기 시작했을 수 있다(package:http로는 '닿지 못함'과 '보낸 뒤 답 없음'을 믿을 만하게 가르지 못한다). 예전에는 이때
+  /// 블루투스로 같은 말을 또 보내 두 번 눌리거나 켠 것을 도로 끌 수 있었다. 이제 블루투스로 다시 보내지 않고 '모름'으로 두어
+  /// 정지를 남긴다. 같은 요청을 가려낼 요청 번호가 본체에 생기기 전까지는 다시 보내지 않는다.
+  Future<void> _sendToHub(RpiApiService rpiApi, ApplianceMap appliance, String text) async {
+    final execution = ref.read(executionStatusProvider.notifier);
+    final requestId = execution.beginSubmitting(api: rpiApi, label: text);
+    try {
+      // RPi HTTP 직통 — 즉시 접수(job_id) 후 상태 화면에서 진행 확인
+      final accepted = appliance.isCustom
+          ? await rpiApi.executeForAppliance(
+              text,
+              appliance.buttons.map((b) => b.label).toList(),
+              applianceId: appliance.id,
+            )
+          : await rpiApi.execute(text, source: 'voice', applianceId: appliance.id);
+      if (accepted.stopped) execution.abandonSubmission(requestId);
+      _trackOrShowStop(rpiApi, accepted, text, requestId);
     } on RpiApiException catch (error) {
+      execution.abandonSubmission(requestId); // 본체가 답했다 — 받지 않았다
       final help = NotUnderstoodHelp.fromException(error);
       if (help != null) {
         // 새 서버: 못 알아들은 말이면 이유·후보·할 수 있는 일을 화면에 남긴다(스낵바는 금방 사라진다).
@@ -269,40 +285,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           _ => '본체에 보내지 못했어요. 연결을 봐 주세요.',
         });
       }
-    } on TimeoutException {
-      // 응답이 유실됐을 뿐 서버는 이미 접수했을 수 있다. 이걸 '미접수'로
-      // 단정하고 BLE로 다시 보내면 같은 명령이 두 번 실행된다 -- 채널 간
-      // 중복을 걸러낼 요청 ID가 아직 없으므로 자동 재전송하지 않는다.
+    } catch (_) {
+      // 본체가 받았는지 모른다 — 다시 보내지 않고(블루투스로도) 모름으로 두어 정지를 남긴다.
+      execution.beginSubmissionUnknown(api: rpiApi, label: text, requestId: requestId);
       if (mounted) {
         _notice('본체가 받았는지 몰라요. 다시 보내기 전에 집에서 가전을 확인해야 해요.');
+        context.push('/status');
       }
-    } catch (_) {
-      // 연결 자체가 성립하지 않은 실패(서버에 닿지도 못함). 서버가 살아서
-      // 거절한 게 아니므로, BLE(ESP32 릴레이)가 연결돼 있으면 폴백 전송한다 —
-      // "Wi-Fi가 끊겨도 동작"이 실제로 성립하는 지점. 사용자 정의 가전은
-      // LLM 해석이 필요해 BLE 릴레이로는 처리 불가라 제외.
-      final bleState = ref.read(bleConnectionProvider).valueOrNull;
-      // 모의 실행 중에는 BLE 폴백도 막는다 -- 여기로 새면 "실제 조작이
-      // 아닙니다" 화면 아래에서 실기기가 진짜로 움직인다.
-      //
-      // 서버가 "준비 안 됐다"고 말한 가전도 막는다. BLE는 ESP32로 바로
-      // 나가 **서버 게이트를 거치지 않으므로**, 여기서 안 막으면 준비
-      // 안 된 기기가 실제로 움직인다(F1 마감 감사).
-      if (!appliance.isCustom &&
-          bleState == BleConnectionState.connected &&
-          appliance.mayDispatchWithoutServer &&
-          !ref.read(demoModeProvider)) {
-        try {
-          await ref
-              .read(bleServiceProvider)
-              .sendCommand(trimmed, source: 'voice');
-          if (mounted) _notice('본체가 답하지 않아 블루투스로 보냈어요.');
-          return;
-        } catch (_) {
-          // BLE마저 실패 — 아래 공통 안내로
-        }
-      }
-      if (mounted) _notice('본체에 보내지 못했어요. 연결을 봐 주세요.');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -359,23 +348,24 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   /// 접수 응답 처리. 서버가 발화를 정지어로 받아 정지했으면(`status: stopped`, G7 두 번째 방어) 정지 문구만 보이고
   /// 따라가지 않는다 — 그 응답의 `job_id`는 새 실행이 아니다(멈춘 실행이거나 빈 문자열). 멈춘 실행을 폰이 따라가고
   /// 있었다면 그 추적이 결과를 받는다.
-  void _trackOrShowStop(RpiApiService api, RpiJobAccepted accepted, String label) {
+  void _trackOrShowStop(RpiApiService api, RpiJobAccepted accepted, String label, String requestId) {
     if (accepted.stopped) {
       _cancelPending();
       if (mounted) _notice(_stopNotice(accepted.stop));
       return;
     }
-    _trackJob(api, accepted.jobId, label);
+    _trackJob(api, accepted.jobId, label, requestId);
   }
 
   // 접수된 job을 상태 화면에서 실시간으로 따라가게 하고 그 화면으로 이동한다.
   // 음성 경로는 서버가 해석한 버튼 시퀀스를 미리 모르므로 steps 없이 시작 —
   // 진행률·완료 판정은 /status 폴링이 채운다.
-  void _trackJob(RpiApiService api, String jobId, String label) {
+  void _trackJob(RpiApiService api, String jobId, String label, String requestId) {
     ref.read(executionStatusProvider.notifier).beginHttpJob(
           api: api,
           jobId: jobId,
           label: label,
+          requestId: requestId,
         );
     if (mounted) context.push('/status');
   }
