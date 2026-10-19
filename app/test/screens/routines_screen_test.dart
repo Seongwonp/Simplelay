@@ -742,6 +742,20 @@ void main() {
     });
   });
 
+  // 첫 사용자 검토 10/19 #2: '할까요? 카드'가 무엇인지 몰라 자동 규칙을 만드는 길을 찾지 못했다 — 언제 묻는지와
+  // 무엇만 되는지를 쉬운 말로.
+  testWidgets('자동 규칙이 없으면 언제 무엇을 골라야 생기는지 말한다', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server()));
+    await _settle(tester);
+    await tester.tap(findPlainText('자동 규칙'));
+    await _settle(tester);
+    expect(
+        findPlainText('아직 자동 규칙이 없어요. "할까요?" 하고 물어볼 때 "다음부터도 자동으로"를 고르면 생겨요. '
+            'LG 가전 일만 이렇게 할 수 있어요.'),
+        findsOneWidget);
+  });
+
   // 2026-10-14 4번: 사용 기록 → 루틴 초안 저장. 저장만 한다(실행 경로가 불리면 서버가 시험을 실패시킨다).
   group('사용 기록으로 만든 루틴 초안', () {
     Map<String, dynamic> candidate() => {

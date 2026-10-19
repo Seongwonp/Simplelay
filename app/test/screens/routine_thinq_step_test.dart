@@ -282,4 +282,37 @@ void main() {
     expect(routine.toRequestJson()['steps'], [json]);
     expect(routine.operatesAppliance, isTrue);
   });
+
+  // 첫 사용자 검토 10/19 #2: 실행 방식에 '물어보고 하기'·'알림만'뿐이라 묻지 않고 하게 하는 길이 보이지 않았다 —
+  // 본체가 자동으로 받을 수 있는 모양(시각·물어보고 하기·LG 가전 한 단계)이면 그 길을 말한다.
+  group('자동으로 하는 길 안내', () {
+    const autoNote = '처음 물어볼 때 "다음부터도 자동으로"를 고르면 그다음부터는 묻지 않고 해요.';
+
+    Future<void> pump(WidgetTester tester, Routine routine) async {
+      tester.view.physicalSize = const Size(600, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(buildScreen(RoutineEditorScreen(initial: routine),
+          overrides: installedOverrides([_purifier])));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('시각에 LG 가전 한 가지를 하는 루틴이면 말한다', (tester) async {
+      await pump(tester, const Routine(
+        name: '저녁 공기',
+        steps: [RoutineStep.thinq('air_purifier', 'set_power', {'power': 'POWER_ON'})],
+        trigger: RoutineTrigger(kind: RoutineTriggerKind.time, days: [0], time: '22:00'),
+      ));
+      expect(findPlainText(autoNote), findsOneWidget);
+    });
+
+    testWidgets('버튼 누르기 루틴이면 말하지 않는다', (tester) async {
+      await pump(tester, const Routine(
+        name: '아침 데우기',
+        steps: [RoutineStep.press('mw', ['mw-1'])],
+        trigger: RoutineTrigger(kind: RoutineTriggerKind.time, days: [0], time: '07:00'),
+      ));
+      expect(findPlainText(autoNote), findsNothing);
+    });
+  });
 }

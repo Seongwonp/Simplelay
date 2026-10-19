@@ -64,6 +64,8 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
       ? '때가 되면 카드로 물어보고, 허락하면 눌러요.'
       : '알림만 보내요. 가전은 그대로예요.';
 
+  static const _autoNote = '처음 물어볼 때 "다음부터도 자동으로"를 고르면 그다음부터는 묻지 않고 해요.';
+
   @override
   Widget build(BuildContext context) {
     final appliances = ref.watch(installedAppliancesProvider);
@@ -207,6 +209,22 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
             semanticsLabel: _modeNote,
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
+          // 묻지 않고 하게 하는 길(첫 사용자 검토 10/19) — 실행 방식에는 없고 카드에서 고른다. 본체가 자동 규칙으로 받는
+          // 모양(시각·물어보고 하기·조건 없음·LG 가전 한 단계, 서버 `_routine_shape_issue`)일 때만 말한다.
+          if (_draft.mode == RoutineMode.approve &&
+              _draft.trigger.kind == RoutineTriggerKind.time &&
+              _draft.conditions.isEmpty &&
+              _draft.steps.length == 1 &&
+              _draft.steps.single.kind == RoutineStepKind.thinqCommand)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpace.xs),
+              child: Text(
+                keepWordsTogether(_autoNote),
+                key: const Key('routine-auto-note'),
+                semanticsLabel: _autoNote,
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
+              ),
+            ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('루틴 켜기'),
