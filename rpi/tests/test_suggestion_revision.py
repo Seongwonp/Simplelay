@@ -45,14 +45,16 @@ def test_revision_invalidates_original_without_execution_or_learning():
 def test_new_approval_executes_reviewed_sequence_once():
     svc, executor, controller, _, _, old = prepared()
     new = svc.revise(old.suggestion_id, '30초 돌려줘')
-    svc.approve_submit(new.suggestion_id)
+    job = svc.approve_submit(new.suggestion_id)
     for _ in range(100):
         if not executor._running:
             break
         sleep(.01)
     assert controller.calls == [('30초', '시작')]
-    with pytest.raises(RuntimeError):
-        svc.approve_submit(new.suggestion_id)
+    # 다시 보낸 승인은 같은 실행 번호만 돌려주고 다시 누르지 않는다(승인 영수증, 검토 10/19 A).
+    assert svc.approve_submit(new.suggestion_id) == job
+    sleep(.05)
+    assert controller.calls == [('30초', '시작')]
 
 
 @pytest.mark.parametrize('method', ['approve', 'approve_submit'])

@@ -71,7 +71,9 @@ def test_contest_rehearsal_learning_consent_context_and_trace(monkeypatch):
         suggestions.create_suggestions()
         approved, = client.get('/suggestions').json()
         job = wait_job(client, client.post(f"/suggestions/{approved['id']}/approve"))
-        assert client.post(f"/suggestions/{approved['id']}/approve").status_code == 409
+        # 다시 보낸 승인은 같은 job_id(승인 영수증, 검토 10/19 A) — 다시 실행하지 않는다.
+        retry = client.post(f"/suggestions/{approved['id']}/approve")
+        assert retry.status_code == 200 and retry.json()['job_id'] == job
         assert len(controller.calls) == 1
         assert usage.records()[-1].source is UsageSource.SUGGESTION
         assert client.get('/learning').json()['routines'][0]['occurrences'] == 3
