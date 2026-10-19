@@ -113,3 +113,26 @@ def test_custom_appliance_wired_locally_still_runs(monkeypatch):
     assert client.put("/appliances/custom_fan", json=_FAN).status_code == 200
     fan = _by_id(client)["custom_fan"]
     assert fan["readiness"] == "operable" and fan["can_execute"] is True
+
+
+@pytest.mark.parametrize("gantry", ["induction", ""])
+def test_execute_without_appliance_id_gets_the_same_gantry_check(monkeypatch, gantry):
+    """대상 없는 실행도 누름 장치 대상 판정을 거친다(검토 2026-10-19 #1).
+
+    대상 없는 ``/execute``는 RPi4에 내장 갠트리 가전(전자레인지)을 대상으로 싣는다. 예전에는 ``runs_locally(None)``이
+    늘 참이라 누름 장치를 인덕션 위로 옮기거나 목록을 비워도 전자레인지 버튼 좌표로 눌렀다. 대상을 밝힌 요청과 같이 412.
+    """
+    client = _client(monkeypatch, gantry)
+    explicit = client.post("/execute", json={"text": "즉석밥 데워줘", "appliance_id": "microwave"})
+    assert explicit.status_code == 412, explicit.text
+    implicit = client.post("/execute", json={"text": "즉석밥 데워줘"})
+    assert implicit.status_code == 412, implicit.text
+    assert implicit.json()["detail"] == explicit.json()["detail"]
+    assert GANTRY_ABSENT_REASON in implicit.json()["detail"]
+    assert deps.get_service().runs_locally(None) is False
+
+
+def test_execute_without_appliance_id_still_runs_when_microwave_is_on_the_gantry(monkeypatch):
+    client = _client(monkeypatch, None)
+    ok = client.post("/execute", json={"text": "즉석밥 데워줘"})
+    assert ok.status_code == 200, ok.text

@@ -60,6 +60,11 @@ LINK_UNCONFIRMED_DETAIL = "연결이 끊겨 버튼이 눌렸는지 몰라요. �
 BUILTIN_GANTRY_APPLIANCE = "microwave"
 
 
+def _resolved_gantry_target(appliance_id: str | None) -> str:
+    """누름 장치 판정에 쓰는 대상 — 대상 없는 실행은 RPi4에 싣는 내장 갠트리 가전과 같다(검토 2026-10-19 #1)."""
+    return appliance_id if appliance_id is not None else BUILTIN_GANTRY_APPLIANCE
+
+
 @dataclass(frozen=True)
 class EmergencyStopReport:
     """긴급 정지 요청을 **접수하고 전달한 결과**. 물리 정지 확인이 아니다.
@@ -1155,8 +1160,9 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         노드 없는 커스텀 가전을 암묵적으로 여기로 흘리면, 선풍기 시퀀스가
         전자레인지의 엉뚱한 버튼을 누른다.
         """
-        if appliance_id is None:
-            return True  # 대상을 안 밝힌 실행 -- 기본 컨트롤러가 곧 대상이다
+        # 대상을 안 밝힌 실행은 RPi4에 내장 갠트리 가전을 대상으로 싣는다(_run_buttons) -- 그 가전으로 풀어 같은 판정을
+        # 거친다(검토 2026-10-19 #1: 예전에는 늘 참이라 누름 장치 대상 목록을 건너뛰고 전자레인지 좌표로 눌렀다).
+        appliance_id = _resolved_gantry_target(appliance_id)
         if appliance_id in self._local_appliance_ids:
             return True
         if self._appliance_registry is None:
@@ -1168,8 +1174,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 and appliance_id in _BUILTIN_IDS and appliance_id in self._gantry_ids)
 
     def gantry_absent(self, appliance_id: str | None) -> bool:
-        """누름 장치가 올라가 있지 않은 **기본 가전**인가(2026-10-18). 사용자 등록·서버 구성 가전은 늘 False(판정 그대로)."""
-        if appliance_id is None or appliance_id in self._local_appliance_ids:
+        """누름 장치가 올라가 있지 않은 **기본 가전**인가(2026-10-18). 사용자 등록·서버 구성 가전은 늘 False(판정 그대로).
+
+        대상 없는 실행은 내장 갠트리 가전으로 풀어 본다(``runs_locally``와 같은 이유)."""
+        appliance_id = _resolved_gantry_target(appliance_id)
+        if appliance_id in self._local_appliance_ids:
             return False
         if appliance_id not in _BUILTIN_IDS or appliance_id in self._gantry_ids:
             return False
@@ -1208,7 +1217,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 return
             if self.gantry_absent(appliance_id):
                 # 기본 가전이지만 누름 장치가 그 위에 없다(갠트리 1대 — 2026-10-18).
-                raise ApplianceNotReadyError(appliance_id or "", (GANTRY_ABSENT_REASON,))
+                raise ApplianceNotReadyError(_resolved_gantry_target(appliance_id), (GANTRY_ABSENT_REASON,))
             # 노드도 없고 로컬 대상도 아니다 = 누를 액추에이터가 없다.
             raise ApplianceNotReadyError(
                 appliance_id or "", ("아직 기기와 연결되지 않았어요",)
