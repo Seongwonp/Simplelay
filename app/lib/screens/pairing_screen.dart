@@ -36,6 +36,13 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   bool _polling = false;
   bool _connected = false;
 
+  /// 주소·코드 칸을 펼쳤나. 처음에는 QR 찍기만 말한다 — 주소와 코드를 한꺼번에 물으면 처음 쓰는 사람이 무엇을 적을지
+  /// 몰랐다(첫 사용 검토 10/19). 적은 값이 틀렸거나 주소로 닿지 않으면 칸을 펼쳐 무엇을 고칠지 보이게 한다.
+  bool _manual = false;
+
+  /// 본체 QR(휴대폰 카메라의 링크 열기)로 주소와 코드를 받았나.
+  bool get _fromQr => (widget.code ?? '').isNotEmpty;
+
   @override
   void didUpdateWidget(PairingScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -65,7 +72,10 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     if (code.startsWith('simplelay://')) {
       final qr = Uri.tryParse(code);
       if (qr == null || qr.host != 'pair') {
-        setState(() => _message = '본체 화면의 QR 연결 주소를 봐 주세요.');
+        setState(() {
+          _manual = true;
+          _message = '본체 화면의 QR 연결 주소를 봐 주세요.';
+        });
         return;
       }
       code = qr.queryParameters['code'] ?? '';
@@ -81,7 +91,10 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
         uri.hasQuery ||
         uri.hasFragment ||
         (uri.path.isNotEmpty && uri.path != '/')) {
-      setState(() => _message = '본체 주소와 여섯 자리 코드를 봐 주세요.');
+      setState(() {
+        _manual = true;
+        _message = '본체 주소와 여섯 자리 코드를 봐 주세요.';
+      });
       return;
     }
     setState(() {
@@ -131,6 +144,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
       if (mounted) {
         setState(() {
           _busy = false;
+          _manual = true;
           _message = '본체와 연결되지 않아요. 같은 와이파이인지, 주소가 맞는지 봐 주세요.';
         });
       }
@@ -198,25 +212,40 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('폰 연결하기')),
         body: ListView(padding: const EdgeInsets.all(AppSpace.xl), children: [
-          const Text(
-              '본체 화면에서 설정, 폰 연결하기를 열어 주세요. 휴대폰 카메라로 QR을 찍거나 아래에 코드를 넣어요.'),
+          const Text('본체 화면에서 설정, 폰 연결하기를 열어 주세요.'),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+              _fromQr && !_manual
+                  ? '본체의 QR을 읽었어요. 아래 "연결 요청하기"를 눌러 주세요.'
+                  : '본체의 QR을 휴대폰 카메라로 찍어 주세요.',
+              key: const Key('pair-lead'),
+              style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: AppSpace.lg),
-          TextField(
-              controller: _host,
-              enabled: !_busy && !_connected,
-              decoration: const InputDecoration(labelText: '본체 주소'),
-              keyboardType: TextInputType.url),
-          TextField(
-              controller: _code,
-              enabled: !_busy && !_connected,
-              autocorrect: false,
-              decoration:
-                  const InputDecoration(labelText: '여섯 자리 코드 또는 QR 연결 주소')),
           TextField(
               controller: _phone,
               enabled: !_busy && !_connected,
               maxLength: 40,
               decoration: const InputDecoration(labelText: '본체 화면에 보일 폰 이름')),
+          if (!_manual && !_connected)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                  key: const Key('pair-manual'),
+                  onPressed: _busy ? null : () => setState(() => _manual = true),
+                  child: const Text('QR을 찍을 수 없나요? 주소와 6자리 코드 입력')),
+            ),
+          if (_manual) ...[
+            TextField(
+                controller: _host,
+                enabled: !_busy && !_connected,
+                decoration: const InputDecoration(labelText: '본체 주소'),
+                keyboardType: TextInputType.url),
+            TextField(
+                controller: _code,
+                enabled: !_busy && !_connected,
+                autocorrect: false,
+                decoration: const InputDecoration(labelText: '여섯 자리 코드')),
+          ],
           if (_message != null) Text(_message!, key: const Key('pair-message')),
           if (_token != null) ...[
             Text('두 화면의 글자가 같은지 봐 주세요: ${_requestId!.substring(0, 6)}'),
@@ -224,7 +253,8 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
                 '${_deadline!.difference(DateTime.now()).inSeconds.clamp(0, 300)}초 남았어요'),
           ],
           const SizedBox(height: AppSpace.lg),
-          if (!_connected)
+          // QR이나 적은 코드가 없으면 보낼 것이 없다 — 누르면 보이지 않는 칸을 고치라고 했다.
+          if (!_connected && (_fromQr || _manual))
             FilledButton(
                 onPressed: _busy ? null : _connect,
                 child: const Text('연결 요청하기')),
