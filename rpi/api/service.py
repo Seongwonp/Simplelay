@@ -15,7 +15,12 @@ from rpi.controller import (
     ExecutionStatus,
     outcome_of,
 )
-from rpi.controller.models import stopped_before_dispatch
+from rpi.controller.models import (
+    ExecuteRefusedBeforePress,
+    refusal_sentence,
+    refused_before_press,
+    stopped_before_dispatch,
+)
 from rpi.intent import (
     Clock,
     IntentResolver,
@@ -914,6 +919,10 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             return
         if result.status is ExecutionStatus.SUCCEEDED:
             return
+        if refusal_sentence(result) is not None:
+            # 누르기 전 거절(2026-10-19) — 아무것도 누르지 않았다. 가전을 확인할 일이 아니라 보호자 알림을 내지 않는다
+            # (이유는 /status·이력에 남는다).
+            return
         label = purpose or ", ".join(buttons[:2]) + (
             f" 외 {len(buttons) - 2}개" if len(buttons) > 2 else ""
         )
@@ -971,13 +980,19 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         if stop_before_dispatch:
             log.warning("stop requested before dispatch — not sending %d button(s)", len(buttons))
             self._last_result = stopped_before_dispatch()
-        elif getattr(controller, "supports_button_behaviors", False) is True:
-            self._last_result = controller.execute(buttons, targets, button_behaviors=button_behaviors)
-        elif targets:
-            self._last_result = controller.execute(buttons, targets)
         else:
-            # 좌표가 없으면 종전 호출 그대로 — targets를 모르는 구현도 받는다.
-            self._last_result = controller.execute(buttons)
+            try:
+                if getattr(controller, "supports_button_behaviors", False) is True:
+                    self._last_result = controller.execute(buttons, targets, button_behaviors=button_behaviors)
+                elif targets:
+                    self._last_result = controller.execute(buttons, targets)
+                else:
+                    # 좌표가 없으면 종전 호출 그대로 — targets를 모르는 구현도 받는다.
+                    self._last_result = controller.execute(buttons)
+            except ExecuteRefusedBeforePress as exc:
+                # 실행 대상이 누르기 전에 분명히 거절했다(2026-10-19) — '눌렸는지 모름'이 아니라 보내지 않음·실패.
+                log.warning("execution refused before any press (%s)", exc.reason)
+                self._last_result = refused_before_press(exc.reason)
         run_mode = _run_mode(controller, self._last_result)
         with self._lock:
             # 원격이 보고한 모드로 이번 실행의 표시값을 고친다(_end_run이 last로 옮긴다).

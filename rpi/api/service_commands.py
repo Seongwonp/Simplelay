@@ -645,7 +645,7 @@ class CommandExecutionMixin:
             confirmation = confirmation_of(result, len(buttons))
         except Exception:  # noqa: BLE001
             receipt, confirmation = Receipt.UNKNOWN, Confirmation.NONE
-        from rpi.controller.models import RETRY_UNCONFIRMED, PRESS_UNCONFIRMED_DETAIL
+        from rpi.controller.models import PRESS_UNCONFIRMED_DETAIL, RETRY_UNCONFIRMED, refusal_sentence
         with self._lock:
             self._last_receipt = receipt
             self._last_confirmation = confirmation
@@ -655,6 +655,11 @@ class CommandExecutionMixin:
             if result.abort_reason == RETRY_UNCONFIRMED:
                 self._last_detail = PRESS_UNCONFIRMED_DETAIL
                 self._last_command_status = CommandStatus.UNCONFIRMED
+            refused = refusal_sentence(result)
+            if refused is not None:
+                # 누르기 전 거절(2026-10-19) — 보내지 않음·실패와 그 이유
+                self._last_detail = refused
+                self._last_command_status = CommandStatus.FAILED
         self._emit_job_finished(JobFinishedEvent(
             job_id=self._history_job_id(), appliance_id=appliance_id, route=ControlRoute.PHYSICAL,
             status=(CommandStatus.UNCONFIRMED.value if result.abort_reason == RETRY_UNCONFIRMED

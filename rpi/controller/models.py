@@ -206,7 +206,8 @@ class ExecutionResult:
     #: 실패와 가르는 근거다. 그 밖의 결과는 None.
     abort_reason: str | None = None
     #: 정지 요청으로 **실행 대상에 보내지 않았다**(2026-10-15 G2) — 누른 버튼이 없다는 것을 이쪽이 안다.
-    #: 수신 ``not_dispatched``의 근거다(`rpi.commands.physical.receipt_of`). `stopped_before_dispatch`로만 만든다.
+    #: 수신 ``not_dispatched``의 근거다(`rpi.commands.physical.receipt_of`). `stopped_before_dispatch`와
+    #: 누르기 전 거절(`refused_before_press`, 2026-10-19)로만 만든다.
     not_dispatched: bool = False
 
 
@@ -216,6 +217,57 @@ def stopped_before_dispatch() -> ExecutionResult:
     정지로 끝났고(``stopped``) 누른 버튼은 없다. '성공'도 '실패'도 아니다."""
     return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, (), outcome=ExecutionOutcome.STOPPED,
                            not_dispatched=True)
+
+
+#: 실행 대상이 **누르기 전에** 분명히 거절한 실행의 ``abort_reason`` 머리(2026-10-19) — ``execute_refused:<이유>``.
+EXECUTE_REFUSED = "execute_refused"
+
+#: RPi4가 실행을 시작하기 전에 ``error``로 답하는 이유 — 이 이유면 아무 버튼도 누르지 않았다(rpi4 act_executor·act_messages·
+#: target_binding). ``execute_protocol_v2_required``는 RPi5가 보내기 전에 스스로 거절한다. 실행 중 예외(``actuator_fail``)는
+#: 누른 뒤일 수 있어 여기 없다.
+PRE_PRESS_REFUSALS = frozenset({
+    "busy", "dev_busy", "hold_busy", "estop_latched", "outlet_offline", "motion_not_ready",
+    "target_bind_failed", "target_unbound", "target_required", "hold_target_mismatch",
+    "execute_protocol_v2_required",
+})
+
+_REFUSAL_SENTENCES = {
+    "busy": "누름 장치가 다른 일을 하고 있어서 아무것도 누르지 않았어요. 잠시 뒤 다시 해 주세요.",
+    "dev_busy": "누름 장치가 다른 일을 하고 있어서 아무것도 누르지 않았어요. 잠시 뒤 다시 해 주세요.",
+    "hold_busy": "누름 장치가 제자리로 돌아가는 중이라 아무것도 누르지 않았어요. 잠시 뒤 다시 해 주세요.",
+    "estop_latched": "비상 버튼이 눌려 있어서 아무것도 누르지 않았어요. 버튼을 풀고 해제한 뒤 다시 해 주세요.",
+    "outlet_offline": "콘센트 모듈과 연결되지 않아 아무것도 누르지 않았어요. 콘센트 모듈을 확인해 주세요.",
+    "motion_not_ready": "누름 장치가 준비되지 않아 아무것도 누르지 않았어요. 연결과 원점을 확인해 주세요.",
+    "execute_protocol_v2_required": "실행 보드 프로그램이 맞지 않아 아무것도 누르지 않았어요. 같은 판으로 맞춰 주세요.",
+}
+_REFUSAL_TARGET = "누를 가전을 확인하지 못해 아무것도 누르지 않았어요. 가전 설정을 확인해 주세요."
+_REFUSAL_DEFAULT = "누름 장치가 거절해서 아무것도 누르지 않았어요."
+
+
+class ExecuteRefusedBeforePress(RuntimeError):
+    """실행 대상이 누르기 전에 분명히 거절했다 — 아무것도 누르지 않았다(2026-10-19). ``reason``은 `PRE_PRESS_REFUSALS`."""
+
+    def __init__(self, reason: str, detail: str | None = None, message: str | None = None) -> None:
+        super().__init__(message or f"refused before press: {reason}")
+        self.reason = reason
+        self.detail = detail
+
+
+def refused_before_press(reason: str) -> ExecutionResult:
+    """누르기 전 거절의 결과 — 실패·누른 버튼 없음·보내지 않음(실행 대상이 받았지만 시작하지 않았다)."""
+    return ExecutionResult(ExecutionStatus.FAILED, (), outcome=ExecutionOutcome.FAILED,
+                           abort_reason=f"{EXECUTE_REFUSED}:{reason}", not_dispatched=True)
+
+
+def refusal_sentence(result: ExecutionResult) -> str | None:
+    """누르기 전 거절이면 사람이 읽을 한두 문장, 아니면 None."""
+    reason = getattr(result, "abort_reason", None)
+    if not isinstance(reason, str) or not reason.startswith(EXECUTE_REFUSED):
+        return None
+    why = reason.partition(":")[2]
+    if why.startswith("target_") or why == "hold_target_mismatch":
+        return _REFUSAL_TARGET
+    return _REFUSAL_SENTENCES.get(why, _REFUSAL_DEFAULT)
 
 
 def outcome_of(result: ExecutionResult) -> ExecutionOutcome:

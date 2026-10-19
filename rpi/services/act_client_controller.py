@@ -26,9 +26,16 @@ import uuid
 from collections.abc import Callable, Mapping
 
 from rpi.controller import ButtonTarget, ExecutionMode, ExecutionResult
-from rpi.controller.models import stopped_before_dispatch
+from rpi.controller.models import refused_before_press, stopped_before_dispatch
 
-from .act_client import ActClient, ActClientConfig, ActLinkError, ActLinkTimeoutError, AlertEvent
+from .act_client import (
+    ActClient,
+    ActClientConfig,
+    ActExecuteRefused,
+    ActLinkError,
+    ActLinkTimeoutError,
+    AlertEvent,
+)
 from .aggregate_result import synthesize_from_act_result
 from .link_heartbeat import LINK_LOST_ABORT_REASON
 
@@ -142,6 +149,11 @@ class ActClientController:
             raise ActLinkTimeoutError(
                 f"ActClientController.execute() timed out after {call_timeout}s"
             ) from exc
+        except ActExecuteRefused as exc:
+            # 누르기 전 거절(2026-10-19) — 아무것도 누르지 않았다는 것을 안다. '링크 끊김·눌렸는지 모름'(예외)이 아니라
+            # 보내지 않음·실패 결과로 돌려준다. 다시 보내지 않는다.
+            log.warning("RPi4 refused before pressing (%s) — nothing pressed: %s", exc.reason, exc.detail or "")
+            return refused_before_press(exc.reason)
         if result is None:
             log.warning("stop requested before the execute frame was written — %d button(s) not sent", len(buttons))
             return stopped_before_dispatch()

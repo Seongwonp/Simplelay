@@ -15,6 +15,7 @@
 | FAILED, 버튼 결과 있음                             | failed      | accepted | none                |
 | FAILED, 버튼 결과 없음(예외 종료)                   | unconfirmed | unknown  | none                |
 | SAFETY_STOPPED, 정지 요청으로 보내지 않음(G2)        | stopped     | not_dispatched | none          |
+| FAILED, 실행 대상이 누르기 전에 거절(2026-10-19)      | failed      | not_dispatched | none          |
 
 두 줄이 요점이다.
 
@@ -53,6 +54,7 @@ from rpi.controller.models import (
     ExecutionResult,
     ExecutionStatus,
     VerificationLayer,
+    refusal_sentence,
 )
 
 from .models import (
@@ -147,7 +149,9 @@ def status_of(result: ExecutionResult) -> CommandStatus:
                 return CommandStatus.STOPPED
             return CommandStatus.FAILED
         return CommandStatus.STOPPED
-    # FAILED: 근거가 하나도 없으면 실패가 아니라 확인 불가다.
+    # FAILED: 근거가 하나도 없으면 실패가 아니라 확인 불가다. 단 누르기 전 거절(보내지 않음, 2026-10-19)은 실패다.
+    if getattr(result, "not_dispatched", False):
+        return CommandStatus.FAILED
     return CommandStatus.UNCONFIRMED if not result.buttons else CommandStatus.FAILED
 
 
@@ -191,6 +195,9 @@ def _detail(
 
     if result.abort_reason == RETRY_UNCONFIRMED:
         return PRESS_UNCONFIRMED_DETAIL + note
+    refused = refusal_sentence(result)
+    if refused is not None:
+        return refused + note  # 누르기 전 거절(2026-10-19)
     if receipt is Receipt.NOT_DISPATCHED:
         # 보내기 전 정지(G2) — 정지 요청이 원인인 것이 확실한 유일한 경우라 note를 덧붙이지 않는다.
         return "멈추기를 눌러서 버튼을 누르지 않았어요."

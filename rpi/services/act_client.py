@@ -78,6 +78,8 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
+from rpi.controller.models import PRE_PRESS_REFUSALS, ExecuteRefusedBeforePress
+
 from . import link_auth
 from .appliance_done import parse_appliance_done
 from .link_heartbeat import DEFAULT_PERIOD_S as DEFAULT_HEARTBEAT_PERIOD_S
@@ -102,6 +104,16 @@ class ActLinkBusyError(ActLinkError):
 
 class ActLinkTimeoutError(ActLinkError):
     """Raised when RPi4 doesn't respond within the configured timeout."""
+
+
+class ActExecuteRefused(ActLinkError, ExecuteRefusedBeforePress):
+    """RPi4(또는 보내기 전 RPi5)가 **누르기 전에** 분명히 거절했다(2026-10-19) — 아무것도 누르지 않았다.
+
+    ``ActLinkError``의 하위라 종전처럼 잡는 호출자는 그대로 동작한다. `ActClientController`는 이것을 예외 대신
+    '보내지 않음·실패' 결과(`refused_before_press`)로 바꿔, 서비스가 '연결이 끊겨 눌렸는지 몰라요'로 적지 않게 한다."""
+
+    def __init__(self, reason: str, detail: str | None, message: str) -> None:
+        ExecuteRefusedBeforePress.__init__(self, reason, detail, message)
 
 
 @dataclass(frozen=True)
@@ -512,7 +524,10 @@ class ActClient:
         if self.act_info or self._hello_on_start:
             protocol = self.act_info.get("execute_protocol")
             if type(protocol) is not int or protocol < 2:
-                raise ActLinkError("execute_protocol_v2_required: target binding requires execute_protocol >= 2")
+                # 보내지 않았다 — 누르기 전 거절(2026-10-19). 메시지는 종전 그대로.
+                raise ActExecuteRefused(
+                    "execute_protocol_v2_required", None,
+                    "execute_protocol_v2_required: target binding requires execute_protocol >= 2")
         seq_id = sequence_id or str(uuid.uuid4())
         timeout = self._cfg.timeout_for(len(buttons))
         loop = asyncio.get_running_loop()
@@ -570,9 +585,13 @@ class ActClient:
                 self._pending = None
 
         if doc.get("type") == "error":
-            raise ActLinkError(
-                f"RPi4 reported error for sequence_id={seq_id!r}: {doc.get('reason', 'unknown')}"
-            )
+            reason = doc.get("reason", "unknown")
+            message = f"RPi4 reported error for sequence_id={seq_id!r}: {reason}"
+            if reason in PRE_PRESS_REFUSALS:
+                # RPi4가 실행을 시작하기 전에 거절했다 — 아무것도 누르지 않았다(2026-10-19).
+                detail = doc.get("detail")
+                raise ActExecuteRefused(reason, detail if isinstance(detail, str) else None, message)
+            raise ActLinkError(message)
         reported = doc.get("appliance_id")
         if reported is not None and reported != appliance_id:
             # 다른 가전의 결과(L3 확인 포함)를 이 실행의 결과로 쓰지 않는다.
