@@ -658,12 +658,17 @@ class RpiCareEvent {
 /// - [failuresSeenUntil]: 옛 본체 호환 시각 — [failuresSeenId]가 없을 때만 이 시각까지의 '못 한 일'을 봤다로 본다.
 /// - [jobAnswers]: 실행 하나에 남긴 답 — seen · moved · not_moved.
 class PersonAcks {
-  const PersonAcks({this.careSeenId = 0, this.failuresSeenId, this.failuresSeenUntil, this.jobAnswers = const {}});
+  const PersonAcks(
+      {this.careSeenId = 0, this.failuresSeenId, this.failuresSeenUntil, this.jobAnswers = const {}, this.persisted});
 
   final int careSeenId;
   final int? failuresSeenId;
   final DateTime? failuresSeenUntil;
   final Map<String, String> jobAnswers;
+
+  /// POST /acks 응답의 저장 결과 — false면 본체가 이번 세션에만 적용하고 저장하지 못했다(다시 보내야 한다, 검토 10/19).
+  /// 옛 본체·GET 응답은 null(저장된 것으로 본다).
+  final bool? persisted;
 
   /// '못 한 일'로 묶는 알림 종류 — 본체 `person_acks.FAILURE_CARE_KINDS`와 같다.
   static const failureKinds = {'execution_failed', 'appliance_done_undelivered'};
@@ -688,6 +693,7 @@ class PersonAcks {
       jobAnswers: answers is Map
           ? {for (final e in answers.entries) if (e.value is String) '${e.key}': e.value as String}
           : const {},
+      persisted: json['persisted'] is bool ? json['persisted'] as bool : null,
     );
   }
 }

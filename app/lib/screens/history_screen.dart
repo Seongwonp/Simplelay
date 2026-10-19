@@ -40,6 +40,9 @@ final historyFailedOnlyProvider = StateProvider<bool>((ref) => false);
 /// 받아 오지 않은 실행까지 '봤다'로 올리지 않는다).
 final historyAckPendingProvider = StateProvider<bool>((ref) => false);
 
+/// 그 '봤다'를 보내는 중 — 다시 그려도 겹쳐 보내지 않는다.
+final _historyAckSendingProvider = StateProvider<bool>((ref) => false);
+
 /// '못 한 일만'에 남는 기록 — 못 했어요·스스로 멈췄어요·됐는지 모름(연습·됐어요·사람이 멈춘 것은 뺀다).
 bool historyIsNotDone(RpiHistoryEntry e) {
   if (e.executionMode == 'mock') return false;
@@ -73,11 +76,20 @@ class HistoryScreen extends ConsumerWidget {
     final failedOnly = ref.watch(historyFailedOnlyProvider);
     final shown = historyAsync.valueOrNull;
     if (shown != null && ref.watch(historyAckPendingProvider)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!context.mounted || !ref.read(historyAckPendingProvider)) return;
-        ref.read(historyAckPendingProvider.notifier).state = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!context.mounted || !ref.read(historyAckPendingProvider) || ref.read(_historyAckSendingProvider)) return;
         final ids = [for (final e in failedOnly ? shown.where(historyIsNotDone) : shown) e.jobId];
-        unawaited(ref.read(careEventsProvider.notifier).markJobsSeen(ids));
+        // 보내기 전에 내리지 않는다(검토 10/19 — 보내기가 실패하면 그 확인이 사라졌다). 알림 목록이 보내기 전에 기기에 남기고
+        // 본체가 저장했다고 답한 뒤에만 지운다(못 닿으면 다음 조회 때 다시 보낸다). 이 화면은 그렇게 맡긴 뒤에 내린다.
+        final sending = ref.read(_historyAckSendingProvider.notifier)..state = true;
+        try {
+          await ref.read(careEventsProvider.notifier).markJobsSeen(ids);
+        } finally {
+          if (context.mounted) {
+            sending.state = false;
+            ref.read(historyAckPendingProvider.notifier).state = false;
+          }
+        }
       });
     }
     final filter = Padding(

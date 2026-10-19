@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,6 +85,11 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
   }
 
   static const _prefsKey = 'care_events_last_seen_id';
+
+  /// 본체에 아직 적었다고 확인하지 못한 '확인함'(검토 10/19) — 보내기 **전에** 기기에 남기고, 본체가 저장했다고 답한
+  /// 뒤에만 지운다(못 닿음·`persisted: false`면 남겨 다음 조회 때 다시 보낸다). 번호는 큰 값 하나, 실행은 최근 200건.
+  static const _ackRetryKey = 'care_acks_retry';
+  static const _ackJobCap = 200;
   static const _pollInterval = Duration(seconds: 45);
 
   final Ref _ref;
@@ -104,6 +110,65 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
     state = state.copyWith(lastSeenId: prefs.getInt(_prefsKey) ?? 0);
     await refresh();
     _startPolling();
+  }
+
+  bool _flushing = false;
+
+  Future<_AckRetry> _loadRetry() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_ackRetryKey);
+      if (raw == null) return const _AckRetry();
+      final json = jsonDecode(raw);
+      return json is Map ? _AckRetry.fromJson(json) : const _AckRetry();
+    } catch (_) {
+      return const _AckRetry();
+    }
+  }
+
+  Future<void> _saveRetry(_AckRetry retry) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (retry.isEmpty) {
+        await prefs.remove(_ackRetryKey);
+      } else {
+        await prefs.setString(_ackRetryKey, jsonEncode(retry.toJson()));
+      }
+    } catch (_) {
+      // 기기에 못 남겨도 이번 보내기는 그대로 한다.
+    }
+  }
+
+  /// [add]를 남은 확인에 더해 기기에 남기고, 남은 것 전부를 한 번에 보낸다. 본체가 받았으면(응답 있음) 확인 표시를 고치고,
+  /// 저장까지 했으면(`persisted`가 false가 아님) 보낸 만큼 남은 것에서 뺀다. 응답을 받았으면 그 값을 돌려준다.
+  Future<PersonAcks?> _sendAcks(_AckRetry add) async {
+    await _saveRetry((await _loadRetry()).merge(add, _ackJobCap));
+    return _flushAcks();
+  }
+
+  Future<PersonAcks?> _flushAcks() async {
+    if (_flushing) return null;
+    final api = _ref.read(rpiApiServiceProvider);
+    if (api == null) return null;
+    _flushing = true;
+    try {
+      final sending = await _loadRetry();
+      if (sending.isEmpty) return null;
+      final acks = await api.postAcks(
+        careSeenId: sending.careSeenId,
+        failuresSeenId: sending.failuresSeenId,
+        seenJobIds: sending.jobIds.isEmpty ? null : sending.jobIds,
+      );
+      if (acks == null) return null;
+      if (acks.persisted != false) {
+        // 보내는 사이 더해진 것은 남긴다.
+        await _saveRetry((await _loadRetry()).without(sending));
+      }
+      if (mounted) state = state.copyWith(acks: acks);
+      return acks;
+    } finally {
+      _flushing = false;
+    }
   }
 
   void _startPolling() {
@@ -158,6 +223,8 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
       lastLoadedAt: DateTime.now(),
       lastSeenId: _rewoundSeenId(events),
     );
+    // 본체에 닿았다 — 아까 못 적은 확인이 남아 있으면 다시 보낸다.
+    await _flushAcks();
   }
 
   /// 서버 DB가 새로 만들어지면 이벤트 id가 1부터 다시 시작한다. 예전
@@ -186,8 +253,7 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
         // 저장 실패 — 세션 내 읽음 표시는 유지된다
       }
     }
-    final acks = await _ref.read(rpiApiServiceProvider)?.postAcks(careSeenId: newest);
-    if (acks != null && mounted) state = state.copyWith(acks: acks);
+    await _sendAcks(_AckRetry(careSeenId: newest));
   }
 
   /// 못 한 일을 봤다(홈 경고의 '기록 보기', 2026-10-19) — 본체에 적어 폰 경고·설정 탭 배지·키오스크 표시가 함께 사라진다.
@@ -198,20 +264,18 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
     final ids = [for (final e in shown) if (PersonAcks.failureKinds.contains(e.kind)) e.id];
     if (ids.isEmpty) return false;
     final newest = ids.reduce((a, b) => a > b ? a : b);
-    final acks = await _ref.read(rpiApiServiceProvider)?.postAcks(failuresSeenId: newest);
-    if (acks == null || !mounted) return false;
-    state = state.copyWith(acks: acks);
-    return true;
+    final acks = await _sendAcks(_AckRetry(failuresSeenId: newest));
+    return acks != null && mounted;
   }
 
   /// 기록 화면에 보인 실행([jobIds])을 봤다(홈 경고의 '기록 보기'로 열었을 때, 검토 10/19) — 키오스크 지난 일·가전 칸 표시가
   /// 함께 내려간다. 보이지 않은 실행은 적지 않는다. 본체 한도(200건)까지만.
+  ///
+  /// 본체에 닿지 못하면 false — 확인은 기기에 남아 다음 조회 때 다시 보낸다.
   Future<bool> markJobsSeen(List<String> jobIds) async {
     if (jobIds.isEmpty) return false;
-    final acks = await _ref.read(rpiApiServiceProvider)?.postAcks(seenJobIds: jobIds.take(200).toList());
-    if (acks == null || !mounted) return false;
-    state = state.copyWith(acks: acks);
-    return true;
+    final acks = await _sendAcks(_AckRetry(jobIds: jobIds.take(_ackJobCap).toList()));
+    return acks != null && mounted;
   }
 
   @override
@@ -220,6 +284,50 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
     _timer?.cancel();
     super.dispose();
   }
+}
+
+/// 본체에 아직 적지 못한 '확인함' 한 벌.
+class _AckRetry {
+  const _AckRetry({this.careSeenId, this.failuresSeenId, this.jobIds = const []});
+
+  final int? careSeenId;
+  final int? failuresSeenId;
+  final List<String> jobIds;
+
+  bool get isEmpty => careSeenId == null && failuresSeenId == null && jobIds.isEmpty;
+
+  static int? _max(int? a, int? b) => a == null ? b : (b == null ? a : (a > b ? a : b));
+
+  _AckRetry merge(_AckRetry o, int jobCap) {
+    final ids = [...jobIds, for (final id in o.jobIds) if (!jobIds.contains(id)) id];
+    return _AckRetry(
+      careSeenId: _max(careSeenId, o.careSeenId),
+      failuresSeenId: _max(failuresSeenId, o.failuresSeenId),
+      jobIds: ids.length > jobCap ? ids.sublist(ids.length - jobCap) : ids,
+    );
+  }
+
+  /// [sent]를 본체가 저장했다 — 그 값 이하의 번호와 보낸 실행을 뺀다.
+  _AckRetry without(_AckRetry sent) {
+    bool covered(int? mine, int? done) => mine != null && done != null && mine <= done;
+    return _AckRetry(
+      careSeenId: covered(careSeenId, sent.careSeenId) ? null : careSeenId,
+      failuresSeenId: covered(failuresSeenId, sent.failuresSeenId) ? null : failuresSeenId,
+      jobIds: [for (final id in jobIds) if (!sent.jobIds.contains(id)) id],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        if (careSeenId != null) 'care_seen_id': careSeenId,
+        if (failuresSeenId != null) 'failures_seen_id': failuresSeenId,
+        if (jobIds.isNotEmpty) 'seen_job_ids': jobIds,
+      };
+
+  factory _AckRetry.fromJson(Map<dynamic, dynamic> json) => _AckRetry(
+        careSeenId: (json['care_seen_id'] as num?)?.toInt(),
+        failuresSeenId: (json['failures_seen_id'] as num?)?.toInt(),
+        jobIds: [for (final id in (json['seen_job_ids'] as List?) ?? const []) if (id is String) id],
+      );
 }
 
 final careEventsProvider =
