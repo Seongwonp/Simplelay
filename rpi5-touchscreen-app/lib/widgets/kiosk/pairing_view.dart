@@ -80,6 +80,9 @@ class _KioskPairingViewState extends State<KioskPairingView> {
       final session = await widget.api.pairingSession();
       if (mounted && revision == _revision) {
         setState(() => _session = {...?_session, ...session});
+        // 허브가 키를 폰에 보냈다(consumed, 검토 10/19) — 이 화면의 일은 끝났다. 더 묻고 초를 세면 창이 끝날 때 '연결 시간이
+        // 지났어요'로 바뀌어 이미 연결된 폰을 다시 연결하라는 말이 됐다. 폰은 창이 열린 동안 같은 키를 다시 받을 수 있다.
+        if (session['state'] == 'consumed') _timer?.cancel();
       }
     } on KioskApiException catch (e) {
       if (e.statusCode == 410 && revision == _revision) {
@@ -174,7 +177,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
                 const Text('폰에 연결 정보를 보냈어요.', style: TextStyle(fontSize: KioskType.status)),
               if (state == 'denied')
                 const Text('이 폰 연결을 닫았어요.', style: TextStyle(fontSize: KioskType.status)),
-              if (session != null && _deadline != null)
+              if (session != null && _deadline != null && state != 'consumed')
                 Text(
                     '${_deadline!.difference(DateTime.now()).inSeconds.clamp(0, 300)}초 남았어요',
                     style: const TextStyle(fontSize: KioskType.status)),
