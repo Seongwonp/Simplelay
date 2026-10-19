@@ -228,8 +228,26 @@ class RpiStatusResult {
     this.lastStopAckMs,
     this.lastStopJobId,
     this.reportsStopJobId = false,
+    this.finished,
+    this.routineRunId,
+    this.routineStatus,
+    this.routineSegment,
+    this.routineSegmentJobId,
+    this.routineDetail,
   });
   final bool running;
+
+  /// GET /jobs/{job_id}의 끝남(검토 10/19). false면 아직 끝나지 않은 실행이다(루틴은 구간 사이 기다림도). /status·옛 본체는 null.
+  final bool? finished;
+
+  /// 루틴 승인의 첫 번호로 물었을 때 루틴 실행 전체(검토 10/19 본체). 루틴이 아니거나 옛 본체면 모두 null.
+  /// [routineRunId]는 `/routines/runs/{id}/stop`의 번호, [routineSegment]는 지금(끝났으면 마지막) 구간 순번(1부터),
+  /// [routineSegmentJobId]는 그 구간의 실행 번호 — 루틴 중 정지 보고는 이 번호로 온다.
+  final String? routineRunId;
+  final String? routineStatus;
+  final int? routineSegment;
+  final String? routineSegmentJobId;
+  final String? routineDetail;
 
   /// 마지막 긴급 정지의 확인 단계(2026-10-13): sent | mcu_ack | verified. 옛 서버·보고 없음은 null.
   final String? lastStopLevel;
@@ -240,7 +258,10 @@ class RpiStatusResult {
   final bool reportsStopJobId;
 
   /// [jobId] 실행의 정지 확인 단계만(H1). 서버가 정지의 실행을 밝히면 같은 job일 때만, 옛 서버면 종전처럼.
-  String? stopLevelOf(String jobId) => !reportsStopJobId || lastStopJobId == jobId
+  /// 루틴이면 그 루틴의 지금(마지막) 구간을 멈춘 정지도 이 실행의 것이다.
+  String? stopLevelOf(String jobId) => !reportsStopJobId ||
+          lastStopJobId == jobId ||
+          (routineRunId == jobId && lastStopJobId != null && lastStopJobId == routineSegmentJobId)
       ? lastStopLevel
       : null;
   int? stopAckMsOf(String jobId) =>
@@ -1234,6 +1255,13 @@ class RpiApiService {
       lastStopAckMs: (body['last_stop_ack_ms'] as num?)?.toInt(),
       lastStopJobId: body['last_stop_job_id'] as String?,
       reportsStopJobId: body.containsKey('last_stop_job_id'),
+      finished: body['finished'] is bool ? body['finished'] as bool : null,
+      routineRunId: body['routine_run_id'] is String ? body['routine_run_id'] as String : null,
+      routineStatus: body['routine_status'] is String ? body['routine_status'] as String : null,
+      routineSegment: (body['routine_segment'] as num?)?.toInt(),
+      routineSegmentJobId:
+          body['routine_segment_job_id'] is String ? body['routine_segment_job_id'] as String : null,
+      routineDetail: body['routine_detail'] is String ? body['routine_detail'] as String : null,
     );
   }
 
@@ -1252,6 +1280,15 @@ class RpiApiService {
     } on FormatException {
       return const StopOutcome();
     }
+  }
+
+  /// POST /routines/runs/{run_id}/stop — 이 루틴 실행만 멈춘다(남은 구간을 보내지 않고, 지금 누르는 중이면 긴급 정지도
+  /// 보낸다). 진행 중인 루틴이 아니면 409, 경로가 없는 옛 본체는 404·405(RpiApiException) — 부르는 쪽이 /stop으로 갈음한다.
+  Future<void> stopRoutineRun(String runId) async {
+    final res = await _client
+        .post(_base.replace(path: '/routines/runs/${Uri.encodeComponent(runId)}/stop'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
   }
 
   /// POST /stop/ack — 사람이 확인한 비상정지 해제 요청(2026-10-05).

@@ -57,6 +57,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   Timer? _pollTimer;
   RpiApiService? _httpApi;
   String? _httpJobId;
+  // 따라가는 실행이 루틴이면(본체가 GET /jobs에 routine_run_id를 실었다, 검토 10/19) 그 루틴 실행 번호와 지금 구간의 실행 번호.
+  // 정지는 그 루틴만 멈추는 /routines/runs/{id}/stop으로 보낸다(모르면 종전처럼 본체 전체 /stop).
+  String? _routineRunId;
+  String? _routineSegmentJobId;
   DateTime? _lastPollSuccess;
   bool _pollInFlight = false;
   // 내 job의 흔적(job_id 또는 last_job_id 일치)이 안 보인 연속 폴링 수 —
@@ -169,7 +173,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     required String label,
     List<String> steps = const [],
   }) {
-    final before = _Tracking(state, _httpApi, _httpJobId, _foreignHub);
+    final before = _Tracking(state, _httpApi, _httpJobId, _foreignHub, _routineRunId, _routineSegmentJobId);
     _supersedeRestore();
     _stopHttpTracking(keepPending: true);
     _stopFollowTimer?.cancel();
@@ -200,6 +204,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _httpApi = before.api;
     _httpJobId = before.jobId;
     _foreignHub = before.foreignHub;
+    _routineRunId = before.routineRunId;
+    _routineSegmentJobId = before.routineSegmentJobId;
     state = before.state;
     final api = before.api;
     final jobId = before.jobId;
@@ -429,6 +435,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     );
   }
 
+  static const routineStopSentNotice = '루틴을 멈추라고 보냈어요. 남은 차례는 보내지 않아요.';
+
   static const foreignHubNotice = '아까 맡긴 일은 지금과 다른 본체에 보냈어요. 그 본체 주소로 바꾸면 이어서 확인할게요. '
       '가전이 움직이면 가전에서 직접 멈춰 주세요.';
   static const foreignHubStopNotice = '아까 일은 다른 본체에 맡겨서 여기서는 멈출 수 없어요. '
@@ -442,6 +450,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _bleTracking = false;
     _httpApi = api;
     _httpJobId = jobId;
+    _routineRunId = null;
+    _routineSegmentJobId = null;
     _lastPollSuccess = DateTime.now();
     _missingPolls = 0;
     state = ExecutionStatus(
@@ -471,7 +481,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       // ① 완료 판정을 최우선 — 내 job(J1) 완료 직후 다른 클라이언트의
       // J2가 시작되면 running=true여도 last_job_id는 여전히 J1이다.
       // running을 먼저 보고 return하면 그 완료를 영영 놓친다(추월 레이스).
-      if (status.lastJobId == jobId) {
+      // 끝남은 본체가 끝났다고 할 때만 — 루틴은 구간 사이 기다림도 끝나지 않은 것이다(finished=false). /status·옛 본체는 null.
+      final routine = status.routineRunId != null;
+      if (status.lastJobId == jobId && status.finished != false) {
         final kind = resultKindOf(
             outcome: status.lastOutcome, status: status.lastStatus);
         final success = kind == ResultKind.success;
@@ -497,8 +509,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           completedSteps: success
               ? (state.totalSteps ?? state.steps.length)
               : state.completedSteps,
-          // 끝난 실행의 누른 순서 이름(서버 last_buttons) — 실행 중 못 본 칸도 이름이 생긴다.
-          stepNames: (status.lastButtons?.isNotEmpty ?? false)
+          // 끝난 실행의 누른 순서 이름(서버 last_buttons) — 실행 중 못 본 칸도 이름이 생긴다. 루틴의 last_buttons는 마지막
+          // 구간의 것뿐이라 루틴 전체 칸에 싣지 않는다.
+          stepNames: !routine && (status.lastButtons?.isNotEmpty ?? false)
               ? [for (final b in status.lastButtons!) b.button]
               : null,
           message: message,
@@ -522,6 +535,30 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       }
 
       // ② 내 job이 실행 중 — 진행 갱신
+      if (status.running && status.jobId == jobId && routine) {
+        // 루틴(검토 10/19) — 구간 사이 기다림도 하는 중이다. 구간 하나의 칸 수·번호는 루틴 전체 칸과 맞지 않아 싣지 않고,
+        // 지금 구간 순번과 그 구간의 폐루프 증거만 싣는다.
+        _missingPolls = 0;
+        _routineRunId = status.routineRunId;
+        _routineSegmentJobId = status.routineSegmentJobId;
+        final retrying = (status.currentAttempt ?? 1) > 1;
+        final segment = status.routineSegment;
+        state = state.copyWith(
+          executionMode: status.executionMode,
+          currentButton: status.currentButton,
+          applianceId: status.applianceId,
+          currentAttempt: status.currentAttempt,
+          verificationConfidence: status.verificationConfidence,
+          verificationDetail: status.verificationDetail,
+          phase: retrying ? ExecutionPhase.retrying : ExecutionPhase.running,
+          message: retrying
+              ? '답이 없어 다시 해 보는 중이에요.'
+              : segment == null
+                  ? '루틴을 하는 중이에요'
+                  : '루틴 $segment번째 차례를 하는 중이에요',
+        );
+        return;
+      }
       if (status.running && status.jobId == jobId) {
         _missingPolls = 0;
         final retrying = (status.currentAttempt ?? 1) > 1;
@@ -650,6 +687,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     if (keepTarget) return;
     _httpApi = null;
     _httpJobId = null;
+    _routineRunId = null;
+    _routineSegmentJobId = null;
     if (keepPending) return;
     // 결말이 난 job은 더 이상 이어붙일 것이 없다. '확인 불가'(keepTarget)는
     // 아직 결말이 아니므로 남겨둔다 -- 앱을 다시 열면 또 확인해야 한다.
@@ -766,6 +805,27 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       // 접수 답(job_id)을 아직 모른다(보내는 중·답 없음) — 이 정지가 접수보다 먼저 닿았을 수 있어, 실행을 찾으면 다시 보낸다.
       final submitting = jobId == null && _submitRequestId != null;
       if (submitting) _stopWhileSubmitting = true;
+      final routineRunId = jobId == null ? null : _routineRunId;
+      if (routineRunId != null) {
+        // 루틴이면 그 루틴만 멈춘다(남은 구간을 보내지 않고, 누르는 중이면 본체가 긴급 정지도 보낸다). 본체가 받지 않으면
+        // (진행 중인 루틴이 아님·옛 본체) 아래 본체 전체 정지로 갈음한다 — 멈추라는 뜻은 그대로 전한다.
+        try {
+          await api.stopRoutineRun(routineRunId);
+          if (!mounted || state.sequenceId != sequenceId) return true;
+          if (!_finished) state = state.copyWith(message: routineStopSentNotice);
+          return true;
+        } on RpiApiException {
+          if (!mounted || state.sequenceId != sequenceId) return false;
+        } catch (error) {
+          if (!mounted || state.sequenceId != sequenceId) return false;
+          if (_finished) return true;
+          state = state.copyWith(
+              message: error is TimeoutException
+                  ? '멈추라고 보냈는데 답이 없어요. 멈추지 않으면 정지를 다시 눌러 주세요.'
+                  : '멈추라고 보내지 못했어요. 정지를 다시 눌러 주세요.');
+          return false;
+        }
+      }
       try {
         final outcome = await api.stop();
         if (!mounted || state.sequenceId != sequenceId) return true;
@@ -774,8 +834,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           return true;
         }
         // 서버가 다른 실행을 멈췄다고 하거나(다른 job) 실행 중이 아니었다고 하면(명시적 null) 그 단계는
-        // 이 화면의 것이 아니다. 필드가 없는 옛 서버만 종전처럼 싣는다(2차 평가 M-N1).
-        final mine = outcome.belongsTo(jobId);
+        // 이 화면의 것이 아니다. 필드가 없는 옛 서버만 종전처럼 싣는다(2차 평가 M-N1). 루틴이면 지금 구간을 멈춘 것도 이 화면의 것.
+        final segmentJobId = _routineSegmentJobId;
+        final mine = outcome.belongsTo(jobId) ||
+            (segmentJobId != null && outcome.reportsJobId && outcome.belongsTo(segmentJobId));
         if (_finished) {
           // 결과가 먼저 왔다(M1) — 결과 문장을 덮지 않고, 같은 job의 정지 결과면 단계만 싣는다.
           if (mine) _applyLateStopLevel(outcome.stopLevel, outcome.ackMs);
@@ -881,9 +943,11 @@ final executionStatusProvider =
 
 /// 보내기 전에 따라가던 것 — 보내는 중이 거절로 끝나면 그대로 되돌린다([ExecutionStatusNotifier.abandonSubmission]).
 class _Tracking {
-  const _Tracking(this.state, this.api, this.jobId, this.foreignHub);
+  const _Tracking(this.state, this.api, this.jobId, this.foreignHub, this.routineRunId, this.routineSegmentJobId);
   final ExecutionStatus state;
   final RpiApiService? api;
   final String? jobId;
   final String? foreignHub;
+  final String? routineRunId;
+  final String? routineSegmentJobId;
 }
