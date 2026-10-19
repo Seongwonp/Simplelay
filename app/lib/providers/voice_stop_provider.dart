@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/command_result.dart' show stopLevelSentence;
 import '../models/execution_status.dart';
+import '../services/rpi_api_service.dart' show StopOutcome;
 import '../services/voice_service.dart';
 import 'estop_provider.dart';
 import 'execution_status_provider.dart';
@@ -45,6 +47,16 @@ bool isStopPhrase(String text) {
   }
   return true;
 }
+
+/// 폰이 추적하지 않는 실행(키오스크·루틴·정지 버튼 위 대기)을 음성 '멈춰'로 멈췄을 때 보일 한 줄 — 정지 버튼과 같은
+/// 정지 단계 문장([stopLevelSentence]). 예전에는 아무것도 보이지 않아 멈추라고 갔는지 알 수 없었다(검토 10/19).
+/// 폰이 추적하는 실행은 실행 상태가 같은 문장을 띄우므로 여기 싣지 않는다. 보여 준 화면(`VoiceStopIndicator`)이 잠시 뒤 비운다.
+final voiceStopNoticeProvider = StateProvider<String?>((ref) => null);
+
+/// 음성 정지 결과 한 줄 — 서버가 알린 정지 단계까지만(말로 조작하기의 정지 문장과 같은 규칙).
+String voiceStopNotice(StopOutcome outcome) =>
+    stopLevelSentence(outcome.stopLevel, ackMs: outcome.ackMs) ??
+    (outcome.wasRunning ? '멈추라고 보냈어요.' : '멈추라고 보냈어요. 하던 일은 없었어요.');
 
 class VoiceStopState {
   const VoiceStopState({this.listening = false});
@@ -116,7 +128,6 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
   /// 정지 말뿐인 부분 결과 뒤 이만큼 다른 결과가 없으면 정지로 본다.
   /// 최종 결과가 먼저 오면 그쪽으로 바로 판정한다(추측 — 실기기에서 확인 필요).
   static const partialStopDelay = Duration(milliseconds: 1000);
-
   /// 침묵으로 끝난 세션 — 오류로 세지 않는다.
   static const _silenceErrors = {'error_no_match', 'error_speech_timeout'};
 
@@ -367,8 +378,18 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
         if (api == null) {
           sent = false;
         } else {
-          await api.stop();
-          sent = true;
+          try {
+            final outcome = await api.stop();
+            sent = true;
+            _notice(voiceStopNotice(outcome));
+          } on TimeoutException {
+            // 답이 없는 것은 '못 보냄'이 아니라 '전달 여부 모름'이다. 정지는 다시 보내도 안전하다.
+            _notice('멈추라고 보냈는데 답이 없어요. 멈추지 않았으면 다시 말하거나 정지 버튼을 눌러 주세요.');
+            rethrow;
+          } catch (_) {
+            _notice('멈추라고 보내지 못했어요. 다시 말하거나 정지 버튼을 눌러 주세요.');
+            rethrow;
+          }
         }
       }
       if (sent && _runKey == runAtSend) {
@@ -381,6 +402,10 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
       _stopInFlight = false;
       _evaluate(); // 못 보냈으면 다시 듣는다
     }
+  }
+
+  void _notice(String text) {
+    if (!_disposed) _ref.read(voiceStopNoticeProvider.notifier).state = text;
   }
 
   @override

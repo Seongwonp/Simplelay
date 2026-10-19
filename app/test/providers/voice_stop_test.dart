@@ -162,12 +162,15 @@ class _Hub {
   final List<int> stopCodes = [];
   int stopPosts = 0;
 
+  /// 성공한 /stop의 응답 본문.
+  Map<String, dynamic> stopBody = {};
+
   late final api =
       RpiApiService('http://hub:8000', client: MockClient((req) async {
     if (req.method == 'POST' && req.url.path == '/stop') {
       stopPosts++;
       final code = stopCodes.isEmpty ? 200 : stopCodes.removeAt(0);
-      return http.Response('{}', code);
+      return http.Response(code == 200 ? jsonEncode(stopBody) : '{}', code);
     }
     if (req.url.path == '/status') {
       if (statusFails) throw http.ClientException('hub unreachable');
@@ -538,6 +541,51 @@ void main() {
     await r.container.read(estopProvider.notifier).refresh();
     await _settle(tester);
     expect(r.voice.listening, isFalse);
+  });
+
+  // 검토 10/19: 폰이 추적하지 않는 실행을 '멈춰'로 멈추면 아무것도 보이지 않았다.
+  testWidgets('폰이 추적하지 않는 실행을 "멈춰"로 멈추면 정지 단계 문장을 잠시 보인다', (tester) async {
+    final hub = _Hub()
+      ..status = {
+        'running': true, 'job_id': 'kiosk-1', 'last_status': null, 'last_buttons': null,
+      }
+      ..stopBody = {'stop_level': 'mcu_ack', 'stop_job_id': 'kiosk-1', 'was_running': true};
+    final r = await _rig(tester, api: hub.api, realEstop: true);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: r.container,
+      child: const MaterialApp(home: Scaffold(body: VoiceStopIndicator())),
+    ));
+    await _settle(tester);
+    expect(r.voice.listening, isTrue);
+
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(hub.stopPosts, 1);
+    expect(find.text('누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 몰라요'), findsOneWidget);
+
+    hub.status = {'running': false, 'last_status': 'safety_stopped', 'last_buttons': []};
+    await r.container.read(estopProvider.notifier).refresh();
+    await tester.pump(VoiceStopIndicator.noticeDuration);
+    await _settle(tester);
+    expect(find.byKey(const Key('voice-stop-notice')), findsNothing, reason: '잠시 뒤 비운다');
+  });
+
+  testWidgets('그 정지를 보내지 못하면 그렇다고 말하고 다시 듣는다', (tester) async {
+    final hub = _Hub()
+      ..status = {
+        'running': true, 'job_id': 'kiosk-1', 'last_status': null, 'last_buttons': null,
+      }
+      ..stopCodes.add(500);
+    final r = await _rig(tester, api: hub.api, realEstop: true);
+    await _settle(tester);
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(r.container.read(voiceStopNoticeProvider), '멈추라고 보내지 못했어요. 다시 말하거나 정지 버튼을 눌러 주세요.');
+    expect(r.voice.listening, isTrue);
+
+    hub.status = {'running': false, 'last_status': 'safety_stopped', 'last_buttons': []};
+    await r.container.read(estopProvider.notifier).refresh();
+    await _settle(tester);
   });
 
   testWidgets('/status 조회가 실패하면 듣기를 끈다(이전 값을 붙들지 않는다)',
