@@ -1,6 +1,7 @@
 // 검토 10/19 — 실행 화면 정지·접수의 정직성.
 //
 // 5. /stop의 4xx·5xx는 예외다 — 실행 화면은 정지 단추를 그대로 두고 '정지가 닿지 않았어요'를 말한다. 닿으면 '멈추는 중'.
+// 1. 접수 응답(job_id) 전에 누른 정지는 job이 오는 대로 다시 보낸다 — 그동안 '멈추는 중'.
 // 8. 직접 누르기 확인을 두 번 눌러도 요청은 하나 — 둘째의 409가 첫 실행을 실패 화면 뒤에 숨기지 않는다(화면 접수 관문·세대).
 import 'dart:async';
 
@@ -134,6 +135,62 @@ void main() {
       expect(api.executeCalls, 1);
       expect(find.byType(KioskExecutingView), findsOneWidget);
       expect(find.byType(KioskDoneView), findsNothing);
+    });
+  });
+
+  group('1. 접수 응답 전 정지 — job이 오면 다시 멈춘다', () {
+    testWidgets('승인 응답 전에 누른 정지는 job_id가 오는 대로 한 번 더 보내고, 그동안 멈추는 중', (tester) async {
+      final api = await _pumpKiosk(tester, suggestions: [_sug]);
+      final pending = Completer<KioskJobAccepted>();
+      api.approvalPending = pending;
+      await _approve(tester, api);
+      await tester.tap(_stopButton);
+      await tester.pump();
+      expect(api.stopCalls, 1);
+      expect(_stopState(tester), KioskExecStop.stopping);
+      expect(find.text('멈추는 중'), findsOneWidget);
+
+      pending.complete(const KioskJobAccepted(jobId: 'job-1'));
+      await tester.pump();
+      await tester.pump();
+      expect(api.stopCalls, 2);
+      expect(find.byType(KioskExecutingView), findsOneWidget);
+      expect(_stopState(tester), KioskExecStop.stopping);
+    });
+
+    testWidgets('직접 누르기도 같다 — 첫 정지가 닿지 않았어도 job이 오면 다시 보낸다', (tester) async {
+      final api = await _pumpKiosk(tester);
+      final pending = Completer<KioskJobAccepted>();
+      api.executePending.add(pending);
+      await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('해동'));
+      await tester.pump();
+      await tester.tap(find.text('누르기'));
+      await tester.pump();
+      api.stopError = KioskApiException(503, 'busy');
+      await tester.tap(_stopButton);
+      await tester.pump();
+      expect(api.stopCalls, 1);
+      expect(_stopState(tester), KioskExecStop.failed);
+
+      api.stopError = null;
+      pending.complete(const KioskJobAccepted(jobId: 'job-1'));
+      await tester.pump();
+      await tester.pump();
+      expect(api.stopCalls, 2);
+      expect(_stopState(tester), KioskExecStop.stopping);
+    });
+
+    testWidgets('job_id를 안 뒤의 정지는 한 번만 보낸다', (tester) async {
+      final api = await _pumpKiosk(tester, suggestions: [_sug]);
+      await _approve(tester, api);
+      await tester.pump();
+      await tester.tap(_stopButton);
+      await tester.pump();
+      await tester.pump();
+      expect(api.stopCalls, 1);
     });
   });
 }

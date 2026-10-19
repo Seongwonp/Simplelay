@@ -183,6 +183,10 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _accepting = false;
   bool get _admitting => _accepting || _phase == KioskPhase.executing;
 
+  // 접수 응답 전에 정지를 눌렀다(검토 10/19) — 그때 본체에는 아직 실행이 없어 /stop이 아무것도 멈추지 못할 수 있다.
+  // job_id가 오는 대로 /stop을 다시 보낸다. 그동안 화면은 '멈추는 중'.
+  bool _stopWhileAccepting = false;
+
   String? _currentButton;
 
   // 이 실행에서 이미 누른 버튼(화면이 본 차례대로, 평가 3차 10/18) — 실행 화면 버튼판의 끝난 칸 ✓.
@@ -1507,6 +1511,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _execStop = KioskExecStop.none;
     _admitGen++;
     _accepting = false;
+    _stopWhileAccepting = false;
     setState(() {
       _phase = KioskPhase.executing;
       _execTitle = title;
@@ -1677,6 +1682,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (gen != _admitGen) return;
       _accepting = false;
       _activeJobId = accepted.jobId;
+      _stopIfAskedWhileAccepting();
     } on KioskApiException catch (e) {
       if (gen != _admitGen) return;
       _accepting = false;
@@ -1749,6 +1755,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (gen != _admitGen) return;
       _accepting = false;
       _activeJobId = accepted.jobId;
+      _stopIfAskedWhileAccepting();
     } catch (_) {
       if (gen != _admitGen) return;
       _accepting = false;
@@ -1776,14 +1783,31 @@ class _KioskScreenState extends State<KioskScreen> {
   Future<void> _onStop() async {
     // 정지 "요청"만 보낸다 — 화면 전환은 폴링이 safety_stopped 완료를 받은 뒤.
     // 하드웨어가 멈추기 전에 '정지됨' 화면부터 띄우면 실제 상태와 어긋난다.
+    // 접수 응답 전이면 지금 보내는 정지가 아무것도 멈추지 못할 수 있다 — job_id가 오는 대로 다시 보낸다(검토 10/19).
+    if (_accepting && _activeJobId == null) {
+      _stopWhileAccepting = true;
+      setState(() => _execStop = KioskExecStop.stopping);
+    }
+    await _sendExecStop();
+  }
+
+  /// 접수 응답 전에 정지를 눌렀으면 받은 job을 멈추려고 /stop을 한 번 더 보낸다.
+  void _stopIfAskedWhileAccepting() {
+    if (!_stopWhileAccepting) return;
+    _stopWhileAccepting = false;
+    _sendExecStop();
+  }
+
+  Future<void> _sendExecStop() async {
+    final gen = _admitGen;
     try {
       await _api.stop();
-      if (!mounted || _phase != KioskPhase.executing) return;
+      if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) return;
       setState(() => _execStop = KioskExecStop.stopping);
     } catch (_) {
       // 정지 요청조차 실패(통신·본체 거절) — 실행 화면과 정지 단추를 그대로 두고 닿지 않았다고 말한다(검토 10/19).
       // 통신이 계속 끊기면 30초 탈출 타이머가(_pollExecuting의 _statusLostTimeout) 결국 실패 화면으로 빼낸다.
-      if (!mounted || _phase != KioskPhase.executing) return;
+      if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) return;
       setState(() => _execStop = KioskExecStop.failed);
     }
   }
