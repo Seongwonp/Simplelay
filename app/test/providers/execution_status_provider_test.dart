@@ -170,6 +170,27 @@ void main() {
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.waiting);
     });
 
+    // 검토 10/19(10): 이 폰이 BLE 실행을 시작하지 않았는데 늦게 온(다른 실행·다른 단말의) 결과·센서 프레임이
+    // 쉬는 화면을 '끝났어요'·'하는 중'으로 바꿨다.
+    test('이 폰이 시작하지 않은 BLE 결과·센서는 쉬는 화면을 바꾸지 않는다', () async {
+      final c = makeContainer();
+      c.read(executionStatusProvider);
+
+      c.read(bleServiceProvider).injectMessage({
+        'type': 'result',
+        'sequence_id': 'someone-else',
+        'success': true,
+      });
+      c.read(bleServiceProvider).injectMessage({
+        'type': 'sensor',
+        'status': 'running',
+        'current_ma': 300,
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(c.read(executionStatusProvider).phase, ExecutionPhase.idle);
+    });
+
     test('emergencyStop sets failed phase', () async {
       final c = makeContainer();
       c.read(bleServiceProvider).simulateConnected();

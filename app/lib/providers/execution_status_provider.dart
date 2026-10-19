@@ -30,6 +30,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   // (검토 10/19: BLE 실행은 _httpJobId를 남기지 않아, 늦게 준비된 주소가 옛 job으로 새 실행 화면을 덮었다).
   int _executionGen = 0;
 
+  // 이 폰이 BLE 실행을 시작했는가([begin]). 아니면 BLE 실행 프레임을 받지 않는다 — 쉬는 화면이나 HTTP job 화면을
+  // 늦게 온 다른 실행의 결과·센서가 '끝났어요'·'하는 중'으로 바꿨다(검토 10/19).
+  bool _bleTracking = false;
+
   /// 새 실행이 시작됐다 — 기다리던 복원을 버린다.
   void _supersedeRestore() {
     _executionGen++;
@@ -65,6 +69,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _supersedeRestore();
     _stopHttpTracking();
     _stopFollowTimer?.cancel();
+    _bleTracking = true;
     state = ExecutionStatus(
       sequenceId: suggestion.sequenceId,
       // 승인 뒤의 이름 — 질문 문장(purpose)이 아니다(Suggestion.doneLabel).
@@ -96,6 +101,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _supersedeRestore();
     _stopHttpTracking();
     _stopFollowTimer?.cancel();
+    _bleTracking = false;
     _httpApi = api;
     _httpJobId = jobId;
     _lastPollSuccess = DateTime.now();
@@ -172,6 +178,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   /// 재시작 후 이어붙이기. 이미 끝난 job이면 첫 폴링이 완료/실패로 정리하고,
   /// 서버가 응답하지 않으면 기존 규칙대로 '확인 불가'로 빠진다.
   void _resumeJob(RpiApiService api, String jobId, String label) {
+    _bleTracking = false;
     _httpApi = api;
     _httpJobId = jobId;
     _lastPollSuccess = DateTime.now();
@@ -405,6 +412,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   }
 
   void _onMessage(Map<String, dynamic> message) {
+    if (!_bleTracking) return;
     switch (message['type']) {
       case 'sensor':
         // 이미 끝난(또는 확인 불가로 넘어간) 실행을 늦게 도착한 센서
@@ -438,7 +446,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         );
         return;
       case 'result':
-        if (state.sequenceId == null ||
+        // 내가 시작한 그 실행의 결과만 — 번호가 없거나 다른 결과는 받지 않는다.
+        if (state.sequenceId != null &&
             message['sequence_id'] == state.sequenceId) {
           final success = message['success'] == true;
           // BLE 프레임은 success 하나뿐이다 -- 경로·확인 근거·실행 환경을
