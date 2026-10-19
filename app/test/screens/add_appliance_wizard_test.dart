@@ -47,6 +47,12 @@ class _Server {
   bool frameKnown = true;
   int statusCalls = 0;
 
+  /// 사진 매핑 저장을 이 문장으로 거절한다(422).
+  String? rejectMapping;
+
+  /// 확인 주행 시작을 이 상태·문장으로 거절한다.
+  (int, String)? rejectPass;
+
   http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
         utf8.encode(jsonEncode(body)),
         status,
@@ -69,6 +75,12 @@ class _Server {
           if (req.method == 'PUT' && RegExp(r'^/appliances/[^/]+$').hasMatch(path)) {
             registerBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
             return _json({'id': path.split('/').last, ...registerBody!, 'is_custom': true});
+          }
+          if (req.method == 'PUT' && path.endsWith('/mapping') && rejectMapping != null) {
+            return _json({'detail': rejectMapping}, 422);
+          }
+          if (req.method == 'POST' && path.endsWith('/verify-pass') && rejectPass != null) {
+            return _json({'detail': rejectPass!.$2}, rejectPass!.$1);
           }
           if (req.method == 'PUT' && path.endsWith('/mapping')) {
             mappingBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
@@ -160,6 +172,28 @@ Future<void> _settle(WidgetTester tester) async {
 Future<void> _tapPhoto(WidgetTester tester, double fx, double fy) async {
   final box = tester.getRect(find.byKey(const Key('wizard-photo')));
   await tester.tapAt(Offset(box.left + box.width * fx, box.top + box.height * fy));
+  await tester.pump();
+}
+
+/// ①~③을 지나 ④(정지 버튼과 기다리는 자리)까지 간다. 버튼은 '시작' 하나.
+Future<void> _walkToStopStep(WidgetTester tester, {String name = '전자레인지'}) async {
+  await tester.tap(find.byKey(const Key('wizard-take-photo')));
+  await _settle(tester);
+  await tester.enterText(find.byKey(const Key('wizard-name')), name);
+  await tester.pump();
+  await tester.tap(find.byKey(const Key('wizard-next')));
+  await _settle(tester);
+  for (final p in const [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]) {
+    await _tapPhoto(tester, p.$1, p.$2);
+  }
+  await tester.tap(find.byKey(const Key('wizard-next')));
+  await tester.pump();
+  await _tapPhoto(tester, 0.3, 0.4);
+  await _settle(tester);
+  await tester.enterText(find.byKey(const Key('wizard-button-name')), '시작');
+  await tester.tap(find.text('확인'));
+  await _settle(tester);
+  await tester.tap(find.byKey(const Key('wizard-next')));
   await tester.pump();
 }
 
@@ -324,5 +358,30 @@ void main() {
     expect((byId['a']!.x, byId['a']!.y), (0, 0));
     expect((byId['b']!.x, byId['b']!.y), (1, 0));
     expect((byId['c']!.x, byId['c']!.y), (0, 1));
+  });
+
+  testWidgets('저장이 거절되면 그 문장이 단추 바로 위에 보인다 — 목록 맨 아래에 숨지 않는다(실화면 10/19)',
+      (tester) async {
+    final server = _Server()..rejectMapping = '기다리는 자리가 버튼판 밖이에요';
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+
+    // 보통 폰 크기 — 사진과 설명으로 목록이 화면보다 길다.
+    tester.view.physicalSize = const Size(400, 800);
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+
+    expect(find.text('기다리는 자리가 버튼판 밖이에요').hitTestable(), findsOneWidget,
+        reason: '스크롤하지 않아도 보여야 한다');
+    final error = tester.getRect(find.byKey(const Key('wizard-error')));
+    final next = tester.getRect(find.byKey(const Key('wizard-next')));
+    expect(error.bottom, lessThanOrEqualTo(next.top));
+    expect(_title(tester), '4. 정지 버튼과 기다리는 자리', reason: '거절되면 다음 단계로 가지 않는다');
   });
 }

@@ -503,42 +503,51 @@ class _AddApplianceWizardScreenState
             3 => _stopStep(),
             _ => _passStep(),
           },
-          if (_error != null) ...[
-            const SizedBox(height: AppSpace.md),
-            Text(_error!,
-                key: const Key('wizard-error'),
-                style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
-          ],
         ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.md),
-          child: _step == 4
-              ? FilledButton(
-                  key: const Key('wizard-finish'),
-                  onPressed: (_pass?.running ?? false) ? null : _finish,
-                  child: Text(_pass == null ? '자리 확인 없이 끝내기' : '끝내기'),
-                )
-              : Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        key: const Key('wizard-back'),
-                        onPressed: _step == 0 || _busy ? null : _back,
-                        child: const Text('이전'),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpace.md),
-                    Expanded(
-                      child: FilledButton(
-                        key: const Key('wizard-next'),
-                        onPressed: _canNext ? _next : null,
-                        child: Text(_step == 3 ? '저장하고 다음' : '다음'),
-                      ),
-                    ),
-                  ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 저장 실패는 단추 바로 위에(실화면 10/19: 목록 맨 아래에 붙어 단추 띠에 가려 저장이 안 된 줄 몰랐다).
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                  child: Text(_error!,
+                      key: const Key('wizard-error'),
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
                 ),
+              _step == 4
+                  ? FilledButton(
+                      key: const Key('wizard-finish'),
+                      onPressed: (_pass?.running ?? false) ? null : _finish,
+                      child: Text(_pass == null ? '자리 확인 없이 끝내기' : '끝내기'),
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            key: const Key('wizard-back'),
+                            onPressed: _step == 0 || _busy ? null : _back,
+                            child: const Text('이전'),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpace.md),
+                        Expanded(
+                          child: FilledButton(
+                            key: const Key('wizard-next'),
+                            onPressed: _canNext ? _next : null,
+                            // 본체 응답을 기다리는 동안 눌렸는지 알 수 있게(연결이 없으면 수십 초 걸린다, 실화면 10/19).
+                            child: Text(_step == 3 ? (_busy ? '저장하는 중…' : '저장하고 다음') : '다음'),
+                          ),
+                        ),
+                      ],
+                    ),
+            ],
+          ),
         ),
       ),
     ),
