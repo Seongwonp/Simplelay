@@ -151,6 +151,16 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
                     '${s.scope ?? '묻는 알림과 안내 소리만 쉬어요.'} 직접 하기와 정지는 그대로예요.',
                     style: muted,
                   ),
+                  // 시각을 바꾸는 길을 보이게(첫 사용자 검토 10/19) — 줄 전체 누르기만 있으면 스위치만 보여 기본 시각으로만 켰다.
+                  // 스위치는 켜고 끄기만 한다. 잠시 쉬기의 '시간 고르기'와 같은 테두리 버튼.
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpace.sm),
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+                      onPressed: _busy ? null : () => _pickRange(s),
+                      child: const Text('시간 바꾸기'),
+                    ),
+                  ),
                 ],
               ),
         onTap: s == null || _busy ? null : () => _pickRange(s),

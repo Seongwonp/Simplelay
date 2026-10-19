@@ -129,6 +129,20 @@ void main() {
     expect(findPlainText('몇 시간 동안 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
   });
 
+  // 첫 사용자 검토 10/19 #13: 시각은 줄 전체를 눌러야 바뀌었는데 보이는 것은 켜기 스위치뿐이었다.
+  testWidgets('보이는 "시간 바꾸기" 버튼으로 시작·끝 시각을 고른다', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server().api()));
+    await _settle(tester);
+    await openSettingRow(tester, 'quiet');
+    final change = find.widgetWithText(OutlinedButton, '시간 바꾸기');
+    expect(change, findsOneWidget);
+    expect(tester.getSize(change).height, greaterThanOrEqualTo(48));
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+    expect(find.text('조용한 시간 시작'), findsOneWidget);
+  });
+
   testWidgets('켜기/끄기는 서버에 저장한다(PUT)', (tester) async {
     _tall(tester);
     final server = _Server();
