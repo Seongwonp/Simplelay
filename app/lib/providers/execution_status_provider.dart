@@ -15,6 +15,10 @@ import 'tts_provider.dart';
 // 진행 중이던 job을 기기에 남겨 앱 재시작 후에도 이어서 확인한다.
 const _kPendingJobKey = 'pending_job_id';
 const _kPendingLabelKey = 'pending_job_label';
+// 그 job을 받은 본체(정규화한 주소, 검토 10/19) — 이어서 보기·정지는 그 본체로만 한다. 옛 기록(값 없음)은 지금 본체로 본다.
+const _kPendingHubKey = 'pending_job_hub';
+
+String _hubIdOf(RpiApiService api) => normalizeRpiUrl(api.baseUrl);
 
 class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   ExecutionStatusNotifier(this.ref) : super(const ExecutionStatus()) {
@@ -34,11 +38,16 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   // 늦게 온 다른 실행의 결과·센서가 '끝났어요'·'하는 중'으로 바꿨다(검토 10/19).
   bool _bleTracking = false;
 
+  // 남은 job이 지금 설정과 **다른 본체**에서 받은 것이다(검토 10/19) — 지금 본체로 이어서 보거나 전체 정지를 보내면 그 본체의
+  // 상관없는 실행을 멈춘다. 그 본체 주소로 돌아올 때까지 모름으로 두고, 정지는 보내지 않고 이유를 말한다.
+  String? _foreignHub;
+
   /// 새 실행이 시작됐다 — 기다리던 복원을 버린다.
   void _supersedeRestore() {
     _executionGen++;
     _apiWait?.close();
     _apiWait = null;
+    _foreignHub = null;
   }
 
   // ── HTTP job 추적 (비동기 job 모델) ──────────────────────────────────────
@@ -115,7 +124,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       isDemo: _demoNow(),
     );
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
-    _rememberPendingJob(jobId, label);
+    _rememberPendingJob(jobId, label, _hubIdOf(api));
   }
 
   // ── 보냈는데 접수 답을 못 받은 실행(검토 10/19) ──────────────────────────
@@ -205,11 +214,12 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   // 나가거나 OS가 정리). 그때 job_id를 잃으면 물리 조작은 계속되는데 화면은
   // "실행한 적 없음"으로 돌아온다 -- 가전 앞에 있는 사람에게 가장 나쁜 상태다.
 
-  Future<void> _rememberPendingJob(String jobId, String label) async {
+  Future<void> _rememberPendingJob(String jobId, String label, String hub) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kPendingJobKey, jobId);
       await prefs.setString(_kPendingLabelKey, label);
+      await prefs.setString(_kPendingHubKey, hub);
     } catch (_) {
       // 보존은 보조 장치 -- 실패해도 이번 실행 추적은 그대로 간다.
     }
@@ -220,6 +230,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kPendingJobKey);
       await prefs.remove(_kPendingLabelKey);
+      await prefs.remove(_kPendingHubKey);
     } catch (_) {}
   }
 
@@ -227,10 +238,12 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     final gen = _executionGen;
     String? jobId;
     String label = '';
+    String? hub;
     try {
       final prefs = await SharedPreferences.getInstance();
       jobId = prefs.getString(_kPendingJobKey);
       label = prefs.getString(_kPendingLabelKey) ?? '';
+      hub = prefs.getString(_kPendingHubKey);
     } catch (_) {
       return;
     }
@@ -238,27 +251,54 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     // 이미 새 실행이 시작됐으면(HTTP든 BLE든) 옛 job으로 덮지 않는다.
     if (gen != _executionGen || _httpJobId != null) return;
 
+    bool sameHub(RpiApiService api) => hub == null || _hubIdOf(api) == hub;
     final api = ref.read(rpiApiServiceProvider);
-    if (api != null) {
+    if (api != null && sameHub(api)) {
       _resumeJob(api, jobId, label);
       return;
     }
-    // 서버 주소는 기기에서 비동기로 읽힌다 -- 준비되면 그때 이어붙인다.
     final pendingId = jobId;
+    if (api != null) _showForeignHubJob(pendingId, label, hub!);
+    // 서버 주소는 기기에서 비동기로 읽힌다 -- 준비되면(다른 본체면 그 본체로 돌아오면) 그때 이어붙인다.
     _apiWait = ref.listen<RpiApiService?>(rpiApiServiceProvider, (_, next) {
       if (next == null || !mounted) return;
-      _apiWait?.close();
-      _apiWait = null;
-      if (gen != _executionGen || _httpJobId != null || state.phase != ExecutionPhase.idle) {
+      if (gen != _executionGen || _httpJobId != null) {
+        _apiWait?.close();
+        _apiWait = null;
         return;
       }
+      if (!sameHub(next)) {
+        _showForeignHubJob(pendingId, label, hub!);
+        return;
+      }
+      _apiWait?.close();
+      _apiWait = null;
+      final waitingForeign = _foreignHub != null && state.sequenceId == pendingId;
+      if (state.phase != ExecutionPhase.idle && !waitingForeign) return;
       _resumeJob(next, pendingId, label);
     });
   }
 
+  /// 남은 job이 다른 본체의 것이다 — 이어서 보지도, 지금 본체로 멈추지도 않는다(기록은 남겨 그 본체로 돌아오면 이어서 본다).
+  void _showForeignHubJob(String jobId, String label, String hub) {
+    _foreignHub = hub;
+    state = ExecutionStatus(
+      sequenceId: jobId,
+      label: label.isEmpty ? null : label,
+      phase: ExecutionPhase.unknown,
+      message: foreignHubNotice,
+    );
+  }
+
+  static const foreignHubNotice = '아까 맡긴 일은 지금과 다른 본체에 보냈어요. 그 본체 주소로 바꾸면 이어서 확인할게요. '
+      '가전이 움직이면 가전에서 직접 멈춰 주세요.';
+  static const foreignHubStopNotice = '아까 일은 다른 본체에 맡겨서 여기서는 멈출 수 없어요. '
+      '그 본체 주소로 바꾸거나 가전에서 직접 멈춰 주세요.';
+
   /// 재시작 후 이어붙이기. 이미 끝난 job이면 첫 폴링이 완료/실패로 정리하고,
   /// 서버가 응답하지 않으면 기존 규칙대로 '확인 불가'로 빠진다.
   void _resumeJob(RpiApiService api, String jobId, String label) {
+    _foreignHub = null;
     _bleTracking = false;
     _httpApi = api;
     _httpJobId = jobId;
@@ -569,6 +609,11 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   /// 바꾸지 않은 것은 화면 버튼의 동작·문구를 그대로 두기 위해서다(10/8 인계 5차 §1).
   Future<bool> emergencyStop() async {
     final api = _httpApi;
+    if (api == null && _foreignHub != null) {
+      // 다른 본체의 job — 지금 본체(블루투스가 넘겨줄 곳 포함)에 전체 정지를 보내면 상관없는 실행을 멈춘다.
+      state = state.copyWith(message: foreignHubStopNotice);
+      return false;
+    }
     if (api != null) {
       // HTTP 추적 중 — 서버에 정지를 요청하고, 종료 판정은 폴링이
       // safety_stopped 결과를 받아서 처리한다(성급한 '정지됨' 표시 방지).

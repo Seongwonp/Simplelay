@@ -34,6 +34,8 @@ RpiApiService _apiReturning(Map<String, dynamic> body) {
   return RpiApiService('http://rpi5.local:8000', client: client);
 }
 
+final _hubChoice = StateProvider<RpiApiService?>((_) => null);
+
 ProviderContainer _container(RpiApiService? api) {
   final container = ProviderContainer(
     overrides: [
@@ -62,6 +64,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('pending_job_id'), 'J9');
     expect(prefs.getString('pending_job_label'), '즉석밥 데워줘');
+    expect(prefs.getString('pending_job_hub'), 'http://rpi5.local:8000', reason: '받은 본체도 함께 남긴다(검토 10/19)');
   });
 
   test('재시작하면 남은 job을 이어서 확인하고, 이미 끝났으면 결과를 보여준다', () async {
@@ -151,5 +154,47 @@ void main() {
     final state = container.read(executionStatusProvider);
     expect(state.sequenceId, 'ble-1');
     expect(state.phase, ExecutionPhase.waiting);
+  });
+  // 검토 10/19(5): 남은 job을 받은 본체가 아니라 지금 설정한 본체로 이어서 보고, 모름이 되면 정지를 지금 본체에 보내
+  // 상관없는 실행을 멈출 수 있었다.
+  test('다른 본체에서 받은 job은 지금 본체로 이어서 보지도 멈추지도 않고, 그 본체로 돌아오면 이어서 본다', () async {
+    SharedPreferences.setMockInitialValues({
+      'pending_job_id': 'JA',
+      'pending_job_label': '즉석밥 데워줘',
+      'pending_job_hub': 'http://hub-a.local:8000',
+    });
+    final calls = <String>[];
+    final apiB = RpiApiService('http://hub-b.local:8000', client: MockClient((request) async {
+      calls.add(request.url.path);
+      return http.Response('{"running": true, "job_id": "JB"}', 200);
+    }));
+    final apiA = RpiApiService('http://hub-a.local:8000',
+        client: MockClient((_) async => http.Response('{"running": true, "job_id": "JA"}', 200)));
+    final container = ProviderContainer(overrides: [
+      ttsServiceProvider.overrideWithValue(_FakeTts()),
+      rpiApiServiceProvider.overrideWith((ref) => ref.watch(_hubChoice)),
+    ]);
+    addTearDown(container.dispose);
+    container.read(_hubChoice.notifier).state = apiB;
+
+    container.read(executionStatusProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 1300));
+    var status = container.read(executionStatusProvider);
+    expect(status.phase, ExecutionPhase.unknown);
+    expect(status.message, ExecutionStatusNotifier.foreignHubNotice);
+    expect(calls, isEmpty, reason: '다른 본체에 상태를 묻지 않는다');
+
+    final sent = await container.read(executionStatusProvider.notifier).emergencyStop();
+    expect(sent, isFalse);
+    expect(calls, isEmpty, reason: '다른 본체에 전체 정지를 보내지 않는다');
+    expect(container.read(executionStatusProvider).message, ExecutionStatusNotifier.foreignHubStopNotice);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('pending_job_id'), 'JA', reason: '기록은 남긴다');
+
+    container.read(_hubChoice.notifier).state = apiA;
+    await Future<void>.delayed(const Duration(milliseconds: 1300));
+    status = container.read(executionStatusProvider);
+    expect(status.sequenceId, 'JA');
+    expect(status.phase, ExecutionPhase.running);
   });
 }
