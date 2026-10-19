@@ -3,6 +3,8 @@
 // 원인: 키오스크의 지난 일 '확인'·'움직였어요/안 움직였어요' 답은 키오스크 메모리에만 남았다 — 폰은 여전히 못 한 일이었고,
 // 가전 칸 '!'(마지막 실행 실패)는 다음 실행 때까지 남았다. 폰에서 '기록 보기'로 확인해도 키오스크는 몰랐다.
 // 이제: 확인·답은 본체 POST /acks에 적고, 키오스크는 GET /acks(10초마다)로 다른 기기에서 확인한 것도 내린다. 새 실패는 다시 뜬다.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
@@ -34,11 +36,22 @@ KioskStatus _failed(String jobId) => KioskStatus(
     lastStatus: 'failed',
     lastExecutionMode: 'real');
 
-Future<FakeKioskApi> _start(WidgetTester tester) async {
+/// POST /acks가 바로 끝나지 않는 본체(검토 10/19 #9) — [reply]를 채울 때까지 끝나지 않고, 본체 목록에도 답을 넣지 않는다.
+class _SlowAckApi extends FakeKioskApi {
+  final reply = Completer<bool>();
+
+  @override
+  Future<bool> postAck({required String jobId, String answer = 'seen'}) {
+    ackPosts.add((jobId, answer));
+    return reply.future;
+  }
+}
+
+Future<FakeKioskApi> _start(WidgetTester tester, [FakeKioskApi? fake]) async {
   tester.view.physicalSize = const Size(800, 480);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
-  final api = FakeKioskApi()
+  final api = (fake ?? FakeKioskApi())
     ..applianceList = [_microwave]
     ..statusResult = const KioskStatus(running: false, lastJobId: 'job-0', lastOutcome: 'success');
   await tester.pumpWidget(MaterialApp(home: KioskScreen(api: api, tts: FakeTts(), events: FakeEventStream())));
@@ -133,6 +146,48 @@ void main() {
     await tester.pump();
     expect(_past, findsNothing, reason: '화면에서는 닫는다');
     expect(api.ackPosts, isEmpty, reason: "본체에 댈 번호가 없다 — 맨 failures_seen으로 못 한 일 전체를 '봤다'로 올리지 않는다");
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 검토 10/19 #9: 10초마다 읽는 GET /acks가 POST보다 먼저 오면 화면이 먼저 보인 답을 본체의 옛 목록으로 덮어써
+  // 가전 칸 '!'이 다시 떴다. 본체 목록에 그 답이 나타나거나 POST가 실패할 때까지 화면의 답을 지킨다.
+  testWidgets("본체에 적는 중에 /acks 조회가 와도 화면의 답을 지킨다 — '!'이 다시 뜨지 않는다", (tester) async {
+    final api = _SlowAckApi();
+    await _start(tester, api);
+    await _failAndClose(tester, api, 'job-2');
+    await tester.tap(find.byKey(const ValueKey('idle-past-result-ok')));
+    await tester.pump();
+    expect(api.ackPosts, [('job-2', 'seen')]);
+    await tester.pump(const Duration(seconds: 10)); // /acks 조회 — 본체는 아직 모른다
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2)); // 상태 조회
+    await tester.pump();
+    expect(_mark, findsNothing, reason: '본체가 아직 반영하지 않았다고 화면의 답을 버리지 않는다');
+    expect(_past, findsNothing);
+
+    api.ackedJobsResult = {'job-2': 'seen'}; // 본체가 받았다
+    api.reply.complete(true);
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(_mark, findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets("본체에 적지 못하면(POST 실패) 화면의 답을 거두고 본체 목록을 따른다 — '!'이 다시 뜬다", (tester) async {
+    final api = _SlowAckApi();
+    await _start(tester, api);
+    await _failAndClose(tester, api, 'job-2');
+    await tester.tap(find.byKey(const ValueKey('idle-past-result-ok')));
+    await tester.pump();
+    expect(_mark, findsNothing);
+    api.reply.complete(false);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2)); // 상태 조회
+    await tester.pump();
+    expect(_mark, findsOneWidget, reason: '본체에 적지 못한 확인을 화면만 지어내지 않는다');
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }
