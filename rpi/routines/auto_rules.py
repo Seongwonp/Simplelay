@@ -941,10 +941,21 @@ class AutoRuleEngine:
             self._mark_allowed(rule, generation, allowed_mono)
             self.store.save(rule)
         if self.generation() != generation:
-            self.store.save(replace(rule, enabled=False, updated_at=self._clock.now().isoformat(),
-                                    disabled_reason=ESTOP_REASON))
+            # 검토 10/19 #10: 우리가 넣은 그대로일 때만 끈다 — 그 사이 끝난 삭제·값 바꾸기·새 허용을 덮지 않는다.
+            self._replace_if_unchanged(rule, replace(rule, enabled=False, updated_at=self._clock.now().isoformat(),
+                                                     disabled_reason=ESTOP_REASON))
             raise AutoRuleError(409, STOP_RACE_REASON)
         return rule
+
+    def _replace_if_unchanged(self, seen: AutoRule, new: AutoRule) -> bool:
+        """비교 후 저장 — 철회와 같은 전송권 잠금 안에서 지금 규칙이 ``seen`` 그대로일 때만 ``new``로 바꾼다. 지워졌으면
+        다시 넣지 않는다. DB 쓰기는 잠금 밖에서. 바꿨으면 True."""
+        with self._send_lock:  # 메모리만
+            if self.store.get(seen.rule_id) is not seen:
+                return False
+            self.store.put(new)
+        self.store.flush()
+        return True
 
     def _mark_allowed(self, rule: AutoRule, generation: int, allowed_mono: float) -> None:
         with self._gen_lock:
@@ -1089,8 +1100,9 @@ class AutoRuleEngine:
         # ④ 허용 지문·대상 기기.
         invalid = self._invalid_reason(rule)
         if invalid is not None:
-            self.store.save(replace(rule, enabled=False, allowed_fingerprint=None,
-                                    updated_at=received_at.isoformat(), disabled_reason=invalid))
+            # 판단 사이 끝난 삭제·값 바꾸기·다시 허용을 옛 사본으로 덮지 않는다(검토 10/19 #10).
+            self._replace_if_unchanged(rule, replace(rule, enabled=False, allowed_fingerprint=None,
+                                                     updated_at=received_at.isoformat(), disabled_reason=invalid))
             return self._record(rule, record, key, "blocked", invalid, reoffer=True)
         # ⑤ 비상정지 걸림(RPi4 콘센트 모듈).
         latched = getattr(self.service, "estop_latched", None)
