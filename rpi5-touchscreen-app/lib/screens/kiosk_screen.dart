@@ -177,6 +177,12 @@ class _KioskScreenState extends State<KioskScreen> {
   // 실행 화면에서 정지를 누른 뒤의 상태(검토 10/19) — 보냈으면 '멈추는 중', 닿지 않았으면 그 말과 정지 단추 그대로.
   KioskExecStop _execStop = KioskExecStop.none;
 
+  // 실행 접수(/approve·/execute-buttons) 세대와 응답 대기(검토 10/19). 실행 화면에 들어설 때마다 세대가 바뀌고,
+  // 응답은 자기 세대일 때만 화면·_activeJobId를 바꾼다. 응답을 기다리는 동안·실행 화면에서는 새 접수를 받지 않는다.
+  int _admitGen = 0;
+  bool _accepting = false;
+  bool get _admitting => _accepting || _phase == KioskPhase.executing;
+
   String? _currentButton;
 
   // 이 실행에서 이미 누른 버튼(화면이 본 차례대로, 평가 3차 10/18) — 실행 화면 버튼판의 끝난 칸 ✓.
@@ -1499,6 +1505,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _lastStatusOk = DateTime.now();
     _foreignPolls = 0;
     _execStop = KioskExecStop.none;
+    _admitGen++;
+    _accepting = false;
     setState(() {
       _phase = KioskPhase.executing;
       _execTitle = title;
@@ -1634,7 +1642,7 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   Future<void> _onApprove({KioskSuggestion? suggestion}) async {
-    if (_dismissingSuggestion) return;
+    if (_dismissingSuggestion || _admitting) return;
     suggestion ??= _currentSuggestion;
     if (suggestion == null) return;
     // 대상을 모르는 제안은 실행하지 않는다(백로그 B10). 화면이 이미 실행
@@ -1659,13 +1667,19 @@ class _KioskScreenState extends State<KioskScreen> {
         applianceId: suggestion.applianceId,
         thinqOnly: thinqOnly,
         thinqActionText: thinqOnly ? suggestion.commands.single.summary : null);
+    final gen = _admitGen;
+    _accepting = true;
     _retryAction = () => _onApprove(suggestion: suggestion);
 
     try {
       // job 모델: 즉시 접수 — 진행·완료는 _pollExecuting이 job_id 대조로 따라간다
       final accepted = await _api.approveSuggestion(suggestion.id);
+      if (gen != _admitGen) return;
+      _accepting = false;
       _activeJobId = accepted.jobId;
     } on KioskApiException catch (e) {
+      if (gen != _admitGen) return;
+      _accepting = false;
       if (!mounted || _phase != KioskPhase.executing) return;
       if (e.isApprovalChanged || e.statusCode == 412) {
         // 승인 재검사 실패: 서버가 카드를 내렸다. 실패 화면('다시 시도')으로
@@ -1684,6 +1698,8 @@ class _KioskScreenState extends State<KioskScreen> {
       _toDone(false, label,
           reason: KioskFailureReason.serverLost);
     } catch (_) {
+      if (gen != _admitGen) return;
+      _accepting = false;
       // 접수 자체가 실패(서버 다운·409 등) — 올 수 없는 완료를 기다리는 대신
       // 즉시 실패 화면으로 탈출한다.
       if (mounted && _phase == KioskPhase.executing) {
@@ -1719,15 +1735,23 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   Future<void> _onManualExecute(ApplianceButton button) async {
+    // 두 번 누름은 요청 하나만(검토 10/19) — 둘째의 409가 첫 실행을 실패 화면 뒤에 숨기던 것.
+    if (_admitting) return;
     _toExecuting(button.label, applianceId: _currentAppliance.id);
+    final gen = _admitGen;
+    _accepting = true;
     _retryAction = () => _onManualExecute(button);
     try {
       final accepted = await _api.executeButtons(
         [button.label],
         applianceId: _currentAppliance.id,
       );
+      if (gen != _admitGen) return;
+      _accepting = false;
       _activeJobId = accepted.jobId;
     } catch (_) {
+      if (gen != _admitGen) return;
+      _accepting = false;
       // 접수 실패 — 즉시 실패 화면으로 탈출 (고착 방지)
       if (mounted && _phase == KioskPhase.executing) {
         _toDone(false, button.label,

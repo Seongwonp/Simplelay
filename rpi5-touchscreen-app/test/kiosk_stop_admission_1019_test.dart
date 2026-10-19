@@ -1,6 +1,9 @@
 // 검토 10/19 — 실행 화면 정지·접수의 정직성.
 //
 // 5. /stop의 4xx·5xx는 예외다 — 실행 화면은 정지 단추를 그대로 두고 '정지가 닿지 않았어요'를 말한다. 닿으면 '멈추는 중'.
+// 8. 직접 누르기 확인을 두 번 눌러도 요청은 하나 — 둘째의 409가 첫 실행을 실패 화면 뒤에 숨기지 않는다(화면 접수 관문·세대).
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -8,7 +11,9 @@ import 'package:http/testing.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/run_frame.dart';
 
 import 'kiosk_phase_test.dart' show FakeEventStream, FakeKioskApi, FakeTts;
@@ -86,6 +91,49 @@ void main() {
       expect(_stopState(tester), KioskExecStop.stopping);
       expect(find.byKey(const ValueKey('exec-stopping-band')), findsOneWidget);
       expect(find.text('멈추는 중'), findsOneWidget);
+    });
+  });
+
+  group('8. 직접 누르기 두 번 — 요청 하나만', () {
+    testWidgets('확인 창 누르기를 다시 그리기 전에 두 번 눌러도 한 번만 맡긴다', (tester) async {
+      tester.view.physicalSize = const Size(800, 480);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final pressed = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: KioskManualView(
+              appliance: kMicrowaveAppliance, onExecute: (b) => pressed.add(b.label), onCancel: () {}),
+        ),
+      ));
+      await tester.tap(find.text('시작'));
+      await tester.pump();
+      await tester.tap(find.text('누르기'));
+      await tester.tap(find.text('누르기'));
+      await tester.pump();
+      expect(pressed, ['시작']);
+    });
+
+    testWidgets('두 번째 요청의 409가 첫 실행을 실패 화면 뒤에 숨기지 않는다', (tester) async {
+      final api = await _pumpKiosk(tester);
+      final first = Completer<KioskJobAccepted>();
+      final second = Completer<KioskJobAccepted>();
+      api.executePending.addAll([first, second]);
+      await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('해동'));
+      await tester.pump();
+      await tester.tap(find.text('누르기'));
+      await tester.tap(find.text('누르기'));
+      await tester.pump();
+      if (api.executeCalls >= 2) second.completeError(KioskApiException(409, '이미 실행 중이에요'));
+      first.complete(const KioskJobAccepted(jobId: 'job-1'));
+      await tester.pump();
+      await tester.pump();
+      expect(api.executeCalls, 1);
+      expect(find.byType(KioskExecutingView), findsOneWidget);
+      expect(find.byType(KioskDoneView), findsNothing);
     });
   });
 }

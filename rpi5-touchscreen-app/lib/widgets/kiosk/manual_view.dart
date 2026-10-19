@@ -171,6 +171,8 @@ class _KioskManualViewState extends State<KioskManualView> {
                 button: pending,
                 applianceName: appliance.displayName,
                 onConfirm: () {
+                  // 다시 그리기 전에 들어온 두 번째 누름은 버린다(검토 10/19) — 요청은 하나만.
+                  if (!identical(_pending, pending)) return;
                   setState(() => _pending = null);
                   widget.onExecute(pending);
                 },
