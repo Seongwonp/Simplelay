@@ -296,7 +296,7 @@ class KioskConnectionModal extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12)),
                       ),
                       child: Text(
-                        checking ? '연결해 보는 중' : '다시 연결해 보기',
+                        checking ? '연결해 보고 있어요' : '다시 연결해 보기',
                         style: const TextStyle(
                             fontSize: KioskType.body, fontWeight: FontWeight.w700),
                       ),

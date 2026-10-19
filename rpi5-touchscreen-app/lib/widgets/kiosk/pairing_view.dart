@@ -69,7 +69,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
       _timer?.cancel();
       setState(() {
         _session = null;
-        _error = '연결 시간이 지났어요. 새 코드를 받아 주세요.';
+        _error = "연결할 수 있는 시간이 지났어요. '새 코드 받기'를 눌러 주세요.";
       });
       return;
     }
@@ -142,20 +142,20 @@ class _KioskPairingViewState extends State<KioskPairingView> {
           padding: const EdgeInsets.all(24),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Text('폰 연결하기',
+            const Text('휴대폰 연결하기',
                 style: TextStyle(fontSize: KioskType.status, color: Colors.white)),
             Expanded(
                 child: SingleChildScrollView(
                     child: Column(children: [
               if (session != null && state == 'open') ...[
-                const Text('같은 와이파이에 연결된 폰 카메라로 QR을 열어 주세요.',
+                const Text('같은 와이파이에 연결된 휴대폰 카메라로 이 QR 코드를 비춰 주세요.',
                     style: TextStyle(fontSize: KioskType.status)),
                 if (session['qr_png'] case final String png)
                   Image.memory(base64Decode(png),
                       width: 190,
                       height: 190,
                       gaplessPlayback: true,
-                      semanticLabel: '폰 연결 QR'),
+                      semanticLabel: '휴대폰 연결 QR 코드'),
                 Text('${session['code']}',
                     key: const Key('pair-code'),
                     style: const TextStyle(fontSize: KioskType.key, color: Colors.white)),
@@ -163,20 +163,20 @@ class _KioskPairingViewState extends State<KioskPairingView> {
                     style: const TextStyle(fontSize: KioskType.body)),
               ],
               if (state == 'pending') ...[
-                const Text('이 폰을 연결할까요?', style: TextStyle(fontSize: KioskType.status)),
+                const Text('이 휴대폰을 연결할까요?', style: TextStyle(fontSize: KioskType.status)),
                 Text('${session!['phone']}',
                     style: const TextStyle(fontSize: KioskType.status)),
                 Text(
-                    '폰에도 ${(session['request_id'] as String).substring(0, 6)} 표시가 있는지 봐 주세요',
+                    '휴대폰에도 ${(session['request_id'] as String).substring(0, 6)} 표시가 있는지 봐 주세요',
                     style: const TextStyle(fontSize: KioskType.status)),
               ],
               if (state == 'approved')
-                const Text('허락했어요. 폰에서 연결을 봐 주세요.',
+                const Text('허락했어요. 휴대폰에서 연결됐는지 봐 주세요.',
                     style: TextStyle(fontSize: KioskType.status)),
               if (state == 'consumed')
-                const Text('폰에 연결 정보를 보냈어요.', style: TextStyle(fontSize: KioskType.status)),
+                const Text('휴대폰에 연결 정보를 보냈어요.', style: TextStyle(fontSize: KioskType.status)),
               if (state == 'denied')
-                const Text('이 폰 연결을 닫았어요.', style: TextStyle(fontSize: KioskType.status)),
+                const Text('이 휴대폰은 연결하지 않았어요.', style: TextStyle(fontSize: KioskType.status)),
               if (session != null && _deadline != null && state != 'consumed')
                 Text(
                     '${_deadline!.difference(DateTime.now()).inSeconds.clamp(0, 300)}초 남았어요',
@@ -195,7 +195,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
                     child: const Text('연결하지 않기')),
                 FilledButton(
                     onPressed: _busy ? null : () => _decide(true),
-                    child: const Text('이 폰 연결하기')),
+                    child: const Text('이 휴대폰 연결하기')),
               ] else
                 FilledButton(
                     onPressed: _busy ? null : _open,

@@ -45,13 +45,13 @@ void main() {
     api.state = 'pending';
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
-    expect(find.text('이 폰을 연결할까요?'), findsOneWidget);
+    expect(find.text('이 휴대폰을 연결할까요?'), findsOneWidget);
     expect(find.textContaining('abcdef'), findsOneWidget);
     expect(api.approvals, 0);
-    await tester.tap(find.text('이 폰 연결하기'));
+    await tester.tap(find.text('이 휴대폰 연결하기'));
     await tester.pump();
     expect(api.approvals, 1);
-    expect(find.text('허락했어요. 폰에서 연결을 봐 주세요.'), findsOneWidget);
+    expect(find.text('허락했어요. 휴대폰에서 연결됐는지 봐 주세요.'), findsOneWidget);
     await tester.tap(find.text('닫기'));
     await tester.pump();
     expect(api.closed, 1);
@@ -69,18 +69,18 @@ void main() {
     api.state = 'pending';
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
-    await tester.tap(find.text('이 폰 연결하기'));
+    await tester.tap(find.text('이 휴대폰 연결하기'));
     await tester.pump();
     api.state = 'consumed';
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
-    expect(find.text('폰에 연결 정보를 보냈어요.'), findsOneWidget);
+    expect(find.text('휴대폰에 연결 정보를 보냈어요.'), findsOneWidget);
     expect(find.textContaining('초 남았어요'), findsNothing);
     // 만료 시각은 벽시계로 센다 — 만료 문장으로 바뀌지 않는 것은 묻기·초 세기가 멈춘 것으로 지킨다.
     final calls = api.sessionCalls;
     await tester.pump(const Duration(seconds: 6));
     await tester.pump();
-    expect(find.text('폰에 연결 정보를 보냈어요.'), findsOneWidget);
+    expect(find.text('휴대폰에 연결 정보를 보냈어요.'), findsOneWidget);
     expect(find.textContaining('연결 시간이 지났어요'), findsNothing);
     expect(api.sessionCalls, calls, reason: '보낸 뒤에는 더 묻지 않는다');
     await tester.pumpWidget(const SizedBox.shrink());

@@ -129,7 +129,7 @@ void main() {
 
     final button = tester.widget<ElevatedButton>(find.byKey(_approve));
     expect(button.onPressed, isNotNull);
-    expect(find.textContaining('누르지 않으면 하지 않아요'), findsOneWidget);
+    expect(find.textContaining('누르지 않으면 아무것도 안 해요'), findsOneWidget);
   });
 
   testWidgets('두 버튼 모두 최소 터치 크기를 지킨다', (tester) async {

@@ -193,7 +193,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                         children: [
                           FilledButton.icon(
                             icon: const Icon(Icons.qr_code),
-                            label: const Text('폰 연결하기'),
+                            label: const Text('휴대폰 연결하기'),
                             onPressed: () => setState(() => _showPairing = true),
                           ),
                           const SizedBox(height: 16),
@@ -309,8 +309,8 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           _toggleRow(
             key: const ValueKey('settings-high-contrast'),
             icon: Icons.contrast,
-            title: '고대비',
-            subtitle: '글자와 테두리를 더 또렷하게 보여 줘요',
+            title: '또렷하게 보기',
+            subtitle: '글자와 테두리를 더 진하게 보여 줘요',
             value: widget.highContrastEnabled,
             onChanged: widget.onHighContrastChanged,
           ),
@@ -502,7 +502,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                       color: KioskColors.success.withValues(alpha: 0.35)),
                 ),
                 child: Text(
-                  '등록됨',
+                  '등록했어요',
                   style: TextStyle(fontSize: KioskType.caption, color: KioskColors.success),
                 ),
               ),

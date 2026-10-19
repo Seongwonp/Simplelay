@@ -324,7 +324,7 @@ void main() {
               onDismiss: () {}));
       expect(find.textContaining('알려 왔어요'), findsNothing);
       expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
-      expect(find.text('확인 필요'), findsOneWidget);
+      expect(find.text('살펴볼 게 있어요'), findsOneWidget);
       expect(finishedMessage(kind: ResultKind.success, executionMode: 'unknown'),
           isNot(contains('알려 왔어요')));
     });

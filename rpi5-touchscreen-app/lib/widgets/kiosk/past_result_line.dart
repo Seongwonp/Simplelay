@@ -96,7 +96,7 @@ class KioskPastResultLine extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
               ),
-              child: const Text('확인',
+              child: const Text('닫기',
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),

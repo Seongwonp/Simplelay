@@ -426,10 +426,10 @@ class KioskSuggestionView extends StatelessWidget {
               Expanded(
                 child: KioskText(
                   canExecute
-                      ? '누르지 않으면 하지 않아요'
+                      ? "'지금 하기'를 누르지 않으면 아무것도 안 해요"
                       : scenario
                           ? (blockedWhy ?? '')
-                          : '이 가전을 찾지 못해 할 수 없어요',
+                          : '이 가전을 찾지 못해 할 수 없어요. 휴대폰 앱에서 가전을 봐 주세요',
                   textKey: const ValueKey('suggestion-countdown'),
                   style: TextStyle(
                       fontSize: KioskType.body,
@@ -667,14 +667,14 @@ class _CommandList extends StatelessWidget {
         itemBuilder: (context, i) {
           final c = commands[i];
           final raw =
-              c.summary.isNotEmpty ? c.summary : '폰에서 가전과 할 일을 봐 주세요';
+              c.summary.isNotEmpty ? c.summary : '휴대폰 앱에서 가전과 할 일을 봐 주세요';
           final summary = stripMockMark
               ? raw.replaceAll(RegExp(r'\(모의( 클라우드)?\)'), '')
               : raw;
           // 버튼 누름(physical)은 칩 없이 — routeLabel이 null을 주지만 '경로를 모름'이 아니다(10/14 회귀 수리).
           final path = c.route == 'physical'
               ? null
-              : (routeLabel(c.route) ?? '경로 모름');
+              : (routeLabel(c.route) ?? '어떻게 할지 몰라요');
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

@@ -85,10 +85,10 @@ void main() {
       expect(opened?.id, 'press');
     });
 
-    testWidgets("문제가 둘이면 '연결 확인 필요 2' — 누르면 연결 목록, 항목을 누르면 그 연결 창", (tester) async {
+    testWidgets("문제가 둘이면 '연결 2곳을 봐 주세요' — 누르면 연결 목록, 항목을 누르면 그 연결 창", (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _twoProblems, onOpen: (i) => opened = i));
-      expect(find.text('연결 확인 필요 2'), findsOneWidget);
+      expect(find.text('연결 2곳을 봐 주세요'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await tester.pump();
       expect(find.byKey(const ValueKey('conn-network')), findsOneWidget);

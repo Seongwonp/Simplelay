@@ -275,7 +275,7 @@ void main() {
       await tester.tap(find.text('다시 연결해 보기'));
       await _settle(tester);
       expect(api.connectionsCalls, greaterThan(before));
-      expect(find.text('연결 확인 필요 1'), findsNothing); // 다 괜찮아지면 칩이 사라진다
+      expect(find.text('연결 1곳을 봐 주세요'), findsNothing); // 다 괜찮아지면 칩이 사라진다
       expect(find.text('전기 플러그가 연결돼 있어요'), findsOneWidget);
 
       await tester.tap(find.text('닫기'));

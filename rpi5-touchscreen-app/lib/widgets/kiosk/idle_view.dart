@@ -1768,7 +1768,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                     key: const ValueKey('settings-entry'),
                     icon: Icons.settings_outlined,
                     label: '설정',
-                    sub: '큰 글씨, 고대비, 음성 안내, 폰 연결',
+                    sub: '큰 글씨, 또렷하게 보기, 음성 안내, 휴대폰 연결',
                     semanticsLabel: '설정',
                     onTap: () {
                       _close();
@@ -1780,7 +1780,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                     key: const ValueKey('connections-entry'),
                     icon: Icons.wifi,
                     label: '연결',
-                    sub: '와이파이와 누름 장치 연결 상태',
+                    sub: '와이파이와 누름 장치 연결 보기',
                     onTap: () => setState(() => _sheet = _Sheet.connections),
                   ),
                   // 도움말 들어가는 곳(휴리스틱 평가 10/18 — 메뉴에 잠시 쉬기·설정·연결뿐이었다).

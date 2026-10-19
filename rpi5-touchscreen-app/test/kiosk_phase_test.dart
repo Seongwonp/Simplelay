@@ -1372,7 +1372,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     expect(KioskTimings.countdownSeconds, 40); // 결선 모의 평가 10/18 — 20초도 짧았다
-    expect(find.text('누르지 않으면 하지 않아요'), findsOneWidget);
+    expect(find.text("'지금 하기'를 누르지 않으면 아무것도 안 해요"), findsOneWidget);
     expect(find.text('40초 뒤 닫혀요'), findsOneWidget);
   });
 
@@ -2483,9 +2483,9 @@ void main() {
           lastConfirmation: 'none'),
     );
     expect(find.text('다 눌렀어요'), findsNothing);
-    // 실행 환경을 몰라도 같은 말 하나(평가 4차 10/18) — 확인 수준은 띠 '확인 필요'가 지킨다.
+    // 실행 환경을 몰라도 같은 말 하나(평가 4차 10/18) — 확인 수준은 띠 '살펴볼 게 있어요'가 지킨다.
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
-    expect(find.text('확인 필요'), findsOneWidget);
+    expect(find.text('살펴볼 게 있어요'), findsOneWidget);
     expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());

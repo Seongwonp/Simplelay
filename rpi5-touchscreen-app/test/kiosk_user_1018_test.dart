@@ -136,10 +136,10 @@ void main() {
       expect(find.byKey(const ValueKey('idle-menu')), findsOneWidget);
     });
 
-    testWidgets("문제가 둘이면 '연결 확인 필요 2' — 누르면 무엇이 왜인지 연결 목록", (tester) async {
+    testWidgets("문제가 둘이면 '연결 2곳을 봐 주세요' — 누르면 무엇이 왜인지 연결 목록", (tester) async {
       await _pumpView(tester, _idle(connections: _two));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('연결 확인 필요 2')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('연결 2곳을 봐 주세요')), findsOneWidget);
       await tester.tap(chip);
       await tester.pump();
       expect(find.byKey(const ValueKey('conn-badge-network')), findsOneWidget);
@@ -334,7 +334,7 @@ void main() {
       await tester.pump();
       final row = find.byKey(const ValueKey('settings-high-contrast'));
       expect(row, findsOneWidget);
-      expect(find.descendant(of: row, matching: find.text('고대비')), findsOneWidget);
+      expect(find.descendant(of: row, matching: find.text('또렷하게 보기')), findsOneWidget);
       // 큰 글씨 바로 아래(옆) 줄.
       final large = tester.getRect(find.text('큰 글씨'));
       expect(tester.getRect(row).top - large.bottom, lessThan(60));

@@ -1649,7 +1649,7 @@ class _KioskScreenState extends State<KioskScreen> {
         final who = c.summary.isNotEmpty ? c.summary : '가전';
         blocked = r.reasons.isNotEmpty
             ? '$who. ${r.reasons.first}'
-            : '$who. 아직 준비가 안 됐어요';
+            : '$who. 아직 쓸 수 없어요. 휴대폰 앱에서 봐 주세요';
         break;
       }
     }
@@ -1780,7 +1780,7 @@ class _KioskScreenState extends State<KioskScreen> {
               KioskFailureReason.receiptUnknown =>
                 '$lead${unconfirmedSentence(receipt: 'unknown')}',
               KioskFailureReason.notExecuted =>
-                '$lead가전을 바꾸지 못했어요. 화면을 봐 주세요.',
+                '$lead가전을 바꾸지 못했어요. 가전 연결을 봐 주세요.',
               KioskFailureReason.execution =>
                 '$lead눌렸는지 몰라요. 가전을 봐 주세요.',
             },
@@ -1886,7 +1886,7 @@ class _KioskScreenState extends State<KioskScreen> {
         // 412(준비 안 됨)는 서버 문장이 이유를 말한다.
         final message = e.isApprovalChanged
             ? kApprovalChangedMessage
-            : (e.detail.isNotEmpty ? e.detail : '가전이 아직 조작할 준비가 되지 않았어요.');
+            : (e.detail.isNotEmpty ? e.detail : '가전을 아직 쓸 수 없어요. 휴대폰 앱에서 가전 설정을 봐 주세요.');
         _tts.speak(message);
         _toIdle();
         ScaffoldMessenger.of(context)

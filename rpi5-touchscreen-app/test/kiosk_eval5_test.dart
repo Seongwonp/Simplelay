@@ -137,7 +137,7 @@ void main() {
   });
   testWidgets('환경 미상 성공은 회색 완료가 아니라 앰버 확인 필요다', (t) async {
     await show(t, const KioskDoneView(success: true, label: '데우기'));
-    expect(find.text('확인 필요'), findsOneWidget); // 결과 띠 말은 됐어요·확인해 주세요 두 가지(평가 3차 10/18)
+    expect(find.text('살펴볼 게 있어요'), findsOneWidget); // 결과 띠 말은 됐어요·확인해 주세요 두 가지(평가 3차 10/18)
     final c =
         t.widget<Icon>(find.byKey(const ValueKey('status-band-icon'))).color!;
     expect(HSVColor.fromColor(c).hue, inInclusiveRange(25, 55));
