@@ -137,10 +137,15 @@ class _Step:
     #: 기록 제목(목적 문장 대신). 화면에서 바로 누른 ThinQ 조작은 대응표의 명령 문장('강풍으로 바꿔줘') 대신 한 일을
     #: 자동 실행과 같은 말로 남긴다('공기청정기 바람을 세게 해요', 10/18 쉬운 말 3차). 사용 기록(습관 근거)은 목적 문장 그대로.
     title: str | None = None
+    #: ThinQ 단계가 시작 게이트에서 본 기기 ID(검토 10/19). 보내기 직전까지 같은 기기에 묶여 있어야 보낸다.
+    device_id: str | None = None
 
 
 #: 비상정지가 걸려 있을 때 ThinQ 명령을 받지·보내지 않는 사유(2026-10-15 검토 H1).
 THINQ_ESTOP_REASON = "비상 버튼이 눌려 있어 하지 않았어요. 버튼을 풀고 해제한 뒤 다시 해 주세요."
+
+#: 시작 게이트 뒤 ThinQ 연결이 지워지거나 다른 기기로 바뀐 단계를 보내지 않은 사유(검토 10/19).
+THINQ_BINDING_CHANGED = "LG 가전 연결이 바뀌었어요. 그래서 하지 않았어요."
 
 _LEGACY_STATUS = {
     CommandStatus.SUCCEEDED: ExecutionStatus.SUCCEEDED,
@@ -329,7 +334,7 @@ class CommandExecutionMixin:
                 from .service import ApplianceNotReadyError  # noqa: PLC0415
 
                 raise ApplianceNotReadyError(target, (THINQ_ESTOP_REASON,))
-            return _Step(command, summary, self._thinq)
+            return _Step(command, summary, self._thinq, device_id=binding.device_id)
         # physical -- 버튼이 지금 이 가전의 조작부에 있어야 한다.
         appliance = self._appliance_registry.get(target) if self._appliance_registry else None
         if appliance is not None:
@@ -543,12 +548,30 @@ class CommandExecutionMixin:
             return guarded_commit
         return guard
 
+    def _with_binding_guard(self, step: _Step, inner):
+        """ThinQ 단계가 시작 게이트에서 본 기기에 아직 묶여 있는지 본다(검토 10/19).
+
+        실행기는 바인딩을 다시 찾으므로, 그 사이 연결을 지우거나 다른 기기로 바꾸면 승인하지 않은 기기로 보낼 수 있었다.
+        실행기에 넘기기 전(인자 없음)과 조회를 마친 뒤 보내기 직전(이번 전송 바인딩)에 불린다. 다르면 보내지 않는다."""
+        expected = step.device_id
+        if expected is None:
+            return inner
+
+        def guard(*args):
+            current = self._binding(step.command.target_id)
+            sending = args[0] if args else current
+            if (current is None or sending is None
+                    or current.device_id != expected or sending.device_id != expected):
+                raise RuntimeError(THINQ_BINDING_CHANGED)
+            return inner(*args) if inner is not None else None
+        return guard
+
     def _run_thinq_step(self, job_id, step: _Step, purpose, usage_source, scenario_id,
                         dispatch_guard=None) -> CommandResult:
         command = step.command
         blocked = None
         stop_hit: list = []
-        dispatch_guard = self._with_estop_guard(dispatch_guard, stop_hit)
+        dispatch_guard = self._with_estop_guard(self._with_binding_guard(step, dispatch_guard), stop_hit)
         if dispatch_guard is not None:
             try:
                 dispatch_guard()

@@ -460,6 +460,12 @@ class ThinqController:
                 return self._result(command, CommandStatus.STOPPED, not_sent, none,
                                     "멈추기를 눌러서 하지 않았어요.", requested_at,
                                     stop_requested=True)
+            # 같은 바인딩 재확인(검토 10/19): 위 조회를 기다리는 동안 연결이 지워지거나 다른 기기로 바뀌었으면 보내지 않는다.
+            # 예전에는 시작 때 잡은 바인딩으로 그대로 보내, 지워진 연결·옛 기기로 갔다. 메모리 조회만이다.
+            current = self._binding_of(command.target_id)
+            if current is None or current.device_id != binding.device_id:
+                return self._result(command, failed, not_sent, none,
+                                    f"LG 가전 연결이 바뀌었어요. {NOT_SENT_RESULT}", requested_at)
             # 전송권 확인도 같은 자리에서 거친다(철회·꺼짐·정지 세대가 먼저면 '걸림') — 이미 목표값이면 보내지 않으므로
             # '전송 개시'로 표시하지 않는다(``will_send=False``, 철회가 '이미 보내는 중'으로 보지 않게).
             if callable(commit):
