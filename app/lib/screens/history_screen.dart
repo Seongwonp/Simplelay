@@ -370,7 +370,7 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
   return label ?? 'LG 가전';
 }
 
-/// 결과 배지 — 됐어요 · 봐 주세요 · 멈췄어요 · 스스로 멈췄어요 · 못 했어요 · 연습(평가 5차 넷 → 7차 멈춤 둘을 가름).
+/// 결과 배지 — 완료 · 봐 주세요 · 멈춤 · 스스로 멈춤 · 실패 · 연습(평가 5차 넷 → 7차 멈춤 둘을 가름).
 ///
 /// **초록 '됐어요'는 상태를 다시 읽거나 누름을 확인했을 때만**이다. 보고·접수만 받은 것, 됐는지 모르는 것은
 /// '봐 주세요'(가전을 직접 보라는 뜻) — 예전 '받았어요'는 됐다는 말로 읽혀 확인 수준을 높여 보였다.
@@ -390,7 +390,7 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
     case ResultKind.safetyStop:
       return (label: resultWord(kind), icon: Icons.front_hand_outlined, tone: check.tone);
     case ResultKind.failed:
-      return (label: '못 했어요', icon: Icons.cancel_outlined, tone: BadgeTone.danger);
+      return (label: resultWord(kind), icon: Icons.cancel_outlined, tone: BadgeTone.danger);
     case ResultKind.unconfirmed:
       return check;
     case ResultKind.success:
@@ -405,7 +405,7 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
   if (real && confirmed) {
     // '됐어요'는 기호도 하나(평가 6차 10/18: 같은 '됐어요'에 ✓와 ⓘ가 섞였다). 이미 그 설정이라 보내지 않은 것도
     // 원하던 상태를 **읽어서** 본 것이라 같은 ✓ — 보내지 않았다는 차이는 펼친 결과 문장('이미 그 설정이라 …')이 말한다.
-    return (label: '됐어요', icon: Icons.check_circle, tone: BadgeTone.confirmed);
+    return (label: resultWord(kind), icon: Icons.check_circle, tone: BadgeTone.confirmed);
   }
   // 보고·접수만 받았다 — 됐는지는 확인하지 못했다.
   return check;

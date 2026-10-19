@@ -233,13 +233,13 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('1. 기록 — 같은 일·같은 결과는 한 줄, 실패에는 이유', () {
-    testWidgets("연달아 세 번 못 한 일은 한 줄 '3번 못 했어요', 펼치면 각 회차", (tester) async {
+    testWidgets("연달아 세 번 못 한 일은 한 줄 '3번 실패', 펼치면 각 회차", (tester) async {
       await _pump(tester, const HistoryScreen(), _Hub());
       final row = find.byKey(const ValueKey('history-f-1'));
       expect(row, findsOneWidget);
       expect(find.byKey(const ValueKey('history-f-2')), findsNothing);
       expect(find.byKey(const ValueKey('history-f-3')), findsNothing);
-      expect(_in(row, findPlainText('3번 못 했어요')), findsOneWidget);
+      expect(_in(row, findPlainText('3번 실패')), findsOneWidget);
       // 'LG 가전'은 묶음에 한 번 — 글자 대신 작은 구름 표식(출시 검토 10/18).
       expect(_in(row, find.byIcon(Icons.cloud_outlined)), findsOneWidget);
       // 결과가 다른 같은 일·다른 날은 따로.
@@ -277,7 +277,7 @@ void main() {
       expect(_in(ok, find.byType(StatusBadge)), findsNothing);
       // 성공 줄도 무엇을 확인했는지 짧게 — 상태를 다시 읽은 켜기는 '켜진 걸 봤어요'(낭독은 '됐어요, 켜진 걸 봤어요').
       expect(_in(ok, findPlainText('켜진 걸 봤어요')), findsOneWidget);
-      expect(tester.widget<Text>(_in(ok, findPlainText('켜진 걸 봤어요'))).semanticsLabel, '됐어요, 켜진 걸 봤어요');
+      expect(tester.widget<Text>(_in(ok, findPlainText('켜진 걸 봤어요'))).semanticsLabel, '완료, 켜진 걸 봤어요');
       expect(_in(find.byKey(const ValueKey('history-h-mid')), findPlainText('바뀐 걸 봤어요')), findsOneWidget);
       expect(_in(find.byKey(const ValueKey('history-f-1')), find.byType(StatusBadge)), findsOneWidget);
       final circles = find.ancestor(

@@ -60,7 +60,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('우리 집'), findsOneWidget);
-      expect(findPlainText('본체와 연결됐어요'), findsOneWidget);
+      expect(findPlainText('본체와 연결됨'), findsOneWidget);
       // 연결됨 점은 초록 — 주행동 갈색과 섞이면 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
       final dot = tester.widget<Container>(find.byKey(const Key('hub-status-dot')));
       // 상태 색 표(출시 검토 10/18): 연결됨은 초록 — 라이트 성공 중립색은 검은 점이었다.
@@ -156,7 +156,7 @@ void main() {
       await tester.pump();
 
       expect(findPlainText('블루투스로만 연결돼요'), findsOneWidget);
-      expect(find.text('본체와 연결됐어요'), findsNothing);
+      expect(find.text('본체와 연결됨'), findsNothing);
       expect(findPlainText('알림과 기록을 못 받고 있어요'), findsOneWidget);
       expect(findPlainText('연결 설정이 필요해요'), findsNothing);
     });
@@ -177,7 +177,7 @@ void main() {
       await tester.pumpWidget(_buildHome(server: RpiConnectionState.connected));
       await tester.pump();
 
-      expect(findPlainText('본체와 연결됐어요'), findsOneWidget);
+      expect(findPlainText('본체와 연결됨'), findsOneWidget);
       expect(findPlainText('연결 설정이 필요해요'), findsNothing);
       expect(findPlainText('알림과 기록을 못 받고 있어요'), findsNothing);
       // 조작은 되고 사용자가 할 판단이 없다 — 허브 문제일 때만 연결 줄을 둔다.
@@ -191,7 +191,7 @@ void main() {
           _buildHome(connected: true, server: RpiConnectionState.connected));
       await tester.pump();
 
-      expect(findPlainText('본체와 연결됐어요'), findsOneWidget);
+      expect(findPlainText('본체와 연결됨'), findsOneWidget);
       expect(find.text('확인하기'), findsNothing);
     });
   });

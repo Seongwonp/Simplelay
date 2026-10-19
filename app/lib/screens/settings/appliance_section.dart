@@ -199,7 +199,7 @@ class _ThinqApplianceList extends ConsumerWidget {
                                   ? '쓸 수 있어요'
                                   : (a.reasons.isNotEmpty
                                       ? a.reasons.join(', ')
-                                      : '아직 준비가 안 됐어요'),
+                                      : '아직 준비되지 않았어요'),
                               style: TextStyle(
                                 fontSize: AppFont.caption,
                                 color: a.canExecute

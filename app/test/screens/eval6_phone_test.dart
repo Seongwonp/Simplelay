@@ -346,10 +346,10 @@ void main() {
           'confirmation': confirmation,
         });
 
-    test("'됐어요'는 늘 같은 ✓ — 이미 그 설정도 같은 아이콘·같은 말", () {
+    test("'완료'는 늘 같은 ✓ — 이미 그 설정도 같은 아이콘·같은 말", () {
       final done = historyBadgeOf(e('state_confirmed'));
       final already = historyBadgeOf(e('already_at_target'));
-      expect(already.label, '됐어요');
+      expect(already.label, '완료');
       expect(already.icon, done.icon);
       expect(already.tone, done.tone);
     });

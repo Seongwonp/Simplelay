@@ -275,6 +275,7 @@ void main() {
       expect(find.text('눌렸는지 몰라서 자리를 맞추고 다시 눌러요.'),
           findsOneWidget);
       expect(find.textContaining('못 했어요'), findsNothing);
+      expect(find.text('실패'), findsNothing);
     });
 
     testWidgets('긴급 정지 버튼 표시', (tester) async {

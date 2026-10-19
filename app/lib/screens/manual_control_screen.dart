@@ -659,7 +659,7 @@ class _NotReadyNotice extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                disconnected ? '아직 연결되지 않았어요' : '아직 준비가 안 됐어요',
+                disconnected ? '아직 연결되지 않았어요' : '아직 준비되지 않았어요',
                 style: TextStyle(
                   fontSize: AppFont.body,
                   fontWeight: FontWeight.w600,

@@ -1097,7 +1097,7 @@ class _Header extends StatelessWidget {
     final (String text, Color dot) = switch (rpiState) {
       // 정상은 색을 쓰지 않는다(성공 중립 규칙) — 갈색은 주행동 색이라 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
       // 상태 색 표(출시 검토 10/18, 본체와 같게): 연결됨 초록 · 끊김 노랑 · 못 씀 빨강. 라이트의 성공 중립색은 검은 점이었다.
-      RpiConnectionState.connected => ('본체와 연결됐어요', context.appConfirmed),
+      RpiConnectionState.connected => ('본체와 연결됨', context.appConfirmed),
       RpiConnectionState.keyRequired => ('연결 비밀번호가 필요해요', context.appWarning),
       RpiConnectionState.checking ||
       RpiConnectionState.unconfigured =>
@@ -1930,7 +1930,7 @@ class _RpiStatusCard extends ConsumerWidget {
       RpiConnectionState.connected => (
           context.appSuccess,
           Icons.wifi,
-          '본체와 연결됐어요',
+          '본체와 연결됨',
           '말이나 버튼으로 가전을 쓸 수 있어요',
         ),
       RpiConnectionState.checking => (

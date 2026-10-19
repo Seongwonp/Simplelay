@@ -27,10 +27,10 @@ void main() {
     });
 
     test('한 단어: 성공 / 실패 / 정지됨 / 안전 정지', () {
-      expect(resultWord(ResultKind.success), '됐어요');
-      expect(resultWord(ResultKind.failed), '못 했어요');
-      expect(resultWord(ResultKind.stopped), '멈췄어요');
-      expect(resultWord(ResultKind.safetyStop), '스스로 멈췄어요');
+      expect(resultWord(ResultKind.success), '완료');
+      expect(resultWord(ResultKind.failed), '실패');
+      expect(resultWord(ResultKind.stopped), '멈춤');
+      expect(resultWord(ResultKind.safetyStop), '스스로 멈춤');
     });
   });
 

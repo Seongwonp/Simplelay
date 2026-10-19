@@ -203,11 +203,12 @@ void main() {
     await tester.pump();
 
     expect(findPlainText('보냈지만 확인하지 못했어요', contains: true), findsOneWidget);
-    expect(find.text('몰라요'), findsOneWidget);
+    expect(find.text('확인 못 함'), findsOneWidget);
     expect(find.text('LG 가전'), findsOneWidget);
     expect(find.text('가전이 받았어요'), findsOneWidget);
     expect(find.text('연습이에요. 실제 가전에 보내지 않아요'), findsOneWidget);
     expect(find.textContaining('못 했어요'), findsNothing);
+    expect(find.text('실패'), findsNothing);
     expect(find.textContaining('정지'), findsNothing);
   });
 

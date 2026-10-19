@@ -258,7 +258,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
     if (source.readinessKnown && !source.canExecute) {
       _snack(
         context,
-        notice ?? source.readinessReasons.firstOrNull ?? '아직 이 가전은 준비가 안 됐어요.',
+        notice ?? source.readinessReasons.firstOrNull ?? '아직 이 가전은 준비되지 않았어요.',
       );
       return;
     }
@@ -390,7 +390,7 @@ class _ReadinessLine extends StatelessWidget {
     if (!(a.readinessKnown && !a.canExecute)) return const SizedBox.shrink();
     final why = notice ??
         a.readinessReasons.firstOrNull ??
-        (a.readiness == 'disconnected' ? '아직 연결되지 않았어요' : '아직 준비가 안 됐어요');
+        (a.readiness == 'disconnected' ? '아직 연결되지 않았어요' : '아직 준비되지 않았어요');
     return Row(
       children: [
         Icon(Icons.error_outline, size: 18, color: context.appWarning),

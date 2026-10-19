@@ -258,7 +258,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                               color: context.appSuccess.withValues(alpha: 0.4)),
                         ),
                         child: Text(
-                          '연결됐어요',
+                          '연결됨',
                           style: TextStyle(
                               fontSize: AppFont.caption, color: context.appSuccess),
                         ),

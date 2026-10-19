@@ -478,7 +478,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         'stop_unconfirmed' =>
           '정지가 확인되지 않아 기기가 잠겨 있어요 — 정지를 눌러 확인해 주세요',
         'rate_limited' => '요청이 너무 잦아요 — 잠시 후 다시 시도해 주세요',
-        'duplicate_request' => '같은 요청이 이미 처리됐어요',
+        'duplicate_request' => '같은 요청이 이미 처리되었어요',
         'shutting_down' => '서버가 종료 중이에요',
         'unknown_appliance' => '서버에 등록되지 않은 가전이에요',
         _ => e.message,

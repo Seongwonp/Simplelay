@@ -77,7 +77,7 @@ void main() {
     expect(container.read(rpiConnectionProvider),
         RpiConnectionState.connected,
         reason: '저장한 새 주소는 닿는다 -- 재시도 없이 연결됨이어야 한다');
-    expect(find.text('연결됐어요'), findsOneWidget);
+    expect(find.text('연결됨'), findsOneWidget);
   });
 }
 

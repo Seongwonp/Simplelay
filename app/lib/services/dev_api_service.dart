@@ -238,13 +238,13 @@ class DevApiService {
       throw DevApiException(
         res.statusCode,
         detail['code'] as String? ?? 'http_${res.statusCode}',
-        detail['message'] as String? ?? '요청이 거절됐어요',
+        detail['message'] as String? ?? '요청이 거절되었어요',
       );
     }
     throw DevApiException(
       res.statusCode,
       'http_${res.statusCode}',
-      detail?.toString() ?? '요청이 거절됐어요',
+      detail?.toString() ?? '요청이 거절되었어요',
     );
   }
 

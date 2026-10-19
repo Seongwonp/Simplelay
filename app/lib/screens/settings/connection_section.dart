@@ -22,7 +22,7 @@ class _RpiConnectionTile extends ConsumerWidget {
       RpiConnectionState.keyRequired => (context.appWarning, '연결 비밀번호가 필요해요', Icons.key),
       RpiConnectionState.connected => (
           context.appSuccess,
-          '연결됐어요',
+          '연결됨',
           Icons.wifi
         ),
       RpiConnectionState.unreachable => (
@@ -111,7 +111,7 @@ class _SavedDeviceSection extends ConsumerWidget {
         ),
         title: Text('블루투스 연결: ${saved.name}'),
         subtitle: Text(
-          isConnected ? '연결됐어요' : '지금은 끊겨 있어요',
+          isConnected ? '연결됨' : '끊김',
           style: TextStyle(
             color: isConnected ? context.appSuccess : context.appMuted,
             fontSize: AppFont.caption,

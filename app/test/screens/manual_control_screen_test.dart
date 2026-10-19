@@ -90,7 +90,7 @@ void main() {
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
 
-      expect(find.text('아직 준비가 안 됐어요'), findsOneWidget);
+      expect(find.text('아직 준비되지 않았어요'), findsOneWidget);
       expect(
         find.text('눌림을 확인할 센서가 아직 준비되지 않았어요'),
         findsOneWidget,

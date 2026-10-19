@@ -165,8 +165,8 @@ class SettingsScreen extends ConsumerWidget {
                       : thinq == null
                           ? '아직 연결 전이에요'
                           : thinq.executionMode == 'mock'
-                              ? '연습으로 ${thinq.appliances.length}대 연결됐어요'
-                              : '${thinq.appliances.length}대 연결됐어요',
+                              ? '연습으로 ${thinq.appliances.length}대 연결됨'
+                              : '${thinq.appliances.length}대 연결됨',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => const _ThinqScreen())),
             ),
@@ -348,7 +348,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   static String _hubLine(RpiConnectionState state) => switch (state) {
-        RpiConnectionState.connected => '연결됐어요',
+        RpiConnectionState.connected => '연결됨',
         RpiConnectionState.keyRequired => '연결 비밀번호가 필요해요',
         RpiConnectionState.checking => '알아보고 있어요',
         RpiConnectionState.unreachable => '연결이 끊겼어요',

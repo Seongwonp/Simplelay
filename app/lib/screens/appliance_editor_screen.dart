@@ -592,7 +592,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ),
           const SizedBox(height: AppSpace.lg),
           Text(
-            '말로 시키기는 아직 안 돼요. 저장하면 화면에서 버튼을 직접 누를 수 있어요.',
+            '말로 시키기는 아직 할 수 없어요. 저장하면 화면에서 버튼을 직접 누를 수 있어요.',
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
         ],

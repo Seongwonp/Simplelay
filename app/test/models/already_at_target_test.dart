@@ -136,7 +136,7 @@ void main() {
         confirmation: 'already_at_target',
         executionMode: 'real');
     final facts = runStepFacts(step);
-    expect(facts, 'LG 가전, 이미 그 설정이라 보내지 않았어요, 됐어요');
+    expect(facts, 'LG 가전, 이미 그 설정이라 보내지 않았어요, 완료');
   });
 
   test('실행 상태 화면(실제 배선): 완료로, 서버의 이미-목표값 문장 그대로', () async {

@@ -384,8 +384,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   static String _readinessMessage(RpiApiException error) {
     final detail = error.message.trim();
     return detail.isEmpty
-        ? '이 가전은 아직 준비가 안 됐어요.'
-        : '아직 준비가 안 됐어요. $detail';
+        ? '이 가전은 아직 준비되지 않았어요.'
+        : '아직 준비되지 않았어요. $detail';
   }
 
   void _notice(String message) => ScaffoldMessenger.of(context)

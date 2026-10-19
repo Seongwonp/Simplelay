@@ -809,7 +809,7 @@ final _notReadyMicrowave = ApplianceMap(
   buttons: kTestAppliance.buttons,
   canExecute: false,
   readiness: 'needs_setup',
-  readinessReasons: const ['버튼 위치 보정이 아직 안 됐어요'],
+  readinessReasons: const ['버튼 위치 보정이 아직 되지 않았어요'],
   readinessKnown: true,
 );
 

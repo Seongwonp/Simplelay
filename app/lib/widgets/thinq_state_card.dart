@@ -361,7 +361,7 @@ const _washState = {
   'RINSING': '헹구는 중',
   'SPINNING': '탈수하는 중',
   'PAUSE': '잠시 멈춤',
-  'END': '다 됐어요',
+  'END': '끝남',
   'ERROR': '문제가 있어요. LG 앱에서 봐 주세요',
 };
 

@@ -220,7 +220,7 @@ class SuggestionScreen extends ConsumerWidget {
               // '잠시 후'라고 하지 않는다. 서버 문장(경로별 이유)이 있으면 그대로.
               412 => error.message.isNotEmpty && suggestion.isScenario
                   ? error.message
-                  : '이 가전은 아직 준비가 안 됐어요. '
+                  : '이 가전은 아직 준비되지 않았어요. '
                       '설정에서 연결을 봐 주세요.',
               // 자동 실행으로 정할 수 없는 카드(물리 누름 등) — 서버 문장 그대로.
               422 when allow != null && error.message.isNotEmpty => error.message,
@@ -360,7 +360,7 @@ class SuggestionScreen extends ConsumerWidget {
         : appliance.readinessReasons.firstOrNull ??
             (appliance.readiness == 'disconnected'
                 ? '아직 연결되지 않았어요'
-                : '아직 준비가 안 됐어요');
+                : '아직 준비되지 않았어요');
 
     final more = _moreActions(
       canMute: suggestion.canMute,
@@ -872,7 +872,7 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
         final who = c.summary.isNotEmpty ? c.summary : c.targetId;
         blockedWhy = r.reasons.isNotEmpty
             ? '$who. ${r.reasons.first}'
-            : '$who. 아직 준비가 안 됐어요';
+            : '$who. 아직 준비되지 않았어요';
       }
     }
 
@@ -990,7 +990,7 @@ class _CommandRow extends StatelessWidget {
                       Text(
                         r.reasons.isNotEmpty
                             ? r.reasons.join(', ')
-                            : '아직 준비가 안 됐어요',
+                            : '아직 준비되지 않았어요',
                         style:
                             TextStyle(fontSize: AppFont.caption, color: context.appDanger),
                       ),

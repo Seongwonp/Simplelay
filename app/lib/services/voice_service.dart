@@ -15,7 +15,7 @@ String voiceErrorGuide(String errorId) => switch (errorId) {
       'error_client' =>
         '마이크를 사용할 수 없어요. 다른 앱이 사용 중인지 확인해 주세요.',
       'error_insufficient_permissions' => '마이크 권한이 필요해요. 휴대폰 설정에서 켜 주세요.',
-      'error_busy' => '아직 들을 준비가 안 됐어요. 조금 뒤 다시 눌러 주세요.',
+      'error_busy' => '아직 들을 준비가 되지 않았어요. 조금 뒤 다시 눌러 주세요.',
       _ => '듣기가 끊겼어요. 다시 말해 주세요.',
     };
 

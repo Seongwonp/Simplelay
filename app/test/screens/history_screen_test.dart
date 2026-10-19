@@ -259,7 +259,7 @@ void main() {
     expect(find.byType(Card), findsNothing);
     // 보고만 받은 버튼 기록은 '봐 주세요' — 초록 '됐어요'가 아니다(확인 수준을 높여 보이지 않는다, 평가 5차 10/18 배지 넷).
     expect(findPlainText('봐 주세요'), findsNWidgets(3));
-    expect(findPlainText('됐어요'), findsNothing);
+    expect(findPlainText('완료'), findsNothing);
   });
 
   testWidgets('사용자가 멈춘 것과 안전 정지를 종료 사유가 있을 때만 나눈다',
@@ -627,7 +627,7 @@ void main() {
     expect(find.byIcon(AppIcons.manual), findsOneWidget);
     // 상태를 다시 읽어 확인한 것만 초록 '됐어요' — 무엇을 확인했는지 짧게('켜짐 확인', 평가 14차 10/18).
     expect(findPlainText('켜진 걸 봤어요'), findsOneWidget);
-    expect(findPlainText('못 했어요'), findsOneWidget);
+    expect(findPlainText('실패'), findsOneWidget);
     expect(findPlainText('봐 주세요'), findsOneWidget);
     // 배지는 행 오른쪽.
     expect(tester.getCenter(findPlainText('켜진 걸 봤어요')).dx,
@@ -665,7 +665,7 @@ void main() {
         'buttons': [],
       },
     ], expand: false);
-    expect(findPlainText('됐어요'), findsNothing);
+    expect(findPlainText('완료'), findsNothing);
     expect(findPlainText('연습'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNothing);
   });

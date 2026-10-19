@@ -310,8 +310,8 @@ void main() {
       final stopped = historyBadgeOf(e({'outcome': 'stopped', 'status': 'stopped'}));
       final safety = historyBadgeOf(e({'outcome': 'safety_stop', 'status': 'safety_stopped'}));
       expect(unknown.label, '봐 주세요');
-      expect(stopped.label, '멈췄어요');
-      expect(safety.label, '스스로 멈췄어요');
+      expect(stopped.label, '멈춤');
+      expect(safety.label, '스스로 멈춤');
       expect(stopped.tone, unknown.tone);
       expect(safety.tone, unknown.tone);
       expect(stopped.icon, Icons.front_hand_outlined);
