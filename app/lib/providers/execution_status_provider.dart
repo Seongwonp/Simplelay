@@ -332,8 +332,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         }
         final status = await api.status();
         if (!mounted || !timer.isActive || state.sequenceId != key) return;
-        final running = status.jobId;
-        if (status.running && running != null) {
+        // 루틴이 도는 중이면(구간 사이 기다림 포함, 새 본체) 지금 구간이 아니라 루틴 첫 번호를 따라간다 — 구간 하나의 끝을
+        // 루틴의 끝으로 말하지 않고, 정지는 그 루틴만 멈추는 경로로 간다(검토 10/19). 옛 본체(필드 없음)는 종전대로.
+        final running = status.routineRunId ?? (status.running ? status.jobId : null);
+        if (running != null) {
           timer.cancel();
           beginHttpJob(api: api, jobId: running, label: label, steps: steps, requestId: requestId);
         }
@@ -478,6 +480,14 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (!mounted || _httpJobId != jobId) return;
       _lastPollSuccess = DateTime.now();
 
+      // ⓪ 따라가던 번호가 루틴의 2번째 이후 구간이다(새 본체가 routine_run_id를 실었다, 검토 10/19) — 그 구간의 끝은 루틴의
+      // 끝이 아니다. 루틴 첫 번호로 갈아타 루틴이 다 끝날 때까지 하는 중으로 보이고 정지는 그 루틴만 멈춘다.
+      final root = status.routineRunId;
+      if (root != null && root != jobId) {
+        _followRoutineRoot(api, root, status);
+        return;
+      }
+
       // ① 완료 판정을 최우선 — 내 job(J1) 완료 직후 다른 클라이언트의
       // J2가 시작되면 running=true여도 last_job_id는 여전히 J1이다.
       // running을 먼저 보고 return하면 그 완료를 영영 놓친다(추월 레이스).
@@ -614,6 +624,21 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     } finally {
       _pollInFlight = false;
     }
+  }
+
+  /// 구간 번호를 따라가다 그 구간이 속한 루틴의 첫 번호 [root]로 갈아탄다. 결과는 다음 조회(루틴 전체)가 정한다.
+  void _followRoutineRoot(RpiApiService api, String root, RpiStatusResult status) {
+    _httpJobId = root;
+    _routineRunId = root;
+    _routineSegmentJobId = status.routineSegmentJobId;
+    _missingPolls = 0;
+    final segment = status.routineSegment;
+    state = state.copyWith(
+      sequenceId: root,
+      phase: ExecutionPhase.running,
+      message: segment == null ? '루틴을 하는 중이에요' : '루틴 $segment번째 차례를 하는 중이에요',
+    );
+    _rememberPendingJob(root, state.label ?? '', _hubIdOf(api));
   }
 
   /// 정지로 끝난 [jobId]의 정지 확인 단계가 결과보다 늦게 서버에 닿을 때(M1) — 짧은 횟수만 /status를
