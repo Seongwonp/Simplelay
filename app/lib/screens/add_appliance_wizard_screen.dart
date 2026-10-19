@@ -58,6 +58,10 @@ const _cornerNames = ['왼쪽 위', '오른쪽 위', '오른쪽 아래', '왼쪽
 /// 본체에 닿지 못해 저장하지 못했을 때 — 무엇을 보고 무엇을 다시 누를지, 고른 것은 남아 있다는 것까지(실화면 10/19).
 const kSaveOfflineMessage = '본체와 연결되지 않아 저장하지 못했어요. 와이파이를 확인하고 "저장하고 다음"을 다시 눌러 주세요. 고른 자리는 그대로 있어요.';
 
+/// 본체의 가전 정의가 이 화면을 연 뒤에 바뀌어 저장을 거절했을 때(409). 서버 문장('다른 기기에서')은 다른 기기가
+/// 없을 때도 나오고 다음에 할 일을 말하지 않는다.
+const kSaveConflictMessage = '본체에 저장된 내용이 그사이 바뀌어 저장하지 않았어요. 닫고 가전 목록을 새로 받은 뒤 다시 맞춰 주세요.';
+
 /// 본체가 자리 확인을 받지 않을 때(지금 구성에서 할 수 없음). 서버 문장('갠트리' 등)은 처음 쓰는 사람에게 뜻이 없고
 /// 다음에 할 일을 말하지 않았다(실화면 10/19).
 const kPassUnavailableMessage = '지금은 자리 확인을 할 수 없어요. "자리 확인 없이 끝내기"를 누르고, 처음 누를 때 자리가 맞는지 지켜봐 주세요.';
@@ -359,10 +363,17 @@ class _AddApplianceWizardScreenState
       _busy = true;
       _error = null;
     });
+    // "내가 본 판" — 다시 맞출 때는 연 가전의 판, 새 가전은 방금 등록이 돌려준 판. 그 사이 다른 곳에서 바꿨으면
+    // 본체가 409로 거절한다(검토 10/19: 판을 싣지 않아 충돌 보호를 건너뛰었다). 모르면(0) 밝히지 않는다.
+    int? seen = switch (widget.initial?.revision) { final r? when r > 0 => r, _ => null };
     try {
       final draft = await _draftAppliance();
       // 1) 가전과 버튼 이름을 허브에 올린다 -- 매핑은 허브가 아는 버튼에만 붙는다.
-      if (widget.initial == null) await api.registerApplianceStrict(draft);
+      if (widget.initial == null) {
+        final body = await api.registerApplianceStrict(draft);
+        final r = (body['revision'] as num?)?.toInt();
+        seen = r != null && r > 0 ? r : null;
+      }
       // 2) 사진 좌표 → mm. 거절(422)은 서버 문장 그대로.
       final result = await api.saveMapping(
         _id,
@@ -376,6 +387,7 @@ class _AddApplianceWizardScreenState
           stopButton: _stopId,
           stopPresses: _stopPresses,
           parkPoint: _park,
+          expectedRevision: seen,
         ),
       );
       // 3) 이 폰에 남긴다. 서버가 돌려준 정의(판 번호·사진 매핑)에 이 폰의
@@ -400,9 +412,12 @@ class _AddApplianceWizardScreenState
       });
     } on RpiApiException catch (e) {
       if (mounted) {
-        setState(() => _error = e.statusCode == 0 || e.message.isEmpty
+        final base = e.statusCode == 0 || e.message.isEmpty
             ? kSaveOfflineMessage
-            : e.message);
+            : e.statusCode == 409
+                ? kSaveConflictMessage
+                : e.message;
+        setState(() => _error = base);
       }
     } catch (_) {
       if (mounted) setState(() => _error = kSaveOfflineMessage);

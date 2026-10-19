@@ -60,8 +60,15 @@ class _Server {
   bool frameKnown = true;
   int statusCalls = 0;
 
-  /// 사진 매핑 저장을 이 문장으로 거절한다(422).
+  /// 사진 매핑 저장을 이 문장으로 거절한다([rejectMappingStatus], 기본 422).
   String? rejectMapping;
+  int rejectMappingStatus = 422;
+
+  /// 등록(PUT /appliances/{id})이 돌려주는 판 번호.
+  int registerRevision = 1;
+
+  /// 다시 맞추기에서 본체가 이미 아는 정의(등록 PUT 없이 매핑만 저장할 때 응답에 싣는다).
+  Map<String, dynamic>? existing;
 
   /// 확인 주행 시작을 이 상태·문장으로 거절한다.
   (int, String)? rejectPass;
@@ -91,10 +98,16 @@ class _Server {
           }
           if (req.method == 'PUT' && RegExp(r'^/appliances/[^/]+$').hasMatch(path)) {
             registerBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
-            return _json({'id': path.split('/').last, ...registerBody!, 'is_custom': true});
+            return _json({
+              'id': path.split('/').last,
+              ...registerBody!,
+              'is_custom': true,
+              'revision': registerRevision,
+            });
           }
           if (req.method == 'PUT' && path.endsWith('/mapping') && rejectMapping != null) {
-            return _json({'detail': rejectMapping}, 422);
+            mappingBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
+            return _json({'detail': rejectMapping}, rejectMappingStatus);
           }
           if (req.method == 'POST' && path.endsWith('/verify-pass') && rejectPass != null) {
             return _json({'detail': rejectPass!.$2}, rejectPass!.$1);
@@ -111,7 +124,7 @@ class _Server {
               },
               'appliance': {
                 'id': id,
-                ...registerBody!,
+                ...?(registerBody ?? existing),
                 'is_custom': true,
                 'revision': 2,
                 'stop_button': mappingBody!['stop_button'],
@@ -687,6 +700,60 @@ void main() {
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
     expect(find.text(kSaveOfflineMessage), findsOneWidget);
+  });
+
+  // 검토 10/19: 매핑 저장이 판 번호를 싣지 않아 본체의 충돌 보호(409)를 건너뛰었다.
+  testWidgets('새 가전의 버튼 자리 저장은 방금 등록이 돌려준 판 번호를 싣는다', (tester) async {
+    final server = _Server()..registerRevision = 5;
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(_title(tester), '5. 자리 확인');
+    expect(server.mappingBody!['expected_revision'], 5);
+  });
+
+  testWidgets('다시 맞출 때는 연 가전의 판 번호를 싣고, 그사이 바뀌어 거절되면 다음 할 일을 말한다', (tester) async {
+    const mapped = ApplianceMap(
+      id: 'custom_washer',
+      name: '세탁기',
+      category: ApplianceCategory.washingMachine,
+      rows: 1,
+      cols: 1,
+      buttons: [ApplianceButton(id: 'B01', label: '시작', x: 0, y: 0)],
+      isCustom: true,
+      revision: 7,
+      photoPath: '/photos/custom_washer.jpg',
+      panelMapping: PanelMapping(
+        photoWidth: 1000,
+        photoHeight: 800,
+        corners: [PhotoPoint(100, 80), PhotoPoint(900, 80), PhotoPoint(900, 720), PhotoPoint(100, 720)],
+        buttons: {'B01': PhotoPoint(300, 300)},
+      ),
+    );
+    final server = _Server()
+      ..rejectMapping = '다른 기기에서 먼저 변경되었어요'
+      ..rejectMappingStatus = 409;
+    _tall(tester);
+    await tester.pumpWidget(_build(server, installed: const [mapped]));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/setup', extra: mapped);
+    await _settle(tester);
+    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byKey(const Key('wizard-next')));
+      await _settle(tester);
+    }
+    expect(server.requests.where((r) => r == 'PUT /appliances/custom_washer'), isEmpty,
+        reason: '다시 맞추기는 등록을 다시 올리지 않는다');
+    expect(server.mappingBody!['expected_revision'], 7);
+    expect(find.text(kSaveConflictMessage), findsOneWidget);
+    expect(find.textContaining('다른 기기'), findsNothing, reason: '다른 기기가 없을 때도 나오는 말이다');
+    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
   });
 
   test('같은 이름 경고의 예시는 적은 그 이름으로 든다', () {
