@@ -703,9 +703,9 @@ def test_next_run_says_quiet_hours_skip(api, clock, hub):
     assert api.put("/quiet-hours", json={"enabled": True, "start": "22:00", "end": "07:00"}).status_code == 200
     (item,) = api.get("/routines/next").json()
     assert item["quiet_skip"] is True
-    assert item["mode_label"] == "조용한 시간이라 건너뜀"
+    assert item["mode_label"] == "조용한 시간이라 건너뛰었어요"
     # 끝 시각은 포함하지 않는다(서버 판정과 같게) — 23:00이 끝이면 그대로 실행.
     assert api.put("/quiet-hours", json={"enabled": True, "start": "21:00", "end": "23:00"}).status_code == 200
     (edge,) = api.get("/routines/next").json()
-    assert edge.get("quiet_skip") is not True and edge["mode_label"] != "조용한 시간이라 건너뜀"
+    assert edge.get("quiet_skip") is not True and edge["mode_label"] != "조용한 시간이라 건너뛰었어요"
 

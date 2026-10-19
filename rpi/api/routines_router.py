@@ -92,7 +92,7 @@ def next_routines(limit: int = Query(3, ge=1, le=10)) -> list[dict]:
     """'다음 실행' 카드 — 켜진 시각 루틴의 가까운 순서.
 
     조용한 시간이 켜져 있고 그 회차가 시간대 안이면(시작 포함·끝 제외 — 실행 판정과 같다) ``quiet_skip``과
-    표시 말 '조용한 시간이라 건너뜀'을 붙인다(UI 평가 8차 10/17: 규칙 카드는 '건너뛰어요'인데 이 카드는 '실행'이라 했다).
+    표시 말 '조용한 시간이라 건너뛰었어요'를 붙인다(UI 평가 8차 10/17: 규칙 카드는 '건너뛰어요'인데 이 카드는 '실행'이라 했다).
     폰·키오스크는 ``mode_label``을 그대로 보인다.
 
     한 번 건너뛰기(2026-10-18): 항목마다 ``skipped``·``skip_label``·``skip_action_label`` — ``POST /routines/next/skip``."""
@@ -119,7 +119,7 @@ def _with_quiet(items: list[dict]) -> list[dict]:
             continue
         if window_contains(quiet["start"], quiet["end"], at):
             item["quiet_skip"] = True
-            item["mode_label"] = "조용한 시간이라 건너뜀"
+            item["mode_label"] = "조용한 시간이라 건너뛰었어요"
     return items
 
 

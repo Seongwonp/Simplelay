@@ -659,7 +659,7 @@ class RoutineEngine:
             user_started=source == "manual",
         )
         if suggestion is None:
-            raise RoutineUnavailableError("지금은 제안을 쉬는 중이거나 이 제안을 그만 받기로 하셨어요")
+            raise RoutineUnavailableError("방해 금지나 조용한 시간이라 지금은 묻지 않아요. 또는 이 제안을 그만 받기로 하셨어요")
         self._record(routine, source, "offered", reason, suggestion_id=suggestion.suggestion_id,
                      **(extra or {}))
         return suggestion
