@@ -277,13 +277,14 @@ class RoutineRunner:
         routine, items = self._plan(scenario_id, approved)
         leading, first, rest = self._split(items)
         kwargs = self._kwargs(purpose, usage_source)
+        self._announce_leading(routine, leading)
         mark = self._done_mark()
         job_id = self._service.submit_approved(tuple(first), approval_guard=approval_guard,
                                                scenario_id=scenario_id, **kwargs)
         run = self._start(routine, scenario_id, job_id)
         run.done_mark = mark
         for text in leading:
-            self._announce(run, routine, text)
+            self._announce_step(run, text)
         thread = threading.Thread(target=self._continue_safely,
                                   args=(run, routine, rest, job_id, None, scenario_id, kwargs),
                                   daemon=True, name=f"simplelay-routine-{job_id}")
@@ -295,13 +296,14 @@ class RoutineRunner:
         routine, items = self._plan(scenario_id, approved)
         leading, first, rest = self._split(items)
         kwargs = self._kwargs(purpose, usage_source)
+        self._announce_leading(routine, leading)
         mark = self._done_mark()
         record = self._service.execute_approved(tuple(first), approval_guard=approval_guard,
                                                 scenario_id=scenario_id, **kwargs)
         run = self._start(routine, scenario_id, record.job_id)
         run.done_mark = mark
         for text in leading:
-            self._announce(run, routine, text)
+            self._announce_step(run, text)
         self._continue_safely(run, routine, rest, record.job_id, record, scenario_id, kwargs)
         return run
 
@@ -617,11 +619,24 @@ class RoutineRunner:
         return True, detail, "cycle_end", False
 
     def _announce(self, run: RoutineRun, routine: Routine, text: str) -> None:
+        self._announce_notice(routine, text)
+        self._announce_step(run, text)
+
+    def _announce_leading(self, routine: Routine, leading) -> None:
+        """맨 앞 안내는 첫 장치 구간을 보내기 **전에** 알림함에 남긴다(검토 10/19 #5) — 예전에는 보낸 뒤(동기 실행이면 첫
+        구간이 다 끝난 뒤)에 남았다. 루틴 기록의 단계는 실행 번호가 생긴 뒤 같은 순서(안내 → 장치)로 적는다."""
+        for text in leading:
+            self._announce_notice(routine, text)
+
+    def _announce_notice(self, routine: Routine, text: str) -> None:
         if self._care is not None:
             try:
                 self._care.append(KIND_ROUTINE_ANNOUNCE, text, purpose=routine.name)
             except Exception:  # noqa: BLE001
                 log.exception("routine announce record failed")
+
+    @staticmethod
+    def _announce_step(run: RoutineRun, text: str) -> None:
         run.steps.append({"kind": "announce", "text": text, "status": "announced",
                           "detail": "안내를 알림함에 남겼어요."})
 
