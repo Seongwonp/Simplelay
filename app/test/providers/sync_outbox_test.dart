@@ -595,6 +595,44 @@ void main() {
     });
   });
 
+  // 검토 10/19(8): 대기열 한 줄이 깨지면 전체 읽기가 멈춰 빈 대기열로 시작했고, 다음 변경 저장이 그 빈 목록으로 덮어써
+  // 멀쩡한 변경까지 모두 잃었다.
+  group('8-1. 깨진 대기열 줄', () {
+    test('깨진 줄만 따로 옮기고 멀쩡한 변경은 남겨 다음 저장 뒤에도 잃지 않는다', () async {
+      final server = _FakeServer()
+        ..refusePut = {'fan', 'lamp'}
+        ..refuseDelete = {'gone'};
+      final container = await _phone(server, localCustoms: ['fan'], prefs: {
+        'appliance_sync_outbox': [
+          jsonEncode({
+            'op_id': 'op-1',
+            'appliance_id': 'fan',
+            'kind': 'upsert',
+            'created_at': '2026-10-19T19:00:00+09:00',
+            'payload': _local('fan').toJson(),
+          }),
+          '{깨진 줄',
+          jsonEncode({'kind': 'upsert'}),
+          jsonEncode({
+            'op_id': 'op-2',
+            'appliance_id': 'gone',
+            'kind': 'delete',
+            'created_at': '2026-10-19T19:01:00+09:00',
+          }),
+        ],
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(container.read(applianceSyncProvider).pending.map((o) => o.opId), ['op-1', 'op-2']);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('appliance_sync_outbox_quarantine'), ['{깨진 줄', jsonEncode({'kind': 'upsert'})]);
+
+      await container.read(applianceSyncProvider.notifier).saveAppliance(_local('lamp'));
+      final stored = [for (final line in await _storedOps()) (jsonDecode(line) as Map)['op_id']];
+      expect(stored.take(2), ['op-1', 'op-2']);
+    });
+  });
+
   group('9. 본체에서 지운 가전은 폰에서도 빠진다', () {
     // 본체 API로 세탁기·인터폰을 지웠는데 폰에는 '가전 2대 설정이 남았어요'·'본체에 보낼 것 3건'이 영영 남았다(10/19).
     // 남은 고치기는 본체 판 0과 어긋나 409로 매번 거절됐다. 본체가 본 적 있는 가전(판 번호가 있다)은 본체가 진실원천이다.

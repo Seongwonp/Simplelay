@@ -15,6 +15,10 @@ const _kOutboxKey = 'appliance_sync_outbox';
 /// 마지막으로 목록을 맞춰 본 본체 주소 — 본체에서 지워진 가전을 폰에서도 뺄 때 '같은 본체인가'를 가린다.
 const _kHubUrlKey = 'appliance_sync_hub_url';
 
+/// 대기열에서 읽지 못한 줄(깨진 JSON·빠진 필드·모르는 종류)을 버리지 않고 옮겨 두는 곳(검토 10/19) — 최근 [_kQuarantineCap]줄.
+const _kOutboxQuarantineKey = 'appliance_sync_outbox_quarantine';
+const _kQuarantineCap = 50;
+
 /// 같은 본체인지 몰라 지우지 않고 넘긴 본체 주소(검토 10/19). 넘긴 뒤 병합이 그 본체의 가전을 받아 오면 '겹침'이 생기는데,
 /// 그것은 같은 본체라는 증거가 아니다 — 이 주소에서는 겹침을 근거로 쓰지 않는다. 맞춘 가전이 모두 그 본체에 있게 되면 푼다.
 const _kHubUnconfirmedKey = 'appliance_sync_hub_unconfirmed';
@@ -156,24 +160,57 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
   Future<ApplianceSyncResult>? _inFlight;
   var _seq = 0;
 
-  Future<void> _load() async {
+  /// 대기열 한 줄. 못 읽으면 null — 줄마다 따로 읽는다(검토 10/19: 한 줄이 깨지면 전체 읽기가 멈춰 대기열이 빈 채로
+  /// 시작했고, 다음 변경 저장이 그 빈 목록으로 덮어써 멀쩡한 변경까지 모두 잃었다).
+  static SyncOperation? _parseLine(String line) {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final json = jsonDecode(line);
+      if (json is! Map) return null;
+      return SyncOperation.fromJson(json.cast<String, dynamic>());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _load() async {
+    final SharedPreferences prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+    } catch (_) {
+      return; // 대기열을 못 읽어도 새 변경은 받을 수 있어야 한다.
+    }
+    try {
       await _migrateLegacyDeletes(prefs);
+    } catch (_) {
+      // 옛 삭제 옮기기가 실패해도(옛 키는 그대로 남아 다음에 다시 옮긴다) 지금 대기열은 읽는다.
+    }
+    try {
       final raw = prefs.getStringList(_kOutboxKey) ?? const [];
-      final ops = [
-        for (final line in raw)
-          if (SyncOperation.fromJson(
-                jsonDecode(line) as Map<String, dynamic>,
-              )
-              case final op?)
-            op,
-      ];
+      final ops = <SyncOperation>[];
+      final bad = <String>[];
+      for (final line in raw) {
+        final op = _parseLine(line);
+        if (op == null) {
+          bad.add(line);
+        } else {
+          ops.add(op);
+        }
+      }
+      if (bad.isNotEmpty) await _quarantine(prefs, bad);
       if (!mounted) return;
       state = ApplianceSyncState(pending: ops, lastFailed: state.lastFailed);
     } catch (_) {
       // 대기열을 못 읽어도 새 변경은 받을 수 있어야 한다.
     }
+  }
+
+  /// 못 읽은 줄을 따로 옮겨 둔다 — 대기열에서는 다음 저장 때 빠지지만 기기에서 바로 사라지지 않게.
+  Future<void> _quarantine(SharedPreferences prefs, List<String> lines) async {
+    try {
+      final kept = [...?prefs.getStringList(_kOutboxQuarantineKey), ...lines];
+      await prefs.setStringList(_kOutboxQuarantineKey,
+          kept.length > _kQuarantineCap ? kept.sublist(kept.length - _kQuarantineCap) : kept);
+    } catch (_) {}
   }
 
   /// 예전 버전은 삭제 대기를 **id 집합**으로만 남겼다
@@ -191,8 +228,7 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     if (legacy == null) return;
     final existing = prefs.getStringList(_kOutboxKey) ?? const [];
     final known = {
-      for (final line in existing)
-        (jsonDecode(line) as Map<String, dynamic>)['appliance_id'] as String?,
+      for (final line in existing) _parseLine(line)?.applianceId,
     };
     final migrated = [
       for (final id in legacy)
