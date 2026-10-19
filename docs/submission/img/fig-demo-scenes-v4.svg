@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" role="img" aria-label="시연 v4 다섯 장면의 사슬과 장면별 실물·모의 구분. 사슬은 양 끝이 실물이고 가운데 버튼 누름과 CT 판정이 미측정이다.">
+  <title>시연 v4 — 장면별 실물 / 모의</title>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="960" height="560" fill="#ffffff"/>
+  <g font-family="sans-serif" fill="#000000">
+
+    <text x="30" y="30" font-size="18" font-weight="bold">시연 v4 — 어디까지 실물인가 (2026-10-19)</text>
+    <text x="30" y="52" font-size="12">장면 2·3의 사슬을 한 칸씩 끊어 적었다. 양 끝은 실물로 확인했고, 가운데 두 칸이 아직 미측정이다.</text>
+
+    <g font-size="11">
+      <rect x="30" y="64" width="22" height="14" fill="#ffffff" stroke="#000000" stroke-width="1.6"/>
+      <text x="58" y="75">실선 = 실물로 확인</text>
+      <rect x="190" y="64" width="22" height="14" fill="#eeeeee" stroke="#000000" stroke-width="1" stroke-dasharray="3 2"/>
+      <text x="218" y="75">점선·회색 = 모의 또는 미측정</text>
+      <rect x="420" y="64" width="22" height="14" fill="#eeeeee" stroke="#000000" stroke-width="2.6" stroke-dasharray="5 3"/>
+      <text x="448" y="75">굵은 점선 = 갈림길(이것이 되면 장면이 산다)</text>
+    </g>
+
+    <g>
+      <rect x="30" y="112" width="168" height="80" fill="#ffffff" stroke="#000000" stroke-width="1.6"/>
+      <text x="40" y="132" font-size="12" font-weight="bold">1. 제안 카드</text>
+      <text x="40" y="152" font-size="11">실패널 키오스크·폰에</text>
+      <text x="40" y="169" font-size="11">누를 순서를 보인다</text>
+      <text x="40" y="186" font-size="11" font-weight="bold">실물</text>
+
+      <rect x="213" y="112" width="168" height="80" fill="#ffffff" stroke="#000000" stroke-width="1.6"/>
+      <text x="223" y="132" font-size="12" font-weight="bold">2. 승인·명령 대조</text>
+      <text x="223" y="152" font-size="11">승인한 그 명령인지</text>
+      <text x="223" y="169" font-size="11">허브가 다시 본다</text>
+      <text x="223" y="186" font-size="11" font-weight="bold">실물(두 보드)</text>
+
+      <rect x="396" y="112" width="168" height="80" fill="#f7f7f7" stroke="#000000" stroke-width="1.6"/>
+      <text x="406" y="132" font-size="12" font-weight="bold">3. 누름 장치 이동</text>
+      <text x="406" y="152" font-size="11">모터 축 구동·엔코더</text>
+      <text x="406" y="169" font-size="11">계수는 실물</text>
+      <text x="406" y="186" font-size="11" font-weight="bold">캐리지 이동 미측정</text>
+
+      <text x="589" y="106" font-size="11" font-weight="bold">갈림길 ①</text>
+      <rect x="579" y="112" width="168" height="80" fill="#eeeeee" stroke="#000000" stroke-width="2.6" stroke-dasharray="5 3"/>
+      <text x="589" y="132" font-size="12" font-weight="bold">4. 버튼 누름</text>
+      <text x="589" y="152" font-size="11">솔레노이드로 실제</text>
+      <text x="589" y="169" font-size="11">버튼이 눌리는지</text>
+      <text x="589" y="186" font-size="11" font-weight="bold">미측정</text>
+
+      <text x="772" y="106" font-size="11" font-weight="bold">갈림길 ②</text>
+      <rect x="762" y="112" width="168" height="80" fill="#eeeeee" stroke="#000000" stroke-width="2.6" stroke-dasharray="5 3"/>
+      <text x="772" y="132" font-size="12" font-weight="bold">5. 가열 시작 확인</text>
+      <text x="772" y="152" font-size="11">콘센트 전력(CT)으로</text>
+      <text x="772" y="169" font-size="11">확인 — 회로 제작 전</text>
+      <text x="772" y="186" font-size="11" font-weight="bold">미측정</text>
+
+      <g stroke="#000000" stroke-width="1.4" fill="none">
+        <path d="M198 152 L209 152" marker-end="url(#ar)"/>
+        <path d="M381 152 L392 152" marker-end="url(#ar)"/>
+        <path d="M564 152 L575 152" marker-end="url(#ar)"/>
+        <path d="M747 152 L758 152" marker-end="url(#ar)"/>
+        <path d="M930 192 L944 192 L944 218 L16 218 L16 248 L26 248" marker-end="url(#ar)"/>
+      </g>
+    </g>
+
+    <g>
+      <rect x="30" y="248" width="168" height="80" fill="#eeeeee" stroke="#000000" stroke-width="1" stroke-dasharray="3 2"/>
+      <text x="40" y="268" font-size="12" font-weight="bold">6. 가열 종료 감지</text>
+      <text x="40" y="288" font-size="11">조리 완료가 아닐 수</text>
+      <text x="40" y="305" font-size="11">있다(취소·문 열림)</text>
+      <text x="40" y="322" font-size="11" font-weight="bold">미측정</text>
+
+      <rect x="213" y="248" width="168" height="80" fill="#eeeeee" stroke="#000000" stroke-width="1" stroke-dasharray="3 2"/>
+      <text x="223" y="268" font-size="12" font-weight="bold">7. 공기청정기 카드</text>
+      <text x="223" y="288" font-size="11">가열 종료를 주입해</text>
+      <text x="223" y="305" font-size="11">모의로만 확인</text>
+      <text x="223" y="322" font-size="11" font-weight="bold">모의</text>
+
+      <rect x="396" y="248" width="168" height="80" fill="#f7f7f7" stroke="#000000" stroke-width="1.6"/>
+      <text x="406" y="268" font-size="12" font-weight="bold">8. 자동 실행 허용</text>
+      <text x="406" y="288" font-size="11">'다음부터도 자동으로'</text>
+      <text x="406" y="305" font-size="11">두 보드에서 확인</text>
+      <text x="406" y="322" font-size="11" font-weight="bold">사건은 주입</text>
+
+      <rect x="579" y="248" width="168" height="80" fill="#ffffff" stroke="#000000" stroke-width="1.6"/>
+      <text x="589" y="268" font-size="12" font-weight="bold">9. LG 가전 바꾸기</text>
+      <text x="589" y="288" font-size="11">실제 공기청정기의</text>
+      <text x="589" y="305" font-size="11">바람 세기·전원</text>
+      <text x="589" y="322" font-size="11" font-weight="bold">실물</text>
+
+      <rect x="762" y="248" width="168" height="80" fill="#ffffff" stroke="#000000" stroke-width="1.6"/>
+      <text x="772" y="268" font-size="12" font-weight="bold">10. 상태 재조회</text>
+      <text x="772" y="288" font-size="11">바뀐 것을 본 때만</text>
+      <text x="772" y="305" font-size="11">'됐어요'라고 한다</text>
+      <text x="772" y="322" font-size="11" font-weight="bold">실물</text>
+
+      <g stroke="#000000" stroke-width="1.4" fill="none">
+        <path d="M198 288 L209 288" marker-end="url(#ar)"/>
+        <path d="M381 288 L392 288" marker-end="url(#ar)"/>
+        <path d="M564 288 L575 288" marker-end="url(#ar)"/>
+        <path d="M747 288 L758 288" marker-end="url(#ar)"/>
+      </g>
+    </g>
+
+    <text x="30" y="366" font-size="13" font-weight="bold">다섯 장면 (시연 약 6분)</text>
+    <g font-size="11">
+      <rect x="30" y="376" width="168" height="66" fill="#ffffff" stroke="#000000" stroke-width="1.6"/>
+      <text x="40" y="395" font-size="12" font-weight="bold">① 제안 거절</text>
+      <text x="40" y="414">장치가 움직이지 않는다</text>
+      <text x="40" y="431">화면은 실물, 흐름은 모의</text>
+
+      <rect x="213" y="376" width="168" height="66" fill="#eeeeee" stroke="#000000" stroke-width="2.6" stroke-dasharray="5 3"/>
+      <text x="223" y="395" font-size="12" font-weight="bold">② 첫 조리 승인</text>
+      <text x="223" y="414">위 사슬 1~10 전체</text>
+      <text x="223" y="431">갈림길 ①② 미측정</text>
+
+      <rect x="396" y="376" width="168" height="66" fill="#eeeeee" stroke="#000000" stroke-width="2.6" stroke-dasharray="5 3"/>
+      <text x="406" y="395" font-size="12" font-weight="bold">③ 같은 조건 재실행</text>
+      <text x="406" y="414">추가 승인 없이 바람 세게</text>
+      <text x="406" y="431">사건이 실제 CT여야 한다</text>
+
+      <rect x="579" y="376" width="168" height="66" fill="#f7f7f7" stroke="#000000" stroke-width="1.6"/>
+      <text x="589" y="395" font-size="12" font-weight="bold">④ 기록·자동 끄기</text>
+      <text x="589" y="414">언제든 끌 수 있다</text>
+      <text x="589" y="431">시각 루틴 쪽은 실물</text>
+
+      <rect x="762" y="376" width="168" height="66" fill="#eeeeee" stroke="#000000" stroke-width="1" stroke-dasharray="3 2"/>
+      <text x="772" y="395" font-size="12" font-weight="bold">⑤ 일부 실패</text>
+      <text x="772" y="414">확인 못 하면 그대로 말하고</text>
+      <text x="772" y="431">다시 보내지 않는다</text>
+    </g>
+
+    <text x="30" y="472" font-size="12" font-weight="bold">다섯 장면 모두, 처음부터 끝까지 실물로 성공한 것은 없다.</text>
+    <text x="30" y="492" font-size="11">갈림길 ①(실제 버튼 누름)과 ②(CT 가열 판정)를 재면 장면 2·3이 실물로 이어진다. 둘 다 하드웨어가 돌아온 뒤에 잰다.</text>
+    <text x="30" y="512" font-size="11">버튼 누름은 매번 승인한다. 승인 없이 하는 것은 사용자가 카드에서 허용한 낮은 위험 LG 가전 동작뿐이다.</text>
+    <text x="30" y="532" font-size="11">칸 테두리는 검증 수준만 뜻한다 — 선 색·모양으로 다른 뜻을 말하지 않는다. 근거는 보고서 §3-3 표와 §6.</text>
+  </g>
+</svg>
