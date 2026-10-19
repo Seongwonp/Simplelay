@@ -138,6 +138,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('suggestion-approve')));
     await tester.pump(); // 접수 실패 — 실행 번호 없음
     await tester.pump();
+    // 응답을 잃은 접수는 시작됐을 수 있어 잠시 실행 화면에 둔다 — 본체가 쉬고 결과도 그대로면 결과 화면(검토 10/19 코어 4차).
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump();
+    }
     expect(find.byType(KioskDoneView), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('done-home')));
     await tester.pump();

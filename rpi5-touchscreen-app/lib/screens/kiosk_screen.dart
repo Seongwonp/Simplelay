@@ -42,6 +42,9 @@ import '../widgets/kiosk/top_progress_bar.dart';
 /// 잠시 쉬기 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 폰과 같은 문장.
 const kSettingNotSavedNotice = '저장하지 못해 지금만 바뀌어요. 본체를 다시 켜면 예전 설정으로 돌아가요.';
 
+/// 실행 접수 응답을 받지 못했을 때(검토 10/19) — 본체가 이미 시작했을 수 있다. 정지 단추는 그대로 둔다.
+const kAdmitUnknownMessage = "본체 답을 받지 못했어요. 시작됐을 수 있어요. 멈추려면 '정지'를 누르세요.";
+
 const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
 
@@ -58,6 +61,10 @@ const _doneReturnDuration = KioskTimings.doneReturn;
 // 실행 중 /status가 이 시간 동안 한 번도 응답하지 않으면 서버 유실로 판정 —
 // "실행 중" 화면에 영원히 갇히는 대신 실패 화면으로 탈출한다.
 const _statusLostTimeout = Duration(seconds: 30);
+// 접수 응답을 잃은 뒤 본체가 쉬고 결과도 그대로인 폴링이 이만큼 이어지면 결과 화면('어떻게 됐는지 몰라요')으로.
+const _admitUnknownIdlePolls = 3;
+// 접수 응답 전에 누른 정지를, 실행을 못 찾은 채로 지키는 시간 — 늦게 접수된 실행도 멈춘다. 지나면 남의 실행을 멈추지 않게 버린다.
+const _pendingStopWindow = Duration(seconds: 20);
 
 /// 조용한 시간에 화면을 만지면 이만큼 평소 밝기로 둔다(사용자 결정 10/18 — 예: 30초).
 const kQuietWakeDuration = Duration(seconds: 30);
@@ -185,7 +192,17 @@ class _KioskScreenState extends State<KioskScreen> {
 
   // 접수 응답 전에 정지를 눌렀다(검토 10/19) — 그때 본체에는 아직 실행이 없어 /stop이 아무것도 멈추지 못할 수 있다.
   // job_id가 오는 대로 /stop을 다시 보낸다. 그동안 화면은 '멈추는 중'.
+  // 응답이 끊겨도·본체에서 실행을 이어받아도 지우지 않는다(검토 10/19 코어 4차) — 그 실행이 끝나거나 본체가 쉴 때까지
+  // 폴링마다 다시 보낸다([_followPendingStop]). 새로 시작하는 실행에는 넘기지 않는다.
   bool _stopWhileAccepting = false;
+  DateTime? _stopAskedAt;
+
+  // 접수 응답을 잃었다(시간 초과·연결 끊김·5xx, 검토 10/19 코어 4차) — 본체가 이미 시작했을 수 있다. 실행 화면과 정지 단추를
+  // 그대로 두고 /status에서 도는 실행을 이어받는다. 접수 전 마지막 결과 번호와 다른 결과가 보이면 그 사이 끝난 실행이다.
+  bool _admitUnknown = false;
+  int _admitUnknownPolls = 0;
+  bool _admitBaseKnown = false;
+  String? _admitBase;
 
   String? _currentButton;
 
@@ -665,6 +682,7 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 다시 시도는 두지 않는다(설정 변경은 상태를 다시 읽고 사람이 다시 고른다).
   void _onThinqAccepted(String jobId, String label) {
     if (!mounted || _phase != KioskPhase.manual) return;
+    _stopWhileAccepting = false; // 새 실행 — 앞 실행의 남은 정지를 넘기지 않는다
     _toExecuting(label,
         applianceId: _manualAppliance?.id,
         jobId: jobId,
@@ -788,8 +806,10 @@ class _KioskScreenState extends State<KioskScreen> {
       if (st.running && st.jobId != null) {
         _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
             applianceId: st.applianceId, jobId: st.jobId, thinqOnly: _adoptedThinq(st));
+        _followPendingStop(st);
         return;
       }
+      _followPendingStop(st);
       // 버튼을 다 누른 뒤 가전이 돌아가는 중 — 동작 중 화면(정지 버튼 대기).
       // 제안보다 먼저 본다: 안내는 한 번에 하나다.
       if (_holdActive(st.holdState)) {
@@ -854,7 +874,11 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Future<void> _pollExecuting() async {
     final jobId = _activeJobId;
-    if (jobId == null) return; // 접수 응답 전에는 다른 작업 상태를 사용하지 않는다.
+    if (jobId == null) {
+      // 접수 응답 전에는 다른 작업 상태를 사용하지 않는다. 응답을 잃었으면 본체에서 그 실행을 찾는다.
+      if (_admitUnknown && !_accepting) await _pollAdmitUnknown();
+      return;
+    }
     try {
       final st = await _api.status();
       if (!mounted || _phase != KioskPhase.executing ||
@@ -864,6 +888,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _lastStatusOk = DateTime.now();
       _trackStrip(st);
       _trackEstop(st);
+      _followPendingStop(st);
 
       // ① 완료 판정 최우선 — 내 job 완료 직후 다른 클라이언트의 새 job이
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
@@ -1007,8 +1032,10 @@ class _KioskScreenState extends State<KioskScreen> {
       if (st.running && st.jobId != null && st.jobId != _activeJobId) {
         _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
             applianceId: st.applianceId, jobId: st.jobId, thinqOnly: _adoptedThinq(st));
+        _followPendingStop(st);
         return;
       }
+      _followPendingStop(st);
       _catchMissedResult(st);
     } catch (_) {}
   }
@@ -1508,10 +1535,12 @@ class _KioskScreenState extends State<KioskScreen> {
     _retryAction = null;
     _lastStatusOk = DateTime.now();
     _foreignPolls = 0;
-    _execStop = KioskExecStop.none;
+    // 남은 정지(접수 응답 전에 누른 정지)는 이어받은 실행에도 지킨다(검토 10/19 코어 4차) — 새 실행을 시작하는 쪽이 지운다.
+    _execStop = _stopWhileAccepting ? KioskExecStop.stopping : KioskExecStop.none;
     _admitGen++;
     _accepting = false;
-    _stopWhileAccepting = false;
+    _admitUnknown = false;
+    _admitUnknownPolls = 0;
     setState(() {
       _phase = KioskPhase.executing;
       _execTitle = title;
@@ -1668,6 +1697,7 @@ class _KioskScreenState extends State<KioskScreen> {
         suggestion.doneLabel(scenarioName: _scenarioNames[suggestion.scenarioId]);
     // LG 가전 명령 하나뿐인 카드면 버튼판 없는 기다림·결과 창(사용자 요청 10/18). 판정은 승인에 묶인 명령의 경로로.
     final thinqOnly = isSingleThinqCommand([for (final c in suggestion.commands) c.route]);
+    _beginAdmission();
     _toExecuting(label,
         applianceId: suggestion.applianceId,
         thinqOnly: thinqOnly,
@@ -1683,10 +1713,16 @@ class _KioskScreenState extends State<KioskScreen> {
       _accepting = false;
       _activeJobId = accepted.jobId;
       _stopIfAskedWhileAccepting();
-    } on KioskApiException catch (e) {
+    } catch (e) {
       if (gen != _admitGen) return;
       _accepting = false;
       if (!mounted || _phase != KioskPhase.executing) return;
+      // 본체가 분명히 거절한 것(4xx)만 '시작하지 않음'이다. 시간 초과·끊김·5xx는 시작됐을 수 있다(검토 10/19 코어 4차).
+      if (e is! KioskApiException || e.statusCode >= 500) {
+        _admissionLost();
+        return;
+      }
+      _stopWhileAccepting = false; // 거절됐다 — 멈출 내 실행이 없다
       if (e.isApprovalChanged || e.statusCode == 412) {
         // 승인 재검사 실패: 서버가 카드를 내렸다. 실패 화면('다시 시도')으로
         // 보내면 옛 승인을 또 누르게 된다 — 처음 화면으로 돌아가 새 카드를 받는다.
@@ -1701,16 +1737,84 @@ class _KioskScreenState extends State<KioskScreen> {
         _poll();
         return;
       }
+      // 접수 거절(409 등) — 올 수 없는 완료를 기다리는 대신 즉시 실패 화면으로 탈출한다.
       _toDone(false, label,
           reason: KioskFailureReason.serverLost);
+    }
+  }
+
+  /// 새 실행 접수를 시작한다 — 앞 실행의 남은 정지는 넘기지 않고, 응답을 잃을 때 견줄 마지막 결과 번호를 잡는다.
+  void _beginAdmission() {
+    _stopWhileAccepting = false;
+    _admitBaseKnown = _seenLastJobInit;
+    _admitBase = _seenLastJobId;
+  }
+
+  /// 접수 응답을 잃었다 — '못 보냈다'로 끝내지 않는다. 시작됐을 수 있다고 말하고 정지 단추를 둔 채 [_pollAdmitUnknown]이 찾는다.
+  void _admissionLost() {
+    _admitUnknown = true;
+    _admitUnknownPolls = 0;
+    _lastStatusOk = DateTime.now();
+    _tts.speak(kAdmitUnknownMessage);
+    final notice = ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text(kAdmitUnknownMessage)));
+    _admitUnknownNotice = notice;
+    // 스스로 닫힌 알림은 다시 닫지 않는다(알림 줄은 앞 것이 닫혀야 다음 것이 뜬다 — 닫히기 전에는 늘 맨 앞이다).
+    notice.closed.then((_) {
+      if (identical(_admitUnknownNotice, notice)) _admitUnknownNotice = null;
+    });
+  }
+
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _admitUnknownNotice;
+
+  /// 응답을 잃은 접수가 풀렸다(이어받음·결과 찾음·포기) — '시작됐을 수 있어요' 알림을 내린다. 결과 화면 단추를 가리지 않게.
+  void _endAdmitUnknown() {
+    _admitUnknown = false;
+    // 아직 열린 알림이면 맨 앞이다 — 바로 걷는다(닫히는 움직임 동안에도 결과 화면 단추를 가렸다).
+    if (_admitUnknownNotice != null) ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    _admitUnknownNotice = null;
+  }
+
+  /// 응답을 잃은 접수의 실행을 본체에서 찾는다 — 돌고 있으면 이어받고, 그 사이 끝났으면 그 결과를, 계속 쉬면 결과 화면('어떻게 됐는지 몰라요').
+  Future<void> _pollAdmitUnknown() async {
+    final gen = _admitGen;
+    bool stale() =>
+        !mounted || gen != _admitGen || _phase != KioskPhase.executing || !_admitUnknown || _activeJobId != null;
+    try {
+      final st = await _api.status();
+      if (stale()) return;
+      _lastStatusOk = DateTime.now();
+      _trackStrip(st);
+      _trackEstop(st);
+      if (st.running && st.jobId != null) {
+        _endAdmitUnknown();
+        _foreignPolls = 0;
+        setState(() {
+          _activeJobId = st.jobId;
+          _execApplianceId = st.applianceId ?? _execApplianceId;
+        });
+        _followPendingStop(st);
+        return;
+      }
+      final last = st.lastJobId;
+      if (_admitBaseKnown && last != null && last != _admitBase) {
+        _endAdmitUnknown();
+        _activeJobId = last;
+        _followPendingStop(st);
+        _completeFromStatus(st, last);
+        return;
+      }
+      _followPendingStop(st);
+      if (++_admitUnknownPolls >= _admitUnknownIdlePolls) {
+        _endAdmitUnknown();
+        _toDone(false, _execTitle, reason: KioskFailureReason.serverLost);
+      }
     } catch (_) {
-      if (gen != _admitGen) return;
-      _accepting = false;
-      // 접수 자체가 실패(서버 다운·409 등) — 올 수 없는 완료를 기다리는 대신
-      // 즉시 실패 화면으로 탈출한다.
-      if (mounted && _phase == KioskPhase.executing) {
-        _toDone(false, label,
-            reason: KioskFailureReason.serverLost);
+      if (stale()) return;
+      final since = _lastStatusOk;
+      if (since != null && DateTime.now().difference(since) > _statusLostTimeout) {
+        _endAdmitUnknown();
+        _toDone(false, _execTitle, reason: KioskFailureReason.serverLost);
       }
     }
   }
@@ -1743,6 +1847,7 @@ class _KioskScreenState extends State<KioskScreen> {
   Future<void> _onManualExecute(ApplianceButton button) async {
     // 두 번 누름은 요청 하나만(검토 10/19) — 둘째의 409가 첫 실행을 실패 화면 뒤에 숨기던 것.
     if (_admitting) return;
+    _beginAdmission();
     _toExecuting(button.label, applianceId: _currentAppliance.id);
     final gen = _admitGen;
     _accepting = true;
@@ -1756,14 +1861,18 @@ class _KioskScreenState extends State<KioskScreen> {
       _accepting = false;
       _activeJobId = accepted.jobId;
       _stopIfAskedWhileAccepting();
-    } catch (_) {
+    } catch (e) {
       if (gen != _admitGen) return;
       _accepting = false;
-      // 접수 실패 — 즉시 실패 화면으로 탈출 (고착 방지)
-      if (mounted && _phase == KioskPhase.executing) {
-        _toDone(false, button.label,
-            reason: KioskFailureReason.serverLost);
+      if (!mounted || _phase != KioskPhase.executing) return;
+      // 응답을 잃었으면 시작됐을 수 있다(검토 10/19 코어 4차). 분명한 거절(4xx)만 즉시 실패 화면으로 탈출 (고착 방지).
+      if (e is! KioskApiException || e.statusCode >= 500) {
+        _admissionLost();
+        return;
       }
+      _stopWhileAccepting = false;
+      _toDone(false, button.label,
+          reason: KioskFailureReason.serverLost);
     }
   }
 
@@ -1784,18 +1893,33 @@ class _KioskScreenState extends State<KioskScreen> {
     // 정지 "요청"만 보낸다 — 화면 전환은 폴링이 safety_stopped 완료를 받은 뒤.
     // 하드웨어가 멈추기 전에 '정지됨' 화면부터 띄우면 실제 상태와 어긋난다.
     // 접수 응답 전이면 지금 보내는 정지가 아무것도 멈추지 못할 수 있다 — job_id가 오는 대로 다시 보낸다(검토 10/19).
-    if (_accepting && _activeJobId == null) {
+    // 접수 응답을 잃어 실행을 아직 못 찾았을 때도 같다(검토 10/19 코어 4차).
+    if ((_accepting || _admitUnknown) && _activeJobId == null) {
       _stopWhileAccepting = true;
+      _stopAskedAt = DateTime.now();
       setState(() => _execStop = KioskExecStop.stopping);
     }
     await _sendExecStop();
   }
 
-  /// 접수 응답 전에 정지를 눌렀으면 받은 job을 멈추려고 /stop을 한 번 더 보낸다.
+  /// 접수 응답 전에 정지를 눌렀으면 받은 job을 멈추려고 /stop을 한 번 더 보낸다. 남은 정지는 [_followPendingStop]이 지운다.
   void _stopIfAskedWhileAccepting() {
     if (!_stopWhileAccepting) return;
-    _stopWhileAccepting = false;
     _sendExecStop();
+  }
+
+  /// 남은 정지를 본체 상태에 맞춘다(검토 10/19 코어 4차) — 내 실행(또는 아직 못 찾은 실행)이 돌면 /stop을 다시 보낸다(같은 정지라 여러 번
+  /// 보내도 된다). 내 실행이 끝났거나 다른 실행으로 바뀌었으면, 실행을 못 찾은 채로는 [_pendingStopWindow]가 지나면 버린다.
+  void _followPendingStop(KioskStatus st) {
+    if (!_stopWhileAccepting) return;
+    final mine = _activeJobId;
+    final askedAt = _stopAskedAt;
+    final fresh = askedAt != null && DateTime.now().difference(askedAt) <= _pendingStopWindow;
+    if (st.running && st.jobId != null && (mine == null ? fresh : st.jobId == mine)) {
+      unawaited(_sendExecStop());
+      return;
+    }
+    if (mine != null || !fresh) _stopWhileAccepting = false;
   }
 
   Future<void> _sendExecStop() async {

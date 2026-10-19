@@ -437,6 +437,14 @@ Future<void> _pumpKiosk(
   await tester.pump(); // async 응답 반영
 }
 
+/// 응답을 잃은 접수(검토 10/19 코어 4차) — 본체가 쉬고 결과도 그대로인 폴링을 결과 화면으로 넘어갈 만큼 돌린다.
+Future<void> _pumpAdmitUnknownIdle(WidgetTester tester) async {
+  for (var i = 0; i < 3; i++) {
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+  }
+}
+
 void main() {
   testWidgets('환경 근거 갱신은 음성을 반복하거나 표시 시간을 늘리지 않는다', (tester) async {
     final api = FakeKioskApi()..suggestionList = const [KioskSuggestion(
@@ -864,7 +872,8 @@ void main() {
     await tester.pump(KioskTimings.doneReturn);
   });
 
-  testWidgets('승인 접수 자체가 실패하면 고착 없이 즉시 실패 화면으로 탈출한다', (tester) async {
+  // 접수 응답을 잃으면(검토 10/19 코어 4차) 시작됐을 수 있어 정지 단추를 잠시 둔다 — 본체가 쉬고 결과도 그대로면 고착 없이 실패 화면으로.
+  testWidgets('승인 접수 응답을 잃으면 정지 단추를 두고, 본체가 계속 쉬면 고착 없이 실패 화면으로 탈출한다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()
       ..suggestionList = [_sug]
@@ -875,6 +884,8 @@ void main() {
     await tester.tap(find.byKey(_approveKey));
     await tester.pump(); // 접수 실패
     await tester.pump();
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+    await _pumpAdmitUnknownIdle(tester);
 
     expect(find.byType(KioskDoneView), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn); // 복귀 타이머 소진
@@ -1171,6 +1182,7 @@ void main() {
     await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     await tester.pump();
+    await _pumpAdmitUnknownIdle(tester);
     expect(find.byType(KioskDoneView), findsOneWidget);
 
     // 서버 연결 실패는 '다시 시도'가 또 실패할 가능성이 높아 숨긴다
