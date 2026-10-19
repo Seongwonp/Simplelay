@@ -1106,7 +1106,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         대상 없는 실행이 로컬 갠트리로 가면 누름 장치 판정(``runs_locally``)·RPi4 대상(``arm_execute_target``)과 같이
         내장 갠트리 가전으로 푼다. 예전에는 판정만 그 가전으로 풀고 좌표는 비워, 좌표가 필요한 실제 실행 대상이
         좌표 없이 받았다. 이력·사용 기록의 대상은 바꾸지 않는다(요청한 그대로)."""
-        if appliance_id is None and controller is self._controller:
+        # 가전 개념이 없는 구성(레지스트리 없음)은 대상 없음 그대로 — ``runs_locally``와 같다.
+        if appliance_id is None and controller is self._controller and self._appliance_registry is not None:
             return BUILTIN_GANTRY_APPLIANCE
         return appliance_id
 

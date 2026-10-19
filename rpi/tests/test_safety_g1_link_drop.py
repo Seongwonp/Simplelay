@@ -168,5 +168,4 @@ def test_ambient_tip_says_press_unknown_for_a_physical_link_drop():
     _wait_done(service, job_id)
 
     items = _attention(service, ApplianceRegistry(), DangerAlertStore(FixedClock(NOW)))
-    # 대상 없는 실행은 내장 갠트리 가전(전자레인지)으로 풀어 상태에 싣는다(검토 2026-10-19) — 그 가전 이름으로 말한다.
-    assert [i.text for i in items if i.kind == "appliance"] == ["전자레인지 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."]
+    assert [i.text for i in items if i.kind == "appliance"] == ["가전 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."]
