@@ -352,7 +352,10 @@ def test_lost_result_times_out_as_failed_sends_abort_and_does_not_resend(rig):
     # 막힘(안전 쪽): 기한이 지나면 RPi4에 중단(abort)을 보낸다
     seq = r.broker.executes()[0]["sequence_id"]
     after = r.broker.to_act[r.broker.to_act.index(r.broker.executes()[0]) + 1:]
-    assert {"type": "abort"} in after
+    # 2026-10-19: 구동부만(scope=drive)·그 실행 표지(run_ref) — 정지 버튼 위 대기 중이어도 가전 정지 버튼을 누르지 않는다
+    aborts = [m for m in after if m.get("type") == "abort"]
+    assert aborts and aborts[0].get("scope") == "drive", after
+    assert aborts[0].get("run_ref") == r.broker.executes()[0].get("run_ref"), after
     # 자동 재전송 없음
     time.sleep(0.3)
     assert len(r.broker.executes()) == 1
