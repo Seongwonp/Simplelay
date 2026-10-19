@@ -459,7 +459,7 @@ void main() {
   });
 
   group('5. 사용 방법', () {
-    testWidgets("메뉴에 '사용 방법' — 세 장(누름 장치 · LG 가전 · 정지), 닫기", (tester) async {
+    testWidgets("메뉴에 '사용 방법' — 여섯 장(처음 화면 · 누름 장치 · LG 가전 · 정지 · 몰라요 · 물어볼 곳), 닫기", (tester) async {
       await _pump(
           tester,
           KioskIdleView(
@@ -475,14 +475,33 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('help-guide')), findsOneWidget);
       String title() => _plain(tester, find.byKey(const ValueKey('help-title')));
+      String body() => _plain(tester, find.byKey(const ValueKey('help-body')));
+      String number() => _plain(tester, find.byKey(const ValueKey('help-page-number')));
+      Future<void> next() async {
+        await tester.tap(find.byKey(const ValueKey('help-next')));
+        await tester.pump();
+      }
+
+      // 화면 읽기가 '/'를 이상하게 읽어 'n장 중 i장'(R11).
+      expect(number(), '사용 방법 6장 중 1장');
+      expect(title(), contains('처음 화면'));
+      expect(body(), contains("'메뉴'"));
+      await next();
       expect(title(), contains('누름 장치'));
-      await tester.tap(find.byKey(const ValueKey('help-next')));
-      await tester.pump();
+      expect(body(), contains("'지금 하기'"));
+      await next();
       expect(title(), contains('LG 가전'));
-      await tester.tap(find.byKey(const ValueKey('help-next')));
-      await tester.pump();
+      await next();
       expect(title(), contains('정지'));
-      expect(_plain(tester, find.byKey(const ValueKey('help-body'))), allOf(contains('정지'), isNot(contains('말해도'))));
+      // 음성 정지는 실물 확인 전이라 넣지 않는다(10/18 결정).
+      expect(body(), allOf(contains('정지'), isNot(contains('말해도')), isNot(contains('멈춰'))));
+      await next();
+      expect(title(), contains('몰라요'));
+      expect(body(), contains('가전을 직접 봐 주세요'));
+      await next();
+      expect(number(), '사용 방법 6장 중 6장');
+      expect(title(), contains('가족'));
+      expect(find.byKey(const ValueKey('help-next')), findsNothing);
       await tester.tap(find.byKey(const ValueKey('help-done')));
       await tester.pump();
       expect(find.byKey(const ValueKey('help-guide')), findsNothing);

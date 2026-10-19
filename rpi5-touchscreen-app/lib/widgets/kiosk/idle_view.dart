@@ -1788,7 +1788,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                     key: const ValueKey('help-entry'),
                     icon: Icons.help_outline,
                     label: '사용 방법',
-                    sub: '누름 장치·LG 가전·멈추는 법',
+                    sub: '화면 쓰는 법, 멈추는 법, 물어볼 곳',
                     onTap: () => setState(() => _sheet = _Sheet.help),
                   ),
                 ],
