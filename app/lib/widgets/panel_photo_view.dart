@@ -154,13 +154,14 @@ class PanelPhotoView extends StatelessWidget {
   }
 
   Widget _positioned(BuildContext context, PanelMark m, Offset at) {
-    // 터치 대상은 44px 이상(고령 사용자 기준). 그림은 그 안에 작게 그린다.
-    const touch = 44.0;
+    // 터치 대상은 48dp 이상(접근성 최소, 첫 사용 검토 10/19 — 버튼 44·기다리는 자리 40이었다). 그림은 그 안에
+    // 종전 크기로 그린다.
+    const touch = 48.0;
     final child = _MarkGlyph(mark: m);
     final tappable = onTapMark != null &&
         m.kind != PanelMarkKind.corner &&
         m.kind != PanelMarkKind.pin;
-    final size = m.kind == PanelMarkKind.park ? 40.0 : touch;
+    const size = touch;
     // 핀·모서리는 읽기용이라 터치를 막지 않는다 -- 녹화 중에 핀이 버튼을
     // 덮어도 같은 버튼을 한 번 더 짚을 수 있어야 한다.
     final small = m.kind == PanelMarkKind.pin ? 26.0 : size;
@@ -232,10 +233,16 @@ class _MarkGlyph extends StatelessWidget {
           ),
         );
       case PanelMarkKind.park:
-        return CustomPaint(
-          painter: _DashedRectPainter(color: const Color(0xFFC9CDD2)),
-          child: const Center(
-            child: Icon(Icons.local_parking, size: 16, color: Color(0xFFC9CDD2)),
+        return Center(
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: CustomPaint(
+              painter: _DashedRectPainter(color: const Color(0xFFC9CDD2)),
+              child: const Center(
+                child: Icon(Icons.local_parking, size: 16, color: Color(0xFFC9CDD2)),
+              ),
+            ),
           ),
         );
       case PanelMarkKind.pending:
