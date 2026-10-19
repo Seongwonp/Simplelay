@@ -45,6 +45,9 @@ def client(monkeypatch):
     caches = (deps.get_appliance_registry, deps.get_service, deps.get_control_arbiter)
     for dep in caches:
         dep.cache_clear()
+    import rpi.services.verify_pass as verify_pass
+
+    monkeypatch.setattr(verify_pass, "_runner", None)  # 앞선 시험의 주행 기록을 물려받지 않게
     c = TestClient(app)
     assert c.put("/appliances/microwave/mapping", json=MAPPING).status_code == 200
     yield c
