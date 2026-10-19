@@ -152,7 +152,7 @@ void main() {
                 'filterInfo': {'filterRemainPercent': 87},
               },
             ),
-            thinqSend: (_, __) async => const KioskJobAccepted(jobId: 'j'),
+            thinqSend: (_, __, ___) async => const KioskJobAccepted(jobId: 'j'),
             onThinqAccepted: (_, __) {},
           ));
       await tester.pump(const Duration(milliseconds: 300));

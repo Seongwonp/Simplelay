@@ -315,12 +315,20 @@ class FakeKioskApi implements KioskApiService {
   final thinqCommands = <(String, String, Map<String, Object>)>[];
   Object? thinqCommandError;
 
+  /// 조작마다 실은 요청 번호(검토 10/19) — 응답을 잃으면 [jobByRequest]로 찾는다.
+  final thinqRequestIds = <String?>[];
+
+  /// 조작 접수 응답을 잡아 둔다(검토 10/19) — 응답 전 두 번 누름을 흉내 낸다.
+  Completer<KioskJobAccepted>? thinqCommandPending;
+
   @override
   Future<KioskJobAccepted> thinqCommand(
-      String applianceId, String action, Map<String, Object> args) async {
+      String applianceId, String action, Map<String, Object> args, {String? clientRequestId}) async {
     thinqCommands.add((applianceId, action, args));
+    thinqRequestIds.add(clientRequestId);
     final error = thinqCommandError;
     if (error != null) throw error;
+    if (thinqCommandPending != null) return thinqCommandPending!.future;
     return KioskJobAccepted(jobId: nextJobId);
   }
 

@@ -231,7 +231,7 @@ void main() {
                 'filterInfo': {'filterRemainPercent': 87},
               },
             ),
-            thinqSend: (_, __) async => const KioskJobAccepted(jobId: 'j'),
+            thinqSend: (_, __, ___) async => const KioskJobAccepted(jobId: 'j'),
             onThinqAccepted: (_, __) {},
           ),
       '잠시 쉬기 창': () => DndOverlay(dndUntil: null, onSet: (_) {}, onClear: () {}, onDismiss: () {}),

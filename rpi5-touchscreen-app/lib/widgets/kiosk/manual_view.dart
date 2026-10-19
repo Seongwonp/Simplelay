@@ -33,6 +33,7 @@ class KioskManualView extends StatefulWidget {
     this.thinqRead,
     this.thinqSend,
     this.onThinqAccepted,
+    this.thinqLookup,
   });
 
   final ApplianceMap appliance;
@@ -50,8 +51,12 @@ class KioskManualView extends StatefulWidget {
   /// ThinQ 가전 상세(2026-10-16) — 지금 상태 읽기(GET /thinq/status)·조작 보내기(POST /thinq/command)·접수됨.
   /// 읽기가 없으면(허브 없음) 상태 칸이 '연결되지 않았어요'를 말하고 조작을 내걸지 않는다.
   final Future<KioskThinqStatus> Function()? thinqRead;
-  final Future<KioskJobAccepted> Function(String action, Map<String, Object> args)? thinqSend;
+  final Future<KioskJobAccepted> Function(String action, Map<String, Object> args, String clientRequestId)?
+      thinqSend;
   final void Function(String jobId, String label)? onThinqAccepted;
+
+  /// 응답을 잃은 조작의 실행 번호 찾기(GET /jobs/by-request, 검토 10/19).
+  final Future<KioskRequestLookup> Function(String clientRequestId)? thinqLookup;
 
   @override
   State<KioskManualView> createState() => _KioskManualViewState();
@@ -192,6 +197,7 @@ class _KioskManualViewState extends State<KioskManualView> {
         appliance: appliance,
         readStatus: widget.thinqRead,
         sendCommand: widget.thinqSend,
+        lookupRequest: widget.thinqLookup,
         onAccepted: (jobId, label) => widget.onThinqAccepted?.call(jobId, label),
       );
     }

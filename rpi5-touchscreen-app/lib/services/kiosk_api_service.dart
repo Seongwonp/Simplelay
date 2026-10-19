@@ -820,6 +820,19 @@ class KioskApiService {
     }
   }
 
+  /// 옛 본체가 `client_request_id`를 모르는 필드로 거절했나(422 extra_forbidden, 그 필드 위치). 다른 422는 아니다.
+  static bool _refusedRequestIdField(http.Response res) {
+    if (res.statusCode != 422) return false;
+    try {
+      final detail = (jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>)['detail'];
+      return detail is List &&
+          detail.any((e) =>
+              e is Map && e['type'] == 'extra_forbidden' && e['loc'] is List && (e['loc'] as List).contains('client_request_id'));
+    } catch (_) {
+      return false;
+    }
+  }
+
   // 에러 응답({"detail": ...})을 접수 성공으로 오파싱하지 않도록 명시 확인 —
   // 409(이미 실행 중) 등이 조용히 삼켜져 실행 화면에 고착되는 것을 막는다.
   static void _ensureOk(http.Response res) {
@@ -1015,15 +1028,24 @@ class KioskApiService {
 
   /// POST /thinq/command — 키오스크에서 확인을 거친 ThinQ 조작 1건 → job_id(폰과 같은 경로).
   /// 거절(4xx·5xx)은 [KioskApiException], 시간 초과·끊김은 그 예외 그대로 던진다.
-  Future<KioskJobAccepted> thinqCommand(
-      String applianceId, String action, Map<String, Object> args) async {
-    final res = await _client
+  /// [clientRequestId]를 실으면 같은 번호로 다시 보내도 본체가 한 번만 접수하고, 응답을 잃으면 [jobByRequest]로 찾는다(검토 10/19).
+  /// 옛 본체는 모르는 필드를 422로 거절한다(접수 없음) — 그때만 번호 없이 한 번 다시 보낸다.
+  Future<KioskJobAccepted> thinqCommand(String applianceId, String action, Map<String, Object> args,
+      {String? clientRequestId}) async {
+    Future<http.Response> post(String? requestId) => _client
         .post(
           _base.replace(path: '/thinq/command'),
-          body: jsonEncode({'appliance_id': applianceId, 'action': action, 'args': args}),
+          body: jsonEncode({
+            'appliance_id': applianceId,
+            'action': action,
+            'args': args,
+            if (requestId != null) 'client_request_id': requestId,
+          }),
           headers: _jsonHeaders,
         )
         .timeout(_thinqTimeout);
+    var res = await post(clientRequestId);
+    if (clientRequestId != null && _refusedRequestIdField(res)) res = await post(null);
     _ensureOk(res);
     return KioskJobAccepted.fromJson(
         jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);

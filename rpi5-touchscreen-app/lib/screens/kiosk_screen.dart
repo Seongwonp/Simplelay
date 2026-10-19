@@ -2459,7 +2459,9 @@ class _KioskScreenState extends State<KioskScreen> {
           onRoutine: _onRoutine,
           applianceNames: {for (final a in _appliances) a.id: a.displayName},
           thinqRead: () => _api.thinqStatus(manualAppliance.id),
-          thinqSend: (action, args) => _api.thinqCommand(manualAppliance.id, action, args),
+          thinqSend: (action, args, requestId) =>
+              _api.thinqCommand(manualAppliance.id, action, args, clientRequestId: requestId),
+          thinqLookup: _api.jobByRequest,
           onThinqAccepted: _onThinqAccepted,
         );
       case KioskPhase.suggestion:

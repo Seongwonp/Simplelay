@@ -95,7 +95,7 @@ void main() {
           onCancel: () {},
           thinqRead: () async => KioskThinqStatus(
               executionMode: 'mock', readAt: DateTime(2026, 10, 18, 9, 7), state: _washer),
-          thinqSend: (action, args) {
+          thinqSend: (action, args, _) {
             sent.add((action, args));
             return Future.value(const KioskJobAccepted(jobId: 'job-9'));
           },

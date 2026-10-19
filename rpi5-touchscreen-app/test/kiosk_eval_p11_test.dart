@@ -145,7 +145,7 @@ Future<void> _pumpThinq(WidgetTester tester, {String power = 'POWER_ON', double 
         onCancel: () {},
         thinqRead: () async => KioskThinqStatus(
             state: _state(power: power), executionMode: 'real', readAt: DateTime(2026, 10, 16, 9, 7)),
-        thinqSend: (_, __) async => const KioskJobAccepted(jobId: 'j'),
+        thinqSend: (_, __, ___) async => const KioskJobAccepted(jobId: 'j'),
         onThinqAccepted: (_, __) {},
       ),
       scale: scale);

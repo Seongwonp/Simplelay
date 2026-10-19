@@ -571,7 +571,7 @@ void main() {
               'airFlow': {'windStrength': 'LOW'},
             },
           ),
-          thinqSend: (_, __) async => const KioskJobAccepted(jobId: 'j'),
+          thinqSend: (_, __, ___) async => const KioskJobAccepted(jobId: 'j'),
           onThinqAccepted: (_, __) {},
         );
 

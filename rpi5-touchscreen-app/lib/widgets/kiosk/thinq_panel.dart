@@ -91,6 +91,7 @@ class KioskThinqPanel extends StatefulWidget {
     required this.readStatus,
     required this.sendCommand,
     required this.onAccepted,
+    this.lookupRequest,
   });
 
   final ApplianceMap appliance;
@@ -98,8 +99,12 @@ class KioskThinqPanel extends StatefulWidget {
   /// GET /thinq/status/{id}. null이면 허브가 없어 읽지 못한다.
   final Future<KioskThinqStatus> Function()? readStatus;
 
-  /// POST /thinq/command.
-  final Future<KioskJobAccepted> Function(String action, Map<String, Object> args)? sendCommand;
+  /// POST /thinq/command — 조작마다 새 요청 번호(`client_request_id`)를 함께 넘긴다(검토 10/19).
+  final Future<KioskJobAccepted> Function(String action, Map<String, Object> args, String clientRequestId)?
+      sendCommand;
+
+  /// GET /jobs/by-request/{id} — 응답을 잃은 조작이 접수됐는지 찾는다. null이면 찾지 않고 '됐는지 몰라요'.
+  final Future<KioskRequestLookup> Function(String clientRequestId)? lookupRequest;
 
   /// 접수됨 — job_id와 실행 화면 제목.
   final void Function(String jobId, String label) onAccepted;
@@ -151,39 +156,66 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
   }
 
   Future<void> _send(_PendingChange change) async {
+    // 보내는 중이면 다시 누름을 받지 않는다 — 확인 창이 걷히기 전 두 번 누름이 같은 조작을 두 번 보냈다(검토 10/19).
+    if (_sending) return;
     final send = widget.sendCommand;
+    if (send == null) {
+      setState(() {
+        _pending = null;
+        _message = '본체에 연결되면 바꿀 수 있어요.';
+      });
+      return;
+    }
+    // 보내기 전에 보내는 중으로 — 확인 창 닫기와 한 번에.
     setState(() {
       _pending = null;
       _message = null;
+      _sending = true;
     });
-    if (send == null) {
-      setState(() => _message = '본체에 연결되면 바꿀 수 있어요.');
-      return;
-    }
-    setState(() => _sending = true);
+    final requestId = newKioskRequestId();
     final label = change.control.doneLabel(widget.appliance.displayName, change.word);
     try {
-      final accepted = await send(change.control.action, {change.control.arg: change.value});
+      final accepted = await send(change.control.action, {change.control.arg: change.value}, requestId);
       if (!mounted) return;
       setState(() => _sending = false);
       widget.onAccepted(accepted.jobId, label);
     } on KioskApiException catch (e) {
       if (!mounted) return;
       final refusal = thinqCommandRefusal(e.statusCode, e.detail);
-      setState(() {
-        _sending = false;
-        _message = refusal ?? kThinqUnknownOutcome;
-      });
-      if (refusal == null) unawaited(_read());
+      // 분명한 거절만 그 문장. 그 밖(5xx)은 접수됐을 수 있다 — 응답을 잃은 것과 같이 찾는다.
+      if (refusal != null) {
+        setState(() {
+          _sending = false;
+          _message = refusal;
+        });
+        return;
+      }
+      await _recover(requestId, label);
     } catch (_) {
-      // 시간 초과·끊김 — 허브가 이미 받았을 수 있다. 결과를 모른다고 말하고 다시 읽는다.
+      // 시간 초과·끊김 — 허브가 이미 받았을 수 있다.
       if (!mounted) return;
-      setState(() {
-        _sending = false;
-        _message = kThinqUnknownOutcome;
-      });
-      unawaited(_read());
+      await _recover(requestId, label);
     }
+  }
+
+  /// 응답을 잃은 조작을 요청 번호로 찾는다(검토 10/19) — 접수됐으면 그 실행을 따라가고, 본체가 모르는 번호라고 하면 받지
+  /// 못했다고 말한다. 옛 본체·조회 실패면 종전처럼 됐는지 모른다고 말하고 상태를 다시 읽는다.
+  Future<void> _recover(String requestId, String label) async {
+    final lookup = widget.lookupRequest;
+    final found = lookup == null
+        ? const KioskRequestLookup(KioskRequestLookupKind.unsupported)
+        : await lookup(requestId);
+    if (!mounted) return;
+    if (found.kind == KioskRequestLookupKind.found && found.jobId != null) {
+      setState(() => _sending = false);
+      widget.onAccepted(found.jobId!, label);
+      return;
+    }
+    setState(() {
+      _sending = false;
+      _message = found.kind == KioskRequestLookupKind.unknown ? kThinqNotReceived : kThinqUnknownOutcome;
+    });
+    unawaited(_read());
   }
 
   @override

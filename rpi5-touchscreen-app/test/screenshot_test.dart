@@ -246,7 +246,7 @@ KioskManualView _washerDetail() => KioskManualView(
           'timer': {'remainHour': 0, 'remainMinute': 45},
         },
       ),
-      thinqSend: (_, __) async => const KioskJobAccepted(jobId: 'j'),
+      thinqSend: (_, __, ___) async => const KioskJobAccepted(jobId: 'j'),
       onThinqAccepted: (_, __) {},
     );
 
@@ -280,7 +280,7 @@ KioskManualView _thinqDetail({String power = 'POWER_ON', bool sensor = true}) =>
           'filterInfo': {'filterRemainPercent': 87},
         },
       ),
-      thinqSend: (_, __) async => const KioskJobAccepted(jobId: 'j'),
+      thinqSend: (_, __, ___) async => const KioskJobAccepted(jobId: 'j'),
       onThinqAccepted: (_, __) {},
     );
 

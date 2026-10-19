@@ -393,7 +393,7 @@ void main() {
                 reads.add(1);
                 return read();
               },
-              thinqSend: (action, args) {
+              thinqSend: (action, args, _) {
                 sent.add((action, args));
                 return send?.call(action, args) ?? Future.value(const KioskJobAccepted(jobId: 'job-7'));
               },

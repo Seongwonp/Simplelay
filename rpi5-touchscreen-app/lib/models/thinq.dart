@@ -413,3 +413,6 @@ String? thinqCommandRefusal(int statusCode, String detail) {
 
 /// 응답 없이 끝난 조작 요청(시간 초과·연결 끊김) — 허브가 이미 받았을 수 있다.
 const kThinqUnknownOutcome = '됐는지 몰라요. 새로 보기를 눌러 봐 주세요.';
+
+/// 응답을 잃은 조작을 요청 번호로 물었더니 본체가 그 조작을 접수하지 않았다고 했을 때(검토 10/19) — 보내지 않았다.
+const kThinqNotReceived = '본체가 받지 못했어요. 지금 상태를 보고 다시 눌러 주세요.';
