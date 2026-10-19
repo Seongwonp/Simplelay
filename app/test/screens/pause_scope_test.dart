@@ -3,8 +3,12 @@
 // 새 제안만(자동 실행은 그대로). 서버 /health/detail `dnd_scope`로 가른다.
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay/models/auto_rule.dart';
 import 'package:simplelay/providers/ble_provider.dart';
+import 'package:simplelay/providers/routine_provider.dart';
+import 'package:simplelay/widgets/dnd_bottom_sheet.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -88,5 +92,49 @@ void main() {
     await tester.tap(findPlainText('시간 고르기'));
     await tester.pumpAndSettle();
     expect(findPlainText('직접 하기와 정지는 그대로예요.'), findsNWidgets(2));
+  });
+
+  // 첫 사용자 검토 10/19 #15: 큰 글씨·건너뛰는 일이 여럿이면 시간 고르기 창이 넘쳐 '그만 쉬기'까지 닿지 못했다.
+  testWidgets('큰 글씨(200%)·작은 화면에서도 시간 고르기 창이 넘치지 않고 끝까지 닿는다', (tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final soon = DateTime.now().add(const Duration(minutes: 10));
+    final hhmm = '${soon.hour.toString().padLeft(2, '0')}:${soon.minute.toString().padLeft(2, '0')}';
+    final rules = [
+      for (var i = 0; i < 4; i++)
+        AutoRule(
+          id: 'ar-$i',
+          name: '저녁 공기청정기 켜기 $i',
+          conditionText: '매일 $hhmm이 되면',
+          actionText: '공기청정기 전원',
+          enabled: true,
+          statusLabel: '자동 실행 켜짐',
+          conditionTime: hhmm,
+          conditionKind: 'time',
+        ),
+    ];
+    await tester.pumpWidget(ProviderScope(
+      overrides: [autoRulesProvider.overrideWith((ref) async => rules)],
+      child: MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(360, 640), textScaler: TextScaler.linear(2.0)),
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showDndSheet(context),
+                child: const Text('열기'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('열기'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final stopPause = findPlainText('그만 쉬기');
+    await tester.scrollUntilVisible(stopPause, 100, scrollable: find.byType(Scrollable).last);
+    expect(stopPause.hitTestable(), findsOneWidget);
   });
 }

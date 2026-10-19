@@ -37,122 +37,126 @@ class _DndSheet extends ConsumerWidget {
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 핸들
-            const SizedBox(height: AppSpace.md),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: context.appOutline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: AppSpace.xl),
-
-            // 헤더
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
-              child: Row(
-                children: [
-                  Icon(AppIcons.pause,
-                      color: context.appWarning, size: 22),
-                  const SizedBox(width: AppSpace.md),
-                  Flexible(child: Text('잠시 쉬기', style: AppText.title)),
-                  const Spacer(),
-                  if (isActive)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpace.md, vertical: AppSpace.xs),
-                      decoration: BoxDecoration(
-                        color: context.appWarning.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: context.appWarning.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(
-                        '쉬는 중',
-                        style: TextStyle(
-                            color: context.appWarning,
-                            fontSize: AppFont.caption,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            // 2026-10-17 쉬운 말 사전: 폰·본체 화면 모두 '잠시 쉬기' — 이름 해명 문장은 뺐다.
-
-            // 쉬는 동안에도 그대로인 것 — 조용한 시간과 같은 말(첫 사용자 검토 10/19). 선택지마다 붙이면 큰 글씨에서 창이 길어진다.
-            const SizedBox(height: AppSpace.sm),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '직접 하기와 정지는 그대로예요.',
-                  style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+        // 큰 글씨·건너뛰는 일이 여럿이면 창이 화면보다 길어진다 — 넘쳐 잘리지 않고 끝('그만 쉬기')까지 밀어 볼 수 있게
+        // (첫 사용자 검토 10/19).
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 핸들
+              const SizedBox(height: AppSpace.md),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.appOutline,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
+              const SizedBox(height: AppSpace.xl),
 
-            // 현재 DND 남은 시간
-            if (isActive) ...[
+              // 헤더
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                child: Row(
+                  children: [
+                    Icon(AppIcons.pause,
+                        color: context.appWarning, size: 22),
+                    const SizedBox(width: AppSpace.md),
+                    Flexible(child: Text('잠시 쉬기', style: AppText.title)),
+                    const Spacer(),
+                    if (isActive)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.md, vertical: AppSpace.xs),
+                        decoration: BoxDecoration(
+                          color: context.appWarning.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: context.appWarning.withValues(alpha: 0.4)),
+                        ),
+                        child: Text(
+                          '쉬는 중',
+                          style: TextStyle(
+                              color: context.appWarning,
+                              fontSize: AppFont.caption,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // 2026-10-17 쉬운 말 사전: 폰·본체 화면 모두 '잠시 쉬기' — 이름 해명 문장은 뺐다.
+
+              // 쉬는 동안에도 그대로인 것 — 조용한 시간과 같은 말(첫 사용자 검토 10/19). 선택지마다 붙이면 큰 글씨에서 창이 길어진다.
               const SizedBox(height: AppSpace.sm),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
-                child: Text(
-                  _remaining(dndUntil),
-                  style: TextStyle(
-                      color: context.appWarning, fontSize: AppFont.caption),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '직접 하기와 정지는 그대로예요.',
+                    style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+                  ),
                 ),
               ),
-            ],
 
-            const SizedBox(height: AppSpace.xl),
-            const Divider(height: 1),
-            const SizedBox(height: AppSpace.sm),
+              // 현재 DND 남은 시간
+              if (isActive) ...[
+                const SizedBox(height: AppSpace.sm),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                  child: Text(
+                    _remaining(dndUntil),
+                    style: TextStyle(
+                        color: context.appWarning, fontSize: AppFont.caption),
+                  ),
+                ),
+              ],
 
-            // 기간 선택 버튼들
-            ..._kOptions.map(
-              (opt) => _OptionTile(
-                label: opt.label,
-                // 그 시간 안에 드는 자동 실행을 이름으로(UI 평가 7차 10/17) — 쉬는 동안 소리 없이 건너뛰지 않게.
-                subtitle: switch (pauseSkippedRules(now, opt.minutes, rules)) {
-                  final skipped when skipped.isNotEmpty =>
-                    '${opt.subtitle}. 이때 건너뛰는 일: ${skipped.join(', ')}',
-                  _ => opt.subtitle,
-                },
-                onTap: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  Navigator.of(context).pop();
-                  _notSaved(messenger, await ref.read(dndProvider.notifier).set(opt.minutes));
-                },
+              const SizedBox(height: AppSpace.xl),
+              const Divider(height: 1),
+              const SizedBox(height: AppSpace.sm),
+
+              // 기간 선택 버튼들
+              ..._kOptions.map(
+                (opt) => _OptionTile(
+                  label: opt.label,
+                  // 그 시간 안에 드는 자동 실행을 이름으로(UI 평가 7차 10/17) — 쉬는 동안 소리 없이 건너뛰지 않게.
+                  subtitle: switch (pauseSkippedRules(now, opt.minutes, rules)) {
+                    final skipped when skipped.isNotEmpty =>
+                      '${opt.subtitle}. 이때 건너뛰는 일: ${skipped.join(', ')}',
+                    _ => opt.subtitle,
+                  },
+                  onTap: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    Navigator.of(context).pop();
+                    _notSaved(messenger, await ref.read(dndProvider.notifier).set(opt.minutes));
+                  },
+                ),
               ),
-            ),
 
-            const Divider(height: 1),
+              const Divider(height: 1),
 
-            // 해제
-            _OptionTile(
-              label: '그만 쉬기',
-              subtitle: isActive ? '다시 물어보고 자동으로 해요' : '지금은 쉬고 있지 않아요',
-              iconColor: isActive ? context.appDanger : context.appMuted,
-              enabled: isActive,
-              onTap: isActive
-                  ? () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      Navigator.of(context).pop();
-                      _notSaved(messenger, await ref.read(dndProvider.notifier).clear());
-                    }
-                  : null,
-            ),
+              // 해제
+              _OptionTile(
+                label: '그만 쉬기',
+                subtitle: isActive ? '다시 물어보고 자동으로 해요' : '지금은 쉬고 있지 않아요',
+                iconColor: isActive ? context.appDanger : context.appMuted,
+                enabled: isActive,
+                onTap: isActive
+                    ? () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        Navigator.of(context).pop();
+                        _notSaved(messenger, await ref.read(dndProvider.notifier).clear());
+                      }
+                    : null,
+              ),
 
-            const SizedBox(height: AppSpace.sm),
-          ],
+              const SizedBox(height: AppSpace.sm),
+            ],
+          ),
         ),
       ),
     );
