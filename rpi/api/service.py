@@ -478,10 +478,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                     or self.revision_options(appliance_id).get(purpose) != expected_buttons):
                 raise UnknownIntentError('reviewed action changed; review again')
         controller = self._controller_for(appliance_id)
-        calibration = self._calibration_snapshot(appliance_id)
-        targets = self._targets_snapshot(appliance_id, tuple(buttons), controller)
-        behaviors = self._button_behaviors_snapshot(appliance_id, buttons)
-        self._begin_run(len(buttons), controller, appliance_id, approval_guard)
+        snapshot_id = self._snapshot_target(appliance_id, controller)
+        calibration = self._calibration_snapshot(snapshot_id)
+        targets = self._targets_snapshot(snapshot_id, tuple(buttons), controller)
+        behaviors = self._button_behaviors_snapshot(snapshot_id, buttons)
+        self._begin_run(len(buttons), controller, snapshot_id, approval_guard)
         try:
             return self._run_buttons(
                 tuple(buttons), controller, purpose, appliance_id, calibration, usage_source,
@@ -506,10 +507,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         """
         buttons = self._validate_resolved_sequence(tuple(buttons))
         controller = self._controller_for(appliance_id)
-        calibration = self._calibration_snapshot(appliance_id)
-        targets = self._targets_snapshot(appliance_id, buttons, controller)
-        behaviors = self._button_behaviors_snapshot(appliance_id, buttons)
-        self._begin_run(len(buttons), controller, appliance_id)
+        snapshot_id = self._snapshot_target(appliance_id, controller)
+        calibration = self._calibration_snapshot(snapshot_id)
+        targets = self._targets_snapshot(snapshot_id, buttons, controller)
+        behaviors = self._button_behaviors_snapshot(snapshot_id, buttons)
+        self._begin_run(len(buttons), controller, snapshot_id)
         try:
             # 목적은 없지만 대상 가전은 있다. 넘기지 않으면 수동 버튼
             # 실행의 이력이 '어느 가전에서'를 잃는다 — 커스텀 가전은
@@ -649,11 +651,12 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         controller = self._controller_for(appliance_id)
         # 보정 버전은 **대상을 확정하는 지금** 캡처해 실행 스레드로 넘긴다.
         # 스레드 안에서 다시 읽으면 실행 중에 갱신된 값을 찍는다.
-        calibration = self._calibration_snapshot(appliance_id)
+        snapshot_id = self._snapshot_target(appliance_id, controller)
+        calibration = self._calibration_snapshot(snapshot_id)
         # 좌표도 같은 순간에 잡는다 -- 보정 버전과 실제로 쓴 좌표가 어긋나지 않게.
-        targets = self._targets_snapshot(appliance_id, buttons, controller)
-        behaviors = self._button_behaviors_snapshot(appliance_id, buttons)
-        job_id = self._begin_run(len(buttons), controller, appliance_id, approval_guard)
+        targets = self._targets_snapshot(snapshot_id, buttons, controller)
+        behaviors = self._button_behaviors_snapshot(snapshot_id, buttons)
+        job_id = self._begin_run(len(buttons), controller, snapshot_id, approval_guard)
         thread = threading.Thread(
             target=self._run_job,
             args=(buttons, controller, purpose, appliance_id, calibration, usage_source, learning_purpose),
@@ -972,7 +975,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         elif callable(arm_hold):
             from rpi.services.stop_park import hold_plan_for  # noqa: PLC0415
 
-            arm_hold(hold_plan_for(self._appliance_registry, appliance_id))
+            arm_hold(hold_plan_for(self._appliance_registry, self._snapshot_target(appliance_id, controller)))
         # 보내기 직전 정지 확인(2026-10-15 G2): 접수 뒤·보내기 전에 온 정지는 실행 대상에 넘기지 않는다. 예전에는
         # abort만 나가고 이 기록을 보지 않아, 쉬는 중이던 RPi4가 abort를 버린 뒤 뒤이어 온 시퀀스를 전부 눌렀다.
         # 이 확인 뒤·줄을 쓰기 전에 온 정지는 RPi4 링크(ActClientController.execute)가 이벤트 루프 안에서 다시 본다.
@@ -1096,6 +1099,16 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         controller = self._route_to(appliance_id)
         self._require_ready(appliance_id, controller)
         return controller
+
+    def _snapshot_target(self, appliance_id: str | None, controller) -> str | None:
+        """좌표·보정 버전·버튼 성질·정지 대기 계획·상태 표시에 쓸 대상(검토 2026-10-19).
+
+        대상 없는 실행이 로컬 갠트리로 가면 누름 장치 판정(``runs_locally``)·RPi4 대상(``arm_execute_target``)과 같이
+        내장 갠트리 가전으로 푼다. 예전에는 판정만 그 가전으로 풀고 좌표는 비워, 좌표가 필요한 실제 실행 대상이
+        좌표 없이 받았다. 이력·사용 기록의 대상은 바꾸지 않는다(요청한 그대로)."""
+        if appliance_id is None and controller is self._controller:
+            return BUILTIN_GANTRY_APPLIANCE
+        return appliance_id
 
     def _calibration_snapshot(self, appliance_id: str | None) -> str | None:
         """**대상을 확정하는 순간의** 보정 프로파일 버전.
