@@ -472,6 +472,8 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           const SizedBox(height: AppSpace.sm),
           TextField(
             controller: _locationController,
+            // 가전 추가 마법사와 같은 20자. 본체는 40자를 넘으면 거절해 등록·동기화가 계속 실패했다(10/19).
+            maxLength: 20,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               hintText: '예: 거실',

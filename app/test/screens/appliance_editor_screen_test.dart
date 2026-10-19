@@ -153,6 +153,18 @@ void main() {
     expect(find.byIcon(Icons.add), findsNWidgets(9)); // 3x3 빈 칸
   });
 
+  // 10/19: 본체가 40자 넘는 방을 거절(422)해서, 편집기에서 길게 적으면 등록·동기화 PUT이 계속 실패했다.
+  testWidgets('방 입력은 가전 추가 마법사와 같이 20자까지만 받는다', (tester) async {
+    _useTallViewport(tester);
+    await _pumpEditor(tester, _buildRouter());
+
+    final room = find.widgetWithText(TextField, '예: 거실');
+    expect(room, findsOneWidget);
+    await tester.enterText(room, '가' * 50);
+    await tester.pump();
+    expect(tester.widget<TextField>(room).controller!.text.length, 20);
+  });
+
   testWidgets('빈 칸을 탭하면 버튼 이름 입력 다이얼로그가 뜬다', (tester) async {
     _useTallViewport(tester);
     await _pumpEditor(tester, _buildRouter());
