@@ -544,4 +544,38 @@ void main() {
     expect(find.text('저장하지 않고 나가기'), findsNothing, reason: '아무것도 안 바꿨다');
     expect(find.text('홈'), findsOneWidget);
   });
+
+  testWidgets('시스템 뒤로 가기는 한 단계 앞으로, X는 물어보고 등록을 닫는다(실화면 10/19)', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server()));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
+
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(_title(tester), '1. 조작부 사진');
+    expect(find.text('저장하지 않고 나가기'), findsNothing);
+
+    // 1단계에서 뒤로 가기는 닫기 — 찍은 사진이 있으니 묻는다.
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(find.text('저장하지 않고 나가기'), findsOneWidget);
+    await tester.tap(find.text('닫기'));
+    await _settle(tester);
+
+    // X는 몇 단계에 있든 등록을 닫는다(물어본 뒤).
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    await tester.tap(find.byTooltip('닫기'));
+    await _settle(tester);
+    await tester.tap(find.text('저장하지 않고 나가기'));
+    await _settle(tester);
+    expect(find.text('홈'), findsOneWidget);
+  });
 }

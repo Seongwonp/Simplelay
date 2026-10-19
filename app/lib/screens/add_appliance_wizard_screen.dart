@@ -196,6 +196,13 @@ class _AddApplianceWizardScreenState
     if (_step == 1 && !_frameLoaded) unawaited(_loadFrame());
   }
 
+  bool get _dirty => !_transferring && _saved == null && _snapshot() != _initialSnapshot;
+
+  Future<void> _close() async {
+    if (_dirty && !await confirmDiscardInput(context)) return;
+    if (mounted) Navigator.of(context).pop();
+  }
+
   void _back() {
     if (_step == 0) return;
     setState(() {
@@ -511,15 +518,16 @@ class _AddApplianceWizardScreenState
   @override
   Widget build(BuildContext context) {
     return InputGuard(
-      dirty: !_transferring && _saved == null && _snapshot() != _initialSnapshot,
+      dirty: _dirty,
+      // 시스템 뒤로 가기는 한 단계 앞으로(2~4단계). 등록 전체를 닫는 것은 위 X다.
+      onBack: _step >= 1 && _step <= 3 ? (_busy ? () {} : _back) : null,
       child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
           tooltip: '닫기',
           icon: const Icon(Icons.close),
-          // context.pop()은 PopScope를 거치지 않아 입력 보호를 건너뛴다 —
-          // maybePop으로 InputGuard의 확인 대화를 거친다.
-          onPressed: _step == 4 ? _finish : () => Navigator.of(context).maybePop(),
+          // 뒤로 가기는 한 단계 앞으로 가므로 X는 입력 보호를 직접 묻고 닫는다.
+          onPressed: _step == 4 ? _finish : _close,
         ),
         // 등록된 가전의 자리를 다시 맞출 때는 '가전 추가'가 아니다(실화면 10/19: 새로 하나 더 만드는 줄 알았다).
         title: Text(widget.initial == null ? '가전 추가' : '버튼 자리 맞추기'),
