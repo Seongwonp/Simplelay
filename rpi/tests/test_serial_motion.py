@@ -518,3 +518,34 @@ def test_closed_loop_stop_reaches_the_adapter_mid_press(link):
     assert results[0].status is ExecutionStatus.SAFETY_STOPPED
     assert "stop" in mcu.cmds()
     assert mcu.cmds().count("press") == 1  # 정지 뒤 재시도하지 않았다
+
+
+@pytest.mark.parametrize("cmd", ["move", "home"])
+def test_stop_while_waiting_rejects_late_ok_and_keeps_stopped(link, monkeypatch, cmd):
+    """read_line에서 기다리는 동안 /stop이 오고 그 뒤 같은 id의 ok가 도착해도 성공으로 받지 않는다.
+
+    예전에는 늦은 ok를 정지 재확인 없이 받아 ``_run_busy``·``home``이 READY로 덮어써 재홈을 건너뛰었다(검토 10/19).
+    """
+    pipe, mcu = link
+    client = _homed_client(pipe)
+    original_read = pipe.host.read_line
+    stopped = []
+
+    def read_line(timeout):
+        line = original_read(timeout)
+        if line is not None and not stopped:
+            doc = json.loads(line)
+            if doc.get("ok") is True and "id" in doc and doc["id"] == client._next_id:
+                stopped.append(True)
+                client.request_stop()  # ok가 읽히기 직전에 다른 스레드의 /stop이 끝났다
+        return line
+
+    monkeypatch.setattr(pipe.host, "read_line", read_line)
+    with pytest.raises(MotionStopped):
+        if cmd == "move":
+            client.move_to(10.0, 10.0)
+        else:
+            client.home()
+    assert stopped
+    assert client.state is MotionState.STOPPED
+    assert not client.homed

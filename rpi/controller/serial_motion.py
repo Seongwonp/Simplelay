@@ -868,6 +868,18 @@ class SerialMotionClient(GrblClient):
         with self._state_lock:
             self._state = state
 
+    def _set_ready_unless_stopped(self) -> bool:
+        """정지 요청이 없을 때만 READY로 둔다. 정지가 끼어들었으면 STOPPED(재홈 필요)로 두고 False.
+
+        ``request_stop``은 BUSY일 때만 STOPPED로 바꾸므로, 응답과 정지가 엇갈리면 READY로 덮어쓰지 않게
+        같은 잠금 안에서 정지 표시를 다시 본다(검토 10/19)."""
+        with self._state_lock:
+            if self._stop.is_set() or self._state is MotionState.STOPPED:
+                self._state = MotionState.STOPPED
+                return False
+            self._state = MotionState.READY
+            return True
+
     # ── 명령 ─────────────────────────────────────────────────────────────────
 
     def connect(self) -> MotionStatus:
@@ -1002,7 +1014,8 @@ class SerialMotionClient(GrblClient):
                 if self.state is MotionState.BUSY:
                     self._set_state(MotionState.UNHOMED)
                 raise
-            self._set_state(MotionState.READY)
+            if not self._set_ready_unless_stopped():
+                raise MotionStopped("원점 복귀 직후 정지 요청 — 재홈 필요")
             self._reset_mid_run = False
         # 원점 복귀가 카운트를 0으로 되돌린 것은 엔코더 생존 근거가 아니다(G11) — 기준부터 다시 잡는다.
         self._reset_encoder_evidence(keep_reference=False)
@@ -1420,7 +1433,8 @@ class SerialMotionClient(GrblClient):
                 self._set_state(MotionState.UNHOMED)
                 self._emit("position_mismatch", {"detail": mismatch})
                 raise MotionPositionMismatch(f"이동 뒤 위치 불일치: {mismatch} — 재홈 필요")
-        self._set_state(MotionState.READY)
+        if not self._set_ready_unless_stopped():
+            raise MotionStopped(f"'{request.get('cmd')}' 직후 정지 요청 — 재홈 필요")
         return reply
 
     def _position_mismatch(self, request: dict, seq_before: int) -> str | None:
@@ -1498,6 +1512,10 @@ class SerialMotionClient(GrblClient):
                 continue
             if doc.get("ok") is True:
                 self._note_position(doc, "mcu_reply")
+                # read_line에서 기다리는 동안 /stop이 왔으면 늦게 도착한 ok도 성공으로 받지 않는다(검토 10/19) —
+                # 정지된 동작이라 위치를 믿을 수 없고 재홈이 필요하다.
+                if self._stop.is_set() and not allow_when_stopped:
+                    raise MotionStopped(f"'{body['cmd']}' 응답 전에 정지 요청이 와 성공으로 받지 않음")
                 return doc
             error = doc.get("error") if isinstance(doc.get("error"), str) else "unknown"
             if error in MCU_REFUSAL_ERRORS:
