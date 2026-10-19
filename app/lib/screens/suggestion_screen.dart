@@ -185,7 +185,7 @@ class SuggestionScreen extends ConsumerWidget {
         final accepted = allow == null
             ? await rpiApi.approveSuggestion(suggestion.sequenceId, clientRequestId: requestId)
             : await rpiApi.approveAndAllowSuggestion(
-                suggestion.sequenceId, allow.fingerprint);
+                suggestion.sequenceId, allow.fingerprint, clientRequestId: requestId);
         execution.beginHttpJob(
           api: rpiApi,
           jobId: accepted.jobId,
@@ -238,12 +238,13 @@ class SuggestionScreen extends ConsumerWidget {
           label: label,
           steps: suggestion.steps,
           requestId: requestId,
-          // 승인에 요청 번호를 실었다 — 새 본체에는 그 번호로 접수한 실행을 묻는다('다음부터 자동으로'는 번호를 싣지 않는다).
+          // 승인에 요청 번호를 실었다 — 새 본체에는 그 번호로 접수한 실행을 묻는다. '다음부터 자동으로'도 번호를 싣지만(다시
+          // 물으면 새 본체가 같은 실행을 준다) 그 번호를 조회에 남기지 않는 본체가 있어 조회로 '받지 않음'이라 단정하지 않는다.
           byRequest: allow == null,
           recoverJobId: () async => (allow == null
                   ? await rpiApi.approveSuggestion(suggestion.sequenceId, clientRequestId: requestId)
                   : await rpiApi.approveAndAllowSuggestion(
-                      suggestion.sequenceId, allow.fingerprint))
+                      suggestion.sequenceId, allow.fingerprint, clientRequestId: requestId))
               .jobId,
         );
         if (context.mounted) context.pushReplacement('/status');

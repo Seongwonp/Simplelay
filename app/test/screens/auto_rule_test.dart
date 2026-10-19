@@ -313,8 +313,10 @@ void main() {
 
       expect(server.requests, contains('POST /suggestions/sug-1/approve-and-allow'));
       expect(server.requests, isNot(contains('POST /suggestions/sug-1/approve')));
-      expect(server.bodies['POST /suggestions/sug-1/approve-and-allow'],
-          {'offer_fingerprint': 'fp-offer-1'});
+      final body = server.bodies['POST /suggestions/sug-1/approve-and-allow']!;
+      expect(body['offer_fingerprint'], 'fp-offer-1');
+      // 답을 잃고 다시 물을 때 같은 실행을 받도록 요청 번호를 싣는다(검토 10/19 core6 4 — 옛 본체는 무시).
+      expect(body['client_request_id'], startsWith('app-'));
       expect(find.text('상태 화면'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });

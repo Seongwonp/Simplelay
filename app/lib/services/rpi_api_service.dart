@@ -2194,12 +2194,17 @@ class RpiApiService {
 
   /// '이번에 실행하고 다음부터 자동으로' — 이번 실행(job)과 규칙 저장을 한 번에. 확인 화면이 보여 준
   /// 내용의 지문을 함께 보낸다(다르면 서버 409). 물리 누름 카드는 서버가 422로 거절한다.
-  Future<RpiJobAccepted> approveAndAllowSuggestion(String id, String offerFingerprint) async {
+  /// [clientRequestId]는 승인과 같은 요청 번호 — 답을 잃고 다시 물을 때 새 본체가 같은 실행을 돌려준다(옛 본체는 무시).
+  Future<RpiJobAccepted> approveAndAllowSuggestion(String id, String offerFingerprint,
+      {String? clientRequestId}) async {
     final res = await _client
         .post(
           _base.replace(path: '/suggestions/$id/approve-and-allow'),
           headers: _jsonHeaders,
-          body: jsonEncode({'offer_fingerprint': offerFingerprint}),
+          body: jsonEncode({
+            'offer_fingerprint': offerFingerprint,
+            if (clientRequestId != null) 'client_request_id': clientRequestId,
+          }),
         )
         .timeout(_timeout);
     _checkStatus(res);
