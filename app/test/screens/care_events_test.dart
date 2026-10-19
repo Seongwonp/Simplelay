@@ -131,7 +131,7 @@ void main() {
     final (_, dispose) = await _pump(tester, const [], api: _apiDown());
 
     expect(find.text('알림을 불러오지 못했어요.'), findsOneWidget);
-    expect(find.text('다시 불러오기'), findsOneWidget);
+    expect(find.text('새로 보기'), findsOneWidget);
     expect(find.text('아직 알림이 없어요'), findsNothing);
     dispose();
   });

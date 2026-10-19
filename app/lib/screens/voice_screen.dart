@@ -119,7 +119,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     ref.read(voiceListeningProvider.notifier).state = false;
     // 듣기는 끝났는데 남은 말이 없다 -- 실패와 다를 바 없는 상태다.
     if (ref.read(voiceTextProvider).trim().isEmpty) {
-      setState(() => _recognitionError = '말을 알아듣지 못했어요.');
+      setState(() => _recognitionError = '말을 알아듣지 못했어요. 다시 말해 주세요.');
     }
   }
 
@@ -419,7 +419,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     // 반드시 여기를 지난다.
     if (appliance == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('음성 명령')),
+        appBar: AppBar(title: const Text('말로 하기')),
         body: NoApplianceNotice(
           title: '사용할 가전을 먼저 추가해 주세요',
           body: '가전을 추가하면 여기서 말로 시킬 수 있어요.',
@@ -432,7 +432,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     // 않는다 -- 무엇이 안 되는지와 대신 갈 길을 말한다.
     if (_voiceUnavailable) {
       return Scaffold(
-        appBar: AppBar(title: const Text('음성 명령')),
+        appBar: AppBar(title: const Text('말로 하기')),
         body: _VoiceUnavailableNotice(
           appliance: appliance,
           onManual: () => context.go('/manual-control'),
@@ -461,7 +461,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('음성 명령')),
+      appBar: AppBar(title: const Text('말로 하기')),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl),
         child: Column(
@@ -497,7 +497,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                           ? '듣고 있어요…'
                           : text.trim().isEmpty
                               ? '마이크를 눌러 말해보세요'
-                              : '이대로 실행할까요?',
+                              : '이대로 할까요?',
                       style: AppText.title,
                       textAlign: TextAlign.center,
                     ),
@@ -598,7 +598,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                 stacked: stacked,
                 primary: FilledButton(
                   onPressed: _sending ? null : () => _send(text),
-                  child: Text(_sending ? '보내는 중…' : '이대로 실행'),
+                  child: Text(_sending ? '보내는 중…' : '이대로 하기'),
                 ),
                 secondary: OutlinedButton(
                   onPressed: _sending ? null : _restartListening,
@@ -700,7 +700,7 @@ class _VoiceUnavailableNotice extends StatelessWidget {
               Icon(Icons.mic_off_outlined, size: 52, color: context.appMuted),
               const SizedBox(height: AppSpace.xl),
               Text(
-                '이 기기에서 음성 인식을 쓸 수 없어요',
+                '이 폰에서는 말로 하기를 쓸 수 없어요. 버튼으로 해 주세요',
                 textAlign: TextAlign.center,
                 style: AppText.title,
               ),

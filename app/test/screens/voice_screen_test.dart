@@ -230,8 +230,8 @@ void main() {
     // 말하다 잠깐 멈춘 것이 곧바로 물리 조작이 되면 안 된다.
     expect(executeCalls, 0);
     expect(container.read(voiceListeningProvider), false);
-    expect(find.text('이대로 실행할까요?'), findsOneWidget);
-    expect(find.text('이대로 실행'), findsOneWidget);
+    expect(find.text('이대로 할까요?'), findsOneWidget);
+    expect(find.text('이대로 하기'), findsOneWidget);
     expect(find.text('다시 말하기'), findsOneWidget);
   });
 
@@ -316,12 +316,12 @@ void main() {
     container.read(voiceTextProvider.notifier).state = '즉석밥 데워줘';
     await tester.pump();
 
-    await tester.tap(find.text('이대로 실행'));
+    await tester.tap(find.text('이대로 하기'));
     await tester.pump();
 
     // 연타·중복 경로가 같은 명령을 두 번 실행하지 못하게 잠근다.
     expect(find.text('보내는 중…'), findsOneWidget);
-    expect(find.text('이대로 실행'), findsNothing);
+    expect(find.text('이대로 하기'), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 100)); // 응답 도착
     expect(executeCalls, 1);
@@ -370,7 +370,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.mic_rounded));
       await tester.pumpAndSettle();
 
-      expect(find.text('이 기기에서 음성 인식을 쓸 수 없어요'), findsOneWidget);
+      expect(find.text('이 폰에서는 말로 하기를 쓸 수 없어요. 버튼으로 해 주세요'), findsOneWidget);
       expect(find.text('다시 말하기'), findsNothing);
       // 마이크를 그려 두고 눌러도 안 되게 하지 않는다.
       expect(find.byIcon(Icons.mic_rounded), findsNothing);
@@ -396,7 +396,7 @@ void main() {
 
       // 다시 초기화를 시도했고, 여전히 안 되면 같은 안내가 남는다.
       expect(voice.initializeCalls, 2);
-      expect(find.text('이 기기에서 음성 인식을 쓸 수 없어요'), findsOneWidget);
+      expect(find.text('이 폰에서는 말로 하기를 쓸 수 없어요. 버튼으로 해 주세요'), findsOneWidget);
     });
   });
 
@@ -462,7 +462,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await tester.pump();
 
       expect(captured!.url.path, '/execute');
@@ -517,7 +517,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await tester.pump();
 
       expect(
@@ -559,7 +559,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await tester.pump();
 
       expect(captured!.url.path, '/execute-for-appliance');
@@ -594,7 +594,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await tester.pump();
 
       // raw 예외 문자열 대신 사용자 언어로 안내한다
@@ -728,7 +728,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await tester.pump();
       await tester.pump();
 
@@ -763,7 +763,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await tester.pump();
       await tester.pump();
 
@@ -788,7 +788,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await tester.pump();
       await tester.pump();
 
@@ -822,7 +822,7 @@ void main() {
       container.read(voiceTextProvider.notifier).state = '즉석밥 대워줘';
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await tester.pumpAndSettle();
       return (container, paths);
     }
@@ -859,8 +859,8 @@ void main() {
 
       expect(paths.where((p) => p == '/execute').length, sent);
       expect(container.read(voiceTextProvider), '즉석밥 데워줘');
-      expect(find.text('이대로 실행할까요?'), findsOneWidget);
-      expect(find.text('이대로 실행'), findsOneWidget);
+      expect(find.text('이대로 할까요?'), findsOneWidget);
+      expect(find.text('이대로 하기'), findsOneWidget);
       expect(find.text('혹시 이것인가요? 즉석밥 데우기'), findsNothing);
     });
 
@@ -876,7 +876,7 @@ void main() {
 
       expect(paths.where((p) => p == '/execute').length, sent);
       expect(container.read(voiceTextProvider), '30초 돌려줘');
-      expect(find.text('이대로 실행할까요?'), findsOneWidget);
+      expect(find.text('이대로 할까요?'), findsOneWidget);
     });
 
     testWidgets('옛 서버(detail만)면 종전 안내 그대로', (tester) async {
@@ -887,12 +887,12 @@ void main() {
       expect(find.textContaining('할 수 있는 일이에요'), findsNothing);
     });
 
-    // 못 알아들은 말이 '이대로 실행' 앞에 그대로 남으면 같은 말을 다시 보내게 된다(첫 사용자 검토 10/19 #12).
+    // 못 알아들은 말이 '이대로 하기' 앞에 그대로 남으면 같은 말을 다시 보내게 된다(첫 사용자 검토 10/19 #12).
     testWidgets('옛 서버 422 뒤에는 못 알아들은 말을 지우고 다시 말하기·버튼으로 하기를 남긴다', (tester) async {
       final (container, _) = await setUpScreen(tester, {'detail': 'not understood'});
 
       expect(container.read(voiceTextProvider), '');
-      expect(find.text('이대로 실행'), findsNothing);
+      expect(find.text('이대로 하기'), findsNothing);
       expect(find.text('다시 말하기'), findsOneWidget);
       expect(find.text('버튼으로 하기'), findsOneWidget);
     });

@@ -156,7 +156,7 @@ class _InboxNotice extends StatelessWidget {
             if (onRetry != null)
               TextButton(
                 onPressed: () => onRetry!(),
-                child: const Text('다시 불러오기'),
+                child: const Text('새로 보기'),
               ),
           ],
         ),

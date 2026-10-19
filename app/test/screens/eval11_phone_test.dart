@@ -380,7 +380,7 @@ void main() {
     });
 
     test('못 보낸 변경을 다시 보내는 단추는 하는 일 그대로', () {
-      expect(kResyncLabel, '본체 화면에 반영하기');
+      expect(kResyncLabel, '본체에도 똑같이 맞추기');
       expect(kResyncLabel, isNot(contains('불러오기')));
     });
   });

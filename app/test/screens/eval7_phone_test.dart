@@ -380,7 +380,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('appliance-delete-washer')));
       await tester.pumpAndSettle();
-      expect(find.text("'세탁기' 삭제"), findsOneWidget);
+      expect(find.text("'세탁기'를 지울까요?"), findsOneWidget);
       await tester.tap(find.text('취소'));
       await tester.pumpAndSettle();
     });

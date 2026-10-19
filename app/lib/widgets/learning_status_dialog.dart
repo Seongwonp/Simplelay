@@ -60,7 +60,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                         Text('최근 ${status.windowDays}일의 사용 기록'),
                         const Divider(height: 28),
                         if (status.routines.isEmpty)
-                          const Text('아직 학습할 실제 사용 기록이 없어요. 평소처럼 사용해 주세요.'),
+                          const Text('아직 알아 둘 사용 기록이 없어요. 평소처럼 사용해 주세요.'),
                         for (final routine in status.routines) ...[
                           Text(routine.purpose,
                               style: Theme.of(context).textTheme.titleMedium),
@@ -72,7 +72,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                               ? '묻지 않기로 했어요'
                               : routine.established
                                   ? '습관이에요'
-                                  : '습관을 알아가는 중'),
+                                  : '습관인지 보고 있어요'),
                           const SizedBox(height: AppSpace.lg),
                         ],
                         if (status.paused) const Text('방해 금지가 켜져 있어 묻지 않아요.'),
@@ -97,7 +97,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
         actions: [
           if (widget.load != null)
             TextButton(
-                onPressed: () => setState(_reload), child: const Text('새로고침')),
+                onPressed: () => setState(_reload), child: const Text('새로 보기')),
           TextButton(
               onPressed: widget.onClose ?? () => Navigator.of(context).pop(),
               child: const Text('닫기')),

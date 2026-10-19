@@ -29,7 +29,7 @@ void main() {
     await tester.tap(find.byTooltip('닫기'));
     await tester.pumpAndSettle();
     expect(find.text('저장하지 않고 나가기'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, '닫기'));
+    await tester.tap(find.widgetWithText(TextButton, '계속 고치기'));
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(find.byKey(const Key('wizard-name'))).controller!.text, '내 세탁기');
     await tester.tap(find.text('사진 없이 버튼판으로 등록하기'));

@@ -6,7 +6,7 @@
 //    (폰·본체 화면 어디서 보냈는지는 /history에 가를 필드가 없어 'LG 가전'까지만.) 누름 장치 기록은 그대로.
 // 3. 홈 가전 칸: 자리 확인을 모르면 '버튼 자리를 다시 맞춰 주세요'(설정 '버튼 자리를 맞춰 주세요'와 같은 말 계열).
 // 4. 설정: LG 가전 부제는 두 줄 — '켜기·끄기는 여기서 해요' / '등록은 LG 앱에서 해요'('LG / 앱에서' 끊김 없음).
-//    본체 반영 단추는 이름이 '본체 화면에 반영하기', 보낼 것이 있을 때만 보인다.
+//    본체 반영 단추는 이름이 '본체에도 똑같이 맞추기', 보낼 것이 있을 때만 보인다.
 // 5. 홈 안 본 알림 줄: 본체가 실제로 보내는 종류(auto_rule·routine_notice 등)도 무슨 알림인지 말한다.
 import 'dart:convert';
 import 'dart:io';
@@ -248,16 +248,16 @@ void main() {
       expect(findPlainText('다시 보내기', contains: true), findsNothing);
     });
 
-    testWidgets("이 폰의 가전이 본체에 없으면 '본체 화면에 반영하기'", (tester) async {
+    testWidgets("이 폰의 가전이 본체에 없으면 '본체에도 똑같이 맞추기'", (tester) async {
       // 본체에 아직 닿지 못한 가전(판 0). 판이 있는데 본체에 없으면 본체에서 지운 것이라 폰에서도 빠진다(10/19).
       final local = ApplianceMap.fromJson({..._appliance('fan', '선풍기', 'other'), 'revision': 0});
       await _pump(tester, const SettingsScreen(), installed: [..._installed, local]);
-      await tester.scrollUntilVisible(findPlainText('본체 화면에 반영하기'), 200);
-      expect(findPlainText('본체 화면에 반영하기'), findsOneWidget);
+      await tester.scrollUntilVisible(findPlainText('본체에도 똑같이 맞추기'), 200);
+      expect(findPlainText('본체에도 똑같이 맞추기'), findsOneWidget);
     });
 
     test('단추 이름은 얻는 결과', () {
-      expect(kResyncLabel, '본체 화면에 반영하기');
+      expect(kResyncLabel, '본체에도 똑같이 맞추기');
       expect(kResyncLabel, isNot(contains('보내기')));
     });
   });

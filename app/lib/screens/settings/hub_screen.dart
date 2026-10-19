@@ -184,7 +184,7 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
   Widget build(BuildContext context) {
     final location = ref.watch(hubLocationProvider);
     final line = location.when(
-      loading: () => '확인하는 중이에요',
+      loading: () => '알아보고 있어요',
       error: (_, __) => '본체와 연결되면 볼 수 있어요',
       data: (l) => switch (l?.source) {
         'app' => '폰에서 정한 위치예요',
@@ -211,7 +211,7 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.my_location),
-          label: const Text('현재 위치로 설정'),
+          label: const Text('지금 있는 곳으로 정하기'),
         ),
         if (_message != null) ...[
           const SizedBox(height: AppSpace.sm),

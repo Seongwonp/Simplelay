@@ -127,12 +127,12 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     final send = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('사진을 외부 인식 서비스로 보낼까요?'),
+        title: const Text('사진을 인터넷 사진 읽기 서비스로 보낼까요?'),
         content: Text(
           _buttonCount > 0
-              ? '사진이 본체를 거쳐 인터넷의 외부 인식 서비스로 가요.\n'
+              ? '사진이 본체를 거쳐 인터넷 사진 읽기 서비스로 가요.\n'
                   '적어 둔 버튼 $_buttonCount개가 읽은 결과로 바뀌어요.'
-              : '사진이 본체를 거쳐 인터넷의 외부 인식 서비스로 가요.',
+              : '사진이 본체를 거쳐 인터넷 사진 읽기 서비스로 가요.',
         ),
         actions: [
           TextButton(
@@ -232,7 +232,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(existing == null ? '버튼 추가' : '버튼 수정'),
+        title: Text(existing == null ? '버튼 추가' : '버튼 고치기'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -512,7 +512,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                     IconButton(
                       onPressed: _scanning ? null : _removePhoto,
                       icon: const Icon(Icons.close),
-                      tooltip: '사진 제거',
+                      tooltip: '사진 지우기',
                     ),
                   ],
                 ),
@@ -534,7 +534,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
             const SizedBox(height: AppSpace.sm),
             // 사진이 기기 밖으로 나가는 유일한 경로라, 누르기 전에 말한다.
             Text(
-              '누르면 사진이 본체를 거쳐 인터넷의 외부 인식 서비스로 보내져요. 결과를 보고 고친 뒤 저장해요.',
+              '누르면 사진을 본체를 거쳐 인터넷 사진 읽기 서비스로 보내요. 결과를 보고 고친 뒤 저장해요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ],
@@ -542,7 +542,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
 
           ],
           // ── 4. 버튼 배치 ───────────────────────────────────────────────
-          const _StepTitle(number: 4, title: '버튼 배치'),
+          const _StepTitle(number: 4, title: '버튼 자리'),
           const SizedBox(height: AppSpace.xs),
           Text(
             '실제 버튼이 있는 자리를 눌러 이름을 적어요. 줄과 칸 수는 가전 버튼판에 맞춰요.',
@@ -736,7 +736,7 @@ class _StepTitle extends StatelessWidget {
           Flexible(child: Text(title, style: AppText.title)),
           if (optional) ...[
             const SizedBox(width: AppSpace.sm),
-            Text('선택', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+            Text('안 해도 돼요', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           ],
         ],
       );

@@ -7,7 +7,7 @@
 // 원인: 주소가 바뀌면 연결 알림자의 listen이 곧바로 확인을 시작하는데, Riverpod는
 // listen을 **의존 provider를 무효화하기 전에** 부른다. 그래서 그 확인은 아직 캐시된
 // **옛 주소**의 서비스로 ping을 보낸다. 저장 버튼이 이어서 새 주소로 한 번 더
-// 확인해 '연결됨'이 되지만, 늦게 끝난 옛 주소의 실패가 그 위를 덮어 '닿지 않음'으로
+// 확인해 '연결됐어요'가 되지만, 늦게 끝난 옛 주소의 실패가 그 위를 덮어 '닿지 않음'으로
 // 굳었다. 여기서는 옛 주소가 늦게 실패하고 새 주소가 곧바로 성공하게 만든다.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

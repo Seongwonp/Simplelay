@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 /// 저장하지 않은 입력을 버리고 나갈지 묻는다. 나가면 true.
 Future<bool> confirmDiscardInput(BuildContext context) async {
   final leave = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
-    title: const Text('입력한 내용을 남겨 두세요'),
+    title: const Text('저장하지 않고 나갈까요?'),
     content: const Text('지금 나가면 저장하지 않은 내용을 잃어요.'),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('닫기')),
+      TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('계속 고치기')),
       FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('저장하지 않고 나가기')),
     ],
   ));

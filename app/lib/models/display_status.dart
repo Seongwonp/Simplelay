@@ -284,14 +284,14 @@ TileStatus applianceTileStatus({
       return const TileStatus('본체 연결 설정이 필요해요', TileTone.attention,
           issue: TileIssue(TileMark.unusable, kTileUnusableHubSetup));
     case RpiConnectionState.checking:
-      return const TileStatus('확인하는 중이에요', TileTone.unknown,
+      return const TileStatus('알아보고 있어요', TileTone.unknown,
           issue: TileIssue(TileMark.unknown, kTileChecking));
     case RpiConnectionState.connected:
       break;
   }
   switch (catalog) {
     case ServerCatalogStatus.loading:
-      return const TileStatus('확인하는 중이에요', TileTone.unknown,
+      return const TileStatus('알아보고 있어요', TileTone.unknown,
           issue: TileIssue(TileMark.unknown, kTileChecking));
     case ServerCatalogStatus.failed:
       return const TileStatus('본체 연결을 봐 주세요', TileTone.attention,

@@ -648,7 +648,7 @@ void main() {
     await tester.binding.handlePopRoute();
     await _settle(tester);
     expect(find.text('저장하지 않고 나가기'), findsOneWidget);
-    await tester.tap(find.text('닫기'));
+    await tester.tap(find.text('계속 고치기'));
     await _settle(tester);
 
     // X는 몇 단계에 있든 등록을 닫는다(물어본 뒤).

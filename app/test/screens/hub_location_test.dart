@@ -129,7 +129,7 @@ void main() {
     expect(find.textContaining('날씨 안내만 빠지고'), findsOneWidget);
     // 다시 누를 수 있다.
     final button = tester.widget<FilledButton>(find.ancestor(
-      of: find.text('현재 위치로 설정'),
+      of: find.text('지금 있는 곳으로 정하기'),
       matching: find.byWidgetPredicate((w) => w is FilledButton),
     ));
     expect(button.onPressed, isNotNull);

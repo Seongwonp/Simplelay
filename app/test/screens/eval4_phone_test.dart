@@ -254,7 +254,7 @@ void main() {
       expect(findPlainText('등록은 LG 앱에서', contains: true), findsOneWidget); // 평가 11차
     });
 
-    test('다시 맞추기 → 가전 다시 불러오기(평가 6차) → 하는 일 그대로(평가 11차)', () => expect(kResyncLabel, '본체 화면에 반영하기'));
+    test('다시 맞추기 → 가전 다시 불러오기(평가 6차) → 하는 일 그대로(평가 11차)', () => expect(kResyncLabel, '본체에도 똑같이 맞추기'));
 
     test('콘센트 → 전기 플러그', () {
       const r = EstopAckResult(EstopAckOutcome.outletUnreachable);

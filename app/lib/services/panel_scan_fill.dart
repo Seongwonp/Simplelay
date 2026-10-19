@@ -61,12 +61,12 @@ PanelScanFill fillFromPanelScan(PanelScanDraft draft, {required int maxGrid}) {
   var filled = 0;
   for (final b in draft.buttons) {
     if (b.kind != 'button') {
-      skipped.add("'${b.label}'은(는) 다이얼이라 넣지 않았어요. 앱은 아직 누르는 버튼만 넣어요");
+      skipped.add("'${b.label}'${_topic(b.label)} 다이얼이라 넣지 않았어요. 앱은 아직 누르는 버튼만 넣어요");
       continue;
     }
     final inside = b.x >= 0 && b.x < draft.cols && b.y >= 0 && b.y < draft.rows;
     if (!inside || grid[b.y][b.x] != null) {
-      skipped.add("'${b.label}'은(는) 자리가 버튼판과 맞지 않아 넣지 않았어요");
+      skipped.add("'${b.label}'${_topic(b.label)} 자리가 버튼판과 맞지 않아 넣지 않았어요");
       continue;
     }
     grid[b.y][b.x] = b.label;
@@ -81,4 +81,12 @@ PanelScanFill fillFromPanelScan(PanelScanDraft draft, {required int maxGrid}) {
     skipped: skipped,
     unnamed: unnamed,
   );
+}
+
+/// 받침이 있으면 '은', 없으면 '는'. 한글이 아니면 '은(는)'(문구 기준 10/19 — 늘 '은(는)'이면 기계가 붙인 말로 읽혔다).
+String _topic(String word) {
+  if (word.isEmpty) return '은(는)';
+  final code = word.runes.last;
+  if (code < 0xAC00 || code > 0xD7A3) return '은(는)';
+  return (code - 0xAC00) % 28 == 0 ? '는' : '은';
 }

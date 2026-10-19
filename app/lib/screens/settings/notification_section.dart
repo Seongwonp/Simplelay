@@ -332,7 +332,7 @@ class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
                 title: Text(purpose),
                 trailing: TextButton(
                   onPressed: () => _unmute(purpose),
-                  child: const Text('다시 받기'),
+                  child: const Text(kRefreshLabel),
                 ),
               ),
           ],
@@ -368,7 +368,7 @@ class _SuppressionNote extends StatelessWidget {
             child: Text(keepWordsTogether(text), semanticsLabel: text, style: TextStyle(color: context.appMuted)),
           ),
           if (onRetry != null)
-            TextButton(onPressed: onRetry, child: const Text('다시 불러오기')),
+            TextButton(onPressed: onRetry, child: const Text(kRefreshLabel)),
         ],
       ),
     );

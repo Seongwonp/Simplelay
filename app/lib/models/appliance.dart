@@ -414,7 +414,7 @@ const kApplianceTemplates = <ApplianceMap>[
       ApplianceButton(id: 'AC-04', label: '냉방',    x: 0, y: 1),
       ApplianceButton(id: 'AC-05', label: '제습',    x: 1, y: 1),
       ApplianceButton(id: 'AC-06', label: '송풍',    x: 2, y: 1),
-      ApplianceButton(id: 'AC-07', label: '바람세기', x: 0, y: 2),
+      ApplianceButton(id: 'AC-07', label: '바람 세기', x: 0, y: 2),
       ApplianceButton(id: 'AC-08', label: '예약',    x: 1, y: 2),
       ApplianceButton(id: 'AC-09', label: '취소',    x: 2, y: 2),
     ],

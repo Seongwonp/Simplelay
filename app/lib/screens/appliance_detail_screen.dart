@@ -7,7 +7,7 @@ import '../models/appliance.dart';
 import '../models/command_result.dart';
 import '../models/execution_status.dart';
 import '../models/display_status.dart'
-    show applianceDisplayLine, isPracticeAppliance, pressDeviceHosts, pressUnavailableNotice;
+    show applianceDisplayLine, isPracticeAppliance, objectParticle, pressDeviceHosts, pressUnavailableNotice;
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/appliance_sync_provider.dart';
@@ -200,8 +200,8 @@ class ApplianceDetailScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text("'${appliance.name}' 삭제"),
-        content: const Text('등록한 버튼 배치와 사진이 함께 삭제돼요. 삭제할까요?'),
+        title: Text("'${appliance.name}'${objectParticle(appliance.name)} 지울까요?"),
+        content: const Text('등록한 버튼 자리와 사진도 함께 지워져요.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -214,7 +214,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
               foregroundColor: AppColors.onAccent,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('삭제'),
+            child: const Text('지우기'),
           ),
         ],
       ),
@@ -225,7 +225,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
     final result = await ref.read(applianceSyncProvider.notifier).deleteAppliance(appliance.id);
     if (result.failed > 0) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('폰에서는 지웠어요. 본체에는 다음에 맞출 때 다시 시도할게요.')),
+        const SnackBar(content: Text('폰에서는 지웠어요. 본체에서는 다음에 연결될 때 다시 지울게요.')),
       );
     }
     // 지운 가전의 상세에 머물지 않는다.
@@ -428,7 +428,7 @@ class _TodayUse extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('오늘 사용',
+          const Text('오늘 쓴 기록',
               style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpace.xs),
           if (today.isEmpty)

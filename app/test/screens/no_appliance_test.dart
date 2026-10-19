@@ -97,7 +97,7 @@ void main() {
 
       expect(find.text('사용할 가전을 먼저 추가해 주세요'), findsOneWidget);
       expect(find.byIcon(Icons.mic), findsNothing);
-      expect(find.text('이대로 실행'), findsNothing);
+      expect(find.text('이대로 하기'), findsNothing);
     });
 
     testWidgets('추가 화면으로 가는 길이 같이 있다', (tester) async {

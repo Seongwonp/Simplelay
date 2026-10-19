@@ -273,7 +273,7 @@ class SettingsScreen extends ConsumerWidget {
           _NavRow(
             icon: Icons.history,
             title: '알아 둔 습관',
-            subtitle: '보기',
+            subtitle: '자주 하신 일',
             onTap: () {
               final api = ref.read(rpiApiServiceProvider);
               final appliances = ref.read(installedAppliancesProvider);
@@ -350,7 +350,7 @@ class SettingsScreen extends ConsumerWidget {
   static String _hubLine(RpiConnectionState state) => switch (state) {
         RpiConnectionState.connected => '연결됐어요',
         RpiConnectionState.keyRequired => '연결 비밀번호가 필요해요',
-        RpiConnectionState.checking => '확인하는 중이에요',
+        RpiConnectionState.checking => '알아보고 있어요',
         RpiConnectionState.unreachable => '연결이 끊겼어요',
         RpiConnectionState.unconfigured => '아직 주소가 없어요',
       };

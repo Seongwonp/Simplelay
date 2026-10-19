@@ -83,7 +83,7 @@ void main() {
       await tester.pumpWidget(screen(container));
       await tester.pump();
       await tester.pump(); // 블루투스 연결 상태가 화면에 닿게
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await _pumps(tester);
 
       expect(executes, 1);
@@ -105,7 +105,7 @@ void main() {
       final (container, _) = await make(api);
       await tester.pumpWidget(screen(container));
       await tester.pump();
-      await tester.tap(find.text('이대로 실행'));
+      await tester.tap(find.text('이대로 하기'));
       await _pumps(tester);
       expect(container.read(executionStatusProvider).phase, ExecutionPhase.waiting);
 

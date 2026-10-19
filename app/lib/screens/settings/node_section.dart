@@ -196,7 +196,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
     } else {
       setState(() {
         _saving = false;
-        _error = '연결을 풀지 못했어요';
+        _error = '연결을 풀지 못했어요. 본체 연결을 보고 다시 눌러 주세요';
       });
     }
   }
@@ -258,7 +258,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                               color: context.appSuccess.withValues(alpha: 0.4)),
                         ),
                         child: Text(
-                          '연결됨',
+                          '연결됐어요',
                           style: TextStyle(
                               fontSize: AppFont.caption, color: context.appSuccess),
                         ),

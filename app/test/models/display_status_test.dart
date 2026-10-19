@@ -220,9 +220,9 @@ void main() {
           '본체 연결을 봐 주세요');
       expect(_tile(source: ready, hub: RpiConnectionState.keyRequired).text,
           '본체 연결 설정이 필요해요');
-      expect(_tile(source: ready, hub: RpiConnectionState.checking).text, '확인하는 중이에요');
+      expect(_tile(source: ready, hub: RpiConnectionState.checking).text, '알아보고 있어요');
       expect(_tile(source: ready, catalog: ServerCatalogStatus.loading).text,
-          '확인하는 중이에요');
+          '알아보고 있어요');
       expect(_tile(source: ready, catalog: ServerCatalogStatus.failed).text,
           '본체 연결을 봐 주세요');
     });

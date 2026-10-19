@@ -10,14 +10,14 @@ void main() {
       );
       expect(
         voiceErrorGuide('error_speech_timeout'),
-        '말소리가 들리지 않았어요. 다시 시도해 주세요.',
+        '말소리가 들리지 않았어요. 다시 말해 주세요.',
       );
     });
 
     test('네트워크·마이크·권한 오류를 사용자 언어로 묶는다', () {
       expect(
         voiceErrorGuide('error_network_timeout'),
-        '네트워크 문제로 음성 인식이 중단됐어요.',
+        '인터넷이 끊겨 말을 듣지 못했어요. 버튼으로 해 주세요.',
       );
       expect(
         voiceErrorGuide('error_audio_error'),
@@ -32,7 +32,7 @@ void main() {
     test('알 수 없는 엔진 오류도 raw id를 노출하지 않는다', () {
       expect(
         voiceErrorGuide('vendor_specific_error'),
-        '음성 인식이 중단됐어요. 다시 시도해 주세요.',
+        '듣기가 끊겼어요. 다시 말해 주세요.',
       );
     });
   });

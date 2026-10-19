@@ -16,7 +16,7 @@ class _RpiConnectionTile extends ConsumerWidget {
         ),
       RpiConnectionState.checking => (
           context.appWarning,
-          '확인하는 중이에요…',
+          '알아보고 있어요…',
           Icons.sync
         ),
       RpiConnectionState.keyRequired => (context.appWarning, '연결 비밀번호가 필요해요', Icons.key),
@@ -263,7 +263,7 @@ class _AdvancedSection extends ConsumerWidget {
               padding: EdgeInsets.zero,
               minimumSize: const Size(48, 48),
             ),
-            child: Text('기본값으로 초기화',
+            child: Text('처음 값으로 되돌리기',
                 style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
           ),
         ],

@@ -52,10 +52,10 @@ void main() {
     ))));
     await tester.pumpAndSettle();
     expect(find.textContaining('불러오지 못했어요'), findsOneWidget);
-    expect(find.textContaining('아직 학습할'), findsNothing);
-    await tester.tap(find.text('새로고침'));
+    expect(find.textContaining('아직 알아 둘'), findsNothing);
+    await tester.tap(find.text('새로 보기'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('아직 학습할'), findsOneWidget);
+    expect(find.textContaining('아직 알아 둘'), findsOneWidget);
     expect(calls, 2);
   });
 
@@ -84,6 +84,6 @@ void main() {
       body: LearningStatusDialog(load: null),
     )));
     expect(find.textContaining('연결하면'), findsOneWidget);
-    expect(find.textContaining('아직 학습할'), findsNothing);
+    expect(find.textContaining('아직 알아 둘'), findsNothing);
   });
 }

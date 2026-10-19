@@ -871,7 +871,7 @@ class _AddApplianceWizardScreenState
             controller: _room,
             onChanged: (_) => setState(() {}),
             maxLength: 20,
-            decoration: const InputDecoration(labelText: '방 (선택, 예: 주방)'),
+            decoration: const InputDecoration(labelText: '방 (안 적어도 돼요, 예: 주방)'),
           ),
           const SizedBox(height: AppSpace.xs),
           Wrap(

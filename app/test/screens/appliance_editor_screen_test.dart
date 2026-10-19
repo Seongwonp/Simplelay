@@ -445,7 +445,7 @@ void main() {
 
       expect(find.byKey(scanButton), findsOneWidget);
       // 사진이 기기 밖으로 나가는 경로라 누르기 전에 알린다.
-      expect(find.textContaining('외부 인식 서비스로 보내져요. 결과를 보고'), findsOneWidget);
+      expect(find.textContaining('사진 읽기 서비스로 보내요. 결과를 보고'), findsOneWidget);
     });
 
     testWidgets('초안으로 격자를 채우고, 다이얼·이름 못 읽은 버튼을 알린다', (tester) async {
@@ -486,8 +486,8 @@ void main() {
 
       await tester.tap(find.byKey(scanButton));
       await _pumpAFew(tester);
-      expect(find.text('사진을 외부 인식 서비스로 보낼까요?'), findsOneWidget);
-      expect(find.textContaining('인터넷의 외부 인식 서비스로 가요'), findsOneWidget);
+      expect(find.text('사진을 인터넷 사진 읽기 서비스로 보낼까요?'), findsOneWidget);
+      expect(find.textContaining('인터넷 사진 읽기 서비스로 가요'), findsOneWidget);
       expect(find.textContaining('버튼 1개가 읽은 결과로 바뀌어요'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(TextButton, '취소'));
@@ -526,8 +526,8 @@ void main() {
       await tester.tap(find.byKey(scanButton));
       await _pumpAFew(tester);
 
-      expect(find.text('사진을 외부 인식 서비스로 보낼까요?'), findsOneWidget);
-      expect(find.textContaining('인터넷의 외부 인식 서비스로 가요'), findsOneWidget);
+      expect(find.text('사진을 인터넷 사진 읽기 서비스로 보낼까요?'), findsOneWidget);
+      expect(find.textContaining('인터넷 사진 읽기 서비스로 가요'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(TextButton, '취소'));
       await _pumpAFew(tester);

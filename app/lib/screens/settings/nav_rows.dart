@@ -290,7 +290,7 @@ class _TextSizeScreen extends StatelessWidget {
           const SizedBox(height: AppSpace.sm),
           Text(
             '휴대폰 설정 → 디스플레이 → 글자 크기에서 바꾸면 이 앱도 함께 커져요. '
-            '200%까지 화면이 잘리지 않게 만들었어요.',
+            '200%까지 키워도 글자가 잘리지 않아요.',
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
         ],
