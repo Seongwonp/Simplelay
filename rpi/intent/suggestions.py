@@ -4,6 +4,8 @@ import json
 import logging
 import threading
 from collections import OrderedDict
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import replace
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -30,6 +32,8 @@ _PAUSE_SCOPES = (PAUSE_SCOPE_ALL, PAUSE_SCOPE_SUGGESTIONS)
 
 #: 승인 영수증(제안 번호 → 실행 번호)을 기억하는 최근 건수(검토 10/19 A).
 RECEIPT_LIMIT = 256
+#: 같은 카드의 첫 승인이 접수를 마칠 때까지 다시 보낸 승인이 기다리는 상한(초).
+ADMISSION_WAIT_S = 30.0
 
 
 def _current(purpose: str) -> str:
@@ -113,6 +117,9 @@ class ProactiveSuggestionService:
         #: 잃으면, 다시 보낸 승인이 409('이미 승인')만 받아 클라이언트가 실행 번호를 알 길이 없었다. 같은 제안의 재승인은
         #: 이 영수증으로 같은 실행 번호를 돌려준다(다시 실행하지 않는다). 메모리만(재시작하면 사라짐), 최근 RECEIPT_LIMIT건.
         self._accepted_jobs: OrderedDict[str, str] = OrderedDict()
+        #: 접수 중인 승인(검토 10/19) — 제안 번호 → 그 접수의 결과(실행 번호 또는 예외)를 받을 Future. 승인 소비와 **같은
+        #: 잠금 안에서** 함께 건다. 응답이 늦어 같은 카드를 다시 승인한 요청은 409 대신 이것을 기다려 같은 실행 번호를 받는다.
+        self._admitting: dict[str, Future] = {}
         # 공간 맥락 게이트(선택) — False를 돌려주는 동안 자동 제안 생성을
         # 보류한다(부재 중인 공간에 제안을 띄우지 않기). None이면 무시.
         # 수동 데모 트리거는 예외지만 자연 제안은 노출·승인도 재검사한다.
@@ -419,23 +426,27 @@ class ProactiveSuggestionService:
         AlreadyApproved → 409. '거부됐는데 승인 스레드가 되살리는' 레이스 차단."""
         self._refresh_environment()
         with self._state_lock:
-            self._expire_locked()
-            try:
-                suggestion = self._suggestions[suggestion_id]
-            except KeyError as exc:
-                raise UnknownSuggestionError(suggestion_id) from exc
-            if suggestion.status is not SuggestionStatus.PENDING:
-                raise SuggestionAlreadyApprovedError(suggestion_id)
-            # 대상 없는 제안은 게이트를 소비하기 전에 거절한다(B10) --
-            # 카드는 pending으로 남아 화면이 이유를 보여줄 수 있다.
-            if suggestion.appliance_id is None:
-                raise SuggestionTargetUnknownError()
-            self._remember_locked(suggestion)
-            self._suggestions[suggestion_id] = replace(
-                suggestion, status=SuggestionStatus.APPROVED
-            )
-            self._record(suggestion, "approval_requested", "user_approval")
-            return suggestion
+            return self._claim_locked(suggestion_id)
+
+    def _claim_locked(self, suggestion_id: str) -> ProactiveSuggestion:
+        """``_state_lock`` 안에서 부른다 — 승인권 획득(``_claim_for_approval``의 본체)."""
+        self._expire_locked()
+        try:
+            suggestion = self._suggestions[suggestion_id]
+        except KeyError as exc:
+            raise UnknownSuggestionError(suggestion_id) from exc
+        if suggestion.status is not SuggestionStatus.PENDING:
+            raise SuggestionAlreadyApprovedError(suggestion_id)
+        # 대상 없는 제안은 게이트를 소비하기 전에 거절한다(B10) --
+        # 카드는 pending으로 남아 화면이 이유를 보여줄 수 있다.
+        if suggestion.appliance_id is None:
+            raise SuggestionTargetUnknownError()
+        self._remember_locked(suggestion)
+        self._suggestions[suggestion_id] = replace(
+            suggestion, status=SuggestionStatus.APPROVED
+        )
+        self._record(suggestion, "approval_requested", "user_approval")
+        return suggestion
 
     def create_demo_suggestion(
         self,
@@ -861,17 +872,27 @@ class ProactiveSuggestionService:
         한다(SimpleLayService가 지원; 없으면 AttributeError로 즉시 드러남)."""
         # 화면이 보여준 대상 가전으로 실행한다 -- 전역 선택값이 그 사이
         # 바뀌어도 승인한 제안의 대상은 달라지지 않아야 한다.
-        receipt = self.accepted_job(suggestion_id)
-        if receipt is not None:
-            return receipt  # 이미 접수한 승인의 재요청(응답 유실 뒤 재시도) — 같은 실행 번호, 다시 실행하지 않는다
-        try:
-            suggestion = self._claim_for_approval(suggestion_id)
-        except SuggestionAlreadyApprovedError:
-            # 확인과 승인 소비 사이에 다른 요청이 접수를 마쳤을 수 있다 — 영수증이 생겼으면 그것을 돌려준다.
-            receipt = self.accepted_job(suggestion_id)
+        # 영수증 확인·접수 중 확인·승인 소비·접수 중 표시를 한 잠금 안에서 한다(검토 10/19) — 예전에는 소비와 영수증 사이에
+        # 틈이 있어, 첫 승인이 접수하는 동안 다시 보낸 승인이 409('이미 승인')를 받아 실행 번호를 알 수 없었다.
+        self._refresh_environment()
+        with self._state_lock:
+            receipt = self._accepted_jobs.get(suggestion_id)
             if receipt is not None:
-                return receipt
-            raise
+                return receipt  # 이미 접수한 승인의 재요청(응답 유실 뒤 재시도) — 같은 실행 번호, 다시 실행하지 않는다
+            pending = self._admitting.get(suggestion_id)
+            if pending is None:
+                suggestion = self._claim_locked(suggestion_id)
+                pending = Future()
+                self._admitting[suggestion_id] = pending
+                owner = True
+            else:
+                owner = False
+        if not owner:
+            # 같은 카드의 첫 승인이 접수 중 — 그 결과를 기다린다. 접수에 실패했으면 같은 예외(카드는 다시 승인할 수 있다).
+            try:
+                return pending.result(timeout=ADMISSION_WAIT_S)
+            except FutureTimeout as exc:
+                raise SuggestionAlreadyApprovedError(suggestion_id) from exc
         try:
             if suggestion.commands:
                 result = self._approve_commands(suggestion, background=True)
@@ -883,14 +904,22 @@ class ProactiveSuggestionService:
                                   else UsageSource.SUGGESTION),
                     **self._approval_options(suggestion),
                 )
-        except Exception as exc:
-            self._fail_approval(suggestion, exc)
+        except BaseException as exc:
+            try:
+                if isinstance(exc, Exception):
+                    self._fail_approval(suggestion, exc)  # 승인 게이트를 되돌린다(다시 승인할 수 있게)
+            finally:
+                with self._state_lock:
+                    self._admitting.pop(suggestion_id, None)
+                pending.set_exception(exc)
             raise
         # 여기부터는 실행이 이미 접수됐다 — 기록이 실패해도 승인 게이트를 되돌리지 않는다(이중 실행 방지).
         with self._state_lock:
             self._accepted_jobs[suggestion_id] = result
             while len(self._accepted_jobs) > RECEIPT_LIMIT:
                 self._accepted_jobs.popitem(last=False)
+            self._admitting.pop(suggestion_id, None)
+        pending.set_result(result)
         try:
             self._record(suggestion, "submitted", "job_accepted", job_id=result)
         except Exception:  # noqa: BLE001
