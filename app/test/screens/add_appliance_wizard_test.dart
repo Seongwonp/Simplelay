@@ -24,6 +24,7 @@ import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/add_appliance_wizard_screen.dart';
 import 'package:simplelay/services/photo_service.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
+import 'package:simplelay/widgets/panel_photo_view.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -65,6 +66,9 @@ class _Server {
   /// 확인 주행 시작을 이 상태·문장으로 거절한다.
   (int, String)? rejectPass;
 
+  /// 본체에 닿지 않는다(연결 오류).
+  bool unreachable = false;
+
   http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
         utf8.encode(jsonEncode(body)),
         status,
@@ -76,6 +80,7 @@ class _Server {
         client: MockClient((req) async {
           final path = req.url.path;
           requests.add('${req.method} $path');
+          if (unreachable) throw const SocketException('본체에 닿지 않음');
           if (path.startsWith('/execute')) fail('가전 추가가 누르기를 보냈어요');
           if (path == '/mapping/frame') {
             return _json({
@@ -137,7 +142,10 @@ class _Server {
 }
 
 Widget _build(_Server server,
-    {void Function(ProviderContainer)? onReady, _FakePhoto? photo, List<ApplianceMap> installed = const []}) {
+    {void Function(ProviderContainer)? onReady,
+    _FakePhoto? photo,
+    List<ApplianceMap> installed = const [],
+    RpiConnectionState hub = RpiConnectionState.connected}) {
   final router = GoRouter(
     initialLocation: '/',
     routes: [
@@ -164,6 +172,7 @@ Widget _build(_Server server,
   return buildWithProviderState(
     overrides: [
       ...connectedOverrides(),
+      rpiServerOverride(hub),
       ...installedOverrides(installed),
       photoServiceProvider.overrideWithValue(photo ?? _FakePhoto()),
       rpiApiServiceProvider.overrideWithValue(server.api()),
@@ -392,6 +401,9 @@ void main() {
     await _settle(tester);
     await _walkToStopStep(tester);
     expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+    // 기다리는 자리는 귀퉁이 안쪽이어야 한다 — 귀퉁이를 그려 둔다.
+    final marks = tester.widget<PanelPhotoView>(find.byKey(const Key('wizard-photo'))).marks;
+    expect(marks.where((m) => m.kind == PanelMarkKind.corner), hasLength(4));
 
     // 보통 폰 크기 — 사진과 설명으로 목록이 화면보다 길다.
     tester.view.physicalSize = const Size(400, 800);
@@ -577,5 +589,103 @@ void main() {
     await tester.tap(find.text('저장하지 않고 나가기'));
     await _settle(tester);
     expect(find.text('홈'), findsOneWidget);
+  });
+
+  testWidgets('본체가 자리 확인을 받지 않으면 쉬운 말과 다음 할 일로 — 다른 일 중이면 서버 문장 그대로(실화면 10/19)',
+      (tester) async {
+    final server = _Server()..rejectPass = (409, '이 가전은 이 허브의 갠트리에 연결되지 않았어요');
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(_title(tester), '5. 자리 확인');
+    await tester.tap(find.byKey(const Key('wizard-start-pass')));
+    await _settle(tester);
+    expect(find.text(kPassUnavailableMessage), findsOneWidget);
+    expect(find.textContaining('갠트리'), findsNothing);
+
+    server.rejectPass = (409, '다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.');
+    await tester.tap(find.byKey(const Key('wizard-start-pass')));
+    await _settle(tester);
+    expect(find.text('다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.'), findsOneWidget);
+  });
+
+  testWidgets('귀퉁이를 다 골랐는데 크기를 몰라 못 넘어가면 위에서 크기를 적으라고 말한다', (tester) async {
+    final server = _Server()..frameKnown = false;
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    for (final p in const [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]) {
+      await _tapPhoto(tester, p.$1, p.$2);
+    }
+    expect(find.textContaining('아래에 버튼판 가로·세로 크기(mm)를 적으면'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('wizard-frame-w')), '300');
+    await tester.enterText(find.byKey(const Key('wizard-frame-h')), '200');
+    await tester.pump();
+    expect(find.textContaining('틀렸으면 "다시 고르기"'), findsOneWidget);
+  });
+
+  testWidgets("종류 '기타'는 이름으로 채우지 않는다, 미리 채운 버튼 이름은 골라 둔다", (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server()));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.widgetWithText(ChoiceChip, '기타'));
+    await tester.pump();
+    String name() => tester.widget<TextField>(find.byKey(const Key('wizard-name'))).controller!.text;
+    expect(name(), isEmpty);
+    await tester.tap(find.widgetWithText(ChoiceChip, '밥솥'));
+    await tester.pump();
+    expect(name(), '밥솥');
+
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    for (final p in const [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]) {
+      await _tapPhoto(tester, p.$1, p.$2);
+    }
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await tester.pump();
+    await _tapPhoto(tester, 0.3, 0.4);
+    await _settle(tester);
+    final field = tester.widget<TextField>(find.byKey(const Key('wizard-button-name')));
+    expect(field.controller!.selection, const TextSelection(baseOffset: 0, extentOffset: 4));
+  });
+
+  testWidgets('본체와 연결되지 않았으면 가전 추가를 시작할 때 말한다(실화면 10/19)',
+      (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server(), hub: RpiConnectionState.unreachable));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    expect(find.byKey(const Key('wizard-offline')), findsOneWidget);
+  });
+
+  testWidgets('본체에 닿지 못해 저장하지 못하면 다시 누를 단추와 남아 있는 것을 말한다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    expect(find.byKey(const Key('wizard-offline')), findsNothing);
+    await _walkToStopStep(tester);
+    server.unreachable = true;
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(find.text(kSaveOfflineMessage), findsOneWidget);
   });
 }

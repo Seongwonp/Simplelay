@@ -55,6 +55,13 @@ const _stepTitles = [
 
 const _cornerNames = ['왼쪽 위', '오른쪽 위', '오른쪽 아래', '왼쪽 아래'];
 
+/// 본체에 닿지 못해 저장하지 못했을 때 — 무엇을 보고 무엇을 다시 누를지, 고른 것은 남아 있다는 것까지(실화면 10/19).
+const kSaveOfflineMessage = '본체와 연결되지 않아 저장하지 못했어요. 와이파이를 확인하고 "저장하고 다음"을 다시 눌러 주세요. 고른 자리는 그대로 있어요.';
+
+/// 본체가 자리 확인을 받지 않을 때(지금 구성에서 할 수 없음). 서버 문장('갠트리' 등)은 처음 쓰는 사람에게 뜻이 없고
+/// 다음에 할 일을 말하지 않았다(실화면 10/19).
+const kPassUnavailableMessage = '지금은 자리 확인을 할 수 없어요. "자리 확인 없이 끝내기"를 누르고, 처음 누를 때 자리가 맞는지 지켜봐 주세요.';
+
 class _AddApplianceWizardScreenState
     extends ConsumerState<AddApplianceWizardScreen> {
   int _step = 0;
@@ -309,7 +316,9 @@ class _AddApplianceWizardScreenState
   }
 
   Future<String?> _askName(String initial) {
-    final controller = TextEditingController(text: initial);
+    // 미리 채운 '버튼 1'은 골라 둔다 — 바로 치면 바뀌게(실화면 10/19: 뒤에 이어 붙었다).
+    final controller = TextEditingController(text: initial)
+      ..selection = TextSelection(baseOffset: 0, extentOffset: initial.length);
     return showDialog<String>(
       context: context,
       builder: (dialog) => AlertDialog(
@@ -392,11 +401,11 @@ class _AddApplianceWizardScreenState
     } on RpiApiException catch (e) {
       if (mounted) {
         setState(() => _error = e.statusCode == 0 || e.message.isEmpty
-            ? '저장하지 못했어요. 연결을 봐 주세요.'
+            ? kSaveOfflineMessage
             : e.message);
       }
     } catch (_) {
-      if (mounted) setState(() => _error = '저장하지 못했어요. 연결을 봐 주세요.');
+      if (mounted) setState(() => _error = kSaveOfflineMessage);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -494,7 +503,9 @@ class _AddApplianceWizardScreenState
         }
       });
     } on RpiApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      // 409: 다른 일을 하는 중(서버 문장 그대로 — 끝난 뒤 다시) 또는 이 구성에서 할 수 없음(쉬운 말과 다음 할 일로).
+      final busy = e.message.contains('다른');
+      if (mounted) setState(() => _error = e.statusCode == 409 && !busy ? kPassUnavailableMessage : e.message);
     } catch (_) {
       if (mounted) setState(() => _error = '자리 확인을 시작하지 못했어요. 연결을 봐 주세요.');
     } finally {
@@ -617,6 +628,17 @@ class _AddApplianceWizardScreenState
     );
   }
 
+  /// 고른 네 귀퉁이 — 버튼·기다리는 자리를 고를 때도 버튼판이 어디까지인지 보이게 그린다.
+  List<PanelMark> _cornerMarks() => [
+        for (var i = 0; i < _corners.length; i++)
+          PanelMark(
+            id: 'corner-$i',
+            kind: PanelMarkKind.corner,
+            point: _corners[i],
+            number: i + 1,
+          ),
+      ];
+
   List<Widget> _hint(String text) => [
         Text(text, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         const SizedBox(height: AppSpace.md),
@@ -630,6 +652,15 @@ class _AddApplianceWizardScreenState
           child: Text('사진은 이 폰에만 남고 본체에는 고른 자리만 보내요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         ),
+        // 끝까지 고른 뒤 저장에서야 연결이 없다는 것을 알았다(실화면 10/19) — 시작할 때 말한다.
+        if (const {RpiConnectionState.unreachable, RpiConnectionState.unconfigured, RpiConnectionState.keyRequired}
+            .contains(ref.watch(rpiConnectionProvider)))
+          Padding(
+            key: const Key('wizard-offline'),
+            padding: const EdgeInsets.only(bottom: AppSpace.md),
+            child: Text('지금 본체와 연결되지 않았어요. 연결된 뒤에 저장할 수 있어요.',
+                style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
+          ),
         if (_photo == null || _photoSize == null)
           Container(
             height: 180,
@@ -691,7 +722,10 @@ class _AddApplianceWizardScreenState
                   label: Text(c.label),
                   selected: _category == c,
                   onSelected: (_) => setState(() {
-                    if (_name.text.isEmpty || _name.text == _category.label) _name.text = c.label;
+                    // '기타'는 이름이 아니다 — 비워 두고 적게 한다(실화면 10/19: 이름이 '기타'인 가전이 생겼다).
+                    if (_name.text.isEmpty || _name.text == _category.label) {
+                      _name.text = c == ApplianceCategory.other ? '' : c.label;
+                    }
                     _category = c;
                   }),
                 ),
@@ -720,19 +754,14 @@ class _AddApplianceWizardScreenState
     final nextCorner = _corners.length < 4 ? _cornerNames[_corners.length] : null;
     return [
       ..._hint(nextCorner == null
-          ? '네 귀퉁이를 모두 골랐어요. 틀렸으면 "다시 고르기"를 눌러 주세요.'
+          // 크기 칸이 사진 아래라 화면 밖이다 — '다음'이 왜 안 눌리는지 위에서 말한다(실화면 10/19).
+          ? (_frameLoaded && !_frameReady
+              ? '네 귀퉁이를 모두 골랐어요. 아래에 버튼판 가로·세로 크기(mm)를 적으면 다음으로 갈 수 있어요.'
+              : '네 귀퉁이를 모두 골랐어요. 틀렸으면 "다시 고르기"를 눌러 주세요.')
           : '사진에서 버튼판 귀퉁이를 왼쪽 위부터 차례로 눌러 주세요. 지금: $nextCorner'),
       _photoPanel(
         label: '버튼판 귀퉁이를 고르는 사진',
-        marks: [
-          for (var i = 0; i < _corners.length; i++)
-            PanelMark(
-              id: 'corner-$i',
-              kind: PanelMarkKind.corner,
-              point: _corners[i],
-              number: i + 1,
-            ),
-        ],
+        marks: _cornerMarks(),
         onTap: _corners.length >= 4
             ? null
             : (p) => setState(() => _corners.add(p)),
@@ -787,6 +816,7 @@ class _AddApplianceWizardScreenState
         _photoPanel(
           label: '버튼을 고르는 사진, ${_buttons.length}개 골랐어요',
           marks: [
+            ..._cornerMarks(),
             for (final b in _buttons)
               PanelMark(
                 id: b.id,
@@ -825,11 +855,13 @@ class _AddApplianceWizardScreenState
       ];
 
   List<Widget> _stopStep() => [
-        ..._hint('가전이 움직이는 동안 누름 장치가 정지 버튼 위에서 기다려요. 기다리는 자리는 버튼과 표시창을 '
-            '가리지 않는 모서리로 골라 주세요.'),
+        // '모서리'라고만 하니 사진 모서리(버튼판 밖)를 골라 거절됐다(실화면 10/19) — 네 귀퉁이 안쪽이라고 말하고 귀퉁이를 그려 둔다.
+        ..._hint('가전이 움직이는 동안 누름 장치가 정지 버튼 위에서 기다려요. 기다리는 자리는 번호 붙은 네 귀퉁이 안쪽에서 '
+            '버튼과 표시창을 가리지 않는 곳으로 골라 주세요.'),
         _photoPanel(
           label: '정지 버튼과 기다리는 자리를 고르는 사진',
           marks: [
+            ..._cornerMarks(),
             for (final b in _buttons)
               PanelMark(
                 id: b.id,
