@@ -67,6 +67,10 @@ class _Server {
   /// 등록(PUT /appliances/{id})이 돌려주는 판 번호.
   int registerRevision = 1;
 
+  /// 지우기(DELETE /appliances/{id}) 요청의 쿼리. [deleteFails]면 500으로 답한다.
+  final deletes = <Map<String, String>>[];
+  bool deleteFails = false;
+
   /// 다시 맞추기에서 본체가 이미 아는 정의(등록 PUT 없이 매핑만 저장할 때 응답에 싣는다).
   Map<String, dynamic>? existing;
 
@@ -95,6 +99,10 @@ class _Server {
               'frame_h_mm': frameKnown ? 200.0 : null,
               'note': '사진 파일은 서버에 올리지 않아요.',
             });
+          }
+          if (req.method == 'DELETE' && RegExp(r'^/appliances/[^/]+$').hasMatch(path)) {
+            deletes.add(req.url.queryParameters);
+            return deleteFails ? _json({'detail': 'db error'}, 500) : _json({'ok': true});
           }
           if (req.method == 'PUT' && RegExp(r'^/appliances/[^/]+$').hasMatch(path)) {
             registerBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
@@ -754,6 +762,76 @@ void main() {
     expect(find.text(kSaveConflictMessage), findsOneWidget);
     expect(find.textContaining('다른 기기'), findsNothing, reason: '다른 기기가 없을 때도 나오는 말이다');
     expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+  });
+
+  // 검토 10/19: 등록은 됐는데 버튼 자리 저장이 거절되면 자리 없는 가전이 본체에 남았다.
+  testWidgets('새 가전의 버튼 자리 저장이 거절되면 방금 올린 등록을 그 판으로 되돌린다', (tester) async {
+    final server = _Server()
+      ..rejectMapping = '기다리는 자리가 버튼판 밖이에요'
+      ..registerRevision = 3;
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(server.requests, containsAllInOrder([
+      matches(r'^PUT /appliances/custom_\d+$'),
+      matches(r'^PUT /appliances/custom_\d+/mapping$'),
+      matches(r'^DELETE /appliances/custom_\d+$'),
+    ]));
+    expect(server.deletes.single, {'expected_revision': '3'});
+    expect(find.text('기다리는 자리가 버튼판 밖이에요'), findsOneWidget, reason: '되돌렸으면 남았다는 말은 붙이지 않는다');
+  });
+
+  testWidgets('되돌리기도 못 하면 본체에 남았을 수 있다고 말하고 할 일을 준다', (tester) async {
+    final server = _Server()
+      ..rejectMapping = '기다리는 자리가 버튼판 밖이에요'
+      ..deleteFails = true;
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(find.text('기다리는 자리가 버튼판 밖이에요 $kSaveOrphanNote'), findsOneWidget);
+  });
+
+  testWidgets('다시 맞추기에서 거절되면 원래 있던 가전을 지우지 않는다', (tester) async {
+    const mapped = ApplianceMap(
+      id: 'custom_washer',
+      name: '세탁기',
+      category: ApplianceCategory.washingMachine,
+      rows: 1,
+      cols: 1,
+      buttons: [ApplianceButton(id: 'B01', label: '시작', x: 0, y: 0)],
+      isCustom: true,
+      revision: 7,
+      photoPath: '/photos/custom_washer.jpg',
+      panelMapping: PanelMapping(
+        photoWidth: 1000,
+        photoHeight: 800,
+        corners: [PhotoPoint(100, 80), PhotoPoint(900, 80), PhotoPoint(900, 720), PhotoPoint(100, 720)],
+        buttons: {'B01': PhotoPoint(300, 300)},
+      ),
+    );
+    final server = _Server()..rejectMapping = '기다리는 자리가 버튼판 밖이에요';
+    _tall(tester);
+    await tester.pumpWidget(_build(server, installed: const [mapped]));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/setup', extra: mapped);
+    await _settle(tester);
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byKey(const Key('wizard-next')));
+      await _settle(tester);
+    }
+    expect(server.mappingBody, isNotNull);
+    expect(server.deletes, isEmpty);
+    expect(find.text('기다리는 자리가 버튼판 밖이에요'), findsOneWidget);
   });
 
   test('같은 이름 경고의 예시는 적은 그 이름으로 든다', () {

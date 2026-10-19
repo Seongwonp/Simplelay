@@ -62,6 +62,9 @@ const kSaveOfflineMessage = '본체와 연결되지 않아 저장하지 못했�
 /// 없을 때도 나오고 다음에 할 일을 말하지 않는다.
 const kSaveConflictMessage = '본체에 저장된 내용이 그사이 바뀌어 저장하지 않았어요. 닫고 가전 목록을 새로 받은 뒤 다시 맞춰 주세요.';
 
+/// 새 가전을 본체에 올린 뒤 버튼 자리 저장이 안 됐고, 되돌리기(지우기)도 못 했을 때 덧붙이는 말.
+const kSaveOrphanNote = '본체에는 이 가전이 버튼 자리 없이 남았을 수 있어요. 다시 저장하거나, 그만두려면 가전 목록에서 지워 주세요.';
+
 /// 본체가 자리 확인을 받지 않을 때(지금 구성에서 할 수 없음). 서버 문장('갠트리' 등)은 처음 쓰는 사람에게 뜻이 없고
 /// 다음에 할 일을 말하지 않았다(실화면 10/19).
 const kPassUnavailableMessage = '지금은 자리 확인을 할 수 없어요. "자리 확인 없이 끝내기"를 누르고, 처음 누를 때 자리가 맞는지 지켜봐 주세요.';
@@ -363,6 +366,9 @@ class _AddApplianceWizardScreenState
       _busy = true;
       _error = null;
     });
+    // 새 가전을 본체에 올렸는데 버튼 자리 저장이 안 됐으면, 자리 없는 가전이 본체에 남지 않게 되돌린다.
+    var registered = false;
+    var mappingSaved = false;
     // "내가 본 판" — 다시 맞출 때는 연 가전의 판, 새 가전은 방금 등록이 돌려준 판. 그 사이 다른 곳에서 바꿨으면
     // 본체가 409로 거절한다(검토 10/19: 판을 싣지 않아 충돌 보호를 건너뛰었다). 모르면(0) 밝히지 않는다.
     int? seen = switch (widget.initial?.revision) { final r? when r > 0 => r, _ => null };
@@ -371,6 +377,7 @@ class _AddApplianceWizardScreenState
       // 1) 가전과 버튼 이름을 허브에 올린다 -- 매핑은 허브가 아는 버튼에만 붙는다.
       if (widget.initial == null) {
         final body = await api.registerApplianceStrict(draft);
+        registered = true;
         final r = (body['revision'] as num?)?.toInt();
         seen = r != null && r > 0 ? r : null;
       }
@@ -390,6 +397,7 @@ class _AddApplianceWizardScreenState
           expectedRevision: seen,
         ),
       );
+      mappingSaved = true;
       // 3) 이 폰에 남긴다. 서버가 돌려준 정의(판 번호·사진 매핑)에 이 폰의
       //    사진 경로와 방 이름을 얹는다. 대기열로 다시 올리지 않는다 -- 같은
       //    정의를 또 올리면 방금 계산한 mm 좌표를 덮을 수 있다.
@@ -411,18 +419,29 @@ class _AddApplianceWizardScreenState
         _step = 4;
       });
     } on RpiApiException catch (e) {
+      final left = registered && !mappingSaved && !await _undoRegister(api, seen);
       if (mounted) {
         final base = e.statusCode == 0 || e.message.isEmpty
             ? kSaveOfflineMessage
             : e.statusCode == 409
                 ? kSaveConflictMessage
                 : e.message;
-        setState(() => _error = base);
+        setState(() => _error = left ? '$base $kSaveOrphanNote' : base);
       }
     } catch (_) {
-      if (mounted) setState(() => _error = kSaveOfflineMessage);
+      final left = registered && !mappingSaved && !await _undoRegister(api, seen);
+      if (mounted) setState(() => _error = left ? '$kSaveOfflineMessage $kSaveOrphanNote' : kSaveOfflineMessage);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// 방금 올린 새 가전을 본체에서 다시 지운다(버튼 자리 저장이 거절·실패했을 때). 지웠거나 이미 없으면 true.
+  Future<bool> _undoRegister(RpiApiService api, int? revision) async {
+    try {
+      return await api.deleteAppliance(_id, expectedRevision: revision);
+    } catch (_) {
+      return false;
     }
   }
 
