@@ -120,7 +120,7 @@ void main() {
       expect(all, contains('직접 누를 버튼이에요'));
       expect(all, isNot(contains(kPanelCaption)));
       expect(all, isNot(contains('대신 눌렀어요')));
-      expect(all, contains('취소 버튼이 눌렸는지 확인이 안 됐어요'));
+      expect(all, contains('취소 버튼이 눌렸는지 몰라요'));
       final picture = tester.widget<KioskPanelPicture>(find.byType(KioskPanelPicture));
       expect(picture.caution, isTrue);
       expect(picture.current?.label, '취소');

@@ -80,15 +80,15 @@ class EstopAckResult {
             ? '풀었어요. 전기 플러그 전원을 다시 켰어요.'
             : '풀었어요. 멈췄던 일은 이어서 하지 않아요. 가전 전원은 직접 켜 주세요.',
         EstopAckOutcome.buttonPressed =>
-          '빨간 비상 버튼이 아직 눌려 있어요. 돌려서 푼 뒤 다시 풀어 주세요.',
+          "빨간 비상 버튼이 아직 눌려 있어요. 버튼을 돌려서 푼 뒤 화면의 '풀기'를 다시 눌러 주세요.",
         EstopAckOutcome.outletUnreachable =>
           '전기 플러그가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.retriggered =>
-          '푸는 사이 다시 걸렸어요. 주변을 보고 다시 풀어 주세요.',
+          '푸는 사이 비상 정지가 다시 걸렸어요. 주변을 보고 다시 풀어 주세요.',
         EstopAckOutcome.stillLatched =>
           '아직 풀리지 않았어요. 빨간 비상 버튼과 주변을 보고 다시 풀어 주세요.',
         EstopAckOutcome.notLatched =>
-          '본체에서 걸린 것을 찾지 못해 풀지 않았어요. 잠시 뒤 다시 봐 주세요.',
+          '본체에 걸린 비상 정지가 없어 풀지 않았어요. 잠시 뒤 다시 봐 주세요.',
         EstopAckOutcome.noAnswer =>
           '누름 장치가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.failed =>

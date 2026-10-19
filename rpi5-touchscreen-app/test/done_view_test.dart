@@ -510,7 +510,7 @@ void main() {
         onStop: () {},
       ),
     );
-    expect(find.text('취소 버튼이 눌렸는지 확인이 안 됐어요'), findsOneWidget);
+    expect(find.text('취소 버튼이 눌렸는지 몰라요'), findsOneWidget);
     expect(find.textContaining('정지 버튼을 눌렀지만'), findsNothing);
     expect(find.textContaining('대신 눌렀어요'), findsNothing);
   });

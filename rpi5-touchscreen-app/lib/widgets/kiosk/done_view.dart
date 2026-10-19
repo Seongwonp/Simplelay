@@ -1662,7 +1662,7 @@ Future<void> confirmKioskRetry(BuildContext context,
                     : thinq
                         ? '같은 부탁을 가전에 한 번 더 보내요. 이미 그렇게 돼 있으면 그대로 둬요.'
                         : toggle
-                            ? '$kRetryToggleWarning. 같은 버튼을 또 누르게 돼요.'
+                            ? '$kRetryToggleWarning. 같은 버튼이 한 번 더 눌려요.'
                             : '$kDontRetryIfOn.',
                 key: const ValueKey('done-retry-dialog-text'),
                 style: const TextStyle(fontSize: KioskType.body)),

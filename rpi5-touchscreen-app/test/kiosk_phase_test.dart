@@ -1081,7 +1081,7 @@ void main() {
     // 제안 도착 발화 — 목적이 포함된 문장
     // 화면 질문과 같은 할 일 이름(평가 8차 10/18).
     expect(tts.utterances.single, contains('즉석밥 데우기'));
-    expect(tts.utterances.single, contains('시작을 눌러'));
+    expect(tts.utterances.single, contains('지금 하기를 눌러'));
 
     api.suggestionList = [];
     await tester.tap(find.byKey(_approveKey));

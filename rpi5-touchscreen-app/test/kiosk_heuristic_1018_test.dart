@@ -158,7 +158,7 @@ void main() {
       await tester.tap(retry);
       await tester.pumpAndSettle();
       // 버튼 성질을 모르면(behavior 없음 → unknown) 토글과 같은 경고 — 두 번 누르면 되돌아갈 수 있다(검토 10/19 #5).
-      expect(find.text('$kRetryToggleWarning. 같은 버튼을 또 누르게 돼요.'), findsOneWidget);
+      expect(find.text('$kRetryToggleWarning. 같은 버튼이 한 번 더 눌려요.'), findsOneWidget);
       expect(retried, 0); // 창에서 '네'를 누르기 전에는 보내지 않는다
       await tester.tap(find.text('네, 한 번 더 하기'));
       await tester.pumpAndSettle();
@@ -684,4 +684,4 @@ void main() {
 void _noop() {}
 
 /// 같은 버튼 재누름 경고(종전 정책 그대로, R1).
-const kDontRetryIfOnText = '가전이 이미 움직이고 있으면 한 번 더 하지 마세요. 같은 버튼을 또 누르게 돼요';
+const kDontRetryIfOnText = '가전이 이미 움직이고 있으면 한 번 더 하지 마세요. 같은 버튼이 한 번 더 눌려요';

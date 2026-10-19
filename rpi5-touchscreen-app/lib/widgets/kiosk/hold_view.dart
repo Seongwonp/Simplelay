@@ -172,7 +172,7 @@ class KioskHoldView extends StatelessWidget {
       return KioskStatusBand(
           tone: KioskBandTone.danger,
           icon: Icons.error_outline,
-          label: _fault ? '누름 장치 문제' : '멈추기 실패',
+          label: _fault ? '누름 장치에 문제가 있어요' : '정지가 안 닿았어요',
           practice: _mock);
     }
     if (_unconfirmed) {
@@ -187,7 +187,7 @@ class KioskHoldView extends StatelessWidget {
     return KioskStatusBand(
       tone: KioskBandTone.neutral,
       icon: Icons.pan_tool_outlined,
-      label: waiting ? '작동 중' : '작동 끝',
+      label: waiting ? '작동 중' : '기다림이 끝났어요',
     );
   }
 
@@ -309,8 +309,8 @@ class KioskHoldView extends StatelessWidget {
               ? (cancel == null ? '연습으로 정지 버튼을 눌렀어요' : '연습으로 $cancel 버튼을 눌렀어요')
               // 주어는 제목과 같은 가전 쪽 하나로(평가 16차 10/18 — '가전이 …' 제목 아래 '누름 장치도 …'가 섞였다).
               : (cancel == null
-                  ? '정지 버튼이 눌렸는지 확인이 안 됐어요'
-                  : '$cancel 버튼이 눌렸는지 확인이 안 됐어요'),
+                  ? '정지 버튼이 눌렸는지 몰라요'
+                  : '$cancel 버튼이 눌렸는지 몰라요'),
           KioskColors.muted
         ),
       // 누름 장치가 제자리로 돌아간 것은 서버가 알려 온 사실(hold_state=parked — RPi4가 제자리 이동을 모션 보드 응답으로 마친 뒤에만

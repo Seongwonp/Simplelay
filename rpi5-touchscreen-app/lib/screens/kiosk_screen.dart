@@ -1600,8 +1600,8 @@ class _KioskScreenState extends State<KioskScreen> {
     // 조용한 시간(2026-10-14)에는 일반 안내 소리를 내지 않는다 — 화면 카드는 그대로.
     if (_health.speakGeneral) {
       _tts.speak(suggestion.isScenario
-          ? '${suggestion.purpose} 화면에서 시작을 눌러 주세요.'
-          : '${actionName(suggestion.purpose)}, 지금 할까요? 화면에서 시작을 눌러 주세요.');
+          ? '${suggestion.purpose} 화면에서 지금 하기를 눌러 주세요.'
+          : '${actionName(suggestion.purpose)}, 지금 할까요? 화면에서 지금 하기를 눌러 주세요.');
     }
     setState(() {
       _phase = KioskPhase.suggestion;
