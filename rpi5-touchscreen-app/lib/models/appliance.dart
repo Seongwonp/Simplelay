@@ -22,6 +22,9 @@ class ApplianceButton {
   bool get isToggle => behavior == 'toggle';
 }
 
+/// 본체가 누름 장치 위치 때문에 거절한 이유(서버 `GANTRY_ABSENT_REASON`과 같은 문장, 폰 `kGantryAbsentReason`과 같다).
+const kGantryAbsentReason = '누름 장치가 이 가전 위에 없어서 누를 수 없어요';
+
 class ApplianceMap {
   const ApplianceMap({
     required this.id,
@@ -61,6 +64,11 @@ class ApplianceMap {
 
   /// ThinQ(클라우드) 경로 가전인가.
   bool get isThinq => controlPath == 'thinq';
+
+  /// 누름 장치가 누르는 가전인가(10/19) — LG 가전·연습 가전·누름 장치가 위에 없다고 본체가 말한 가전은 아니다.
+  /// 누름 장치가 끊겼을 때 '쓸 수 없어요' 표시와 그 수는 이 가전만.
+  bool get usesPressDevice =>
+      !isThinq && !isPractice && !readinessReasons.contains(kGantryAbsentReason);
 
   /// 서버가 이름에 '(연습)'을 붙인 연습 가전인가(예: 실제 모드 안의 'LG 세탁기(연습)' — 2026-10-18 연습 세탁기).
   /// 서버 구성 가전의 이름 표기가 근거다. 모의 모드 이름의 '(모의)'는 종전 그대로 둔다(타일 배지 'LG 가전').

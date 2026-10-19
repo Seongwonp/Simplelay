@@ -232,7 +232,7 @@ class KioskIdleView extends StatelessWidget {
           // 확인 필요 안내를 이 띠 둘째 줄로 묶는다(접근성 감사 10/18). 없으면 null.
           also: alsoText,
           // 누름 장치가 끊겨 '지금은 쓸 수 없어요' 표시인 가전 수(아래 타일과 같은 규칙 — 누름 장치가 누르는 가전).
-          pressImpact: pressDown && list != null ? list.where((a) => !a.isThinq).length : null,
+          pressImpact: pressDown && list != null ? list.where((a) => a.usesPressDevice).length : null,
           onTap: () {
             // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창. 비상 버튼 띠 아래에서는 칩이 연결 문제만 말한다
             // (평가 14차 10/18) — 풀기 안내는 띠의 '풀기 안내'·못 쓰는 가전 타일이 연다.
@@ -471,7 +471,7 @@ class KioskIdleView extends StatelessWidget {
               final unavailable = <String>{
                 if ((pressDown || estop) && list != null)
                   for (final a in list)
-                    if (!a.isThinq) a.id,
+                    if (a.usesPressDevice) a.id,
               };
               return Align(alignment: list == null || list.isEmpty ? Alignment.center : Alignment.topLeft,
                 child: SingleChildScrollView(child: list == null
