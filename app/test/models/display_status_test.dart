@@ -420,4 +420,50 @@ void main() {
           '멈췄어요');
     });
   });
+  // 검토 10/19: 누름 장치 대상 목록이 비었는데도 '다른 가전 위에 있어요'라고 했다.
+  group('누름 장치 위치 — 본체가 준 기본 가전 판정으로 아는 만큼만', () {
+    const absent = kGantryAbsentReason;
+    ApplianceMap builtin(String id, {List<String> reasons = const []}) => ApplianceMap.fromJson({
+          'id': id,
+          'name': id,
+          'rows': 1,
+          'cols': 1,
+          'buttons': const [],
+          'is_custom': false,
+          'can_execute': reasons.isEmpty,
+          'readiness': reasons.isEmpty ? 'operable' : 'needs_setup',
+          'readiness_reasons': reasons,
+        });
+
+    test('전자레인지 위에 있으면 그 가전이 자리다', () {
+      final hosts = pressDeviceHosts([builtin('microwave'), builtin('induction', reasons: [absent])]);
+      expect(hosts!.map((a) => a.id), ['microwave']);
+      expect(tileReasonText(absent, pressHosts: hosts), '누름 장치가 다른 가전 위에 있어요');
+    });
+
+    test('기본 가전 모두가 위에 없다고 하면 어느 가전 위에도 없다', () {
+      final hosts = pressDeviceHosts(
+          [builtin('microwave', reasons: [absent]), builtin('induction', reasons: [absent])]);
+      expect(hosts, isEmpty);
+      expect(tileReasonText(absent, pressHosts: hosts), '누름 장치가 어느 가전 위에도 없어요');
+      final s = _tile(source: builtin('induction', reasons: [absent]));
+      expect(s.text, '설정이 필요해요');
+      // 타일 함수에 넘기지 않으면 모르는 것 — 다른 가전 위라고 짐작하지 않는다.
+      expect(s.detail, '누름 장치가 이 가전 위에 없어요');
+      final t = applianceTileStatus(
+        appliance: _plain,
+        readinessSource: builtin('induction', reasons: [absent]),
+        hub: RpiConnectionState.connected,
+        catalog: ServerCatalogStatus.loaded,
+        execution: const ExecutionStatus(),
+        pressHosts: hosts,
+      );
+      expect(t.issue!.text, '지금은 쓸 수 없어요. 누름 장치가 어느 가전 위에도 없어요');
+    });
+
+    test('판정을 받은 기본 가전이 없으면 모른다 — 다른 가전 위라고 하지 않는다', () {
+      expect(pressDeviceHosts(const []), isNull);
+      expect(tileReasonText(absent), '누름 장치가 이 가전 위에 없어요');
+    });
+  });
 }

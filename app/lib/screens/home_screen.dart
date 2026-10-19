@@ -194,6 +194,7 @@ class HomeScreen extends ConsumerWidget {
                   execution: execution,
                   thinqOn: thinqPower[a.id] == 'on',
                   thinqOff: thinqPower[a.id] == 'off',
+                  pressHosts: pressDeviceHosts(catalog.appliances),
                 ),
                 verifyNoteOf: (a) => verifyNotes[a.id],
                 onOpen: (a) {

@@ -131,11 +131,39 @@ const kThinqUncheckedText = '확인 전이에요';
 /// 본체가 누름 장치 위치 때문에 거절한 이유(서버 `GANTRY_ABSENT_REASON`과 같은 문장).
 const kGantryAbsentReason = '누름 장치가 이 가전 위에 없어서 누를 수 없어요';
 
+/// 누름 장치를 올릴 수 있는 기본 가전(서버 `BUILTIN_APPLIANCES`와 같은 id).
+const kPressDeviceBuiltinIds = {'microwave', 'induction'};
+
+/// 누름 장치가 지금 올라가 있는 기본 가전 — 본체가 준 기본 가전의 준비 판정으로만 안다(새 API 없이, 검토 10/19).
+///
+/// 판정을 받은 기본 가전 가운데 '누름 장치가 이 가전 위에 없어서…'가 아닌 것이 그 자리다. null은 판정을 받은 기본 가전이
+/// 없어 모른다, 빈 목록은 어느 가전 위에도 없다(본체의 누름 장치 대상 목록이 비었다).
+List<ApplianceMap>? pressDeviceHosts(Iterable<ApplianceMap> serverBuiltins) {
+  final known = [
+    for (final a in serverBuiltins)
+      if (!a.isCustom && !a.isThinq && a.readinessKnown && kPressDeviceBuiltinIds.contains(a.id)) a,
+  ];
+  if (known.isEmpty) return null;
+  return [
+    for (final a in known)
+      if (!a.readinessReasons.any((r) => r.trim().startsWith(kGantryAbsentReason))) a,
+  ];
+}
+
 /// 가전 타일에 적을 **짧은** 원인 한 줄(휴리스틱 평가 10/18: '누름 장치가 이 가전 위에 없어서 누를 수 없…'처럼 말줄임에
 /// 원인이 잘렸다). 아는 서버 문장은 짧은 말로, 모르는 문장은 첫 문장만(지어내지 않는다). 자세한 건 가전 상세에서.
-String tileReasonText(String reason) {
+///
+/// 누름 장치 위치는 [pressHosts]([pressDeviceHosts])로 아는 만큼만 — 대상 목록이 비었는데 '다른 가전 위에 있어요'라고
+/// 하던 것(검토 10/19).
+String tileReasonText(String reason, {List<ApplianceMap>? pressHosts}) {
   final t = reason.trim();
-  if (t.startsWith(kGantryAbsentReason)) return '누름 장치가 다른 가전 위에 있어요';
+  if (t.startsWith(kGantryAbsentReason)) {
+    return switch (pressHosts) {
+      null => '누름 장치가 이 가전 위에 없어요',
+      [] => '누름 장치가 어느 가전 위에도 없어요',
+      _ => '누름 장치가 다른 가전 위에 있어요',
+    };
+  }
   final m = RegExp(r'^(.+?)[.。](?:\s|$)').firstMatch(t);
   return m == null ? t : m.group(1)!.trim();
 }
@@ -184,6 +212,7 @@ TileStatus applianceTileStatus({
   required ExecutionStatus execution,
   bool thinqOn = false,
   bool thinqOff = false,
+  List<ApplianceMap>? pressHosts,
 }) {
   // 1. 이 가전이 지금 추적 중인 실행의 대상인가(서버가 말한 대상 id로만).
   if (execution.applianceId == appliance.id) {
@@ -286,18 +315,18 @@ TileStatus applianceTileStatus({
           ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown,
               issue: TileIssue(TileMark.unknown, kTileReadyUnknown))
           : TileStatus(kSetupNeededText, TileTone.attention,
-              detail: reason == null ? null : tileReasonText(reason),
+              detail: reason == null ? null : tileReasonText(reason, pressHosts: pressHosts),
               issue: reason == null
                   ? const TileIssue(TileMark.setup, kTileSetupLeft)
-                  : TileIssue(TileMark.unusable, '지금은 쓸 수 없어요. ${tileReasonText(reason)}'));
+                  : TileIssue(TileMark.unusable, '지금은 쓸 수 없어요. ${tileReasonText(reason, pressHosts: pressHosts)}'));
     case 'disconnected':
       return r.canExecute
           ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown,
               issue: TileIssue(TileMark.unknown, kTileReadyUnknown))
           : TileStatus('연결이 필요해요', TileTone.attention,
-              detail: reason == null ? null : tileReasonText(reason),
+              detail: reason == null ? null : tileReasonText(reason, pressHosts: pressHosts),
               issue: TileIssue(TileMark.unusable,
-                  reason == null ? kTileUnusableLink : '지금은 쓸 수 없어요. ${tileReasonText(reason)}'));
+                  reason == null ? kTileUnusableLink : '지금은 쓸 수 없어요. ${tileReasonText(reason, pressHosts: pressHosts)}'));
     default:
       return const TileStatus('준비됐는지 몰라요', TileTone.unknown,
           issue: TileIssue(TileMark.unknown, kTileReadyUnknown));

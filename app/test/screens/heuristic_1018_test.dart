@@ -6,7 +6,7 @@
 // 3. 기록 실패 줄을 펼치면 다음 행동 — LG 가전 거절은 '○○ 상태 보기', 보내지 못한(안 누른) 루틴은 '다시 해 보기'(확인 시트),
 //    눌렸는지 모르면 다시 누르기 단추 없이 집에서 확인하라는 안내(R1).
 // 4. 연습 가전: 이름에서 '(연습)'을 빼고 '연습' 표지, 띠는 연습 색. LG 가전 띠는 손 아이콘 '준비됐어요' 대신 '확인 전이에요'.
-// 5. 타일 원인은 짧게 말줄임 없이('누름 장치가 다른 가전 위에 있어요'), 띠는 키오스크와 같은 '설정이 필요해요'.
+// 5. 타일 원인은 짧게 말줄임 없이('누름 장치가 이 가전 위에 없어요' — 어디 있는지는 아는 만큼만, 10/19), 띠는 키오스크와 같은 '설정이 필요해요'.
 // 6. 설정 '사용 방법' — 누름 장치·LG 가전·멈추는 방법·연습·보호자 알림.
 // 7. 마이크 옆 '말로 하기' 글자, 본체 끊김은 설정 위 배너 한 번(줄은 '못 불러왔어요'), ⋮ 메뉴 읽는 이름에 항목.
 // A. 정해진 시각 루틴 줄에 켜기·끄기 스위치(규칙이 있으면 규칙, 없으면 루틴), '지금 하기'는 따로 작은 단추, 끈 뒤 알림.
@@ -563,9 +563,10 @@ void main() {
 
   group('5. 타일 원인은 짧게, 말줄임 없이', () {
     // 사용자 결정(10/19): 원인은 타일 글자가 아니라 '!' 표시 문장의 둘째 마디(짧게).
-    testWidgets("인덕션 — '!' 표시 '지금은 쓸 수 없어요. 누름 장치가 다른 가전 위에 있어요'", (tester) async {
+    // 검토 10/19: 이 시험의 가전은 기본 가전 판정이 아니라 누름 장치가 어디 있는지 모른다 — 짐작하지 않는다.
+    testWidgets("인덕션 — '!' 표시 '지금은 쓸 수 없어요. 누름 장치가 이 가전 위에 없어요'", (tester) async {
       await _pump(tester, const HomeScreen(), size: const Size(360, 3000));
-      expect(tileMarkText(tester, 'ind'), '지금은 쓸 수 없어요. 누름 장치가 다른 가전 위에 있어요');
+      expect(tileMarkText(tester, 'ind'), '지금은 쓸 수 없어요. 누름 장치가 이 가전 위에 없어요');
       expect(tileMarkIcon(tester, 'ind'), Icons.priority_high_rounded);
       final card = find.byKey(const Key('appliance-card-ind'));
       expect(_in(card, findPlainText(_gantryAbsent, contains: true)), findsNothing);
@@ -580,7 +581,7 @@ void main() {
         execution: const ExecutionStatus(),
       );
       expect(s.text, '설정이 필요해요');
-      expect(tileReasonText(_gantryAbsent), '누름 장치가 다른 가전 위에 있어요');
+      expect(tileReasonText(_gantryAbsent), '누름 장치가 이 가전 위에 없어요');
     });
   });
 
