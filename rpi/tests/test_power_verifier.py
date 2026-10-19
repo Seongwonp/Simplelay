@@ -228,6 +228,39 @@ class TestSamplingGap:
         v = det.verify_started(since_s=10.9)
         assert v.confirmed is False
 
+    def test_gap_while_starting_does_not_confirm_via_unobserved_time(self):
+        """높음 → CT 끊김 → 높음 두 샘플로 start_confirm_s를 채우면 안 된다(10/19 검토).
+        보지 못한 시간을 '유지'로 세지 않는다 — 끊김 뒤 연속 관측부터 다시 센다."""
+        idle = _flat([(2.0, 3.0)])
+        det = PowerSignatureDetector()
+        _feed_all(det, idle + [PowerSample(t_s=2.0, watts=1200.0), PowerSample(t_s=3.5, watts=1200.0)])
+        assert det.phase is OperationPhase.STARTING
+        v = det.verify_started(since_s=1.95)
+        assert v.confirmed is False
+        # 끊김 뒤 1초 넘게 끊김 없이 높으면 그때 확정(끊김 직후 샘플 기준).
+        _feed_all(det, [PowerSample(t_s=3.5 + i / _HZ, watts=1200.0) for i in range(1, 11)])
+        assert det.phase is OperationPhase.RUNNING
+        v = det.verify_started(since_s=1.95)
+        assert v.confirmed is True, v.detail
+        assert v.decided_at_s == pytest.approx(4.5)
+
+    def test_gap_while_stopping_does_not_finish_via_unobserved_time(self):
+        det = PowerSignatureDetector()
+        _feed_all(det, microwave_profile(run_s=5.0, tail_s=0.0))
+        assert det.phase is OperationPhase.RUNNING
+        _feed_all(det, [PowerSample(t_s=10.0, watts=3.0), PowerSample(t_s=13.0, watts=3.0)])
+        assert det.phase is OperationPhase.STOPPING
+        assert det.verify_finished().confirmed is False
+
+    def test_max_sample_gap_is_configurable_and_none_disables(self):
+        cfg = PowerConfig(max_sample_gap_s=None)
+        det = PowerSignatureDetector(cfg)
+        _feed_all(det, _flat([(2.0, 3.0)]) + [PowerSample(t_s=2.0, watts=1200.0),
+                                               PowerSample(t_s=3.5, watts=1200.0)])
+        assert det.phase is OperationPhase.RUNNING
+        with pytest.raises(ValueError):
+            PowerConfig(max_sample_gap_s=0.0)
+
 
 class TestTimeout:
     def test_pending_before_timeout(self):

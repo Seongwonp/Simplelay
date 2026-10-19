@@ -97,7 +97,18 @@ class PowerConfig:
     # 완료 전력이 이만큼 유지돼야 확정 (초)
     stop_confirm_s: float = 2.0
 
+    # 시작·완료 '유지' 확인 중 샘플 간격이 이보다 크면 유지를 끊김 뒤 샘플부터 다시 센다(초).
+    # 보지 못한 시간을 유지로 세지 않는다. 콘센트 모듈 보고 주기(10 Hz)의 여유 —
+    # 추측/측정 필요. None이면 끔. 대기(기준선) 중 공백은 따로 허용한다(_idle_baseline).
+    max_sample_gap_s: float | None = 0.5
+
     def __post_init__(self) -> None:
+        if self.max_sample_gap_s is not None and not (
+            isinstance(self.max_sample_gap_s, (int, float))
+            and math.isfinite(self.max_sample_gap_s)
+            and self.max_sample_gap_s > 0
+        ):
+            raise ValueError("max_sample_gap_s must be positive or None")
         if not self.mains_voltage_v > 0:
             raise ValueError("mains_voltage_v must be positive")
         if not 0.0 < self.power_factor <= 1.0:
@@ -184,6 +195,8 @@ class PowerSignatureDetector:
         전력 ≥ 기준선 × ``start_rise_ratio``. 후보 조건이 ``start_confirm_s`` 동안
         끊김 없이 유지돼야 RUNNING — 돌입전류 한 번으로는 확정되지 않는다.
       * 완료 = RUNNING 이후 전력 ≤ ``stop_max_w`` 가 ``stop_confirm_s`` 동안 유지.
+      * 유지 확인(STARTING·STOPPING) 중 샘플 간격이 ``max_sample_gap_s``를 넘으면 유지 시간을
+        끊김 뒤 샘플부터 다시 센다 — 보지 못한 시간을 유지로 세지 않는다.
       * 유한하지 않거나 음수인 전력, 직전 샘플과 같거나 이전 시각의 샘플은 무시한다.
 
     한 인스턴스는 조작 한 번(시작→완료)을 추적한다. FINISHED 이후 입력은 단계를
@@ -203,6 +216,7 @@ class PowerSignatureDetector:
 
         self._baseline_w: float | None = None  # 상승 시작 시점에 고정한 기준선
         self._rise_start_s: float | None = None
+        self._start_hold_s: float | None = None  # 유지 시간을 세는 시작점(끊김 뒤엔 다시)
         self._started_at_s: float | None = None  # 시작 확정 시각
         self._peak_w: float | None = None  # 상승 시작 이후 최대 전력
         self._stop_start_s: float | None = None
@@ -224,6 +238,14 @@ class PowerSignatureDetector:
         if self._last_t is not None and t <= self._last_t:
             return self._phase
 
+        max_gap = self._cfg.max_sample_gap_s
+        if max_gap is not None and self._last_t is not None and t - self._last_t > max_gap + _EPS_S:
+            # 유지 확인 중 끊김 — 보지 못한 시간을 유지로 세지 않고 이 샘플부터 다시 센다.
+            if self._phase is OperationPhase.STARTING:
+                self._start_hold_s = t
+            elif self._phase is OperationPhase.STOPPING:
+                self._stop_start_s = t
+
         self._last_t, self._last_w = t, w
         self._history.append(sample)
 
@@ -244,6 +266,7 @@ class PowerSignatureDetector:
             self._phase = OperationPhase.STARTING
             self._baseline_w = baseline
             self._rise_start_s = sample.t_s
+            self._start_hold_s = sample.t_s
             self._peak_w = sample.watts
             if self._cfg.start_confirm_s <= _EPS_S:
                 self._confirm_start(sample.t_s)
@@ -257,11 +280,13 @@ class PowerSignatureDetector:
             self._phase = OperationPhase.IDLE
             self._baseline_w = None
             self._rise_start_s = None
+            self._start_hold_s = None
             self._peak_w = None
             self._feed_idle(sample)
             return
         self._peak_w = max(self._peak_w or 0.0, sample.watts)
-        if sample.t_s - self._rise_start_s >= self._cfg.start_confirm_s - _EPS_S:
+        hold_from = self._start_hold_s if self._start_hold_s is not None else self._rise_start_s
+        if sample.t_s - hold_from >= self._cfg.start_confirm_s - _EPS_S:
             self._confirm_start(sample.t_s)
 
     def _confirm_start(self, t_s: float) -> None:
