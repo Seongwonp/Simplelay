@@ -95,7 +95,7 @@ void main() {
         receipt: 'not_dispatched',
         confirmation: 'already_at_target',
         executionMode: 'real'));
-    expect(facts, 'LG 가전 · 이미 그 설정이라 보내지 않았어요 · 성공');
+    expect(facts, 'LG 가전 · 이미 그 설정이라 보내지 않았어요 · 됐어요');
   });
 
   Future<void> pump(WidgetTester tester, KioskDoneView view) async {

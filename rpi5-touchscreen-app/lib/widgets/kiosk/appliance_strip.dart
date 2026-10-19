@@ -653,10 +653,10 @@ KioskTileIssue? kioskTileIssue(
 /// 뜻까지만(가전이 꺼졌다고 단정하지 않는다). LG 가전 전원을 모르면 null — '?' 표시 문장이 말한다.
 String? kioskTileStateWord(ApplianceMap a, {bool running = false, bool on = false, bool off = false}) {
   // ThinQ는 허브가 설정을 보냈을 뿐 가전이 도는 것을 본 게 아니다(2026-10-15 외부 검토 L2) — '바꾸는 중'.
-  if (running) return a.isThinq ? '바꾸는 중' : '작동 중';
+  if (running) return a.isThinq ? '바꾸고 있어요' : '작동하고 있어요';
   if (on) return '켜져 있어요';
   if (off && a.isThinq) return '꺼져 있어요';
-  if (!a.isThinq) return '작동 중 아님';
+  if (!a.isThinq) return '지금 누르고 있지 않아요';
   return null;
 }
 

@@ -168,7 +168,7 @@ void main() {
           action: thinqActionOf('공기청정기', ['공기청정기 전원 켜기']))!;
       expect(on.headline, '공기청정기에 켜 달라고 했어요');
       expect(on.sub, '켜졌는지는 아직 몰라요');
-      expect(copy('none', '', kind: ResultKind.unconfirmed, receipt: 'unknown')!.headline, '공기청정기에 전해졌는지 몰라요');
+      expect(copy('none', '', kind: ResultKind.unconfirmed, receipt: 'unknown')!.headline, '공기청정기가 받았는지 몰라요');
     });
 
     test('실행 환경을 모르면 확인으로 올리지 않는다 · 연습은 연습 · 실패는 기존 화면(null)', () {

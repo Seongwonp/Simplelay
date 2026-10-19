@@ -99,7 +99,7 @@ class KioskAirReading {
 
   /// 앞 글 — '실내 공기 좋음'.
   /// 가전 종합 등급이면 '종합'을 밝힌다 — 아래 초미세먼지 등급과 다를 수 있다(외부 평가 10/16 3차).
-  String get headline => '실내 공기 ${isTotal ? '종합 ' : ''}$gradeWord';
+  String get headline => '실내 공기가 ${kAirGradeSentences[grade] ?? gradeWord}${isTotal ? '(종합)' : ''}';
 
   bool get isTotal => gradeSource == 'total';
 
@@ -128,7 +128,7 @@ class KioskAirReading {
             '초미세먼지 ${_num(pm25!)}${pm25Level != null ? ' ${kAirGradeWords[pm25Level]}' : ''}',
         ],
         // 종합이 보이는 먼지 등급보다 나쁘면 그 이유를 지어내지 않고 출처만 밝힌다(실패널 10/17 — 모두 '좋음'인데 종합 '보통').
-        if (_totalWorseThanShown) '종합은 가전이 매긴 등급',
+        if (_totalWorseThanShown) '종합 등급은 공기청정기가 정했어요',
         if (power == 'on') '공기청정기가 켜져 있어요',
         if (power == 'off') '공기청정기가 꺼져 있어요',
         if (mock) kPracticeNumbers,
@@ -181,9 +181,9 @@ class ThinqStateRow {
 }
 
 const _power = {'POWER_ON': '켜짐', 'POWER_OFF': '꺼짐'};
-const _jobMode = {'CLEAN': '공기 깨끗하게', 'SLEEP': '잘 때 모드', 'AUTO': '자동으로', 'SILENT': '조용히'};
+const _jobMode = {'CLEAN': '공기 깨끗하게', 'SLEEP': '잘 때 운전', 'AUTO': '자동으로', 'SILENT': '조용히'};
 // 바람 세기 이름은 조작 단추와 같은 말(2차 평가 10/18 — 상태는 '약풍', 단추는 '약'이라 다른 것처럼 읽혔다).
-const _wind = {'LOW': '약', 'MID': '중', 'HIGH': '강', 'AUTO': '자동', 'POWER': '파워'};
+const _wind = {'LOW': '약', 'MID': '중', 'HIGH': '강', 'AUTO': '자동', 'POWER': '가장 세게(파워)'};
 // 세탁기 운전 상태(2026-10-18 연습 세탁기). 서버 모의·SDK 상태 이름(runState.currentState) — 모르는 값은 그대로 보인다.
 const _washState = {
   'POWER_OFF': '꺼짐',
@@ -194,7 +194,7 @@ const _washState = {
   'SPINNING': '탈수하는 중',
   'PAUSE': '잠시 멈춤',
   'END': '다 됐어요',
-  'ERROR': '오류',
+  'ERROR': '문제가 생겼어요. LG 앱에서 봐 주세요',
 };
 
 /// 세탁기 '시작'으로 칠 운전 상태(서버 `WASHER_RUNNING_STATES`와 같은 뜻).
@@ -400,12 +400,12 @@ String? thinqCommandRefusal(int statusCode, String detail) {
   const busy = '다른 일을 하고 있어요. 끝난 뒤 다시 눌러 주세요.';
   switch (statusCode) {
     case 401:
-      return '본체가 이 화면을 받지 않았어요. 본체 설정을 봐 주세요.';
+      return '이 화면에서는 바꿀 수 없게 돼 있어요. 가족에게 본체 설정을 부탁해 주세요.';
     case 409 || 412 || 422 || 423:
       final message = detail.trim();
       if (message.contains('already in progress')) return busy;
       if (message.isNotEmpty) return message;
-      return statusCode == 409 ? busy : '본체가 지금은 이 조작을 받지 않았어요.';
+      return statusCode == 409 ? busy : '지금은 바꿀 수 없어요. 잠시 뒤 다시 눌러 주세요.';
     default:
       return null;
   }

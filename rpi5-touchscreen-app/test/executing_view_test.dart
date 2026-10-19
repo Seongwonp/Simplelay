@@ -59,11 +59,11 @@ void main() {
   });
 
   // 2026-10-15 §3-1: 숫자(mA·dB·%)는 화면에서 뺀다 — 무엇을 보고 있는지만 작은 한 줄로.
-  testWidgets("검증 근거가 오면 '눌렀어요, 확인 중이에요', 숫자는 화면에 없다",
+  testWidgets("검증 근거가 오면 '눌렀어요, 확인하고 있어요', 숫자는 화면에 없다",
       (tester) async {
     await _pump(tester, confidence: 0.93, detail: '전류 +14mA · 소리 +9dB');
 
-    expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
+    expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
     // 같은 뜻의 둘째 줄('가전이 켜지는지 보고 있어요')은 두지 않는다(평가 15차 10/18).
     expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing);
     expect(find.textContaining('mA'), findsNothing);
@@ -73,11 +73,11 @@ void main() {
   testWidgets('재시도는 실패가 아니라 보정으로 말하고 정지는 그대로 있다', (tester) async {
     await _pump(tester, attempt: 2);
 
-    expect(find.text('자리를 맞춰 다시 누르는 중'), findsOneWidget);
+    expect(find.text('자리를 맞춰 다시 누르고 있어요'), findsOneWidget);
     expect(find.textContaining('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
     expect(find.textContaining('보정'), findsNothing);
     expect(find.byIcon(Icons.autorenew), findsOneWidget);
-    expect(find.textContaining('2번째 시도'), findsOneWidget);
+    expect(find.textContaining('2번째 누르기'), findsOneWidget);
     expect(find.textContaining('실패'), findsNothing);
     expect(find.text('정지'), findsOneWidget);
   });
@@ -179,7 +179,7 @@ void main() {
     await _pump(tester, attempt: 2, completed: 1, total: 3);
     expect(find.byKey(const ValueKey('execution-step')), findsOneWidget);
     expect(find.text('누를 버튼 3개 중 2번째'), findsOneWidget);
-    expect(find.textContaining('2번째 시도'), findsOneWidget);
+    expect(find.textContaining('2번째 누르기'), findsOneWidget);
     expect(find.byKey(const ValueKey('segment-current')), findsNothing);
     await _pump(tester, attempt: 1, completed: 1, total: 3);
     expect(find.text('누를 버튼 3개 중 2번째'), findsOneWidget);

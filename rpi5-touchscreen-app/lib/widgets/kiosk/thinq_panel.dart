@@ -354,7 +354,7 @@ class _StateCardState extends State<_StateCard> {
     final List<Widget> body;
     if (loading || s == null) {
       body = [
-        KioskText('지금 상태를 보는 중…',
+        KioskText('지금 상태를 보고 있어요…',
             textKey: const ValueKey('thinq-reading'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
       ];
@@ -366,7 +366,9 @@ class _StateCardState extends State<_StateCard> {
             Icon(Icons.error_outline, color: KioskColors.warning, size: 28),
             const SizedBox(width: 10),
             Expanded(
-              child: KioskText('지금 상태를 못 봤어요. ${s.failure}',
+              child: KioskText(
+                  '지금 상태를 못 봤어요. ${s.failure!.replaceFirst(RegExp(r'\.$'), '')}'
+                  "${onReread != null ? ". '새로 보기'로 다시 볼 수 있어요." : ''}",
                   textKey: const ValueKey('thinq-read-failed'),
                   style: const TextStyle(fontSize: KioskType.body, color: Colors.white, height: 1.3)),
             ),
@@ -450,7 +452,7 @@ class _StateCardState extends State<_StateCard> {
             if (total != null && kAirGradeWords.containsKey(total))
               Padding(
                 padding: EdgeInsets.only(top: 4),
-                child: KioskText('종합은 가전이 매긴 등급이에요',
+                child: KioskText('종합 등급은 공기청정기가 정한 거예요',
                     textKey: ValueKey('thinq-air-total-note'),
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
               ),
@@ -666,7 +668,7 @@ class _Controls extends StatelessWidget {
     if (sending) {
       children.add(Padding(
         padding: EdgeInsets.only(top: 6),
-        child: KioskText('가전에 전하는 중…',
+        child: KioskText('가전에 보내고 있어요…',
             textKey: ValueKey('thinq-sending'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
       ));

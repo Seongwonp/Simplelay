@@ -594,7 +594,7 @@ void main() {
       // 할 일 한 줄과 같은 크기(상태 크기)로 크게.
       expect(tester.widget<Text>(find.byKey(const ValueKey('done-recovery-step-0'))).style?.fontSize, KioskType.status);
       expect(tester.getSize(find.byKey(const ValueKey('done-recovery-more'))).height, greaterThanOrEqualTo(48));
-      expect(find.bySemanticsLabel(RegExp('손으로 누르기')), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp('손으로 누르세요')), findsWidgets);
       await openMore(tester);
       expect(steps(tester), kPressRecoverySteps);
       semantics.dispose();

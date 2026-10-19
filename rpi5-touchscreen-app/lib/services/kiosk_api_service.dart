@@ -188,7 +188,7 @@ class KioskSuggestion {
     final isQuestion = purpose.trimRight().endsWith('?');
     if (!isQuestion) return purpose;
     if (scenarioName != null && scenarioName.isNotEmpty) return scenarioName;
-    return '제안한 실행';
+    return '제안한 일';
   }
 
   factory KioskSuggestion.fromJson(Map<String, dynamic> json) =>

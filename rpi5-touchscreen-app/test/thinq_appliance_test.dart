@@ -152,15 +152,15 @@ void main() {
     handle.dispose();
   });
 
-  // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게(평가 4차 10/18) — 상태 띠의 '바꾸는 중'(평가 6차 10/18).
+  // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게(평가 4차 10/18) — 상태 띠의 '바꾸고 있어요'(평가 6차 10/18).
   // 사용자 결정(10/19): 화면 글자는 없고 화면 읽기 이름이 말한다.
-  testWidgets('가전 줄: ThinQ 작업 중이면 "작동 중"이 아니라 "바꾸는 중"', (tester) async {
+  testWidgets('가전 줄: ThinQ 작업 중이면 "작동 중"이 아니라 "바꾸고 있어요"', (tester) async {
     final handle = tester.ensureSemantics();
     await _pump(tester, Center(child: strip({'air_purifier', 'microwave'})));
-    expect(find.bySemanticsLabel(RegExp(r'^공기청정기.*바꾸는 중')), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'^공기청정기.*작동 중')), findsNothing);
+    expect(find.bySemanticsLabel(RegExp(r'^공기청정기.*바꾸고 있어요')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^공기청정기.*작동하고 있어요')), findsNothing);
     // 물리 가전은 종전대로.
-    expect(find.bySemanticsLabel(RegExp(r'^전자레인지.*작동 중')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^전자레인지.*작동하고 있어요')), findsOneWidget);
     expect(tester.takeException(), isNull);
     handle.dispose();
   });

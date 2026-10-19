@@ -342,7 +342,7 @@ void main() {
     });
 
     // 평가 6차(10/18): 타일 아래 상태 띠 — 회색 '눌러 드려요' 반복 대신 상태 말. 서버 판정이 없는 내장 가전은 단정하지 않는다.
-    // 사용자 결정(10/19): 화면 글자 띠는 없다 — 작동 중·바꾸는 중은 화면 읽기 이름에, 모르면 '?' 표시.
+    // 사용자 결정(10/19): 화면 글자 띠는 없다 — 작동 중·바꾸고 있어요은 화면 읽기 이름에, 모르면 '?' 표시.
     testWidgets("타일 — '눌러 드려요' 반복 없음, 작동 중은 화면 읽기 '작동 중'", (tester) async {
       final h = tester.ensureSemantics();
       await _pump(
@@ -357,8 +357,8 @@ void main() {
       expect(tester.widget<KioskTileMarkButton>(find.byKey(const ValueKey('tile-mark-microwave'))).issue.text,
           kTileReadyUnknown);
       expect(find.text('눌러 드려요'), findsNothing);
-      expect(find.bySemanticsLabel(RegExp('인덕션.*작동 중')), findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp('공기청정기.*바꾸는 중')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('인덕션.*작동하고 있어요')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('공기청정기.*바꾸고 있어요')), findsOneWidget);
       expect(find.text('누름 장치 조작'), findsNothing);
       expect(find.text('동작 중'), findsNothing);
       h.dispose();
@@ -399,9 +399,9 @@ void main() {
           reason: '지금 누르는 칸에는 ✓를 달지 않는다');
     });
 
-    testWidgets("'눌렀어요, 확인 중이에요' 아이콘은 눈 하나", (tester) async {
+    testWidgets("'눌렀어요, 확인하고 있어요' 아이콘은 눈 하나", (tester) async {
       await _pump(tester, exec(confidence: 0.5));
-      expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
+      expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
       expect(find.byIcon(Icons.manage_search), findsNothing);
     });

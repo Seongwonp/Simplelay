@@ -62,14 +62,14 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                         Text('최근 ${status.windowDays}일 사용 기록'),
                         const Divider(height: 28),
                         if (status.routines.isEmpty)
-                          const Text('아직 학습할 실제 사용 기록이 없어요. 평소처럼 사용해 주세요.'),
+                          const Text('아직 습관으로 기억할 사용 기록이 없어요. 평소처럼 사용해 주세요.'),
                         // 기간을 같이 말하고, 숨김은 상태라고 분명히(2026-10-15 §4). 글자를 키웠다.
                         for (final routine in status.routines) ...[
                           Text(routine.purpose,
                               style: const TextStyle(
                                   fontSize: KioskType.body, fontWeight: FontWeight.w700)),
                           Text(
-                              '${widget.applianceNames[routine.applianceId] ?? '가전 모름'} · ${routine.timeBand}',
+                              '${widget.applianceNames[routine.applianceId] ?? '어느 가전인지 몰라요'} · ${routine.timeBand}',
                               style: const TextStyle(fontSize: KioskType.body)),
                           Text(
                               '최근 ${status.windowDays}일 중 ${routine.distinctDays}일, 모두 ${routine.occurrences}번',
@@ -78,8 +78,8 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                               routine.muted
                                   ? '이 제안은 보이지 않게 해 뒀어요'
                                   : routine.established
-                                      ? '습관 확인'
-                                      : '습관을 알아가는 중',
+                                      ? '습관으로 기억했어요'
+                                      : '습관을 알아 가고 있어요',
                               style: const TextStyle(fontSize: KioskType.body)),
                           const SizedBox(height: 16),
                         ],
@@ -107,7 +107,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
         actions: [
           if (widget.load != null)
             TextButton(
-                onPressed: () => setState(_reload), child: const Text('새로고침')),
+                onPressed: () => setState(_reload), child: const Text('새로 보기')),
           TextButton(
               onPressed: widget.onClose ?? () => Navigator.of(context).pop(),
               child: const Text('닫기')),

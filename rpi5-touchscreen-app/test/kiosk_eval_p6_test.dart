@@ -161,7 +161,7 @@ void main() {
     });
 
     test('LG 가전 작업 중은 짧게 바꾸는 중(화면 읽기)', () {
-      expect(kioskTileStateWord(_air, running: true), '바꾸는 중');
+      expect(kioskTileStateWord(_air, running: true), '바꾸고 있어요');
       expect(kioskTileIssue(_air, running: true), isNull);
     });
   });

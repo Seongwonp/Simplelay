@@ -174,16 +174,16 @@ class KioskExecutingView extends StatelessWidget {
   (String, IconData, Color) _phrase() {
     if (currentButton == null) {
       if (routineWaiting) return (kExecRoutineWaiting, Icons.hourglass_empty, KioskColors.muted);
-      return ('준비 중', Icons.hourglass_empty, KioskColors.muted);
+      return ('준비하고 있어요', Icons.hourglass_empty, KioskColors.muted);
     }
     if (_retrying) {
       return (
-        _mock ? '다시 누르는 연습 중' : '자리를 맞춰 다시 누르는 중',
+        _mock ? '연습으로 다시 누르고 있어요' : '자리를 맞춰 다시 누르고 있어요',
         Icons.autorenew,
         KioskColors.warning
       );
     }
-    if (_mock) return ('누르는 연습 중', Icons.touch_app_outlined, Colors.white);
+    if (_mock) return ('연습으로 누르고 있어요', Icons.touch_app_outlined, Colors.white);
     // 실제 단계대로(결선 모의 평가 10/18 — '제대로 눌렸는지 보는 중'과 '2번째 시작 버튼'이 함께 있어 누르는 중인지 확인 중인지
     // 헷갈렸다). 서버 진행 보고(`ExecutionProgress`)는 누르고 난 **뒤** 확인 결과를 실어 온다 — 그때는 '눌렀어요, 확인
     // 중이에요'(눌렸다고 단정하지 않는다). 확인 결과 없이 버튼만 오면(누르기가 끝나지 않아 그 버튼을 다시 누르러 간다)
@@ -202,7 +202,7 @@ class KioskExecutingView extends StatelessWidget {
   String? _evidence({bool large = false}) {
     // '가전이 켜지는지 보고 있어요'는 두지 않는다(평가 15차 10/18) — 위 상태 '제대로 눌렸는지 보는 중'과 같은 말이었다.
     final parts = <String>[
-      if (_retrying) '$currentAttempt번째 시도',
+      if (_retrying) '$currentAttempt번째 누르기',
     ];
     return parts.isEmpty ? null : parts.join(' · ');
   }
@@ -233,7 +233,7 @@ class KioskExecutingView extends StatelessWidget {
               : KioskStatusBand(
                   tone: KioskBandTone.running,
                   icon: Icons.play_circle_outline,
-                  label: '실행 중',
+                  label: '하고 있어요',
                   detail: action.title,
                   detailIcon: target?.icon,
                 ),
@@ -348,7 +348,7 @@ class KioskExecutingView extends StatelessWidget {
               : KioskStatusBand(
                   tone: KioskBandTone.running,
                   icon: Icons.play_circle_outline,
-                  label: '실행 중',
+                  label: '하고 있어요',
                   detail: bandDetail,
                   detailIcon: target?.icon,
                 ),
@@ -405,7 +405,7 @@ enum KioskExecStop { none, stopping, failed }
 const kExecStopFailed = '정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.';
 
 /// 루틴 구간 사이 상태(검토 10/19) — 앞 차례를 마치고 다음 차례를 기다린다(가전이 끝나기를 기다릴 수도 있다).
-const kExecRoutineWaiting = '다음 차례를 기다리는 중';
+const kExecRoutineWaiting = '다음 차례를 기다리고 있어요';
 
 /// 실행 중 버튼판 위 한 줄(출시 검토 10/18) — 세 줄 설명 대신 할 일만. 연습도 같은 말(연습은 위 청록 띠가 말한다).
 const kExecPanelCaption = '화면은 누르지 않아도 돼요';
@@ -414,7 +414,7 @@ const kExecPanelCaption = '화면은 누르지 않아도 돼요';
 const kExecPressing = '누르고 있어요';
 
 /// 실행 중 상태 — 누른 뒤 확인 결과가 온 단계. 눌렸다고 단정하지 않는다(확인은 서버·결과 화면이 말한다).
-const kExecPressedChecking = '눌렀어요, 확인 중이에요';
+const kExecPressedChecking = '눌렀어요, 확인하고 있어요';
 
 // ── 진행 · 지금 버튼 · 한 줄 ─────────────────────────────────────────────────
 
@@ -437,7 +437,7 @@ class _NowBlock extends StatelessWidget {
         ? [
             // 연습은 위 띠가 '실제 가전은 그대로예요'를 말한다 — 같은 말을 또 쓰지 않는다(평가 4차 10/18).
             if (!view._mock) '눌렸는지 몰라서 한 번 더 눌러요',
-            '${view.currentAttempt}번째 시도',
+            '${view.currentAttempt}번째 누르기',
           ].join('. ')
         : view._mock
             // 연습 띠는 한 줄이라 가전·할 일을 싣지 않는다 — 여기 마지막 한 줄로.

@@ -1029,12 +1029,12 @@ enum KioskFailureReason {
   /// 연습(모의) 실패의 이유 한 줄 — 실제로 누른 것이 아니라 연습 안에서 일어난 일이다.
   String get practiceWhy => switch (this) {
         // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 몰라요'는 연습 띠와 부딪혔다(평가 4차 10/18).
-        KioskFailureReason.execution => '연습 누르기를 끝내지 못했어요',
+        KioskFailureReason.execution => '연습으로 누르다가 끝내지 못했어요',
         KioskFailureReason.safetyStop => '연습에서 다시 누르지 않고 멈췄어요',
         KioskFailureReason.serverLost => '연습 결과를 받지 못했어요',
         KioskFailureReason.stopped => kPracticeStopHeadline,
         KioskFailureReason.unconfirmed => '연습 결과를 몰라요',
-        KioskFailureReason.receiptUnknown => '연습이 전해졌는지 몰라요',
+        KioskFailureReason.receiptUnknown => '연습 부탁이 닿았는지 몰라요',
         KioskFailureReason.notExecuted => '연습을 하지 못했어요',
       };
 
@@ -1584,8 +1584,8 @@ const kManualEntryLabel = '누름 장치로 골라 누르기';
 /// 첫 줄은 할 일 한 가지(크게), 나머지는 '더 볼 것' 뒤([KioskRecoverySteps], 심사 의견 10/19) — 첫 줄은 폰 결과 화면과 같은 말.
 const kThinqRecoverySteps = [
   '가전 앞에 가서 직접 봐 주세요',
-  '가전 화면·불빛이 바뀌었는지 확인',
-  '모르겠으면 가족에게 물어보기',
+  '가전 화면·불빛이 바뀌었나요?',
+  '모르겠으면 가족에게 물어보세요',
 ];
 
 /// 정지 확인 보고를 기다리는 동안 제목 아래 한 줄(휴리스틱 평가 10/18).
@@ -1625,22 +1625,22 @@ class KioskCheckWords {
       question: '${(name?.isNotEmpty ?? false) ? name : '가전'} 화면·불빛·소리가 바뀌었나요?',
       yes: '바뀌었어요',
       no: '안 바뀌었어요',
-      noSaid: '안 바뀌었다고');
+      noSaid: '가전이 안 바뀌었다고');
 
   /// LG 가전 켜기.
   factory KioskCheckWords.on(String? name) =>
-      KioskCheckWords(question: '${_who(name)} 켜졌나요?', yes: '켜졌어요', no: '안 켜졌어요', noSaid: '안 켜졌다고');
+      KioskCheckWords(question: '${_who(name)} 켜졌나요?', yes: '켜졌어요', no: '안 켜졌어요', noSaid: '가전이 안 켜졌다고');
 
   /// LG 가전 끄기.
   factory KioskCheckWords.off(String? name) =>
-      KioskCheckWords(question: '${_who(name)} 꺼졌나요?', yes: '꺼졌어요', no: '안 꺼졌어요', noSaid: '안 꺼졌다고');
+      KioskCheckWords(question: '${_who(name)} 꺼졌나요?', yes: '꺼졌어요', no: '안 꺼졌어요', noSaid: '가전이 안 꺼졌다고');
 
   /// LG 가전 설정(바람 세기 등).
   factory KioskCheckWords.changed(String? name) => KioskCheckWords(
       question: '${(name?.isNotEmpty ?? false) ? name : '가전'} 설정이 바뀌었나요?',
       yes: '바뀌었어요',
       no: '안 바뀌었어요',
-      noSaid: '설정이 안 바뀌었다고');
+      noSaid: '가전 설정이 안 바뀌었다고');
 }
 
 /// 켜고 끄는 한 버튼을 다시 누르게 될 때 확인 창의 경고(접근성 감사 10/18). 버튼 데이터에 토글 성질이 있을 때만 쓴다.
@@ -1795,7 +1795,7 @@ class _KioskCheckActionsState extends State<KioskCheckActions> {
             onTap: () => setState(() => _saidNo = true)),
       ];
     } else {
-      prompt = '가전이 ${w.noSaid} 알려 주셨어요';
+      prompt = '${w.noSaid} 알려 주셨어요';
       final retry = widget.onRetry;
       pair = [
         _big(
@@ -1853,15 +1853,15 @@ class _KioskCheckActionsState extends State<KioskCheckActions> {
 /// 첫 줄은 할 일 한 가지(크게), 나머지는 '더 볼 것' 뒤(심사 의견 10/19) — 첫 줄은 폰 결과 화면과 같은 말.
 const kPressRecoverySteps = [
   '가전 화면이 바뀌었는지 봐 주세요',
-  '누름 장치가 버튼 앞에 있는지 확인',
-  '안 바뀌었으면 가전 버튼을 손으로 누르기',
+  '누름 장치가 버튼 앞에 있나요?',
+  '안 바뀌었으면 가전 버튼을 손으로 누르세요',
 ];
 
 /// 누름 장치가 멈췄는지 모를 때(사용자 정지, 확인 못 함)의 순서 안내(평가 15차 10/18) — 정지가 먼저, 그다음 가전.
 /// 누름 장치를 다시 움직이게 하는 일('누름 장치로 골라 누르기')은 권하지 않는다.
 const kStopUnknownSteps = [
-  '누름 장치가 아직 움직이면 다시 멈추기',
-  '가전이 켜져 있으면 가전 정지 버튼을 손으로 누르기',
+  "누름 장치가 아직 움직이면 '다시 멈추기'를 누르세요",
+  '가전이 켜져 있으면 가전 정지 버튼을 손으로 눌러 주세요',
 ];
 
 /// 화면 읽기·음성용 한 문장 — '첫째, …. 둘째, …'.

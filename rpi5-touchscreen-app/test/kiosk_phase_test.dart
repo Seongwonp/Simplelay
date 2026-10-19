@@ -1335,12 +1335,12 @@ void main() {
 
     // 심사석에서 읽히는 크기인지 — 보조문구가 아니라 상태 구절 자체가 크다.
     // '보정'은 처음 보는 사람이 몰랐다(2026-10-15) — 자리를 맞춰 다시 누른다고 쓴다.
-    final banner = tester.widget<Text>(find.text('자리를 맞춰 다시 누르는 중'));
+    final banner = tester.widget<Text>(find.text('자리를 맞춰 다시 누르고 있어요'));
     expect(banner.style!.fontSize, greaterThanOrEqualTo(30));
     expect(find.byIcon(Icons.autorenew), findsOneWidget);
     // 재시도 중에도 긴급 정지는 그대로 있다.
     expect(find.text('정지'), findsOneWidget);
-    expect(find.textContaining('2번째 시도'), findsWidgets);
+    expect(find.textContaining('2번째 누르기'), findsWidgets);
   });
 
   testWidgets('첫 시도에는 자동 보정 배너가 없다', (tester) async {
@@ -1357,7 +1357,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
 
-    expect(find.text('자리를 맞춰 다시 누르는 중'), findsNothing);
+    expect(find.text('자리를 맞춰 다시 누르고 있어요'), findsNothing);
     // 제목과 hero가 같은 라벨을 쓰므로 hero 쪽 상태 구절로 확인한다
     expect(find.text('누르고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 단계대로
   });
@@ -2348,7 +2348,7 @@ void main() {
     );
     expect(done.reason, KioskFailureReason.receiptUnknown);
     // 받았는지 모름 — 확인됨으로 올리지 않고, 다시 보내기 전에 보라고(LG 가전 결과 창, 사용자 요청 10/18).
-    expect(find.text('가전에 전해졌는지 몰라요'), findsOneWidget);
+    expect(find.text('가전이 받았는지 몰라요'), findsOneWidget);
     expect(find.text('다시 하기 전에 가전을 봐 주세요'), findsOneWidget);
     expect(find.textContaining('바뀐 것을 봤어요'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -2646,9 +2646,9 @@ void main() {
     expect(api.lastRunCalls, greaterThan(0));
     expect(done.success, isTrue);
     expect(find.text('1. 공기청정기 풍량 약하게'), findsOneWidget);
-    expect(find.text('LG 가전 · 연습 · 연습 결과 · 성공'), findsOneWidget);
+    expect(find.text('LG 가전 · 연습 · 연습 결과 · 됐어요'), findsOneWidget);
     expect(find.text('2. 전자레인지 즉석밥'), findsOneWidget);
-    expect(find.text('연습 · 연습 결과 · 성공'),
+    expect(find.text('연습 · 연습 결과 · 됐어요'),
         findsOneWidget);
     // 물리 성공의 한 줄 요약 칩(마지막 단계 기준)은 제목·아래 한 줄이 대신 말한다(2026-10-15) — 단계 줄에만 남는다.
     expect(find.text('연습 결과'), findsNothing);

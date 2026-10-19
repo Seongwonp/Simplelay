@@ -180,7 +180,7 @@ ThinqResultCopy? thinqResultCopy({
       headline: kind == ResultKind.success
           ? '연습을 마쳤어요'
           : receipt == 'unknown'
-              ? '연습이 전해졌는지 몰라요'
+              ? '연습 부탁이 닿았는지 몰라요'
               : '연습으로 부탁했어요',
       sub: '실제 가전은 바꾸지 않았어요',
       tone: ThinqResultTone.practice,
@@ -229,7 +229,7 @@ ThinqResultCopy? thinqResultCopy({
   // 부탁했지만 확인하지 못했다 — 체크 없이, 사람이 가전을 본다. 받았는지조차 모르면 다시 하기 전에 보라고 한다.
   if (receipt == 'unknown') {
     return ThinqResultCopy(
-      headline: '$applianceName에 전해졌는지 몰라요',
+      headline: '${withSubject(applianceName)} 받았는지 몰라요',
       sub: '다시 하기 전에 가전을 봐 주세요',
       tone: ThinqResultTone.attention,
     );

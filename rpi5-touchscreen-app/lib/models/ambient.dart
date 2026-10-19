@@ -431,7 +431,7 @@ String thinqResultPhrase(String name, String? action, Map<String, dynamic> args)
       };
       return word == null ? '$name 바람 세기 바꾸기' : '$name 바람 $word';
     case 'set_job_mode':
-      return '$name 모드 바꾸기';
+      return '$name 운전 방식 바꾸기';
   }
   return '$name 바꾸기';
 }

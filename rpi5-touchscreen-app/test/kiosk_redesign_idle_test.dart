@@ -3,7 +3,7 @@
 // - 위쪽 아이콘 4~5개 → 상태 칩 하나(모두 괜찮으면 없음 / 문제가 있을 때만 앰버 '확인 필요 N', 사용자 결정 10/18) + 메뉴(잠시 쉬기·설정).
 //   설정은 구석이 아니다(메뉴는 화면 가운데 큰 창으로 열린다). 누르는 자리는 48 이상.
 // - 가전 줄은 큰 사각 타일(아이콘·이름·상태 줄).
-// - 공기는 '공기 좋아요/보통이에요/나빠요' 한 줄 + 색. 숫자·'종합은 가전이 매긴 등급'은 LG 상세의 '자세히' 안.
+// - 공기는 '공기 좋아요/보통이에요/나빠요' 한 줄 + 색. 숫자·'종합 등급은 공기청정기가 정한 거예요'은 LG 상세의 '자세히' 안.
 // - LG 상세 상태 이름은 단추와 같은 말(약풍 → 약).
 // - 연결 창: 단추 '다시 연결해 보기', 화면이 직접 쓰는 끊김 안내는 할 일 두 단계(공유기 → 본체 껐다 켜기).
 import 'package:flutter/material.dart';
@@ -149,7 +149,7 @@ void main() {
   });
 
   group('공기 — 한 줄 + 색', () {
-    testWidgets("'공기 나빠요' — 숫자·'종합은 가전이 매긴 등급'은 대기 화면에 없다", (tester) async {
+    testWidgets("'공기 나빠요' — 숫자·'종합 등급은 공기청정기가 정한 거예요'은 대기 화면에 없다", (tester) async {
       final air = KioskAirReading.fromJson({
         'appliance_id': 'air_purifier', 'grade': 'BAD', 'grade_source': 'total',
         'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'on', 'age_s': 3.0,
@@ -157,7 +157,7 @@ void main() {
       expect(air.sentence, '공기 나빠요');
       await _pump(tester, _idle(air: air));
       expect(find.textContaining('나빠요'), findsOneWidget);
-      expect(find.textContaining('종합은 가전이 매긴 등급'), findsNothing);
+      expect(find.textContaining('종합 등급은 공기청정기가 정한 거예요'), findsNothing);
       expect(find.textContaining('미세먼지'), findsNothing);
     });
 
@@ -217,7 +217,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('thinq-air-more')));
       await tester.pump();
       expect(find.byKey(const ValueKey('thinq-row-초미세먼지')), findsOneWidget);
-      expect(find.textContaining('종합은 가전이 매긴 등급'), findsOneWidget);
+      expect(find.textContaining('종합 등급은 공기청정기가 정한 거예요'), findsOneWidget);
     });
   });
 

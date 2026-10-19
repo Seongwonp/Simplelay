@@ -623,7 +623,7 @@ void main() {
     testWidgets('숫자 근거(mA·dB·%) 없이 무엇을 보는지만 말한다', (tester) async {
       // 마지막 버튼의 확인 결과(10/19 — 확인 머리말은 다 누른 뒤에만).
       await _pumpView(tester, exec(button: '시작', completed: 1, confidence: 0.93, detail: '전류 +14mA · 소리 +9dB'));
-      expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
+      expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing); // 위 상태와 같은 말 — 하나만(평가 15차 10/18)
       expect(find.textContaining('mA'), findsNothing);
       expect(find.textContaining('dB'), findsNothing);
@@ -632,9 +632,9 @@ void main() {
 
     testWidgets('다시 누를 때 — 자리를 맞춰 다시 누르는 중, 한 번 더 눌러요(안전하다고는 하지 않는다)', (tester) async {
       await _pumpView(tester, exec(attempt: 2, confidence: 0.4, detail: '전류 +2mA'));
-      expect(find.text('자리를 맞춰 다시 누르는 중'), findsOneWidget);
+      expect(find.text('자리를 맞춰 다시 누르고 있어요'), findsOneWidget);
       expect(find.textContaining('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
-      expect(find.textContaining('2번째 시도'), findsOneWidget);
+      expect(find.textContaining('2번째 누르기'), findsOneWidget);
       expect(find.textContaining('보정'), findsNothing);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
     });
@@ -659,7 +659,7 @@ void main() {
       await _pumpView(tester, exec(mode: 'mock', completed: 1, total: 2, confidence: 1, detail: '모의 검증'));
       expect(find.text(kPracticeBandText), findsOneWidget);
       expect(find.text('연습 모드'), findsNothing);
-      expect(find.text('누르는 연습 중'), findsOneWidget);
+      expect(find.text('연습으로 누르고 있어요'), findsOneWidget);
       expect(find.text('누를 버튼 2개 중 2번째'), findsOneWidget);
       expect(find.text('누르고 있어요'), findsNothing);
       expect(find.textContaining('눌렸는지'), findsNothing);

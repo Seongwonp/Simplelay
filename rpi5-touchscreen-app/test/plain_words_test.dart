@@ -195,7 +195,7 @@ void main() {
     for (final t in _drawnTexts(tester)) {
       _expectPlain(t, 'executing');
     }
-    expect(find.text('누르는 연습 중'), findsOneWidget);
+    expect(find.text('연습으로 누르고 있어요'), findsOneWidget);
   });
 
   testWidgets('연결 창은 본체라고 부르고 풀이 줄을 붙이지 않는다', (tester) async {

@@ -542,7 +542,7 @@ void main() {
             verificationDetail: '전력 변화를 보는 중',
             onStop: () {},
           ));
-      expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
+      expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing);
     });
   });

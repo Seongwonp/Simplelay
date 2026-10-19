@@ -247,7 +247,7 @@ void main() {
     expect(find.text('LG 가전 · 연습 · 받았는지 몰라요 · 몰라요'),
         findsOneWidget);
     // 보내지 않은 단계는 '몰라요'이 아니라 '누르지 않았어요'. 물리 경로 배지는 달지 않는다(2026-10-14).
-    expect(find.text('연습 · 누르지 않았어요 · 실패'),
+    expect(find.text('연습 · 누르지 않았어요 · 못 했어요'),
         findsOneWidget);
     expect(find.textContaining('바뀐 것을 봤어요'), findsNothing);
     expect(tester.takeException(), isNull);

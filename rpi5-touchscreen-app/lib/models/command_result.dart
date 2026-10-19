@@ -57,10 +57,10 @@ ResultKind resultKindOf({String? outcome, String? status}) {
 
 /// 한 단어 결과(이력 열·배지).
 String resultWord(ResultKind kind) => switch (kind) {
-      ResultKind.success => '성공',
-      ResultKind.failed => '실패',
-      ResultKind.stopped => '멈춤',
-      ResultKind.safetyStop => '스스로 멈춤',
+      ResultKind.success => '됐어요',
+      ResultKind.failed => '못 했어요',
+      ResultKind.stopped => '멈췄어요',
+      ResultKind.safetyStop => '스스로 멈췄어요',
       ResultKind.unconfirmed => '몰라요',
     };
 

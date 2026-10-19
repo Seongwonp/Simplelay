@@ -1,7 +1,7 @@
 // 결선 심사 모의 평가(10/18, 합의 78점)에서 나온 키오스크 문제 — 단정 시험.
 //
 // 1. 전력 확인 결과('전자레인지가 켜졌어요')는 무엇으로 확인했는지 제목 바로 아래 한 줄(본문 크기·흰 글자).
-// 2. 실행 중 상태는 실제 단계대로 — 서버 진행 보고가 누른 뒤 확인 결과를 실어 오면 '눌렀어요, 확인 중이에요',
+// 2. 실행 중 상태는 실제 단계대로 — 서버 진행 보고가 누른 뒤 확인 결과를 실어 오면 '눌렀어요, 확인하고 있어요',
 //    확인 결과 없이 버튼만 오면 '누르고 있어요'. 예전 '제대로 눌렸는지 보는 중'은 누르는 중인지 확인 중인지 헷갈렸다.
 // 3. 보조 글씨 키우기 — 제안 카운트다운(키오스크 타이머 40초, 남은 초를 따로 크게), 버튼판 안내, 가전 타일 회색 띠 글자,
 //    사용 방법 본문.
@@ -118,9 +118,9 @@ void main() {
           onStop: _noop,
         );
 
-    testWidgets("누른 뒤 확인 결과가 오면 '눌렀어요, 확인 중이에요' — '보는 중'이 아니다", (tester) async {
+    testWidgets("누른 뒤 확인 결과가 오면 '눌렀어요, 확인하고 있어요' — '보는 중'이 아니다", (tester) async {
       await _pump15(tester, exec(confidence: 0.93, detail: '전류 +14mA'));
-      expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget);
+      expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget);
       expect(find.text('제대로 눌렸는지 보는 중'), findsNothing);
       expect(find.text('누르고 있어요'), findsNothing);
     });
@@ -128,17 +128,17 @@ void main() {
     testWidgets("확인 결과 없이 버튼만 오면 '누르고 있어요'", (tester) async {
       await _pump15(tester, exec());
       expect(find.text('누르고 있어요'), findsOneWidget);
-      expect(find.text('눌렀어요, 확인 중이에요'), findsNothing);
+      expect(find.text('눌렀어요, 확인하고 있어요'), findsNothing);
       expect(find.text('누르는 중'), findsNothing);
     });
 
-    testWidgets('다시 누르는 중·연습은 종전 말 그대로(R1 — 다시 누르기를 쉬운 말로 바꾸지 않는다)', (tester) async {
+    testWidgets('다시 누르는 중·연습은 다시 누른다는 뜻 그대로(R1 — 다시 누르기를 숨기지 않는다, 말끝만 해요체 10/19)', (tester) async {
       await _pump15(tester, exec(attempt: 2, confidence: 0.4));
-      expect(find.text('자리를 맞춰 다시 누르는 중'), findsOneWidget);
-      expect(find.text('눌렀어요, 확인 중이에요'), findsNothing);
+      expect(find.text('자리를 맞춰 다시 누르고 있어요'), findsOneWidget);
+      expect(find.text('눌렀어요, 확인하고 있어요'), findsNothing);
       await _pump15(tester, exec(mode: 'mock', confidence: 0.9));
-      expect(find.text('누르는 연습 중'), findsOneWidget);
-      expect(find.text('눌렀어요, 확인 중이에요'), findsNothing);
+      expect(find.text('연습으로 누르고 있어요'), findsOneWidget);
+      expect(find.text('눌렀어요, 확인하고 있어요'), findsNothing);
     });
   });
 
