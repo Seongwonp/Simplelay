@@ -32,11 +32,13 @@ class ControlConflictError(RuntimeError):
 
     def __init__(self, holder: str) -> None:
         self.holder = holder
-        message = (
-            "개발자 세션이 기기를 점유하고 있습니다 — 세션이 끝난 뒤에 실행할 수 있습니다"
-            if holder == ControlArbiter.DEVELOPER
-            else "일반 실행이 진행 중입니다 — 끝난 뒤에 시작할 수 있습니다"
-        )
+        if holder == ControlArbiter.DEVELOPER:
+            message = "개발자 세션이 기기를 점유하고 있습니다 — 세션이 끝난 뒤에 실행할 수 있습니다"
+        elif holder == ControlArbiter.VERIFY_PASS:
+            # 확인 주행이 잡고 있으면 그대로 말한다(검토 10/19) — '일반 실행'이라 하면 무엇이 도는지 알 수 없다.
+            message = "자리 확인이 진행 중입니다 — 끝난 뒤에 시작할 수 있습니다"
+        else:
+            message = "일반 실행이 진행 중입니다 — 끝난 뒤에 시작할 수 있습니다"
         super().__init__(message)
 
 
