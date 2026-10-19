@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/appliance.dart';
+import '../models/display_status.dart' show applianceNameTaken, kNameTakenMessage;
 import '../providers/appliance_provider.dart';
 import '../providers/appliance_sync_provider.dart';
 import '../providers/photo_provider.dart';
@@ -68,6 +69,11 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
   }
 
   void _refresh() => setState(() {});
+
+  /// 이름과 방이 모두 같은 가전이 이미 있는가 — 있으면 저장하지 않는다(실화면 10/19).
+  /// 저장한 뒤에는 방금 등록한 그 가전과 겹치므로 보지 않는다.
+  bool get _nameTaken => !_saved && applianceNameTaken(
+      ref.read(installedAppliancesProvider), _nameController.text, _locationController.text);
 
   @override
   void dispose() {
@@ -262,6 +268,11 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           .showSnackBar(const SnackBar(content: Text('가전 이름을 적어 주세요.')));
       return;
     }
+    if (_nameTaken) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text(kNameTakenMessage)));
+      return;
+    }
 
     final buttons = <ApplianceButton>[];
     var counter = 1;
@@ -443,9 +454,11 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           const SizedBox(height: AppSpace.sm),
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
               hintText: '예: 식기세척기',
+              errorText: _nameTaken ? kNameTakenMessage : null,
+              errorMaxLines: 3,
             ),
           ),
           const SizedBox(height: AppSpace.lg),

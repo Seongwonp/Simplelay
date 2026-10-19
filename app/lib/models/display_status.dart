@@ -815,3 +815,15 @@ Map<String, String> distinctTileNames(List<ApplianceMap> appliances) {
       }(),
   };
 }
+
+/// 새로 등록하려는 이름이 이미 있는가 — 이름과 방(없음 포함)이 모두 같은 가전([distinctTileNames]와 같은 기준).
+///
+/// 같으면 홈 타일만 " (2)"로 가르고 설정 목록·상세 제목·'설정이 남은 가전'·말로 하기는 가를 수 없었다
+/// (실화면 10/19: 세탁기 둘). 등록할 때 막는다.
+bool applianceNameTaken(List<ApplianceMap> installed, String name, String? room) {
+  final key = '${name.trim()}\u0000${(room ?? '').trim()}';
+  return installed.any((a) => '${a.name.trim()}\u0000${(a.location ?? '').trim()}' == key);
+}
+
+/// [applianceNameTaken]일 때 이름 칸 아래에 적는 말.
+const kNameTakenMessage = '같은 이름의 가전이 이미 있어요. 이름을 바꾸거나(예: 세탁기 2) 방을 적어 주세요.';

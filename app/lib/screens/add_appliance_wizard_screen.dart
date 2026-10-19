@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../models/display_status.dart' show applianceNameTaken, kNameTakenMessage;
 import '../models/hub.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/photo_provider.dart';
@@ -65,6 +66,7 @@ class _AddApplianceWizardScreenState
   /// 이 폰 문서 폴더에 옮겨 둔 사진 경로(찍을 때 옮긴다). 위치를 다시 맞출 때는 등록된 사진에서 시작한다.
   late String? _keptPhoto = widget.initial?.photoPath;
   final _name = TextEditingController(text: '전자레인지');
+  late final String _initialName;
   final _room = TextEditingController();
   ApplianceCategory _category = ApplianceCategory.microwave;
 
@@ -102,6 +104,8 @@ class _AddApplianceWizardScreenState
   void initState() {
     super.initState();
     final a = widget.initial;
+    // 처음 채워 두는 이름이 이미 있는 가전과 겹치면 비워 둔다 — 아무것도 안 했는데 빨간 경고부터 보이지 않게.
+    if (a == null && _nameTaken) _name.clear();
     if (a != null) {
       _name.text = a.name;
       _room.text = a.location ?? '';
@@ -123,6 +127,7 @@ class _AddApplianceWizardScreenState
         unawaited(_loadFrame());
       }
     }
+    _initialName = _name.text;
   }
 
   @override
@@ -140,12 +145,18 @@ class _AddApplianceWizardScreenState
   bool get _canNext => switch (_step) {
         0 => _photo != null &&
             _photoSize != null &&
-            _name.text.trim().isNotEmpty,
+            _name.text.trim().isNotEmpty &&
+            !_nameTaken,
         1 => _corners.length == 4 && _frameReady,
         2 => _buttons.isNotEmpty,
         3 => !_busy,
         _ => false,
       };
+
+  /// 새로 등록하는 이름이 이미 있는가(이름·방이 모두 같은 가전). 위치를 다시 맞출 때는 이름을 바꾸지 않으니 보지 않는다.
+  bool get _nameTaken =>
+      widget.initial == null &&
+      applianceNameTaken(ref.read(installedAppliancesProvider), _name.text, _room.text);
 
   bool get _frameReady =>
       (_frame?.known ?? false) || (_parsedFrameW != null && _parsedFrameH != null);
@@ -489,7 +500,7 @@ class _AddApplianceWizardScreenState
   @override
   Widget build(BuildContext context) {
     return InputGuard(
-      dirty: !_transferring && _saved == null && (_photo != null || _room.text.isNotEmpty || _name.text != '전자레인지' || _buttons.isNotEmpty),
+      dirty: !_transferring && _saved == null && (_photo != null || _room.text.isNotEmpty || _name.text != _initialName || _buttons.isNotEmpty),
       child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -631,7 +642,11 @@ class _AddApplianceWizardScreenState
           key: const Key('wizard-name'),
           controller: _name,
           maxLength: 40,
-          decoration: const InputDecoration(labelText: '가전 이름 (예: 전자레인지)'),
+          decoration: InputDecoration(
+            labelText: '가전 이름 (예: 전자레인지)',
+            errorText: _nameTaken ? kNameTakenMessage : null,
+            errorMaxLines: 3,
+          ),
           onChanged: (_) => setState(() {}),
         ),
         TextField(

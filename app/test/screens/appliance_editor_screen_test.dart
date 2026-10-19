@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/display_status.dart' show kNameTakenMessage;
 import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/photo_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
@@ -185,6 +187,44 @@ void main() {
 
     expect(find.text('가전 이름을 적어 주세요.'), findsOneWidget);
     expect(find.text('새 가전 추가'), findsOneWidget); // 화면 안 넘어감
+  });
+
+  testWidgets('이름과 방이 모두 같은 가전이 있으면 이름 칸 아래에 말하고 저장하지 않는다 — 방이 다르면 된다(실화면 10/19)',
+      (tester) async {
+    _useTallViewport(tester);
+    late ProviderContainer container;
+    const existing = ApplianceMap(
+      id: 'custom_washer',
+      name: '세탁기',
+      category: ApplianceCategory.washingMachine,
+      rows: 1,
+      cols: 1,
+      buttons: [ApplianceButton(id: 'b1', label: '전원', x: 0, y: 0)],
+      isCustom: true,
+    );
+    await _pumpEditor(tester, _buildRouter(),
+        extraOverrides: installedOverrides(const [existing]),
+        onContainerReady: (c) => container = c);
+
+    Finder underName() => find.descendant(
+        of: find.byType(TextField).first, matching: find.text(kNameTakenMessage));
+    await tester.enterText(find.byType(TextField).first, '세탁기');
+    await tester.pump();
+    expect(underName(), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.add).first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '전원');
+    await tester.tap(find.widgetWithText(FilledButton, '확인'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '저장'));
+    await tester.pump();
+    expect(container.read(customAppliancesProvider), hasLength(1), reason: '같은 이름은 저장하지 않는다');
+    expect(find.text('새 가전 추가'), findsOneWidget);
+
+    // 방을 적으면 가를 수 있다.
+    await tester.enterText(find.byType(TextField).at(1), '베란다');
+    await tester.pump();
+    expect(underName(), findsNothing);
   });
 
   testWidgets('버튼 없이 저장하면 스낵바 경고, 저장 안 됨', (tester) async {

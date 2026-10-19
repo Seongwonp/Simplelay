@@ -15,6 +15,8 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/display_status.dart' show kNameTakenMessage;
 import 'package:simplelay/models/hub.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/photo_provider.dart';
@@ -134,7 +136,8 @@ class _Server {
       );
 }
 
-Widget _build(_Server server, {void Function(ProviderContainer)? onReady, _FakePhoto? photo}) {
+Widget _build(_Server server,
+    {void Function(ProviderContainer)? onReady, _FakePhoto? photo, List<ApplianceMap> installed = const []}) {
   final router = GoRouter(
     initialLocation: '/',
     routes: [
@@ -157,7 +160,7 @@ Widget _build(_Server server, {void Function(ProviderContainer)? onReady, _FakeP
   return buildWithProviderState(
     overrides: [
       ...connectedOverrides(),
-      ...installedOverrides(const []),
+      ...installedOverrides(installed),
       photoServiceProvider.overrideWithValue(photo ?? _FakePhoto()),
       rpiApiServiceProvider.overrideWithValue(server.api()),
     ],
@@ -441,5 +444,59 @@ void main() {
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     expect(find.textContaining('사진을 이 폰에 남기지 못했어요'), findsOneWidget);
+  });
+
+  testWidgets('이름과 방이 모두 같은 가전이 이미 있으면 다음으로 가지 않고 이름 칸 아래에 말한다(실화면 10/19)',
+      (tester) async {
+    const existing = ApplianceMap(
+      id: 'custom_washer',
+      name: '세탁기',
+      category: ApplianceCategory.washingMachine,
+      rows: 1,
+      cols: 1,
+      buttons: [ApplianceButton(id: 'b1', label: '전원', x: 0, y: 0)],
+      isCustom: true,
+    );
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server(), installed: const [existing]));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    FilledButton next() => tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
+
+    // 종류 칩 '세탁기'를 고르면 이름도 '세탁기'가 된다 — 이미 있는 이름.
+    await tester.tap(find.widgetWithText(ChoiceChip, '세탁기'));
+    await tester.pump();
+    expect(find.text(kNameTakenMessage), findsOneWidget);
+    expect(next().onPressed, isNull);
+
+    await tester.enterText(find.byKey(const Key('wizard-name')), '세탁기 2');
+    await tester.pump();
+    expect(find.text(kNameTakenMessage), findsNothing);
+    expect(next().onPressed, isNotNull);
+  });
+
+  testWidgets('처음 채워 두는 이름(전자레인지)이 이미 있으면 비워 두고 경고부터 띄우지 않는다', (tester) async {
+    const microwave = ApplianceMap(
+      id: 'microwave',
+      name: '전자레인지',
+      category: ApplianceCategory.microwave,
+      rows: 1,
+      cols: 1,
+      buttons: [ApplianceButton(id: 'b1', label: '시작', x: 0, y: 0)],
+    );
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server(), installed: const [microwave]));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    expect(tester.widget<TextField>(find.byKey(const Key('wizard-name'))).controller!.text, isEmpty);
+    expect(find.text(kNameTakenMessage), findsNothing);
+    // 손대지 않고 닫으면 묻지 않는다.
+    await tester.tap(find.byTooltip('닫기'));
+    await _settle(tester);
+    expect(find.text('홈'), findsOneWidget);
   });
 }
