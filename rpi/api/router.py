@@ -13,6 +13,10 @@
   포함) ``running: true``·``finished: false``, 끝나면 루틴 전체 결과(모든 구간이 성공일 때만 성공, last_*는 마지막 구간의 것)와
   ``routine_run_id``·``routine_status``·``routine_segment``·``routine_segment_job_id``·``routine_detail``. /status는 루틴이 도는
   동안 그 루틴 구간을 ``last_job_id``로 내놓지 않고, 끝나면 첫 번호와 루틴 전체 결과로 내놓는다(필드 모양은 그대로).
+- 루틴 알아채기(검토 10/19, 선택 필드): /status는 루틴이 도는 동안(구간 실행 중·구간 사이 기다림·안내 포함)
+  ``routine_run_id``(첫 번호)·``routine_status``·``routine_segment``(1부터)·``routine_segment_job_id``를 싣는다(아니면 null).
+  ``GET /jobs/{구간 번호}``도 그 구간이 속한 루틴의 ``routine_run_id``·``routine_status``와 그 구간의 순번·번호를 싣는다 —
+  쉬다가 2번째 구간 이후에 알아챈 클라이언트가 구간 하나의 끝을 루틴의 끝으로 말하지 않고 첫 번호로 갈아타게.
 """
 
 import asyncio
@@ -1107,8 +1111,11 @@ async def job_status(
     if lookup is None:
         raise HTTPException(status_code=404, detail="job not found")
     stop = lookup.stop or {}
+    # 루틴의 2번째 이후 구간 번호면 그 루틴을 알린다 — 클라이언트는 routine_run_id로 갈아탄다(구간의 끝 ≠ 루틴의 끝).
+    routine = _routine_segment_fields(run, job_id) if run is not None else {}
     return JobStatusResponse(
         **snapshot_job_fields(lookup.snapshot),
+        **routine,
         finished=not lookup.running,
         step=lookup.step,
         last_stop_level=stop.get("stop_level"),
@@ -1153,6 +1160,13 @@ def _routine_job_response(service: SimpleLayService, job_id: str, run) -> JobSta
     )
 
 
+def _routine_segment_fields(run, job_id: str, status: str | None = None) -> dict:
+    """그 구간 번호가 속한 루틴 — ``routine_run_id``·``routine_status``·``routine_segment``(1부터)·``routine_segment_job_id``."""
+    job_ids = list(run.job_ids)
+    return dict(routine_run_id=run.run_id, routine_status=status or run.status.value,
+                routine_segment=job_ids.index(job_id) + 1, routine_segment_job_id=job_id)
+
+
 def _routine_outcome_fields(fields: dict, status: str, detail: str) -> dict:
     """끝난 루틴의 last_status·last_outcome(·last_detail). 성공 루틴이고 마지막 구간도 성공이면 구간 값 그대로."""
     last_status, last_outcome = _ROUTINE_LAST[status]
@@ -1172,12 +1186,22 @@ def _routine_status_fields(fields: dict) -> dict:
     from rpi.routines.wiring import routine_run_containing  # noqa: PLC0415
 
     last = fields.get("last_job_id")
+    current = fields.get("job_id") if fields.get("running") else None
+    live = routine_run_containing(current)
+    if live is not None and live.status.value == "running":
+        # 루틴 구간이 실행 중이다(2번째 이후 구간일 수 있다) — 그 루틴을 알린다(검토 10/19).
+        updated = {**fields, **_routine_segment_fields(live, current, "running")}
+        if routine_run_containing(last) is live:
+            updated["last_job_id"] = None
+        return updated
     run = routine_run_containing(last)
     if run is None:
         return fields
     status = run.status.value
     if status == "running":
-        return {**fields, "last_job_id": None}
+        # 구간 사이 기다림·안내 — 지금(마지막으로 보낸) 구간과 루틴 첫 번호를 알린다(검토 10/19).
+        current_segment = run.job_ids[-1] if run.job_ids else last
+        return {**fields, "last_job_id": None, **_routine_segment_fields(run, current_segment, status)}
     if run.job_ids and last == run.job_ids[-1]:
         updated = {**fields, "last_job_id": run.run_id}
         updated.update(_routine_outcome_fields(updated, status, run.detail))

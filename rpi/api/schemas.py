@@ -814,6 +814,17 @@ class StatusResponse(BaseModel):
     last_stop_ack_ms: int | None = None
     #: 그 정지가 멈춘 실행의 job_id(실행 중이 아닐 때의 정지면 None). 클라이언트는 자기 job과 같을 때만 단계를 쓴다(H1).
     last_stop_job_id: str | None = None
+    # ── 루틴 실행(검토 10/19) — 옛 클라이언트는 무시 ──
+    # /status: 루틴이 도는 동안(구간 실행 중·구간 사이 기다림·안내 포함)만 싣는다 — 쉬다가 /status로 루틴을 알아챈
+    # 클라이언트가 구간 번호 대신 루틴 첫 번호(``GET /jobs/{routine_run_id}``)를 따라가게. 루틴이 없으면 모두 null.
+    # ``GET /jobs/{id}``: 첫 번호면 루틴 전체 수명, 구간 번호면 그 구간이 속한 루틴(``routine_run_id``로 갈아탄다).
+    #: 루틴 실행 번호(``/routines/runs/{id}``, 첫 구간 번호와 같다).
+    routine_run_id: str | None = None
+    #: running | succeeded | failed | stopped | unconfirmed — 루틴 전체 상태(모든 구간이 성공일 때만 succeeded).
+    routine_status: str | None = None
+    #: 구간 순번(1부터)과 그 구간의 실행 번호. /status·첫 번호는 지금(끝났으면 마지막) 구간, 구간 번호로 물으면 그 구간.
+    routine_segment: int | None = None
+    routine_segment_job_id: str | None = None
 
 
 class SuggestionResponse(BaseModel):
@@ -1309,13 +1320,6 @@ class JobStatusResponse(StatusResponse):
     finished: bool
     #: 여러 단계 실행의 단계 번호(``<기본>-<n>``)로 물었을 때 n. 아니면 null.
     step: int | None = None
-    # ── 루틴 실행(검토 10/19) — 루틴 승인이 돌려준 첫 번호로 물으면 루틴 전체 수명. 루틴이 아니면 모두 null ──
-    #: 루틴 실행 번호(``/routines/runs/{id}``, 첫 구간 번호와 같다).
-    routine_run_id: str | None = None
-    #: running | succeeded | failed | stopped | unconfirmed — 루틴 전체 상태(모든 구간이 성공일 때만 succeeded).
-    routine_status: str | None = None
-    #: 지금(끝났으면 마지막) 구간의 순번(1부터)과 그 구간의 실행 번호.
-    routine_segment: int | None = None
-    routine_segment_job_id: str | None = None
+    # 루틴 필드(``routine_run_id``·``routine_status``·``routine_segment``·``routine_segment_job_id``)는 ``StatusResponse``에 있다.
     #: 루틴 결과 한 줄(끝났을 때). 루틴이 성공하지 못했으면 ``last_detail``도 이 문장이다.
     routine_detail: str | None = None
