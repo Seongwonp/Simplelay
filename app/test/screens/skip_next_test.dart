@@ -58,6 +58,9 @@ class _Hub {
   Map<String, dynamic> nextExtra = const {};
   bool oldServer = false;
 
+  /// `/routines/auto-rules` 응답(루틴 줄의 '자동'·'자동 꺼짐' 표지).
+  List<Map<String, dynamic>> rules = const [];
+
   final requests = <String>[];
   final bodies = <Map<String, dynamic>>[];
 
@@ -106,6 +109,7 @@ class _Hub {
           }
           if (req.method == 'GET' && path == '/routines') return _json([_routine()]);
           if (req.method == 'GET' && path == '/routines/templates') return _json(const []);
+          if (req.method == 'GET' && path == '/routines/auto-rules') return _json(rules);
           if (path == '/suggestions') return _json(const []);
           return _json({'detail': 'not found'}, 404);
         }),
@@ -323,6 +327,53 @@ void main() {
     await _settle(tester);
     expect(hub.count('POST /routines/next/unskip'), 1);
     expect(_skipButton(), findsOneWidget);
+  });
+
+  // 평가 10/19(폰 루틴 탭): 건너뛴 줄이 이름 옆 '오늘은 건너뛰어요'·'자동 꺼짐' 두 줄 표지 + 스위치 + '지금 하기' +
+  // 그 아래 혼자 떨어진 '되돌리기'였다. 이름 옆 표지는 한 줄, '되돌리기'는 건너뛴 표지 바로 옆.
+  testWidgets("루틴 탭: 건너뛴 줄은 이름 옆 표지 한 줄, '되돌리기'는 건너뛴 표지 옆", (tester) async {
+    _size(tester, width: 390);
+    final hub = _Hub()
+      ..skipped = true
+      ..rules = [
+        {
+          'id': 'ar-1',
+          'name': '저녁 공기청정기 켜기',
+          'condition_text': '매일 밤 10시에',
+          'action_text': '켜요',
+          'condition_time': '22:00',
+          'enabled': false,
+          'fingerprint': 'fp',
+        },
+      ];
+    await tester.pumpWidget(_app(hub, '/routines'));
+    await _settle(tester);
+
+    final marks = find.byKey(const Key('routine-marks-rt-1'));
+    final auto = find.byKey(const Key('routine-auto-badge-rt-1'));
+    final skipMark = find.byKey(const Key('routine-next-badge-rt-1'));
+    expect(auto, findsOneWidget);
+    expect(skipMark, findsOneWidget);
+    expect(_undoButton(), findsOneWidget);
+    // 이름 옆에는 '자동 꺼짐' 하나 — 건너뛴 표지는 그 묶음에 없다(두 줄로 쌓이지 않는다).
+    expect(find.descendant(of: marks, matching: auto), findsOneWidget);
+    expect(find.descendant(of: marks, matching: skipMark), findsNothing);
+    // '되돌리기'는 건너뛴 표지와 같은 줄(가운데 높이가 같다), 그 오른쪽.
+    expect((tester.getCenter(_undoButton()).dy - tester.getCenter(skipMark).dy).abs(), lessThan(4));
+    expect(tester.getTopLeft(_undoButton()).dx, greaterThan(tester.getTopRight(skipMark).dx - 1));
+    // 설명 줄 아래, '지금 하기'보다 위(상태 → 행동).
+    expect(tester.getTopLeft(skipMark).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(find.byKey(const Key('routine-line-rt-1'))).dy));
+    final run = find.byKey(const Key('routine-run-rt-1'));
+    if (run.evaluate().isNotEmpty) {
+      expect(tester.getTopLeft(run).dy, greaterThanOrEqualTo(tester.getBottomLeft(_undoButton()).dy - 1));
+    }
+    // 낭독은 그대로 다 남는다.
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel(RegExp('오늘은 건너뛰어요')), findsWidgets);
+    expect(find.bySemanticsLabel(RegExp('자동 꺼짐')), findsWidgets);
+    expect(find.bySemanticsLabel(RegExp('건너뛰기 되돌리기')), findsOneWidget);
+    semantics.dispose();
   });
 
   for (final initial in ['/', '/routines']) {

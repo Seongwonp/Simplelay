@@ -966,17 +966,22 @@ class _RoutineRow extends StatelessWidget {
     // 스위치가 이 루틴 자체의 켜짐을 말하나(붙은 자동 규칙이 없을 때).
     final offBySwitch = onToggle != null && autoRule == null;
     final autoKey = GlobalObjectKey(this);
+    // '다음' — 위에 따로 '다음: …' 줄을 두지 않고 그 줄에 붙인다. 조용한 시간이라 건너뛰면 그 말로.
+    final Widget? nextMark = n == null
+        ? null
+        : _LineMark(
+            key: Key('routine-next-badge-$key'),
+            // 한 번 건너뛴 회차(2026-10-18)는 본체 말 '오늘은 건너뛰어요'(modeText) — 바로 옆 '되돌리기'와 짝.
+            label: skipping ? n.modeText : '다음',
+            // 건너뛰는 회차는 흐린 테두리 + 빈 달력 — 켜진 자동(면 + 번개)과 모양으로 갈린다(UI 정리 10/19).
+            icon: skipping ? Icons.event_busy : null,
+            muted: skipping,
+          );
+    // 건너뛰는 회차 표지는 이름 옆이 아니라 아래 건너뛰기 줄에서 '되돌리기'와 한 줄(평가 10/19: 이름 옆 표지가
+    // '오늘은 건너뛰어요'·'자동 꺼짐' 두 줄로 쌓이고, '되돌리기'는 '지금 하기' 아래 혼자 떨어져 무엇을 되돌리는지 몰랐다).
+    final skipLine = skipping && !r.isTemplate;
     final badges = <Widget>[
-      // '다음' — 위에 따로 '다음: …' 줄을 두지 않고 그 줄에 붙인다. 조용한 시간이라 건너뛰면 그 말로.
-      if (n != null)
-        _LineMark(
-          key: Key('routine-next-badge-$key'),
-          // 한 번 건너뛴 회차(2026-10-18)는 본체 말 '오늘은 건너뛰어요'(modeText) — 아래 '되돌리기'와 짝.
-          label: skipping ? n.modeText : '다음',
-          // 건너뛰는 회차는 흐린 테두리 + 빈 달력 — 켜진 자동(면 + 번개)과 모양으로 갈린다(UI 정리 10/19).
-          icon: skipping ? Icons.event_busy : null,
-          muted: skipping,
-        ),
+      if (nextMark != null && !skipLine) nextMark,
       // 홈 '다음' 카드와 같은 '자동'. 규칙이 있으면 그 켜짐이 먼저 — 꺼 둔 규칙도 '자동 꺼짐'으로 이 줄에서 닿는다.
       if (!r.isTemplate && (autoRule != null || (auto && !(n?.quietSkip ?? false) && !(n?.skipped ?? false))))
         KeyedSubtree(
@@ -1191,6 +1196,21 @@ class _RoutineRow extends StatelessWidget {
               ),
             ),
           ),
+          // 건너뛰는 회차 — 표지와 그 '되돌리기'를 한 줄에(평가 10/19). '지금 하기'보다 먼저(상태 → 행동).
+          if (skipLine && nextMark != null)
+            Padding(
+              key: Key('routine-skip-line-$key'),
+              padding: EdgeInsets.only(left: leadWidth, bottom: AppSpace.xs),
+              child: Wrap(
+                spacing: AppSpace.sm,
+                runSpacing: AppSpace.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  nextMark,
+                  if (n != null && n.canSkip) SkipNextControl(next: n),
+                ],
+              ),
+            ),
           // 단추 줄 — 이름 첫 글자와 같은 세로줄. 단추가 없으면(알림만 루틴 등) 두지 않는다.
           if (actions.isNotEmpty)
             Padding(
@@ -1204,7 +1224,7 @@ class _RoutineRow extends StatelessWidget {
               ),
             ),
           // '다음' 줄에만 '오늘은 건너뛰기' / '되돌리기'(2026-10-18) — 그 회차 한 번만. 줄 누름(편집)과 따로 받는다.
-          if (n != null && n.canSkip && !r.isTemplate)
+          if (n != null && n.canSkip && !r.isTemplate && !skipLine)
             Padding(
               padding: EdgeInsets.only(left: leadWidth, bottom: AppSpace.xs),
               child: SkipNextControl(next: n),
