@@ -258,8 +258,10 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
               text,
               appliance.buttons.map((b) => b.label).toList(),
               applianceId: appliance.id,
+              clientRequestId: requestId,
             )
-          : await rpiApi.execute(text, source: 'voice', applianceId: appliance.id);
+          : await rpiApi.execute(text,
+              source: 'voice', applianceId: appliance.id, clientRequestId: requestId);
       if (accepted.stopped) execution.abandonSubmission(requestId);
       _trackOrShowStop(rpiApi, accepted, text, requestId);
     } on RpiApiException catch (error) {
@@ -287,7 +289,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       }
     } catch (_) {
       // 본체가 받았는지 모른다 — 다시 보내지 않고(블루투스로도) 모름으로 두어 정지를 남긴다.
-      execution.beginSubmissionUnknown(api: rpiApi, label: text, requestId: requestId);
+      execution.beginSubmissionUnknown(
+          api: rpiApi, label: text, requestId: requestId, byRequest: true);
       if (mounted) {
         _notice('본체가 받았는지 몰라요. 다시 보내기 전에 집에서 가전을 확인해야 해요.');
         context.push('/status');

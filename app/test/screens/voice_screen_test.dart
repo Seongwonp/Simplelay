@@ -448,6 +448,7 @@ void main() {
         'text': '즉석밥 데워줘',
         'source': 'voice',
         'appliance_id': 'microwave',
+        'client_request_id': matches(RegExp(r'^[A-Za-z0-9_-]{1,64}$')), // 요청 번호(검토 10/19)
       });
       // 접수 후 상태 화면으로 이동한다
       await tester.pumpAndSettle();
@@ -544,6 +545,7 @@ void main() {
         'text': '켜줘',
         'known_buttons': ['켜기', '끄기'],
         'appliance_id': 'custom_test',
+        'client_request_id': matches(RegExp(r'^[A-Za-z0-9_-]{1,64}$')), // 요청 번호(검토 10/19)
       });
       await tester.pumpAndSettle();
       expect(find.text('status-screen-stub'), findsOneWidget);

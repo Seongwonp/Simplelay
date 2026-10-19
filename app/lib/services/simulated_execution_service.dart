@@ -43,6 +43,7 @@ class SimulatedExecutionService extends RpiApiService {
     String text, {
     String source = 'voice',
     String? applianceId,
+    String? clientRequestId,
   }) async =>
       _begin(_unknownSequence);
 
@@ -50,6 +51,7 @@ class SimulatedExecutionService extends RpiApiService {
   Future<RpiJobAccepted> executeButtons(
     List<String> buttons, {
     String? applianceId,
+    String? clientRequestId,
   }) async =>
       _begin(buttons);
 
@@ -58,11 +60,12 @@ class SimulatedExecutionService extends RpiApiService {
     String text,
     List<String> knownButtons, {
     String? applianceId,
+    String? clientRequestId,
   }) async =>
       _begin(_unknownSequence);
 
   @override
-  Future<RpiJobAccepted> approveSuggestion(String id) async =>
+  Future<RpiJobAccepted> approveSuggestion(String id, {String? clientRequestId}) async =>
       _begin(_unknownSequence);
 
   /// 흉내낸 job의 진행. 실제 `/status`에는 이 job이 없으므로 여기서 답해야

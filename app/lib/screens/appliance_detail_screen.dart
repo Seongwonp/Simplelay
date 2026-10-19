@@ -295,7 +295,8 @@ class ApplianceDetailScreen extends ConsumerWidget {
     // 보내기 전에 '보내는 중'으로 — 답을 기다리는 사이에도 정지 띠가 있다(검토 10/19).
     final requestId = execution.beginSubmitting(api: api, label: b.label, steps: [b.label]);
     try {
-      final accepted = await api.executeButtons([b.label], applianceId: a.id);
+      final accepted =
+          await api.executeButtons([b.label], applianceId: a.id, clientRequestId: requestId);
       // 공용 실행 상태에 등록한다 -- 이 화면을 떠나도 정지 수단이 남는다.
       execution.beginHttpJob(
         api: api,
@@ -324,6 +325,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
         label: b.label,
         steps: [b.label],
         requestId: requestId,
+        byRequest: true,
       );
       if (!context.mounted) return;
       _snack(context, manualPressUnknownSentence(b.label));

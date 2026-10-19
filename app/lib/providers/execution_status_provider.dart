@@ -148,7 +148,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   static const stopWhileSubmittingNotice = '멈추라고 보냈어요. 받았다는 답이 오면 한 번 더 보낼게요.';
   static final _random = Random();
 
-  /// 요청 번호 — 보낼 때마다 새로 짓는다. 본체가 요청 번호를 받게 되면 이 값을 함께 싣는다.
+  /// 요청 번호 — 보낼 때마다 새로 짓는다. 실행 요청에 `client_request_id`로 싣는다(새 본체는 같은 번호를 한 번만 접수).
   static String newRequestId() =>
       'app-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-'
       '${_random.nextInt(1 << 32).toRadixString(36)}';
@@ -217,11 +217,15 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   // 않고 '모름'으로 두어 정지(본체 전체 /stop)를 그 본체로 남기고, 잠깐 /status를 보며 돌고 있는 실행이 보이면 그 실행을
   // 이어서 본다. [recoverJobId]는 같은 요청을 다시 물어 job_id를 받는 길이다(제안 승인 — 이미 승인된 카드면 본체가 같은
   // job_id를 준다). 다시 보내면 두 번 눌리는 요청(버튼 누르기)에는 주지 않는다.
+  // [byRequest]면 그 요청에 요청 번호를 실었다 — 새 본체에는 그 번호로 접수한 실행을 묻고(GET /jobs/by-request), 그냥 '돌고
+  // 있는 실행'은 따라가지 않는다(자동 실행·다른 단말의 실행일 수 있다 — 엉뚱한 결과를 보이고 정지로 남의 실행을 멈췄다, 검토
+  // 10/19). 본체가 그 번호를 모르면 접수하지 않은 것이다. 옛 본체(조회 없음)만 종전처럼 재질의·상태로 찾는다.
   Timer? _recoverTimer;
   static const _recoverTries = 15;
   static const _recoverJobTries = 3;
   static const bleStopSentNotice = '멈추라고 보냈어요. 멈췄다는 답은 아직 없어요. 멈추지 않으면 정지를 다시 눌러 주세요.';
   static const submissionUnknownNotice = '보냈는데 답이 없어 시작됐는지 몰라요. 가전을 보고, 움직이면 정지를 눌러 주세요.';
+  static const submissionNotAcceptedNotice = '본체가 이 요청을 받지 않았어요. 가전이 그대로면 다시 해 주세요.';
 
   /// [requestId]는 [beginSubmitting]이 준 번호 — 보내는 사이 누른 정지는 지금 한 번 더 보내고, 복구가 실행을 찾으면 또 보낸다.
   void beginSubmissionUnknown({
@@ -230,6 +234,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     List<String> steps = const [],
     Future<String> Function()? recoverJobId,
     String? requestId,
+    bool byRequest = false,
   }) {
     final continuing = requestId != null && requestId == _submitRequestId;
     final resendStop = continuing && _stopWhileSubmitting;
@@ -254,15 +259,16 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       requestId: id,
     );
     _announce(submissionUnknownNotice);
-    _recoverSubmission(api, key, label, steps, recoverJobId);
+    _recoverSubmission(api, key, label, steps, recoverJobId, byRequest: byRequest && continuing);
     if (resendStop) unawaited(emergencyStop());
   }
 
   void _recoverSubmission(RpiApiService api, String key, String label, List<String> steps,
-      Future<String> Function()? recoverJobId) {
+      Future<String> Function()? recoverJobId, {bool byRequest = false}) {
     final requestId = state.requestId;
     _recoverTimer?.cancel();
     var recover = recoverJobId;
+    var lookup = byRequest && requestId != null;
     var tries = 0;
     var jobTries = 0;
     var inFlight = false;
@@ -275,6 +281,22 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       tries++;
       inFlight = true;
       try {
+        if (lookup) {
+          final found = await api.jobByRequest(requestId!);
+          if (!mounted || !timer.isActive || state.sequenceId != key) return;
+          switch (found.kind) {
+            case RpiRequestLookupKind.found:
+              timer.cancel();
+              beginHttpJob(api: api, jobId: found.jobId!, label: label, steps: steps, requestId: requestId);
+              return;
+            case RpiRequestLookupKind.unknown:
+              timer.cancel();
+              _submissionNotAccepted();
+              return;
+            case RpiRequestLookupKind.unsupported:
+              lookup = false; // 옛 본체 — 아래 종전 방식으로
+          }
+        }
         final ask = recover;
         if (ask != null && jobTries < _recoverJobTries) {
           jobTries++;
@@ -303,6 +325,14 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         inFlight = false;
       }
     });
+  }
+
+  /// 새 본체가 이 요청 번호를 모른다 — 접수하지 않았다(실행 없음). 모름을 거두고 못 함으로 알린다.
+  void _submissionNotAccepted() {
+    _endSubmission();
+    _httpApi = null;
+    state = state.copyWith(phase: ExecutionPhase.failed, message: submissionNotAcceptedNotice);
+    _announce(submissionNotAcceptedNotice);
   }
 
   // ── 진행 중 job 보존 ────────────────────────────────────────────────────

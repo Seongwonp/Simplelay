@@ -59,6 +59,8 @@ void main() {
     late Completer<http.Response> approve;
     late int stops;
     late List<String> paths;
+    late String approveBody;
+    http.Response? byRequest;
 
     RpiApiService api() => RpiApiService('http://rpi5.local:8000', client: MockClient((req) async {
           final path = req.url.path;
@@ -74,7 +76,11 @@ void main() {
               'reasons': <String>[],
             });
           }
-          if (path == '/suggestions/sug-1/approve') return approve.future;
+          if (path == '/suggestions/sug-1/approve') {
+            approveBody = req.body;
+            return approve.future;
+          }
+          if (path.startsWith('/jobs/by-request/') && byRequest != null) return byRequest!;
           if (path == '/stop') {
             stops++;
             return _json({'ok': true, 'was_running': false, 'stop_job_id': null});
@@ -90,6 +96,8 @@ void main() {
       approve = Completer<http.Response>();
       stops = 0;
       paths = [];
+      approveBody = '';
+      byRequest = null;
       late ProviderContainer container;
       final router = GoRouter(
         initialLocation: '/suggestion/sug-1',
@@ -136,6 +144,25 @@ void main() {
       status = container.read(executionStatusProvider);
       expect(status.sequenceId, 'job-1');
       expect(stops, 2, reason: '앞의 정지가 접수보다 먼저 닿았을 수 있어 job_id가 오면 다시 보낸다');
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('승인에 상태의 요청 번호를 싣고, 답을 잃으면 그 번호로 찾은 실행을 따라간다(돌고 있는 다른 실행이 아니라)', (tester) async {
+      final container = await open(tester);
+      await tester.tap(find.text('지금 하기'));
+      await _pumps(tester);
+      final id = container.read(executionStatusProvider).requestId!;
+      expect(jsonDecode(approveBody), {'client_request_id': id}, reason: '보내는 중 상태의 번호를 그대로 싣는다');
+
+      byRequest = _json({'client_request_id': id, 'job_id': 'job-mine'});
+      approve.completeError(http.ClientException('응답 받는 중 끊김'));
+      await _pumps(tester);
+      expect(container.read(executionStatusProvider).phase, ExecutionPhase.unknown);
+      await tester.pump(const Duration(milliseconds: 1100));
+      await _pumps(tester);
+      expect(paths, contains('/jobs/by-request/$id'));
+      expect(container.read(executionStatusProvider).sequenceId, 'job-mine',
+          reason: '/status의 job-1은 이 승인의 실행이 아닐 수 있다');
       await tester.pumpWidget(const SizedBox());
     });
 

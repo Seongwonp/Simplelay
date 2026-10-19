@@ -103,6 +103,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       final accepted = await api.executeButtons(
         [button.label],
         applianceId: applianceId,
+        clientRequestId: requestId,
       );
       // 공용 실행 상태에 등록한다. 이 화면을 떠나도 상태 탭이 진행을
       // 이어서 보여주고, 무엇보다 **정지 수단이 유지된다** -- 예전에는
@@ -135,6 +136,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
         label: button.label,
         steps: [button.label],
         requestId: requestId,
+        byRequest: true,
       );
     }
 

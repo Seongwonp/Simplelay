@@ -129,6 +129,24 @@ class RpiJobAccepted {
   }
 }
 
+/// 요청 번호로 찾은 실행(`GET /jobs/by-request/{client_request_id}`, 검토 10/19).
+enum RpiRequestLookupKind {
+  /// 본체가 이 요청을 접수했다 — [RpiRequestLookup.jobId]가 그 실행.
+  found,
+
+  /// 본체(새)는 이 요청 번호를 모른다 — 접수하지 않았거나 접수에 실패했다(실행 없음).
+  unknown,
+
+  /// 옛 본체 — 이 조회가 없다. 종전 방식(같은 요청 재질의·상태)으로 찾는다.
+  unsupported,
+}
+
+class RpiRequestLookup {
+  const RpiRequestLookup(this.kind, [this.jobId]);
+  final RpiRequestLookupKind kind;
+  final String? jobId;
+}
+
 /// POST /stop 응답의 정지 확인 단계(2026-10-13). 옛 서버·보고 수단이 없으면 [stopLevel]이 null.
 class StopOutcome {
   const StopOutcome(
@@ -1051,6 +1069,7 @@ class RpiApiService {
     String text, {
     String source = 'voice',
     String? applianceId,
+    String? clientRequestId,
   }) async {
     final res = await _client
         .post(
@@ -1060,6 +1079,7 @@ class RpiApiService {
             'text': text,
             'source': source,
             if (applianceId != null) 'appliance_id': applianceId,
+            if (clientRequestId != null) 'client_request_id': clientRequestId,
           }),
         )
         .timeout(_timeout);
@@ -1071,6 +1091,7 @@ class RpiApiService {
   Future<RpiJobAccepted> executeButtons(
     List<String> buttons, {
     String? applianceId,
+    String? clientRequestId,
   }) async {
     final res = await _client
         .post(
@@ -1079,6 +1100,7 @@ class RpiApiService {
           body: jsonEncode({
             'buttons': buttons,
             if (applianceId != null) 'appliance_id': applianceId,
+            if (clientRequestId != null) 'client_request_id': clientRequestId,
           }),
         )
         .timeout(_timeout);
@@ -1116,6 +1138,7 @@ class RpiApiService {
     String text,
     List<String> knownButtons, {
     String? applianceId,
+    String? clientRequestId,
   }) async {
     final res = await _client
         .post(
@@ -1125,6 +1148,7 @@ class RpiApiService {
             'text': text,
             'known_buttons': knownButtons,
             if (applianceId != null) 'appliance_id': applianceId,
+            if (clientRequestId != null) 'client_request_id': clientRequestId,
           }),
         )
         .timeout(_timeout);
@@ -1237,13 +1261,55 @@ class RpiApiService {
         .toList();
   }
 
-  // POST /suggestions/{id}/approve — 즉시 job_id 접수 응답(비동기 job 모델)
-  Future<RpiJobAccepted> approveSuggestion(String id) async {
-    final res = await _client
-        .post(_base.replace(path: '/suggestions/$id/approve'), headers: _headers)
+  // POST /suggestions/{id}/approve — 즉시 job_id 접수 응답(비동기 job 모델). [clientRequestId]가 있으면 본문에 싣는다
+  // (같은 번호는 본체가 같은 job_id로 한 번만 접수, 검토 10/19). 없으면 종전처럼 본문 없이.
+  Future<RpiJobAccepted> approveSuggestion(String id, {String? clientRequestId}) async {
+    final uri = _base.replace(path: '/suggestions/$id/approve');
+    final res = await (clientRequestId == null
+            ? _client.post(uri, headers: _headers)
+            : _client.post(uri,
+                headers: _jsonHeaders, body: jsonEncode({'client_request_id': clientRequestId})))
         .timeout(_timeout);
     _checkStatus(res);
     return RpiJobAccepted.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  /// GET /jobs/by-request/{client_request_id} — 이 요청 번호로 본체가 접수한 실행(검토 10/19). 접수 답을 잃은 실행이
+  /// 정말 내 것인지 가린다(그냥 '돌고 있는 실행'은 남의 것일 수 있다). 새 본체의 404(번호 모름)는 [RpiRequestLookupKind.unknown],
+  /// 경로가 없는 옛 본체는 [RpiRequestLookupKind.unsupported]. 통신 실패는 그대로 던진다(모름 — 다시 묻는다).
+  Future<RpiRequestLookup> jobByRequest(String clientRequestId) async {
+    final res = await _client
+        .get(_base.replace(path: '/jobs/by-request/$clientRequestId'), headers: _headers)
+        .timeout(_timeout);
+    if (res.statusCode == 404 || res.statusCode == 405) {
+      return _errorDetail(res) == _unknownRequestDetail
+          ? const RpiRequestLookup(RpiRequestLookupKind.unknown)
+          : const RpiRequestLookup(RpiRequestLookupKind.unsupported);
+    }
+    _checkStatus(res);
+    final body = _decodeMapOrNull(res);
+    final jobId = body?['job_id'];
+    if (jobId is String && jobId.isNotEmpty && body?['client_request_id'] == clientRequestId) {
+      return RpiRequestLookup(RpiRequestLookupKind.found, jobId);
+    }
+    return const RpiRequestLookup(RpiRequestLookupKind.unsupported); // 이 조회의 답 모양이 아니다
+  }
+
+  // 새 본체가 404에 싣는 문장(rpi/api/router.py) — 경로가 없는 옛 본체의 404('Not Found')와 가른다.
+  static const _unknownRequestDetail = 'no job for this client_request_id';
+
+  static Map<String, dynamic>? _decodeMapOrNull(http.Response res) {
+    try {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      return body is Map<String, dynamic> ? body : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String? _errorDetail(http.Response res) {
+    final detail = _decodeMapOrNull(res)?['detail'];
+    return detail is String ? detail : null;
   }
 
   // POST /suggestions/{id}/reject

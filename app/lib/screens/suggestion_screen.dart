@@ -178,7 +178,7 @@ class SuggestionScreen extends ConsumerWidget {
         // /status 폴링으로 이 job의 진행·완료를 따라간다. '다음부터 자동으로'(allow)면
         // 같은 승인에 확인 화면이 보여 준 허용 내용의 지문을 실어 규칙도 함께 저장한다.
         final accepted = allow == null
-            ? await rpiApi.approveSuggestion(suggestion.sequenceId)
+            ? await rpiApi.approveSuggestion(suggestion.sequenceId, clientRequestId: requestId)
             : await rpiApi.approveAndAllowSuggestion(
                 suggestion.sequenceId, allow.fingerprint);
         execution.beginHttpJob(
@@ -233,8 +233,10 @@ class SuggestionScreen extends ConsumerWidget {
           label: label,
           steps: suggestion.steps,
           requestId: requestId,
+          // 승인에 요청 번호를 실었다 — 새 본체에는 그 번호로 접수한 실행을 묻는다('다음부터 자동으로'는 번호를 싣지 않는다).
+          byRequest: allow == null,
           recoverJobId: () async => (allow == null
-                  ? await rpiApi.approveSuggestion(suggestion.sequenceId)
+                  ? await rpiApi.approveSuggestion(suggestion.sequenceId, clientRequestId: requestId)
                   : await rpiApi.approveAndAllowSuggestion(
                       suggestion.sequenceId, allow.fingerprint))
               .jobId,

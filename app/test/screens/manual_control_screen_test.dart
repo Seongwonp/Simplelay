@@ -180,6 +180,7 @@ void main() {
     expect(jsonDecode(captured!.body), {
       'buttons': ['켜기'],
       'appliance_id': 'custom_test',
+      'client_request_id': matches(RegExp(r'^[A-Za-z0-9_-]{1,64}$')), // 요청 번호(검토 10/19)
     });
     expect(find.byIcon(Icons.check), findsOneWidget);
     // 셀 색만이 아니라 문장으로도 말한다. 확인 근거가 없으면(실행 환경·확인 수준 모름) 눌림을 확인했다고 하지 않는다(2026-10-15).

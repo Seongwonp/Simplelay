@@ -163,6 +163,7 @@ void main() {
     expect(server.executeBody, {
       'buttons': ['시작'],
       'appliance_id': 'custom_1',
+      'client_request_id': matches(RegExp(r'^[A-Za-z0-9_-]{1,64}$')), // 요청 번호(검토 10/19)
     });
     expect(find.text('상태 화면'), findsOneWidget);
   });
