@@ -93,17 +93,19 @@ class AckSnapshot:
 def legacy_failures_seen_until(snap: AckSnapshot, events: Iterable) -> datetime | None:
     """옛 앱 호환용 ``failures_seen_until``(시각) — 저장하지 않고 알림 목록(``event_id``·``kind``·``occurred_at``)으로 만든다.
 
-    옛 앱은 ``occurred_at <= until``이면 못 한 일을 '봤다'로 본다. 본 알림 중 가장 늦은 시각과, 아직 안 본 못 한 일 중 가장 이른
+    옛 앱은 ``occurred_at <= until``이면 못 한 일을 '봤다'로 본다. 본 못 한 일 중 가장 늦은 시각과, 아직 안 본 못 한 일 중 가장 이른
     시각 바로 앞 중 이른 쪽을 준다 — 시계가 뒤로 가 안 본 실패의 시각이 더 이르더라도 덮지 않는다."""
     if snap.failures_seen_id <= 0:
         return None
     seen_latest: datetime | None = None
     unseen_earliest: datetime | None = None
     for e in events:
+        if e.kind not in FAILURE_CARE_KINDS:
+            continue  # 못 한 일만 센다(검토 10/19 #10 — 다른 종류의 늦은 시각으로 '봤다'를 넓히지 않는다)
         if e.event_id <= snap.failures_seen_id:
             if seen_latest is None or e.occurred_at > seen_latest:
                 seen_latest = e.occurred_at
-        elif e.kind in FAILURE_CARE_KINDS:
+        else:
             if unseen_earliest is None or e.occurred_at < unseen_earliest:
                 unseen_earliest = e.occurred_at
     if seen_latest is None:
