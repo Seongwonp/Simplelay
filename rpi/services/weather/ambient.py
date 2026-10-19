@@ -95,7 +95,8 @@ def weather_tip(
 
     '지금'은 [current_slot]과 같은 칸이다(평가 15차 10/18). 그 칸에 비·눈(강수형태)이 있으면 '지금 비가 와요',
     그 밖은 '오후 3시부터…'. 지금 칸은 강수형태만 본다 — 키오스크 '지금' 칸 아이콘(하늘 상태, 강수확률은 안 씀)과
-    같은 기준이라 '지금 비가 와요' 옆 '지금' 칸이 구름으로 그려지지 않는다. 지금 칸이 아닌 지난 정시 칸(기온 없음)은
+    같은 기준이라 '지금 비가 와요' 옆 '지금' 칸이 구름으로 그려지지 않는다. 다만 지금 칸이 지금보다 뒤의 정시 칸이면 그 칸의
+    강수확률 비는 '○시부터 비 예보'로 말한다(검토 10/19 #12). 지금 칸이 아닌 지난 정시 칸(기온 없음)은
     지금이라고도 앞으로라고도 말하지 않는다.
     """
     now = now.astimezone(KST)
@@ -110,20 +111,24 @@ def weather_tip(
         if not is_now and at <= now:
             continue
         kind = slot.precipitation
-        if kind is None and not is_now and slot.pop is not None and slot.pop >= config.rain_pop:
+        # 지금 칸이 지금보다 뒤의 정시 칸(14:35의 15시 칸)이면 그 칸의 강수확률 비도 '○시부터 비 예보'로 말한다
+        # (검토 10/19 #12 — 예전에는 지금 칸이라 보지 않고 앞으로 칸도 아니라 아무 데서도 말하지 않았다).
+        # '지금 비가 와요'는 종전대로 강수형태가 있을 때만이다(지금 칸 아이콘과 같은 기준).
+        says_now = is_now and kind is not None
+        if kind is None and (not is_now or at > now) and slot.pop is not None and slot.pop >= config.rain_pop:
             kind = "rain"
         if kind is None:
             continue
         if kind == "snow":
             text = (
                 "지금 눈이 와요. 길이 미끄러울 수 있어요."
-                if is_now
+                if says_now
                 else f"{_hour_label(at, now)}부터 눈 예보가 있어요. 길이 미끄러울 수 있어요."
             )
         else:
             text = (
                 "지금 비가 와요. 나갈 때 우산 챙기세요."
-                if is_now
+                if says_now
                 else f"{_hour_label(at, now)}부터 비 예보가 있어요. 우산 챙기세요."
             )
         return {"kind": kind, "text": text, "icon": kind}
