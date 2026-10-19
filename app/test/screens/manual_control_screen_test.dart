@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
@@ -364,4 +366,48 @@ void main() {
       await tester.pump(const Duration(seconds: 4)); // 멈춤 결과의 정지 단계 후속 조회
     });
   }
+  // 검토 10/19(2): 접수 응답이 사라지면(본체는 받아 누르기 시작했을 수 있다) '못 함'으로 보이고 버튼이 풀려, 같은 버튼을
+  // 확인 없이 또 보낼 수 있었고 정지도 남지 않았다.
+  testWidgets('접수 답이 사라지면 모름으로 두고 같은 버튼은 확인 뒤에만, 정지는 남긴다', (tester) async {
+    var executeCallCount = 0;
+    var stops = 0;
+    final client = MockClient((request) async {
+      if (request.url.path == '/execute-buttons') {
+        executeCallCount++;
+        throw http.ClientException('응답 유실');
+      }
+      if (request.url.path == '/stop') {
+        stops++;
+        return jsonRes({'ok': true});
+      }
+      return jsonRes({'running': false});
+    });
+    final api = RpiApiService('http://rpi5.local:8000', client: client);
+    final container = await _makeContainerWithAppliance(
+      tester,
+      extra: [rpiApiServiceProvider.overrideWithValue(api)],
+    );
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    await tester.pump();
+    expect(executeCallCount, 1);
+    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
+    expect(find.byIcon(Icons.cancel_outlined), findsNothing, reason: '모름을 못 함으로 보이지 않는다');
+    expect(container.read(executionStatusProvider).phase, ExecutionPhase.unknown,
+        reason: '정지 띠·음성 정지가 남는 단계');
+
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    expect(find.text('다시 누를까요?'), findsOneWidget);
+    await tester.tap(find.text('그만두기'));
+    await tester.pump();
+    expect(executeCallCount, 1);
+
+    await container.read(executionStatusProvider.notifier).emergencyStop();
+    expect(stops, 1, reason: '그 본체로 정지를 보낸다');
+    await tester.pump(const Duration(seconds: 16)); // 상태 확인 차례를 다 쓴다
+  });
 }

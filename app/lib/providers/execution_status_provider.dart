@@ -118,6 +118,86 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _rememberPendingJob(jobId, label);
   }
 
+  // ── 보냈는데 접수 답을 못 받은 실행(검토 10/19) ──────────────────────────
+  // 시간 초과·연결 끊김으로 접수 응답이 사라졌다 — 본체가 이미 받아 시작했을 수 있다(job_id 모름). '보내지 못했다'로 끝내지
+  // 않고 '모름'으로 두어 정지(본체 전체 /stop)를 그 본체로 남기고, 잠깐 /status를 보며 돌고 있는 실행이 보이면 그 실행을
+  // 이어서 본다. [recoverJobId]는 같은 요청을 다시 물어 job_id를 받는 길이다(제안 승인 — 이미 승인된 카드면 본체가 같은
+  // job_id를 준다). 다시 보내면 두 번 눌리는 요청(버튼 누르기)에는 주지 않는다.
+  Timer? _recoverTimer;
+  static const _recoverTries = 15;
+  static const _recoverJobTries = 3;
+  static const submissionUnknownNotice = '보냈는데 답이 없어 시작됐는지 몰라요. 가전을 보고, 움직이면 정지를 눌러 주세요.';
+
+  void beginSubmissionUnknown({
+    required RpiApiService api,
+    required String label,
+    List<String> steps = const [],
+    Future<String> Function()? recoverJobId,
+  }) {
+    _supersedeRestore();
+    _stopHttpTracking();
+    _stopFollowTimer?.cancel();
+    _bleTracking = false;
+    _httpApi = api;
+    final key = 'unsent-${DateTime.now().microsecondsSinceEpoch}';
+    state = ExecutionStatus(
+      sequenceId: key,
+      label: label,
+      steps: steps,
+      phase: ExecutionPhase.unknown,
+      message: submissionUnknownNotice,
+      isDemo: _demoNow(),
+    );
+    _announce(submissionUnknownNotice);
+    _recoverSubmission(api, key, label, steps, recoverJobId);
+  }
+
+  void _recoverSubmission(RpiApiService api, String key, String label, List<String> steps,
+      Future<String> Function()? recoverJobId) {
+    _recoverTimer?.cancel();
+    var recover = recoverJobId;
+    var tries = 0;
+    var jobTries = 0;
+    var inFlight = false;
+    _recoverTimer = Timer.periodic(_pollInterval, (timer) async {
+      if (inFlight) return;
+      if (!mounted || state.sequenceId != key || _httpJobId != null || tries >= _recoverTries) {
+        timer.cancel();
+        return;
+      }
+      tries++;
+      inFlight = true;
+      try {
+        final ask = recover;
+        if (ask != null && jobTries < _recoverJobTries) {
+          jobTries++;
+          try {
+            final jobId = await ask();
+            if (!mounted || !timer.isActive || state.sequenceId != key) return;
+            timer.cancel();
+            beginHttpJob(api: api, jobId: jobId, label: label, steps: steps);
+            return;
+          } on RpiApiException {
+            recover = null; // 본체가 답했다(이미 승인됨·거절) — 다시 묻지 않고 상태로만 찾는다.
+          } catch (_) {
+            // 또 답이 없다 — 다음 차례에 다시 묻는다.
+          }
+        }
+        final status = await api.status();
+        if (!mounted || !timer.isActive || state.sequenceId != key) return;
+        final running = status.jobId;
+        if (status.running && running != null) {
+          timer.cancel();
+          beginHttpJob(api: api, jobId: running, label: label, steps: steps);
+        }
+      } catch (_) {
+        // 통신 실패 — 남은 횟수 안에서 다시 본다. 정지는 그대로 남는다.
+      } finally {
+        inFlight = false;
+      }
+    });
+  }
+
   // ── 진행 중 job 보존 ────────────────────────────────────────────────────
   //
   // 실행은 수 초~수십 초 걸리고, 그 사이 앱이 내려갈 수 있다(사용자가 홈으로
@@ -382,6 +462,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   void _stopHttpTracking({bool keepTarget = false}) {
     _pollTimer?.cancel();
     _pollTimer = null;
+    _recoverTimer?.cancel();
+    _recoverTimer = null;
     if (keepTarget) return;
     _httpApi = null;
     _httpJobId = null;
@@ -392,6 +474,14 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
 
   /// '확인 불가'에서 사용자가 직접 다시 확인한다.
   void recheck() {
+    final api = _httpApi;
+    final key = state.sequenceId;
+    if (api != null && _httpJobId == null && key != null && key.startsWith('unsent-')) {
+      // 접수 답을 못 받은 실행 — 다시 상태를 보며 돌고 있는 실행을 찾는다(다시 보내지는 않는다).
+      state = state.copyWith(message: '새로 보는 중이에요…');
+      _recoverSubmission(api, key, state.label ?? '', state.steps, null);
+      return;
+    }
     if (_httpApi == null || _httpJobId == null) return;
     _missingPolls = 0;
     _lastPollSuccess = DateTime.now();
@@ -568,6 +658,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _subscription?.cancel();
     _pollTimer?.cancel();
     _stopFollowTimer?.cancel();
+    _recoverTimer?.cancel();
     _apiWait?.close();
     super.dispose();
   }

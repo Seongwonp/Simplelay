@@ -93,6 +93,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     String? confirmation;
     var mode = 'unknown';
     String? unknownJobId;
+    var submissionUnknown = false;
     try {
       // job 모델: 접수 즉시 job_id가 오고, 완료는 /status 폴링으로 판정한다.
       final accepted = await api.executeButtons(
@@ -116,11 +117,34 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
           : resultKindOf(outcome: done.lastOutcome, status: done.lastStatus);
       confirmation = done?.lastConfirmation;
       mode = done?.lastExecutionMode ?? 'unknown';
+    } on RpiApiException {
+      kind = ResultKind.failed; // 본체가 답했다 — 받지 않았다(다른 일 하는 중·준비 안 됨 등)
     } catch (_) {
+      // 보냈는데 답이 없다(시간 초과·연결 끊김) — 본체가 받아 이미 누르기 시작했을 수 있다(검토 10/19). 못 함으로 보이고
+      // 버튼을 풀면 같은 버튼을 확인 없이 또 보낼 수 있었다. 모름으로 두고 정지를 남긴다(다시 보내지는 않는다).
       kind = ResultKind.failed;
+      submissionUnknown = true;
+      ref.read(executionStatusProvider.notifier).beginSubmissionUnknown(
+            api: api,
+            label: button.label,
+            steps: [button.label],
+          );
     }
 
     if (!mounted) return;
+    if (submissionUnknown) {
+      setState(() {
+        _pendingButtonId = null;
+        _pendingLabel = null;
+        _resultButtonId = null;
+        _resultLabel = button.label;
+        _resultSuccess = null;
+        _resultSentence = manualPressUnknownSentence(button.label);
+        _unknownJobId = null;
+        _unknownButtonId = button.id;
+      });
+      return;
+    }
     if (unknownJobId != null) {
       // 실패로 보이지 않는다 — 아직 돌거나 이미 눌렸을 수 있다. 같은 버튼은 확인 뒤에만, 결과는 계속 지켜본다.
       setState(() {
