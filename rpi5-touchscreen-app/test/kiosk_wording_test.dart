@@ -621,7 +621,8 @@ void main() {
     });
 
     testWidgets('숫자 근거(mA·dB·%) 없이 무엇을 보는지만 말한다', (tester) async {
-      await _pumpView(tester, exec(confidence: 0.93, detail: '전류 +14mA · 소리 +9dB'));
+      // 마지막 버튼의 확인 결과(10/19 — 확인 머리말은 다 누른 뒤에만).
+      await _pumpView(tester, exec(button: '시작', completed: 1, confidence: 0.93, detail: '전류 +14mA · 소리 +9dB'));
       expect(find.text('눌렀어요, 확인 중이에요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing); // 위 상태와 같은 말 — 하나만(평가 15차 10/18)
       expect(find.textContaining('mA'), findsNothing);

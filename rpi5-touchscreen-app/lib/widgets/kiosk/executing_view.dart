@@ -124,6 +124,13 @@ class KioskExecutingView extends StatelessWidget {
     ];
   }
 
+  /// 지금 보고된 버튼이 마지막 버튼인가(전체 수를 모르거나 하나뿐이면 그렇다고 본다).
+  bool get _lastButtonReported {
+    final total = totalSteps;
+    if (total == null || total <= 1) return true;
+    return (completedSteps ?? 0) + 1 >= total;
+  }
+
   bool get _hasVerification =>
       verificationConfidence != null ||
       (verificationDetail != null && verificationDetail!.isNotEmpty);
@@ -146,7 +153,9 @@ class KioskExecutingView extends StatelessWidget {
     // 헷갈렸다). 서버 진행 보고(`ExecutionProgress`)는 누르고 난 **뒤** 확인 결과를 실어 온다 — 그때는 '눌렀어요, 확인
     // 중이에요'(눌렸다고 단정하지 않는다). 확인 결과 없이 버튼만 오면(누르기가 끝나지 않아 그 버튼을 다시 누르러 간다)
     // '누르고 있어요'.
-    return _hasVerification
+    // 10/19: 확인 결과는 앞 버튼 것이 남아 있을 수 있다 — 두 번째 버튼을 누르러 가는 동안 '눌렀어요, 확인 중'이 보였다.
+    // 확인 머리말은 마지막 버튼의 결과일 때(버튼을 다 누른 뒤)만.
+    return _hasVerification && _lastButtonReported
         // 확인 단계는 눈 아이콘 하나(평가 3차 10/18 — 목록+돋보기 모양은 뜻이 둘로 읽혔다).
         ? (kExecPressedChecking, Icons.visibility_outlined, Colors.white)
         : (kExecPressing, Icons.touch_app_outlined, Colors.white);
