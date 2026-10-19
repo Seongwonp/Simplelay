@@ -47,6 +47,6 @@ void main() {
     ], child: MaterialApp(home: Scaffold(body: ApplianceSetupCard(appliance: appliance)))));
     await tester.pumpAndSettle();
     expect(findPlainText('전자레인지, 설정이 2개 남았어요'), findsOneWidget);
-    expect(find.text('위치 맞추기'), findsOneWidget);
+    expect(find.text('버튼 자리 맞추기'), findsOneWidget);
   });
 }

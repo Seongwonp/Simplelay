@@ -623,7 +623,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                 ),
                 const SizedBox(height: AppSpace.xs),
                 Text(
-                  '저장한 뒤에 위치 맞추기와 자리 확인을 이어 해요.',
+                  '저장한 뒤에 버튼 자리 맞추기와 자리 확인을 이어 해요.',
                   style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
                 const SizedBox(height: AppSpace.md),
@@ -775,8 +775,8 @@ class _SavedNextStepsDialog extends StatelessWidget {
             const SizedBox(height: AppSpace.lg),
             const _NextStep(
               icon: Icons.link,
-              title: '위치 맞추기',
-              body: '조작부 사진에서 버튼 위치를 맞춰 주세요.',
+              title: '버튼 자리 맞추기',
+              body: '버튼판 사진에서 버튼 자리를 맞춰 주세요.',
             ),
             const SizedBox(height: AppSpace.md),
             const _NextStep(
@@ -795,7 +795,7 @@ class _SavedNextStepsDialog extends StatelessWidget {
         ),
         actions: [
           TextButton(onPressed: onLater, child: const Text('다음에')),
-          FilledButton(onPressed: onGoToSettings, child: const Text('위치 맞추기')),
+          FilledButton(onPressed: onGoToSettings, child: const Text('버튼 자리 맞추기')),
         ],
       );
 }

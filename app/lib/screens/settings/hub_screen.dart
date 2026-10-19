@@ -68,7 +68,7 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
           children: [
             _RpiConnectionTile(),
             FilledButton.icon(onPressed: () => context.push('/pair'),
-              icon: const Icon(Icons.qr_code), label: const Text('코드로 폰 연결하기')),
+              icon: const Icon(Icons.qr_code), label: const Text('QR로 폰 연결하기')),
             const SizedBox(height: AppSpace.xxl),
             _SectionHeader(title: '본체 위치'),
             const SizedBox(height: AppSpace.sm),

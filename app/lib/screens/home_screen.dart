@@ -1425,11 +1425,11 @@ class _ApplianceCard extends ConsumerWidget {
     // 밝기 = 켜짐·작동 중(10/19, 두 번째) — 아이콘·이름 같은 색. 강조색(골드)은 쓰지 않는다(주 행동 전용).
     final fg = tileLit(s) ? context.appInk : context.appTileDim;
     // 문제가 아닌 상태 말 — 화면 읽기 이름에만(화면 글자는 없다). 밝기(색)만으로 말하지 않는다(10/19, 두 번째):
-    // 쉬는 누름 장치 가전은 '작동 중 아님' — 허브가 지금 누르고 있지 않다는 뜻까지만(가전이 꺼졌다고 단정하지 않는다).
+    // 쉬는 누름 장치 가전은 '지금 누르고 있지 않아요' — 허브가 지금 누르고 있지 않다는 뜻까지만(가전이 꺼졌다고 단정하지 않는다).
     // LG 가전 전원을 모르면 넣지 않는다 — '?' 표시 문장이 말한다.
     final word = switch (s.tone) {
       TileTone.on || TileTone.off || TileTone.active => s.text,
-      _ when !a.isThinq => '작동 중 아님',
+      _ when !a.isThinq => '지금 누르고 있지 않아요',
       _ => null,
     };
     final card = Semantics(
@@ -1633,7 +1633,7 @@ class _AddCard extends StatelessWidget {
 /// 조회 실패와 '서버에 정말 없음'을 같은 빈 화면으로 두지 않는다.
 String? _serverCatalogNote(ServerApplianceCatalog catalog) =>
     switch (catalog.status) {
-      ServerCatalogStatus.loading => '본체의 가전 목록을 불러오는 중이에요.',
+      ServerCatalogStatus.loading => '본체에서 가전 목록을 불러오고 있어요.',
       ServerCatalogStatus.failed => '본체의 가전 목록을 못 불러왔어요. 연결을 봐 주세요.',
       ServerCatalogStatus.loaded || ServerCatalogStatus.unconfigured => null,
     };
@@ -1653,7 +1653,7 @@ class _NoApplianceStage extends StatelessWidget {
           Text('아직 등록한 가전이 없어요', style: AppText.title),
           const SizedBox(height: AppSpace.sm),
           Text(
-            '조작부 사진을 찍고 버튼 자리를 알려 주면\n여기서 가전을 쓸 수 있어요.',
+            '버튼판 사진을 찍고 버튼 자리를 알려 주면\n여기서 가전을 쓸 수 있어요.',
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
           if (note case final note?) ...[
@@ -1709,7 +1709,7 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
     // 둘 다 끊긴 것과 예비 연결로 버티는 것은 문장을 나눈다 -- 조작은 되는데
     // "연결 설정이 필요해요"라고만 하면 무엇이 안 되는지 알 수 없다.
     final (String label, Color color, IconData icon) = widget.bleConnected
-            ? ('알림과 기록이 멈췄어요', context.appWarning,
+            ? ('알림과 기록을 못 받고 있어요', context.appWarning,
                 Icons.wifi_tethering_error)
             : ('연결 설정이 필요해요', context.appDanger,
                 Icons.wifi_tethering_error);
@@ -1936,14 +1936,14 @@ class _RpiStatusCard extends ConsumerWidget {
       RpiConnectionState.checking => (
           context.appWarning,
           Icons.sync,
-          '본체 찾는 중…',
+          '본체를 찾고 있어요…',
           '잠시만 기다려 주세요',
         ),
       RpiConnectionState.unreachable => (
           context.appDanger,
           Icons.wifi_off,
           '본체와 연결이 끊겼어요',
-          '폰과 본체가 같은 Wi-Fi인지 봐 주세요',
+          '폰과 본체가 같은 와이파이인지 봐 주세요',
         ),
       RpiConnectionState.unconfigured => (
           context.appMuted,
@@ -2020,7 +2020,7 @@ class _BleStatusCard extends StatelessWidget {
             color: context.appMuted,
             iconBackground: Theme.of(context).colorScheme.surfaceContainerHigh,
             title: '블루투스 연결이 꺼져 있어요',
-            subtitle: '켜 두면 Wi-Fi가 끊겨도 가전을 쓸 수 있어요.',
+            subtitle: '켜 두면 와이파이가 끊겨도 가전을 쓸 수 있어요.',
             actions: [
               Consumer(
                 builder: (_, ref, __) => TextButton(
@@ -2029,7 +2029,7 @@ class _BleStatusCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
                     minimumSize: const Size(48, 48),
                   ),
-                  child: const Text('연결', style: TextStyle(fontSize: AppFont.caption)),
+                  child: const Text('설정에서 켜기', style: TextStyle(fontSize: AppFont.caption)),
                 ),
               ),
             ],

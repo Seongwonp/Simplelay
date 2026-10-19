@@ -207,7 +207,7 @@ void setupSummaryTests() {
     expect(verifyCalls, isEmpty);
   });
 
-  testWidgets('설정 이어하기를 누르면 가전마다 위치 맞추기가 있는 목록이 열린다',
+  testWidgets('설정 이어하기를 누르면 가전마다 버튼 자리 맞추기가 있는 목록이 열린다',
       (tester) async {
     _phoneViewport(tester);
     await _pumpHome(tester, kServerFive.take(2).toList(), <Uri>[]);
@@ -218,7 +218,7 @@ void setupSummaryTests() {
 
     expect(findPlainText('시험용 전자레인지, 설정이 2개 남았어요'), findsOneWidget);
     expect(findPlainText('Phone-MW, 설정이 2개 남았어요'), findsOneWidget);
-    expect(find.text('위치 맞추기'), findsNWidgets(2));
+    expect(find.text('버튼 자리 맞추기'), findsNWidgets(2));
   });
 
   testWidgets('설정이 남은 가전이 한 대면 지금처럼 그 가전 카드를 그대로 보인다',
@@ -228,6 +228,6 @@ void setupSummaryTests() {
 
     expect(find.byKey(const Key('setup-summary-card')), findsNothing);
     expect(findPlainText('세탁기, 설정이 2개 남았어요'), findsOneWidget);
-    expect(find.text('위치 맞추기'), findsOneWidget);
+    expect(find.text('버튼 자리 맞추기'), findsOneWidget);
   });
 }

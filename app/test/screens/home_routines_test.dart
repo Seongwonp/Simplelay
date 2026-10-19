@@ -468,7 +468,7 @@ void main() {
     await _settle(tester);
     // 사용자 결정(10/19): 타일 이름과, 오른쪽 위 표시가 상태 문장을 그대로 읽는다.
     // 10/19 두 번째: 쉬는 누름 장치 가전은 이름과 함께 '작동 중 아님'(밝기만으로 말하지 않는다).
-    expect(find.bySemanticsLabel('세탁기, 작동 중 아님'), findsOneWidget);
+    expect(find.bySemanticsLabel('세탁기, 지금 누르고 있지 않아요'), findsOneWidget);
     expect(find.bySemanticsLabel(kTilePanelSetup), findsOneWidget);
     expect(find.bySemanticsLabel('저녁 데우기 실행하기'), findsOneWidget);
     handle.dispose();

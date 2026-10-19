@@ -103,7 +103,7 @@ class ApplianceSetupCard extends ConsumerWidget {
         if (passNote != null) Text(keepWordsTogether(passNote)),
         Wrap(spacing: AppSpace.md, children: [
           OutlinedButton(onPressed: () => open('/appliance/setup'),
-            child: const Text('위치 맞추기')),
+            child: const Text('버튼 자리 맞추기')),
           // 테두리 버튼 — 홈의 채운 주 버튼은 '지금 하기' 하나다(2026-10-18 버튼 위계).
           if (mapped) OutlinedButton(onPressed: () => open('/appliance/setup?verify=1'),
             style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),

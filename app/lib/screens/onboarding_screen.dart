@@ -71,7 +71,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                       // ── 타이틀 ─────────────────────────────────────────────────
                       Text(
-                        'SimpleLay에 오신 것을\n환영해요',
+                        '반가워요.\nSimpleLay예요',
                         textAlign: TextAlign.center,
                         style: AppText.heading.copyWith(
                           color: cs.onSurface,

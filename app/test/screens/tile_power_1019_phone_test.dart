@@ -188,11 +188,11 @@ void main() {
     _expectLit(tester, 'air', '공기청정기');
   });
 
-  testWidgets('화면 읽기 — 상태를 이름과 함께(켜짐·꺼짐·작동 중 아님)', (tester) async {
+  testWidgets('화면 읽기 — 상태를 이름과 함께(켜짐·꺼짐·지금 누르고 있지 않아요)', (tester) async {
     final h = tester.ensureSemantics();
     await _pump(tester, [_mw, _air], power: {'air': 'on'});
     expect(find.bySemanticsLabel(RegExp(r'^공기청정기, LG 가전, 켜져 있어요')), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'^전자레인지, 작동 중 아님')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^전자레인지, 지금 누르고 있지 않아요')), findsOneWidget);
     await _pump(tester, [_air], power: {'air': 'off'});
     expect(find.bySemanticsLabel(RegExp(r'^공기청정기, LG 가전, 꺼져 있어요')), findsOneWidget);
     h.dispose();

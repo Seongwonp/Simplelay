@@ -96,15 +96,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('본체의 QR을 휴대폰 카메라로 찍어 주세요.'), findsOneWidget);
     expect(find.text('본체 주소'), findsNothing);
-    expect(find.text('여섯 자리 코드'), findsNothing);
+    expect(find.text('여섯 자리 숫자'), findsNothing);
     expect(find.text('연결 요청하기'), findsNothing, reason: '보낼 코드가 없다');
-    await tester.tap(find.text('QR을 찍을 수 없나요? 주소와 6자리 코드 입력'));
+    await tester.tap(find.text('QR 없이 주소와 숫자로 연결하기'));
     await tester.pumpAndSettle();
     expect(find.text('본체 주소'), findsOneWidget);
-    expect(find.text('여섯 자리 코드'), findsOneWidget);
+    expect(find.text('여섯 자리 숫자'), findsOneWidget);
     await tester.tap(find.text('연결 요청하기'));
     await tester.pumpAndSettle();
-    expect(find.text('본체 주소와 여섯 자리 코드를 봐 주세요.'), findsOneWidget);
+    expect(find.text('본체 주소와 여섯 자리 숫자를 봐 주세요.'), findsOneWidget);
   });
 
   testWidgets('QR로 받은 주소에 닿지 않으면 주소·코드 칸을 펼쳐 고칠 곳을 보여요', (tester) async {

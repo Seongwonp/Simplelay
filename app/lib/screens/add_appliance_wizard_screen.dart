@@ -47,7 +47,7 @@ class _Tapped {
 }
 
 const _stepTitles = [
-  '조작부 사진',
+  '버튼판 사진',
   '버튼판 네 귀퉁이 고르기',
   '버튼 고르고 이름 붙이기',
   '정지 버튼과 기다리는 자리',
@@ -840,7 +840,7 @@ class _AddApplianceWizardScreenState
             ),
           )
         else ...[
-          _photoPanel(label: '찍은 조작부 사진'),
+          _photoPanel(label: '찍은 버튼판 사진'),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(

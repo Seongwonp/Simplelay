@@ -40,7 +40,7 @@ class AppliancePanel extends StatelessWidget {
       photoHeight: mapping.photoHeight,
       photoPath: appliance.photoPath,
       image: imageOverride,
-      semanticsLabel: '${appliance.displayName} 조작부 사진 위 버튼 표시',
+      semanticsLabel: '${appliance.displayName} 버튼판 사진 위 버튼 표시',
       marks: applianceMarks(appliance, pinned: pinned),
       onTapMark: (m) {
         final b = appliance.buttons.where((b) => b.id == m.id).firstOrNull;

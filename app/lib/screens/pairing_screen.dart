@@ -74,7 +74,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
       if (qr == null || qr.host != 'pair') {
         setState(() {
           _manual = true;
-          _message = '본체 화면의 QR 연결 주소를 봐 주세요.';
+          _message = '본체 연결용 QR이 아니에요. 본체 화면의 QR을 다시 찍어 주세요.';
         });
         return;
       }
@@ -93,7 +93,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
         (uri.path.isNotEmpty && uri.path != '/')) {
       setState(() {
         _manual = true;
-        _message = '본체 주소와 여섯 자리 코드를 봐 주세요.';
+        _message = '본체 주소와 여섯 자리 숫자를 봐 주세요.';
       });
       return;
     }
@@ -229,7 +229,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('폰 연결하기')),
         body: ListView(padding: const EdgeInsets.all(AppSpace.xl), children: [
-          const Text('본체 화면에서 설정, 폰 연결하기를 열어 주세요.'),
+          const Text("본체 화면에서 '설정'을 누르고 '휴대폰 연결하기'를 눌러 주세요."),
           const SizedBox(height: AppSpace.sm),
           Text(
               _fromQr && !_manual
@@ -249,7 +249,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
               child: TextButton(
                   key: const Key('pair-manual'),
                   onPressed: _busy ? null : () => setState(() => _manual = true),
-                  child: const Text('QR을 찍을 수 없나요? 주소와 6자리 코드 입력')),
+                  child: const Text('QR 없이 주소와 숫자로 연결하기')),
             ),
           if (_manual) ...[
             TextField(
@@ -261,7 +261,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
                 controller: _code,
                 enabled: !_busy && !_connected,
                 autocorrect: false,
-                decoration: const InputDecoration(labelText: '여섯 자리 코드')),
+                decoration: const InputDecoration(labelText: '여섯 자리 숫자')),
           ],
           if (_message != null) Text(_message!, key: const Key('pair-message')),
           if (_token != null) ...[

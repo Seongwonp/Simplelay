@@ -157,7 +157,7 @@ void main() {
 
       expect(findPlainText('블루투스로만 연결돼요'), findsOneWidget);
       expect(find.text('본체와 연결됐어요'), findsNothing);
-      expect(findPlainText('알림과 기록이 멈췄어요'), findsOneWidget);
+      expect(findPlainText('알림과 기록을 못 받고 있어요'), findsOneWidget);
       expect(findPlainText('연결 설정이 필요해요'), findsNothing);
     });
 
@@ -179,7 +179,7 @@ void main() {
 
       expect(findPlainText('본체와 연결됐어요'), findsOneWidget);
       expect(findPlainText('연결 설정이 필요해요'), findsNothing);
-      expect(findPlainText('알림과 기록이 멈췄어요'), findsNothing);
+      expect(findPlainText('알림과 기록을 못 받고 있어요'), findsNothing);
       // 조작은 되고 사용자가 할 판단이 없다 — 허브 문제일 때만 연결 줄을 둔다.
       expect(find.text('예비 연결 꺼짐'), findsNothing);
       expect(find.text('확인하기'), findsNothing);
@@ -209,7 +209,7 @@ void main() {
         await tester.pump();
 
         expect(findPlainText('연결 설정이 필요해요'), findsNothing);
-        expect(findPlainText('알림과 기록이 멈췄어요'), findsNothing);
+        expect(findPlainText('알림과 기록을 못 받고 있어요'), findsNothing);
         expect(findPlainText('본체를 찾고 있어요'), findsOneWidget);
         expect(find.text('본체와 연결이 끊겼어요'), findsNothing);
         // 확인 중에는 예비 연결이 꺼져도 연결 줄을 두지 않는다 — 허브 문제가 확인될 때만(2026-10-14 UX).
@@ -224,7 +224,7 @@ void main() {
       await tester.pump();
 
       expect(findPlainText('본체를 찾고 있어요'), findsOneWidget);
-      expect(findPlainText('알림과 기록이 멈췄어요'), findsNothing);
+      expect(findPlainText('알림과 기록을 못 받고 있어요'), findsNothing);
     });
   });
 
@@ -241,7 +241,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('블루투스 연결이 꺼져 있어요'), findsOneWidget);
-      expect(find.text('켜 두면 Wi-Fi가 끊겨도 가전을 쓸 수 있어요.'), findsOneWidget);
+      expect(find.text('켜 두면 와이파이가 끊겨도 가전을 쓸 수 있어요.'), findsOneWidget);
     });
 
     testWidgets('상세를 펼치면 복구 동선이 나온다', (tester) async {
@@ -250,7 +250,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('확인하기'));
       await tester.pump();
-      expect(find.text('연결'), findsOneWidget);
+      expect(find.text('설정에서 켜기'), findsOneWidget);
       expect(find.text('주소 입력'), findsOneWidget);
     });
 
@@ -270,11 +270,11 @@ void main() {
       expect(find.text('블루투스 연결이 꺼져 있어요'), findsNothing);
     });
 
-    testWidgets('"연결" 버튼 사라짐', (tester) async {
+    testWidgets('"설정에서 켜기" 버튼 사라짐', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.text('연결'), findsNothing);
+      expect(find.text('설정에서 켜기'), findsNothing);
     });
 
     testWidgets('말로 하는 길이 홈에 함께 있다', (tester) async {

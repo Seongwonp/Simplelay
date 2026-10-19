@@ -314,7 +314,7 @@ void main() {
     await _settle(tester);
 
     // ① 사진 — 사진과 이름이 있어야 다음으로 간다.
-    expect(_title(tester), '1. 조작부 사진');
+    expect(_title(tester), '1. 버튼판 사진');
     expect(find.byKey(const Key('wizard-back')), findsOneWidget);
     FilledButton next() =>
         tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
@@ -342,7 +342,7 @@ void main() {
     // 이전으로 돌아가도 짚은 모서리는 남는다.
     await tester.tap(find.byKey(const Key('wizard-back')));
     await tester.pump();
-    expect(_title(tester), '1. 조작부 사진');
+    expect(_title(tester), '1. 버튼판 사진');
     await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pump();
     expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
@@ -615,7 +615,7 @@ void main() {
     expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
     await tester.tap(find.byKey(const Key('wizard-back')));
     await tester.pump();
-    expect(_title(tester), '1. 조작부 사진');
+    expect(_title(tester), '1. 버튼판 사진');
     expect(find.byKey(const Key('wizard-name')), findsNothing, reason: '여기서 바꿔도 저장되지 않는 칸은 두지 않는다');
     expect(find.text('사진 없이 버튼판으로 등록하기'), findsNothing);
     expect(find.text('가전: 세탁기'), findsOneWidget);
@@ -641,7 +641,7 @@ void main() {
 
     await tester.binding.handlePopRoute();
     await _settle(tester);
-    expect(_title(tester), '1. 조작부 사진');
+    expect(_title(tester), '1. 버튼판 사진');
     expect(find.text('저장하지 않고 나가기'), findsNothing);
 
     // 1단계에서 뒤로 가기는 닫기 — 찍은 사진이 있으니 묻는다.
