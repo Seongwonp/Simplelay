@@ -621,9 +621,11 @@ void main() {
     expect(find.descendant(of: find.byKey(const Key('routine-line-rt-n')),
         matching: findPlainText('전자레인지 · 누를 버튼 3개', contains: true), matchRoot: true), findsOneWidget);
     expect(findPlainText('알려 드려요'), findsOneWidget);
-    // 꺼 둔 루틴은 이름 옆 '꺼 둠' 표지(보호자 과업 평가 10/18) — 설명 줄 끝 '꺼짐'은 두지 않는다.
-    expect(find.descendant(of: find.byKey(const Key('routine-off-badge-rt-off')), matching: findPlainText('꺼 둠')),
-        findsOneWidget);
+    // 꺼 둔 시각 루틴은 줄 스위치 아래 '꺼짐'이 말한다 — 같은 뜻의 '꺼 둠' 표지는 두지 않고 낭독만 남긴다(UI 정리 10/19).
+    // 설명 줄 끝 '꺼짐'도 두지 않는다.
+    expect(find.byKey(const Key('routine-off-badge-rt-off')), findsNothing);
+    expect(tester.widget<Text>(find.byKey(const Key('routine-switch-text-rt-off'))).data, '꺼짐');
+    expect(tester.widget<Text>(find.byKey(const Key('routine-line-rt-off'))).semanticsLabel, endsWith(', 꺼 둠'));
     expect(findPlainText('전자레인지 · 누를 버튼 3개 · 꺼짐', contains: true), findsNothing);
   });
 
@@ -872,6 +874,35 @@ void main() {
       await _settle(tester);
       expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
       expect(findPlainText('아침 데우기'), findsOneWidget);
+    });
+  });
+
+  // UI 정리(10/19): 표지가 많고 켜진 자동과 '오늘은 건너뛰어요'가 같은 테두리 글자라 색으로만 갈렸다 — 켜진 자동은 옅은 면 +
+  // 번개, 건너뛰는 회차는 흐린 테두리 + 빈 달력으로 모양부터 다르게. 낭독은 글자 그대로.
+  group('표지 — 켜진 자동과 건너뛰는 회차는 모양으로 갈린다', () {
+    Finder inMark(String key, Finder f) => find.descendant(of: find.byKey(Key(key)), matching: f);
+
+    testWidgets('켜진 자동은 면 + 번개', (tester) async {
+      _tall(tester);
+      await tester.pumpWidget(_build(_Server()..nextExtra = {'auto': true}));
+      await _settle(tester);
+      expect(inMark('routine-auto-badge-rt-1', find.byIcon(Icons.bolt)), findsOneWidget);
+      expect(inMark('routine-next-badge-rt-1', find.byIcon(Icons.event_busy)), findsNothing);
+      final box = tester.widget<Container>(inMark('routine-auto-badge-rt-1', find.byType(Container)).first);
+      expect((box.decoration! as BoxDecoration).color, isNotNull);
+    });
+
+    testWidgets("오늘은 건너뛰는 회차는 흐린 테두리 + 빈 달력, 번개는 없다", (tester) async {
+      _tall(tester);
+      await tester.pumpWidget(
+          _build(_Server()..nextExtra = {'auto': true, 'skipped': true, 'skip_label': '오늘은 건너뛰어요'}));
+      await _settle(tester);
+      expect(inMark('routine-next-badge-rt-1', find.byIcon(Icons.event_busy)), findsOneWidget);
+      expect(inMark('routine-next-badge-rt-1', findPlainText('오늘은 건너뛰어요')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('routine-row-rt-1')), matching: find.byIcon(Icons.bolt)),
+          findsNothing);
+      final box = tester.widget<Container>(inMark('routine-next-badge-rt-1', find.byType(Container)).first);
+      expect((box.decoration! as BoxDecoration).color, isNull);
     });
   });
 }

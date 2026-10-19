@@ -195,7 +195,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                               children: [
                                 for (final (mark, meaning, accent) in kRoutineMarkMeanings)
                                   Row(mainAxisSize: MainAxisSize.min, children: [
-                                    _LineMark(label: mark, accent: accent),
+                                    // 줄의 표지와 같은 모양 — 자동은 면 + 번개.
+                                    _LineMark(
+                                        label: mark, accent: accent, filled: accent, icon: accent ? Icons.bolt : null),
                                     const SizedBox(width: AppSpace.xs),
                                     // 큰 글씨(200%)에서는 뜻이 줄을 바꾼다(넘치지 않게).
                                     Flexible(
@@ -769,12 +771,27 @@ class RowTextAction extends StatelessWidget {
 /// ' · 다음 · 자동'으로 이어 붙이니 가운뎃점으로 시작하는 줄이 혼자 남고, 설명이 데이터 나열처럼 보였다).
 /// 설명 줄은 '매일 오후 10:00 · 공기청정기'처럼 짧게 두고, 표지는 이름 옆(자리가 모자라면 이름 아래)에 둔다.
 class _LineMark extends StatelessWidget {
-  const _LineMark({super.key, required this.label, this.semanticLabel, this.accent = false, this.muted = false, this.onTap});
+  const _LineMark(
+      {super.key,
+      required this.label,
+      this.semanticLabel,
+      this.accent = false,
+      this.muted = false,
+      this.filled = false,
+      this.icon,
+      this.onTap});
 
   final String label;
   final String? semanticLabel;
   final bool accent;
   final bool muted;
+
+  /// 옅은 면을 깐다 — 켜진 자동('묻지 않고 해요')만(UI 정리 10/19: 켜진 자동과 '오늘은 건너뛰어요'가 같은 테두리 글자라
+  /// 색으로만 갈렸다). 모양(면·아이콘)으로도 가른다.
+  final bool filled;
+
+  /// 글자 앞 작은 아이콘 — 켜진 자동은 번개, 건너뛰는 회차는 빈 달력. 뜻은 글자가 말한다(아이콘은 읽지 않는다).
+  final IconData? icon;
 
   /// 있으면 누를 수 있는 표지(루틴 줄 '자동' → 그 규칙 스위치). 보이는 크기는 작게 두고, 손가락이 닿는 칸은
   /// 줄 높이를 늘리지 않는 투명 확장 영역([TapSlop])으로 48dp를 준다(평가 17차: 48dp 칸을 설명 줄 높이로 주니
@@ -784,15 +801,26 @@ class _LineMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = muted ? context.appMuted : accent ? context.appPrimary : context.appInk;
+    final text = Text(keepWordsTogether(label),
+        semanticsLabel: semanticLabel ?? label,
+        style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: color, height: 1.25));
+    final glyph = icon;
     final tag = Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
       decoration: BoxDecoration(
-        border: Border.all(color: color.withValues(alpha: 0.6)),
+        color: filled ? color.withValues(alpha: 0.16) : null,
+        border: Border.all(color: color.withValues(alpha: filled ? 0.9 : 0.6)),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(keepWordsTogether(label),
-          semanticsLabel: semanticLabel ?? label,
-          style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: color, height: 1.25)),
+      child: glyph == null
+          ? text
+          : Row(mainAxisSize: MainAxisSize.min, children: [
+              // 글자 배율을 따라 커진다 — 큰 글씨에서 아이콘만 작게 남지 않게.
+              ExcludeSemantics(
+                  child: Icon(glyph, size: MediaQuery.textScalerOf(context).scale(AppFont.caption), color: color)),
+              const SizedBox(width: AppSpace.xs),
+              Flexible(child: text),
+            ]),
     );
     final tap = onTap;
     if (tap == null) return tag;
@@ -935,6 +963,8 @@ class _RoutineRow extends StatelessWidget {
     // 자동 표지 — 규칙이 있으면 규칙 켜짐, 없으면 본체 /routines/next의 auto.
     final autoOn = autoRule?.enabled ?? auto;
     final skipping = (n?.quietSkip ?? false) || (n?.skipped ?? false);
+    // 스위치가 이 루틴 자체의 켜짐을 말하나(붙은 자동 규칙이 없을 때).
+    final offBySwitch = onToggle != null && autoRule == null;
     final autoKey = GlobalObjectKey(this);
     final badges = <Widget>[
       // '다음' — 위에 따로 '다음: …' 줄을 두지 않고 그 줄에 붙인다. 조용한 시간이라 건너뛰면 그 말로.
@@ -942,7 +972,10 @@ class _RoutineRow extends StatelessWidget {
         _LineMark(
           key: Key('routine-next-badge-$key'),
           // 한 번 건너뛴 회차(2026-10-18)는 본체 말 '오늘은 건너뛰어요'(modeText) — 아래 '되돌리기'와 짝.
-          label: n.quietSkip || n.skipped ? n.modeText : '다음',
+          label: skipping ? n.modeText : '다음',
+          // 건너뛰는 회차는 흐린 테두리 + 빈 달력 — 켜진 자동(면 + 번개)과 모양으로 갈린다(UI 정리 10/19).
+          icon: skipping ? Icons.event_busy : null,
+          muted: skipping,
         ),
       // 홈 '다음' 카드와 같은 '자동'. 규칙이 있으면 그 켜짐이 먼저 — 꺼 둔 규칙도 '자동 꺼짐'으로 이 줄에서 닿는다.
       if (!r.isTemplate && (autoRule != null || (auto && !(n?.quietSkip ?? false) && !(n?.skipped ?? false))))
@@ -956,23 +989,29 @@ class _RoutineRow extends StatelessWidget {
                 : '자동 꺼짐${onAuto != null ? ', 눌러서 켜기' : ''}',
             accent: autoOn && !skipping,
             muted: !autoOn || skipping,
+            filled: autoOn && !skipping,
+            icon: autoOn && !skipping ? Icons.bolt : null,
             onTap: onAuto,
           ),
         ),
       // 알림만 루틴(평가 4차 10/18) — 가전을 움직이지 않는 줄이라는 뜻.
       if (notify) const _LineMark(label: '알려 드려요'),
       // 꺼 둔 루틴(보호자 과업 평가 10/18) — 스위치를 끈 뒤 줄에서도 보인다(설명 줄 끝 '꺼짐' 대신).
-      if (!r.isTemplate && !r.enabled) _LineMark(key: Key('routine-off-badge-$key'), label: '꺼 둠', muted: true),
+      // 이 줄 스위치가 루틴 자체를 켜고 끄면 스위치 아래 '꺼짐'이 같은 말을 한다 — 표지는 두지 않고 낭독만 남긴다(UI 정리 10/19).
+      if (!r.isTemplate && !r.enabled && !offBySwitch)
+        _LineMark(key: Key('routine-off-badge-$key'), label: '꺼 둠', muted: true),
     ];
     final lineStyle = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
     // '누를 버튼 2개'·'매일 오전 7:00' 같은 묶음 안에서 줄이 갈리지 않게(평가 4차 10/18). 낭독은 원문.
     final lineShown = r.isTemplate ? keepWordsTogether(line) : keepPhrasesTogether(line, wholeParts: !big);
+    // 표지를 두지 않은 '꺼 둠'도 낭독은 한다.
+    final offSpoken = !r.isTemplate && !r.enabled && offBySwitch ? ', 꺼 둠' : '';
     final Widget? lineText = line.isEmpty
         ? null
-        : Text(lineShown, key: Key('routine-line-$key'), semanticsLabel: line, style: lineStyle);
+        : Text(lineShown, key: Key('routine-line-$key'), semanticsLabel: '$line$offSpoken', style: lineStyle);
     // 이름은 최대 두 줄(평가 8차 10/18). 넘치면 줄임표 — 낭독은 이름 전체.
     final nameText = Text(keepWordsTogether(r.name),
-        semanticsLabel: r.name,
+        semanticsLabel: line.isEmpty ? '${r.name}$offSpoken' : r.name,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: AppText.body.copyWith(fontWeight: FontWeight.w700));
