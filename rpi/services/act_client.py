@@ -569,8 +569,14 @@ class ActClient:
             # RPi5는 지금부터 이 실행을 실패로 보고한다 — RPi4가 아직 버튼을
             # 누르고 있을 수 있으므로 중단도 함께 요청한다(불일치 방지).
             # 전송 실패는 로그만: timeout 예외 경로를 덮어쓰면 안 된다.
+            # 2026-10-19: 구동부만(scope=drive) — 맨 abort는 가전 범위라, RPi4가 이미 실행을 끝내고 정지 버튼 위에서
+            # 기다리는 중이면 가전 정지 버튼을 눌렀다. 이 실행의 표지(run_ref)를 실어, 아직 execute를 못 받은 RPi4가 뒤이어
+            # 온 execute를 누르지 않게 한다(G2와 같은 이중 방어). 옛 RPi4도 scope=drive를 안다(9/30 정지 대기부터).
+            abort: dict = {"type": "abort", "scope": "drive"}
+            if run_ref is not None:
+                abort["run_ref"] = run_ref
             try:
-                await self._send({"type": "abort"})
+                await self._send(abort)
             except Exception:
                 log.exception("abort send after timeout failed")
             raise ActLinkTimeoutError(

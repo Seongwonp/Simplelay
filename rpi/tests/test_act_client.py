@@ -150,11 +150,29 @@ def test_execute_raises_timeout_when_rpi4_never_responds():
 
         # RPi5가 실패로 보고하는 순간 RPi4도 멈춰야 한다 — timeout 직후
         # abort가 전송됐는지 확인 (화면은 실패인데 실물은 계속 누르는
-        # 불일치 방지)
-        assert writer.messages()[-1] == {"type": "abort"}
+        # 불일치 방지). 2026-10-19: 구동부만 멈춘다(scope=drive) — 맨 abort(가전 범위)는 RPi4가 이미 실행을 끝내고
+        # 정지 버튼 위에서 기다리는 중이면 가전 정지 버튼을 눌렀다.
+        assert writer.messages()[-1] == {"type": "abort", "scope": "drive"}
 
         await client.stop()
     run(_t())
+
+
+def test_execute_timeout_abort_is_drive_scoped_and_carries_the_run_ref():
+    """기한 초과 뒤 정지는 그 실행의 표지(run_ref)를 싣는다 — RPi4가 아직 execute를 못 받았으면 뒤이어 와도 누르지 않는다."""
+
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer, config=_short_timeout_cfg())
+        await client.start()
+        with pytest.raises(ActLinkTimeoutError):
+            await client.execute(["시작"], sequence_id="seq-r", appliance_id="microwave", run_ref="run-7")
+        abort = writer.messages()[-1]
+        await client.stop()
+        return abort
+
+    assert run(_t()) == {"type": "abort", "scope": "drive", "run_ref": "run-7"}
 
 
 # ── 송신 실패 정리 (최종 교차 리뷰 중요) ────────────────────────────────────
