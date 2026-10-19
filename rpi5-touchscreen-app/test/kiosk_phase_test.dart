@@ -146,6 +146,16 @@ class FakeKioskApi implements KioskApiService {
   final requestLookups = <String>[];
   KioskRequestLookup Function(String id)? requestLookup;
 
+  // 실행 번호별 결과(GET /jobs/{id}, 검토 10/19). [jobResult]가 null이면 옛 본체(조회 없음)처럼.
+  KioskJobLookup Function(String jobId)? jobResult;
+  final jobLookups = <String>[];
+
+  @override
+  Future<KioskJobLookup> jobStatus(String jobId) async {
+    jobLookups.add(jobId);
+    return jobResult?.call(jobId) ?? const KioskJobLookup.unsupported();
+  }
+
   @override
   Future<KioskRequestLookup> jobByRequest(String clientRequestId) async {
     requestLookups.add(clientRequestId);

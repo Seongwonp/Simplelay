@@ -538,6 +538,24 @@ class KioskRequestLookup {
   final String? jobId;
 }
 
+/// 실행 번호 하나의 상태(GET /jobs/{job_id}, 검토 10/19). [status]는 /status와 같은 모양에 그 실행 것만 —
+/// 비상정지·대기·자동 실행 같은 기기 전체 값은 비어 있다(/status에서 읽는다).
+class KioskJobLookup {
+  const KioskJobLookup.found(KioskStatus this.status) : unsupported = false;
+  const KioskJobLookup.unknown()
+      : status = null,
+        unsupported = false;
+  const KioskJobLookup.unsupported()
+      : status = null,
+        unsupported = true;
+
+  /// 찾은 실행. null이면 본체가 이 실행을 모른다.
+  final KioskStatus? status;
+
+  /// 옛 본체(조회 없음)·통신 실패 — 부른 쪽이 /status의 마지막 한 건으로 종전처럼 본다.
+  final bool unsupported;
+}
+
 class NodeInfo {
   const NodeInfo({required this.applianceId, required this.baseUrl});
 
@@ -780,6 +798,25 @@ class KioskApiService {
 
   /// 본체가 접수 중인 요청을 기다렸다 답하는 몫까지(본체 상한 30초보다 짧게 — 그동안 다른 조회가 오래 멈추지 않게).
   static const _lookupTimeout = Duration(seconds: 12);
+
+  /// GET /jobs/{job_id} — 이 실행 하나의 진행·결과(검토 10/19). /status는 마지막 한 건만 보여 그사이 다른 실행이 끝나면
+  /// 내 결과를 잃었다. 본체가 '모르는 실행'이라고 답하면 [KioskJobLookup.unknown], 옛 본체(경로 없음 'Not Found')·실패는
+  /// [KioskJobLookup.unsupported] — 그때는 /status로 종전처럼 본다.
+  Future<KioskJobLookup> jobStatus(String jobId) async {
+    try {
+      final res = await _client.get(_base.replace(path: '/jobs/$jobId')).timeout(_timeout);
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (res.statusCode == 200 && body is Map<String, dynamic>) {
+        return KioskJobLookup.found(KioskStatus.fromJson(body));
+      }
+      if (res.statusCode == 404 && body is Map<String, dynamic> && body['detail'] == 'job not found') {
+        return const KioskJobLookup.unknown();
+      }
+      return const KioskJobLookup.unsupported();
+    } catch (_) {
+      return const KioskJobLookup.unsupported();
+    }
+  }
 
   // 에러 응답({"detail": ...})을 접수 성공으로 오파싱하지 않도록 명시 확인 —
   // 409(이미 실행 중) 등이 조용히 삼켜져 실행 화면에 고착되는 것을 막는다.

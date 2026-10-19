@@ -894,6 +894,12 @@ class _KioskScreenState extends State<KioskScreen> {
           _activeJobId != jobId) {
         return;
       }
+      // 이 실행의 진행·결과는 실행 번호로 따로 묻는다 — 기기 전체 값(비상정지·대기·자동 실행·정지 재전송)은 /status([st])에서.
+      final job = await _jobView(jobId, st);
+      if (!mounted || _phase != KioskPhase.executing ||
+          _activeJobId != jobId) {
+        return;
+      }
       _lastStatusOk = DateTime.now();
       _trackStrip(st);
       _trackEstop(st);
@@ -902,7 +908,7 @@ class _KioskScreenState extends State<KioskScreen> {
       // ① 완료 판정 최우선 — 내 job 완료 직후 다른 클라이언트의 새 job이
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
       // 처리하면 그 완료를 영영 놓친다(추월 레이스).
-      if (st.lastJobId != null && st.lastJobId == _activeJobId) {
+      if (job != null && job.lastJobId != null && job.lastJobId == _activeJobId) {
         if (st.lastAutoRun?.jobId == jobId) {
           // 자동 실행(허용 규칙)은 완료 화면 대신 위 한 줄로 실제 결과를 알린다(C2).
           _seenLastJobId = jobId;
@@ -910,38 +916,38 @@ class _KioskScreenState extends State<KioskScreen> {
           _trackAutoRun(st);
           return;
         }
-        _completeFromStatus(st, jobId);
+        _completeFromStatus(job, jobId);
         return;
       }
 
-      if (st.running) {
-        final mine = _activeJobId == null || st.jobId == _activeJobId;
+      if (job != null && job.running) {
+        final mine = _activeJobId == null || job.jobId == _activeJobId;
         if (mine) {
           _foreignPolls = 0;
           setState(() {
-            _executionMode = st.executionMode;
+            _executionMode = job.executionMode;
             final prevButton = _currentButton;
-            final nowButton = st.currentButton;
+            final nowButton = job.currentButton;
             if (prevButton != null && nowButton != null && nowButton != prevButton) {
               _execDoneButtons = [..._execDoneButtons, prevButton];
             }
             _currentButton = nowButton ?? _currentButton;
-            _currentAttempt = st.currentAttempt ?? _currentAttempt;
-            _completedSteps = st.completedSteps ?? _completedSteps;
+            _currentAttempt = job.currentAttempt ?? _currentAttempt;
+            _completedSteps = job.completedSteps ?? _completedSteps;
             _verificationConfidence =
-                st.verificationConfidence ?? _verificationConfidence;
+                job.verificationConfidence ?? _verificationConfidence;
             _verificationDetail =
-                st.verificationDetail ?? _verificationDetail;
-            _execApplianceId = st.applianceId ?? _execApplianceId;
+                job.verificationDetail ?? _verificationDetail;
+            _execApplianceId = job.applianceId ?? _execApplianceId;
             // 이어받은 실행이 첫 조회에 경로를 몰랐다가 알게 되면 LG 가전 화면으로(평가 10차 10/18). 거꾸로는 하지 않는다 —
             // 승인 때 정한 판정을 서버 값 하나로 내리지 않는다(누름 장치 경로면 [isAdoptedThinqRun]이 거짓이다).
-            if (!_execThinqOnly && _adoptedThinq(st)) _execThinqOnly = true;
+            if (!_execThinqOnly && _adoptedThinq(job)) _execThinqOnly = true;
             // 서버가 단계 수를 줄 때만 진행을 채운다
-            final total = st.totalSteps;
+            final total = job.totalSteps;
             if (total != null && total > 0) {
               _totalSteps = total;
               _execBarValue =
-                  ((st.completedSteps ?? 0) / total).clamp(0.0, 0.95);
+                  ((job.completedSteps ?? 0) / total).clamp(0.0, 0.95);
             }
           });
           return;
@@ -970,6 +976,13 @@ class _KioskScreenState extends State<KioskScreen> {
             reason: KioskFailureReason.serverLost);
       }
     }
+  }
+
+  /// [jobId] 실행의 진행·결과(검토 10/19 코어 5차 #4) — 본체가 실행 번호로 알려 주면 그것을, 옛 본체(조회 없음)·조회 실패면
+  /// /status([device])의 마지막 한 건으로 종전처럼. null이면 본체가 그 실행을 모른다(흔적 없음과 같다).
+  Future<KioskStatus?> _jobView(String jobId, KioskStatus device) async {
+    final lookup = await _api.jobStatus(jobId);
+    return lookup.unsupported ? device : lookup.status;
   }
 
   /// 서버가 보고한 [jobId]의 끝을 완료 화면으로 옮긴다(내 job·이어받은 job·놓친 짧은 실행 공통).
