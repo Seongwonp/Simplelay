@@ -177,19 +177,31 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
         final key = result['api_key'] as String?;
         if (key == null || key.isEmpty) throw StateError('missing key');
         _timer?.cancel();
-        // 저장값 로드가 늦게 도착해 새 연결을 덮지 않게 먼저 기다린다.
-        await ref.read(rpiApiKeyProvider.notifier).ensureLoaded();
-        await ref.read(rpiUrlProvider.notifier).ensureLoaded();
-        if (!mounted) return;
-        await ref.read(rpiApiKeyProvider.notifier).save(key);
-        if (!mounted) return;
-        await ref.read(rpiUrlProvider.notifier).save(_host.text);
-        if (!mounted) return;
-        if (_resolvedHost != null) {
-          ref.read(resolvedRpiUrlProvider.notifier).state =
-              (_host.text, _resolvedHost!);
+        // 승인 뒤 저장·연결 확인이 던져도 기다림을 끝낸다 — 그대로 두면 타이머는 멈췄는데 _busy가 남아 다시 하기·입력이
+        // 모두 막혔다(검토 10/19). 키를 저장했으면 연결된 화면으로, 못 했으면 새 코드로 다시 하라고 한다.
+        var keySaved = false;
+        try {
+          // 저장값 로드가 늦게 도착해 새 연결을 덮지 않게 먼저 기다린다.
+          await ref.read(rpiApiKeyProvider.notifier).ensureLoaded();
+          await ref.read(rpiUrlProvider.notifier).ensureLoaded();
+          if (!mounted) return;
+          await ref.read(rpiApiKeyProvider.notifier).save(key);
+          if (!mounted) return;
+          await ref.read(rpiUrlProvider.notifier).save(_host.text);
+          keySaved = true;
+          if (!mounted) return;
+          if (_resolvedHost != null) {
+            ref.read(resolvedRpiUrlProvider.notifier).state =
+                (_host.text, _resolvedHost!);
+          }
+          await ref.read(rpiConnectionProvider.notifier).check();
+        } catch (_) {
+          if (!mounted) return;
+          if (!keySaved) {
+            _stopWaiting('연결 허락은 받았는데 이 폰에 저장하지 못했어요. 본체 화면에서 새 코드를 받아 다시 연결해 주세요.');
+            return;
+          }
         }
-        await ref.read(rpiConnectionProvider.notifier).check();
         if (!mounted) return;
         final connected =
             ref.read(rpiConnectionProvider) == RpiConnectionState.connected;

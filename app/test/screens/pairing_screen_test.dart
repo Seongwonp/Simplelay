@@ -185,4 +185,35 @@ void main() {
     expect((await SharedPreferences.getInstance()).getString('rpi_api_key'),
         'kept-test-key');
   });
+
+  // 검토 10/19(core6 8): 승인 뒤 저장·연결 확인 중 하나라도 던지면 기다림이 끝나지 않아(_busy 그대로, 타이머는 이미 멈춤)
+  // 다시 하기·입력이 모두 막혔다. 던져도 기다림을 끝내고 무엇이 됐는지 말한다.
+  testWidgets('승인 뒤 키 저장이 실패해도 기다림을 끝내고 다시 연결할 수 있어요', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final client = MockClient((r) async => r.url.path == '/pair'
+        ? http.Response(jsonEncode({'token': 't', 'request_id': 'abcdef-request', 'expires_in': 300}), 200)
+        : http.Response(jsonEncode({'state': 'approved', 'api_key': 'new-test-key'}), 200));
+    await tester.pumpWidget(buildScreen(
+        const PairingScreen(host: 'http://192.0.2.10:8000', code: '012345'),
+        overrides: [
+          pairingApiFactoryProvider.overrideWithValue((host) => RpiApiService(host, client: client)),
+          rpiApiKeyProvider.overrideWith((ref) => _FailingKeySave()),
+          rpiServerOverride(RpiConnectionState.connected),
+        ]));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('연결 요청하기'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('연결 허락은 받았는데 이 폰에 저장하지 못했어요. 본체 화면에서 새 코드를 받아 다시 연결해 주세요.'),
+        findsOneWidget);
+    final request = tester.widget<ButtonStyleButton>(
+        find.ancestor(of: find.text('연결 요청하기'), matching: find.byWidgetPredicate((w) => w is ButtonStyleButton)));
+    expect(request.onPressed, isNotNull, reason: '새 코드로 다시 요청할 수 있다');
+  });
+}
+
+class _FailingKeySave extends RpiApiKeyNotifier {
+  @override
+  Future<void> save(String key) async => throw StateError('save failed');
 }
