@@ -77,7 +77,7 @@ String autoRunNotice(KioskAutoRun run) {
   }
   if (run.status == 'succeeded' &&
       run.confirmation == 'state_confirmed_unknown_before') {
-    if (phrase == null) return '$target 설정이 됐어요$mock';
+    if (phrase == null) return '$target 설정을 확인했어요$mock';
     return '$target${_subjectParticle(stem)} $phrase${_directionParticle(phrase)} 된 것을 봤어요$mock';
   }
   if (run.status == 'succeeded' &&

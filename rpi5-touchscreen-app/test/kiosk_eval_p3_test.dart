@@ -116,7 +116,7 @@ void main() {
             operationConfirmed: true,
             operationSource: 'real',
             onDismiss: () {}),
-        '됐어요'
+        '완료'
       ),
       'LG 가전 상태로 확인': (
         KioskDoneView(
@@ -126,7 +126,7 @@ void main() {
             route: 'thinq',
             resultConfirmation: 'state_confirmed',
             onDismiss: () {}),
-        '됐어요'
+        '완료'
       ),
       '누름 보고만': (
         KioskDoneView(

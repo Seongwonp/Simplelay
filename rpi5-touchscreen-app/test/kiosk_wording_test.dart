@@ -249,7 +249,7 @@ void main() {
       expect(find.text('전자레인지가 켜졌어요'), findsOneWidget);
       expect(find.text('다 눌렀어요'), findsNothing);
       // 띠도 같은 수준 — '가전 상태 확인'은 한 단계 강했다(외부 평가 10/16 3차).
-      expect(find.text('됐어요'), findsOneWidget);
+      expect(find.text('완료'), findsOneWidget);
       expect(find.text('가전 상태 확인'), findsNothing);
       expect(find.text('원하는 대로 됐는지 봐 주세요'),
           findsOneWidget);

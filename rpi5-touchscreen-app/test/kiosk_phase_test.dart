@@ -2646,9 +2646,9 @@ void main() {
     expect(api.lastRunCalls, greaterThan(0));
     expect(done.success, isTrue);
     expect(find.text('1. 공기청정기 풍량 약하게'), findsOneWidget);
-    expect(find.text('LG 가전 · 연습 · 연습 결과 · 됐어요'), findsOneWidget);
+    expect(find.text('LG 가전 · 연습 · 연습 결과 · 완료'), findsOneWidget);
     expect(find.text('2. 전자레인지 즉석밥'), findsOneWidget);
-    expect(find.text('연습 · 연습 결과 · 됐어요'),
+    expect(find.text('연습 · 연습 결과 · 완료'),
         findsOneWidget);
     // 물리 성공의 한 줄 요약 칩(마지막 단계 기준)은 제목·아래 한 줄이 대신 말한다(2026-10-15) — 단계 줄에만 남는다.
     expect(find.text('연습 결과'), findsNothing);

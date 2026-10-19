@@ -7,7 +7,7 @@ import 'estop_banner.dart';
 import 'practice_band.dart';
 
 /// 결과 띠 말은 두 가지뿐(평가 3차 10/18) — 실제로 확인한 성공만 [kBandDone], 그 밖의 모름·주의·실패는 [kBandCheck].
-const kBandDone = '됐어요';
+const kBandDone = '완료';
 const kBandCheck = '살펴볼 게 있어요';
 
 /// 상태 띠의 뜻(2026-10-16 디자인 규격 §1-2·§4 결정) — 색만이 아니라 아이콘·글자가 함께 간다.
