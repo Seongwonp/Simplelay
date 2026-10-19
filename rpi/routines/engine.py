@@ -325,21 +325,37 @@ class RoutineEngine:
                 continue
             key = (now.date().isoformat(), trigger.time)
             with self._lock:
-                if self._fired.get(routine.routine_id) == key:
+                previous = self._fired.get(routine.routine_id)
+                if previous == key:
                     continue
+                # 메모리에만 먼저 잡아 둔다(같은 회차를 두 번 띄우지 않게). 저장은 결과가 난 뒤 — 그 사이 예외가 나면 되돌려
+                # 같은 창 안의 다음 확인에서 다시 띄운다(검토 10/19 #4: 예전에는 먼저 저장해 카드 없이 회차가 영영 쓰였다).
                 self._fired[routine.routine_id] = key
                 # '다음 루틴 건너뛰기'(2026-10-18) — 이 회차를 건너뛰기로 했으면 카드·자동 실행 없이 기록만. 한 번 쓰고 지운다.
-                skipped = _same_instant(_parse_at(self._skips.get(routine.routine_id)), scheduled)
+                skip_raw = self._skips.get(routine.routine_id)
+                skipped = _same_instant(_parse_at(skip_raw), scheduled)
                 if skipped:
                     del self._skips[routine.routine_id]
+            try:
+                if skipped:
+                    self._skip_time(routine, scheduled)
+                elif not self._auto_time(routine, scheduled, now):
+                    # 허용한 시각 규칙이 맡지 않았다(맡았으면 보냄·막힘·중복 — 카드를 만들지 않는다).
+                    fired.append(self._fire(routine, f"{trigger.describe()} 시각이에요", False, "time"))
+            except Exception:  # noqa: BLE001 — 이 회차는 쓰지 않은 것으로 되돌리고 다른 루틴은 계속 본다
+                log.exception("time occurrence of routine %s failed; it stays unfired", routine.routine_id)
+                with self._lock:
+                    if self._fired.get(routine.routine_id) == key:
+                        if previous is None:
+                            self._fired.pop(routine.routine_id, None)
+                        else:
+                            self._fired[routine.routine_id] = previous
+                    if skipped:
+                        self._skips.setdefault(routine.routine_id, skip_raw)
+                continue
             self._persist_fired()
             if skipped:
                 self._persist_skips()
-                self._skip_time(routine, scheduled)
-                continue
-            if self._auto_time(routine, scheduled, now):
-                continue  # 허용한 시각 규칙이 맡았다(보냄·막힘·중복) — 카드를 만들지 않는다
-            fired.append(self._fire(routine, f"{trigger.describe()} 시각이에요", False, "time"))
         for zone in self._approach_edges():
             for routine in self._store.list():
                 trigger = routine.trigger
