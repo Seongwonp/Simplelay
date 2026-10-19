@@ -57,13 +57,24 @@ class _ThinqDiscoveredSectionState
                 key: Key('thinq-found-loading'))
           else if (data == null || !data.ok)
             _failure(context, data?.failure ?? 'LG 가전 목록을 불러오지 못했어요.')
-          else if (data.devices.isEmpty)
+          else if (data.devices.isEmpty) ...[
             const Text(
               'LG 앱에 등록된 가전이 없어요. LG 앱에서 가전을 먼저 등록해 주세요.',
               key: Key('thinq-found-empty'),
-            )
-          else
+            ),
+            _refreshButton(),
+          ] else ...[
             for (final d in data.devices) _row(context, d),
+            // 찾은 것이 모두 이미 추가됐으면 새로 찾은 것이 없다고 말한다 — 목록만 보고는 찾기가 끝났는지,
+            // LG 앱에 새로 등록한 가전은 어떻게 불러오는지 몰랐다(실화면 10/19).
+            if (!data.devices.any((d) => !d.added && d.canAdd))
+              Text(
+                'LG 앱에서 새로 추가할 가전을 찾지 못했어요. LG 앱에 가전을 새로 등록했다면 "다시 찾기"를 눌러 주세요.',
+                key: const Key('thinq-found-nothing-new'),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
+              ),
+            _refreshButton(),
+          ],
         ],
       ),
     );
@@ -77,13 +88,16 @@ class _ThinqDiscoveredSectionState
             key: const Key('thinq-found-failure'),
             style: TextStyle(fontSize: AppFont.caption, color: context.appDanger),
           ),
-          TextButton.icon(
-            onPressed: () => ref.invalidate(thinqDiscoveryProvider),
-            style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('다시 찾기'),
-          ),
+          _refreshButton(),
         ],
+      );
+
+  Widget _refreshButton() => TextButton.icon(
+        key: const Key('thinq-found-refresh'),
+        onPressed: () => ref.invalidate(thinqDiscoveryProvider),
+        style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+        icon: const Icon(Icons.refresh, size: 18),
+        label: const Text('다시 찾기'),
       );
 
   Widget _row(BuildContext context, RpiThinqFound d) {

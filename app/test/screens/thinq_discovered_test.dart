@@ -228,6 +228,35 @@ void main() {
     expect(find.byKey(const Key('thinq-found-failure')), findsNothing);
   });
 
+  testWidgets('찾은 것이 모두 이미 추가됐으면 새로 찾은 것이 없다고 말하고, 다시 찾기로 다시 묻는다(실화면 10/19)',
+      (tester) async {
+    _tall(tester);
+    var asks = 0;
+    await tester.pumpWidget(_section(_serving(() {
+      asks++;
+      return _json(_discovery([
+        _found('k1', '공기청정기', '공기청정기', added: true, source: 'added'),
+      ]));
+    })));
+    await _settle(tester);
+    expect(find.byKey(const Key('thinq-found-nothing-new')), findsOneWidget);
+    expect(find.textContaining('LG 앱에 가전을 새로 등록했다면'), findsOneWidget);
+    expect(asks, 1);
+    await tester.tap(find.byKey(const Key('thinq-found-refresh')));
+    await _settle(tester);
+    expect(asks, 2);
+  });
+
+  testWidgets('새로 추가할 수 있는 가전이 있으면 없다고 말하지 않는다', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_section(_serving(() => _json(_discovery([
+          _found('k1', '공기청정기', '거실 공기청정기', canAdd: true),
+        ])))));
+    await _settle(tester);
+    expect(find.byKey(const Key('thinq-found-nothing-new')), findsNothing);
+    expect(find.byKey(const Key('thinq-found-refresh')), findsOneWidget);
+  });
+
   testWidgets('추가는 누를 때만 보내고, 추가하면 홈 타일·루틴 대상에 바로 나온다',
       (tester) async {
     _tall(tester);
