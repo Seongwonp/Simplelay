@@ -763,8 +763,13 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         controller: ButtonSequenceController | None = None,
         appliance_id: str | None = None,
         approval_guard=None,
+        on_admitted=None,
     ) -> str:
         """check-and-set을 락으로 원자화한 실행 시작 게이트.
+
+        ``on_admitted``(선택, 검토 10/19 C): 게이트를 **통과한 뒤에만**, 첫 장치 전송(실행 스레드 시작) 전에 한 번 부른다
+        — 루틴 맨 앞 안내처럼 '접수됐을 때만' 남길 것. 거절(바쁨·준비 전·승인 바뀜)이면 부르지 않는다. 알림함 쓰기 같은
+        입출력이라 서비스 잠금을 놓은 뒤 부른다(정지가 그 잠금을 기다리지 않게). 그 예외는 로그만 남긴다.
 
         stop 토큰 리셋도 이 락 안에서 한다 — emergency_stop()이 같은 락을
         잡으므로 "접수 직후 정지"가 실행 스레드 시작 전에 와도 유실되지
@@ -801,6 +806,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                     reset_stop()
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
+        if on_admitted is not None:
+            try:
+                on_admitted()
+            except Exception:  # noqa: BLE001 - 안내 기록 실패가 접수된 실행을 막지 않는다
+                log.exception("on_admitted callback failed")
         return job_id
 
     def _abort_begun_run(self, job_id: str) -> None:

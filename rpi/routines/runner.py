@@ -282,10 +282,11 @@ class RoutineRunner:
         routine, items = self._plan(scenario_id, approved)
         leading, first, rest = self._split(items)
         kwargs = self._kwargs(purpose, usage_source)
-        self._announce_leading(routine, leading)
+        admitted = self._leading_on_admitted(routine, leading)
         mark = self._done_mark()
         job_id = self._service.submit_approved(tuple(first), approval_guard=approval_guard,
-                                               scenario_id=scenario_id, **kwargs)
+                                               scenario_id=scenario_id, **kwargs, **admitted)
+        self._announce_if_not_yet(admitted)
         run = self._start(routine, scenario_id, job_id)
         run.done_mark = mark
         for text in leading:
@@ -318,10 +319,11 @@ class RoutineRunner:
         routine, items = self._plan(scenario_id, approved)
         leading, first, rest = self._split(items)
         kwargs = self._kwargs(purpose, usage_source)
-        self._announce_leading(routine, leading)
+        admitted = self._leading_on_admitted(routine, leading)
         mark = self._done_mark()
         record = self._service.execute_approved(tuple(first), approval_guard=approval_guard,
-                                                scenario_id=scenario_id, **kwargs)
+                                                scenario_id=scenario_id, **kwargs, **admitted)
+        self._announce_if_not_yet(admitted)
         run = self._start(routine, scenario_id, record.job_id)
         run.done_mark = mark
         for text in leading:
@@ -673,6 +675,29 @@ class RoutineRunner:
         구간이 다 끝난 뒤)에 남았다. 루틴 기록의 단계는 실행 번호가 생긴 뒤 같은 순서(안내 → 장치)로 적는다."""
         for text in leading:
             self._announce_notice(routine, text)
+
+    def _leading_on_admitted(self, routine: Routine, leading) -> dict:
+        """맨 앞 안내를 실행 서비스의 시작 게이트를 **통과한 뒤에만** 남기는 콜백(검토 10/19 C) — ``on_admitted`` 인자.
+
+        예전에는 접수 전에 남겨, 첫 구간이 거절되면(바쁨·준비 전·승인 바뀜) 안내만 알림함에 남고 다시 승인할 때마다
+        같은 안내가 또 쌓였다. 안내가 없으면 인자를 넘기지 않는다(그 인자를 모르는 실행 대상과 호환)."""
+        if not leading:
+            return {}
+        done: list[bool] = []
+
+        def admitted() -> None:
+            if not done:
+                done.append(True)
+                self._announce_leading(routine, leading)
+
+        return {"on_admitted": admitted}
+
+    @staticmethod
+    def _announce_if_not_yet(admitted: dict) -> None:
+        """콜백을 부르지 않는 실행 대상(옛 대역)이면 접수가 끝난 지금 남긴다 — 접수된 뒤라 거절 때 남는 일은 없다."""
+        callback = admitted.get("on_admitted")
+        if callback is not None:
+            callback()
 
     def _announce_notice(self, routine: Routine, text: str) -> None:
         if self._care is not None:

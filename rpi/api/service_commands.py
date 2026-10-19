@@ -373,7 +373,7 @@ class CommandExecutionMixin:
     def submit_approved(self, approved: tuple[ApprovedCommand, ...], *, purpose: str | None = None,
                         usage_source: UsageSource = UsageSource.SUGGESTION,
                         approval_guard=None, scenario_id: str | None = None,
-                        dispatch_guard=None) -> str:
+                        dispatch_guard=None, on_admitted=None) -> str:
         """승인한 명령(들)을 **그대로** 제출한다. 모든 단계를 먼저 재검사한다.
 
         ``dispatch_guard``(선택, 2026-10-14): ThinQ 단계를 실행기에 넘기기 전에 한 번, 그리고 실행기가 프로필·상태
@@ -382,13 +382,15 @@ class CommandExecutionMixin:
         꺼지거나 바뀌거나 지워진 경우(자동 실행 허용 규칙). 인자 없이 부를 수도, 바인딩 하나로 부를 수도 있어야 한다."""
         steps = [self._prepare(a.command, a) for a in approved]
         return self._start_plan(steps, purpose, usage_source, approval_guard, scenario_id, background=True,
-                                dispatch_guard=dispatch_guard)
+                                dispatch_guard=dispatch_guard, on_admitted=on_admitted)
 
     def execute_approved(self, approved: tuple[ApprovedCommand, ...], *, purpose: str | None = None,
                          usage_source: UsageSource = UsageSource.SUGGESTION,
-                         approval_guard=None, scenario_id: str | None = None) -> RunRecord:
+                         approval_guard=None, scenario_id: str | None = None,
+                         on_admitted=None) -> RunRecord:
         steps = [self._prepare(a.command, a) for a in approved]
-        return self._start_plan(steps, purpose, usage_source, approval_guard, scenario_id, background=False)
+        return self._start_plan(steps, purpose, usage_source, approval_guard, scenario_id, background=False,
+                                on_admitted=on_admitted)
 
     def _submit_thinq_purpose(self, purpose, appliance_id, usage_source, approval_guard, background,
                               *, expected_buttons=None, approved_buttons=None,
@@ -413,11 +415,13 @@ class CommandExecutionMixin:
 
     # ── 실행 ──────────────────────────────────────────────────────────────
     def _start_plan(self, steps, purpose, usage_source, approval_guard, scenario_id, *, background,
-                    dispatch_guard=None):
+                    dispatch_guard=None, on_admitted=None):
         if not steps:
             raise UnknownIntentError("실행할 명령이 없어요")
         first = steps[0]
-        job_id = self._begin_run(len(steps), first.controller, first.command.target_id, approval_guard)
+        # ``on_admitted``: 게이트를 통과했을 때만, 첫 구간을 보내기 전에(검토 10/19 C — 루틴 맨 앞 안내).
+        job_id = self._begin_run(len(steps), first.controller, first.command.target_id, approval_guard,
+                                 on_admitted=on_admitted)
         try:
             with self._lock:
                 self._current_route = first.command.route

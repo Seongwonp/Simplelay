@@ -566,10 +566,18 @@ class ScriptedService:
 
     def execute_approved(self, approved, **kw):
         assert all(isinstance(a, ApprovedCommand) for a in approved)
+        self._admit(kw)
         return self._run(approved)
 
     def submit_approved(self, approved, **kw):
+        self._admit(kw)
         return self._run(approved).job_id
+
+    @staticmethod
+    def _admit(kw):
+        # 실행 서비스처럼 시작 게이트를 지난 뒤, 첫 구간을 보내기 전에 접수 콜백을 부른다(검토 10/19 C).
+        if kw.get("on_admitted") is not None:
+            kw["on_admitted"]()
 
     def status(self):
         return _Status(False, self._last.job_id if self._last else None)
