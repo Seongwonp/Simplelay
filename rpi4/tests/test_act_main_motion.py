@@ -183,7 +183,8 @@ def test_silent_mcu_is_retried_in_background_and_reported_not_ready(monkeypatch)
     finally:
         stop.set()
     assert retry.attempts >= 1
-    assert grbl.not_ready_reason() is None
+    assert grbl.link_not_ready_reason() is None
+    assert "원점을 다시 잡아야" in (grbl.not_ready_reason() or "")  # 원점 전(자동 원점 꺼짐) — 누르기 전 거절(2026-10-19)
     assert grbl.state is MotionState.UNHOMED
 
 

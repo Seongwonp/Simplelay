@@ -665,14 +665,18 @@ class ActExecutor:
             log.exception("%s check failed", name)
             return "누름 장치 준비 상태를 확인하지 못했어요."
 
-    def _unsafe_reason(self) -> tuple[str, str] | None:
-        """움직이면 안 되는 이유 (reason, detail). 비상정지 → 콘센트 무응답 → 모션 준비 순."""
+    def _unsafe_reason(self, motion_check: "Callable[[], str | None] | None" = None) -> tuple[str, str] | None:
+        """움직이면 안 되는 이유 (reason, detail). 비상정지 → 콘센트 무응답 → 모션 준비 순.
+
+        ``motion_check``: 모션 준비 확인을 바꿔 쓴다 — 개발자 조작은 연결 확인만 본다(원점 없음·정지 뒤에도 원점을 다시
+        잡을 수 있게, 2026-10-19). 없으면 실행 준비 확인(``readiness``)."""
         if self.estop_latched:
             return "estop_latched", self._latch_detail()
         outlet = self._check(self._outlet_readiness, "outlet readiness")
         if outlet is not None:
             return "outlet_offline", outlet
-        motion = self._not_ready_reason()
+        motion = (self._check(motion_check, "dev motion readiness") if motion_check is not None
+                  else self._not_ready_reason())
         if motion is not None:
             return "motion_not_ready", motion
         return None
@@ -1341,7 +1345,7 @@ class ActExecutor:
         if self._dev_motion is None:
             return ("dev_unsupported",
                     "이 RPi4는 실제 모션 어댑터가 없어 개발자 조작을 받지 않아요(SIMPLELAY_MOTION_MODE=serial)")
-        unsafe = self._unsafe_reason()
+        unsafe = self._unsafe_reason(self._dev_motion.not_ready_reason)
         if unsafe is not None:
             return unsafe
         if self._busy:

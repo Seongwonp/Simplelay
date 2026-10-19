@@ -95,7 +95,8 @@ def test_connect_skips_boot_noise_and_retries_status_lost_during_boot(caplog):
     assert client.ready_info == mcu.ready_event("poweron")
     assert "ready" in events
     assert client.connect_attempts >= 2
-    assert client.not_ready_reason() is None
+    assert client.link_not_ready_reason() is None  # 연결 확인은 됐다
+    assert "원점을 다시 잡아야" in (client.not_ready_reason() or "")  # 자동 원점 꺼짐·원점 전 — 누르기 전 거절(2026-10-19)
     assert mcu.cmds() and set(mcu.cmds()) == {"status"}  # 연결 확인은 status만 — stop을 보내지 않는다
     assert not [r for r in caplog.records if "unparsable" in r.getMessage()]  # 부트 잡음은 경고하지 않는다
 

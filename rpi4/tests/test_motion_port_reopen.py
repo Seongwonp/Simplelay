@@ -159,15 +159,15 @@ def test_act_main_watch_reopens_and_reconnects_without_restarting_the_executor(m
     monkeypatch.setenv("SIMPLELAY_MOTION_STATUS_TIMEOUT_S", "1")
     try:
         grbl, _ = act_main._build_motion()
-        assert grbl.not_ready_reason() is None
+        assert grbl.link_not_ready_reason() is None
         first.dead = True
         with pytest.raises(OSError):
             grbl.status()
-        assert grbl.not_ready_reason() is not None
+        assert grbl.link_not_ready_reason() is not None
         deadline = time.monotonic() + 5.0
-        while grbl.not_ready_reason() is not None and time.monotonic() < deadline:
+        while grbl.link_not_ready_reason() is not None and time.monotonic() < deadline:
             time.sleep(0.02)
-        assert grbl.not_ready_reason() is None  # 배경에서 다시 열고 연결 확인까지 했다
+        assert grbl.link_not_ready_reason() is None  # 배경에서 다시 열고 연결 확인까지 했다
         assert opened == [(BY_ID, 115200), (BY_ID, 115200)]  # 같은 설정 경로로 다시 열었다
     finally:
         if act_main._motion_watch is not None:

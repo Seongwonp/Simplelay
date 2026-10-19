@@ -77,8 +77,10 @@ class DevMotionService:
         return self._client
 
     def not_ready_reason(self) -> str | None:
-        """모션 MCU 연결 확인 전이면 이유(실행기 준비 확인과 같은 문장)."""
-        fn = getattr(self._client, "not_ready_reason", None)
+        """모션 MCU 연결 확인 전이면 이유. 원점 없음·정지·알람은 막지 않는다(2026-10-19) — 원점을 다시 잡는 곳이 여기다."""
+        fn = getattr(self._client, "link_not_ready_reason", None)
+        if not callable(fn):
+            fn = getattr(self._client, "not_ready_reason", None)
         return fn() if callable(fn) else None
 
     # ── 정지 ────────────────────────────────────────────────────────────────

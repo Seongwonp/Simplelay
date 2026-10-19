@@ -929,13 +929,35 @@ class SerialMotionClient(GrblClient):
         """포트를 잃은 뒤 연결 확인을 아직 못 했다."""
         return self._link_dropped
 
-    def not_ready_reason(self) -> str | None:
-        """연결 확인(status 성공) 전이면 사람이 읽을 이유, 아니면 None. act_main readiness가 쓴다."""
+    def link_not_ready_reason(self) -> str | None:
+        """연결 확인(status 성공) 전이면 사람이 읽을 이유, 아니면 None. 개발자 조작(원점 잡기 포함)이 쓴다 — 원점이 없거나
+        정지·알람 뒤라도 사람이 원점을 다시 잡을 수 있어야 한다."""
         with self._state_lock:
             if self._state is not MotionState.UNKNOWN:
                 return None
         error = self._connect_error
         return f"모션 MCU 연결 확인 전({error})" if error else "모션 MCU 연결 확인 전"
+
+    def not_ready_reason(self) -> str | None:
+        """새 실행이 누르기 전에 볼 준비 이유(act_main readiness), 준비됐으면 None.
+
+        연결 확인 전(``link_not_ready_reason``)에 더해 2026-10-19부터 ``press``가 어차피 거절할 상태를 미리 알린다 —
+        ALARM, STOPPED(지난 실행의 정지로 위치를 믿을 수 없음)·UNHOMED는 자동 원점이 꺼져 있을 때만. 자동 원점이 켜져 있으면
+        새 실행(``reset_stop`` 뒤)의 첫 누름이 원점부터 잡는다(``press``). 예전에는 STOPPED여도 준비됐다고 해 실행을 받고
+        누를 때마다 ``motion_not_ready``로 실패했다."""
+        link = self.link_not_ready_reason()
+        if link is not None:
+            return link
+        state = self.state
+        if state is MotionState.ALARM:
+            return "누름 장치에 이상 신호(알람)가 있어 멈춰 있어요. 장치를 확인하고 원점을 다시 잡아야 해요."
+        if self._config.auto_home:
+            return None
+        if state is MotionState.STOPPED:
+            return "누름 장치가 멈춘 뒤라 위치를 믿을 수 없어요. 원점을 다시 잡아야 해요."
+        if state is MotionState.UNHOMED:
+            return "누름 장치의 위치 기준이 없어요. 원점을 다시 잡아야 해요."
+        return None
 
     def status(self) -> MotionStatus:
         self._config.require("상태 조회", ("status_timeout_s",))
@@ -1017,7 +1039,10 @@ class SerialMotionClient(GrblClient):
                     f"'{command.button}' 누름: 이번 실행 중 MCU 재시작 또는 통신 오류가 발생했습니다 — 자동 재홈·재누름 없이 멈춤"
                     "(사람이 확인한 뒤 새로 요청)"
                 )
-            if self._config.auto_home and self.state in (MotionState.UNHOMED, MotionState.UNKNOWN):
+            # STOPPED(2026-10-19): 맨 위 ``_refuse_if_stopped``를 지났다 = 정지 표시가 지워졌다 = 정지된 그 실행이 아니라
+            # 새로 승인된 다음 실행(``reset_stop`` 뒤)이다. 이 실행 안의 MCU 재시작·통신 오류(``_reset_mid_run``)는 위에서 막혔다.
+            if self._config.auto_home and self.state in (MotionState.UNHOMED, MotionState.UNKNOWN,
+                                                         MotionState.STOPPED):
                 self.home()
             else:
                 self._require_homed(f"'{command.button}' 누름")
