@@ -186,7 +186,7 @@ void main() {
       'name': '저녁',
       'at': _at,
       'when': '매일 22:00',
-      'mode_label': '조용한 시간이라 건너뜀',
+      'mode_label': '조용한 시간이라 건너뛰었어요',
       'quiet_skip': true,
       'skipped': false,
       'skip_action_label': '오늘은 건너뛰기',
@@ -291,7 +291,7 @@ void main() {
   testWidgets('조용한 시간이라 건너뛰는 회차·옛 본체에는 건너뛰기 단추가 없다', (tester) async {
     _size(tester);
     final quiet = _Hub()
-      ..nextExtra = {'quiet_skip': true, 'mode_label': '조용한 시간이라 건너뜀'};
+      ..nextExtra = {'quiet_skip': true, 'mode_label': '조용한 시간이라 건너뛰었어요'};
     await tester.pumpWidget(_app(quiet, '/'));
     await _settle(tester);
     expect(find.text('조용한 시간이라 안 해요'), findsOneWidget);

@@ -230,7 +230,7 @@ class SettingsScreen extends ConsumerWidget {
             _ValueRow(
               id: 'dnd',
               icon: AppIcons.pause,
-              title: '잠시 쉬기',
+              title: '방해 금지',
               value: _dndValue(ref),
               detail: _DndTile(),
             ),

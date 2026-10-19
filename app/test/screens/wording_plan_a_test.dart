@@ -96,7 +96,7 @@ void main() {
     expect(find.ancestor(of: find.text('시간 고르기'), matching: find.byType(OutlinedButton)), findsOneWidget);
   });
 
-  testWidgets('잠시 쉬기 창 — 이름은 잠시 쉬기 하나다(방해 금지·키오스크 해명 없음)', (tester) async {
+  testWidgets('방해 금지 창 — 이름은 방해 금지 하나이고 바로 아래 범위 문장이 있다(잠시 쉬기·키오스크 없음, 문구 기준 §4 10/19)', (tester) async {
     await tester.pumpWidget(ProviderScope(
       child: MaterialApp(
         home: Scaffold(
@@ -111,9 +111,11 @@ void main() {
     ));
     await tester.tap(find.text('열기'));
     await tester.pumpAndSettle();
-    expect(find.text('잠시 쉬기'), findsOneWidget);
+    expect(find.text('방해 금지'), findsOneWidget);
+    expect(find.textContaining('새 제안과 자동으로 하는 일을 잠시 쉬어요.'), findsOneWidget);
     expect(find.textContaining('키오스크'), findsNothing);
-    expect(find.textContaining('방해 금지'), findsNothing);
+    expect(find.textContaining('잠시 쉬기'), findsNothing);
+    expect(find.textContaining('쉬는 중'), findsNothing);
   });
 
   test("사용자에게 보이는 폰 문자열에 '모의'가 없다(개발자 도구 제외)", () {

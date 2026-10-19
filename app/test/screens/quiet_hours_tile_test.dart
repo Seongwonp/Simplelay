@@ -122,11 +122,11 @@ void main() {
     expect(findPlainText('새 제안과 일반 안내 소리만 쉬어요', contains: true), findsOneWidget);
     expect(findPlainText('직접 하기와 정지는 그대로예요', contains: true), findsOneWidget);
     expect(findPlainText('모든 알림', contains: true), findsNothing);
-    // 잠시 쉬기도 같은 범위로 말한다(자동 실행도 건너뛴다).
+    // 방해 금지도 범위를 말한다(자동 실행도 건너뛴다).
     await tester.pageBack();
     await _settle(tester);
     await openSettingRow(tester, 'dnd');
-    expect(findPlainText('몇 시간 동안 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
+    expect(findPlainText('새 제안과 자동으로 하는 일을 잠시 쉬어요.'), findsOneWidget);
   });
 
   // 첫 사용자 검토 10/19 #13: 시각은 줄 전체를 눌러야 바뀌었는데 보이는 것은 켜기 스위치뿐이었다.
@@ -205,7 +205,7 @@ void main() {
     expect(find.byKey(const Key('quiet-hours-switch')), findsOneWidget);
   });
 
-  testWidgets('잠시 쉬기·집 비우는 날도 한 줄 — 꺼져 있으면 오른쪽에 꺼짐', (tester) async {
+  testWidgets('방해 금지·집 비우는 날도 한 줄 — 꺼져 있으면 오른쪽에 꺼짐', (tester) async {
     _tall(tester);
     await tester.pumpWidget(_build(_Server().api()));
     await _settle(tester);
@@ -213,7 +213,7 @@ void main() {
       expect(find.descendant(of: find.byKey(Key('settings-row-$id')), matching: findPlainText('꺼짐')),
           findsOneWidget, reason: id);
     }
-    expect(findPlainText('몇 시간 동안 묻지도, 자동으로 하지도 않아요'), findsNothing);
+    expect(findPlainText('새 제안과 자동으로 하는 일을 잠시 쉬어요.'), findsNothing);
     expect(findPlainText('여행처럼 집을 비우는 날', contains: true), findsNothing);
   });
 }

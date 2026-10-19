@@ -20,7 +20,7 @@ class _DndTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final until = ref.watch(dndProvider);
     final active = until != null && until.isAfter(DateTime.now());
-    // 업데이트 전에 켠 잠시 쉬기를 이어받은 동안은 새 제안만 쉰다(2026-10-14 마감 2번).
+    // 업데이트 전에 켠 방해 금지를 이어받은 동안은 새 제안만 쉰다(2026-10-14 마감 2번).
     final carried = ref.watch(dndScopeProvider) == 'suggestions_only';
     return _SettingCard(
       child: ListTile(
@@ -28,7 +28,7 @@ class _DndTile extends ConsumerWidget {
         leading: Icon(active
             ? AppIcons.pauseActive
             : AppIcons.pause),
-        title: const Text('잠시 쉬기'),
+        title: const Text('방해 금지'),
         // 어절 단위 줄바꿈·14pt(UI 평가 3차 10/17 — '쉬 / 어요'로 끊기고 12pt는 작았다).
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,16 +36,15 @@ class _DndTile extends ConsumerWidget {
             _WordsText(
               // 잠시 쉬기도 조용한 시간과 같은 판정이다(2026-10-14) — 아직 시작하지 않은 자동 실행도 건너뛴다.
               // 켜져 있으면 끝나는 시각을 함께(2026-10-14 마감 확인 A5).
+              // 범위 문장은 켜고 꺼짐과 상관없이 늘 보인다(문구 기준 §4 10/19).
               !active
-                  ? '몇 시간 동안 묻지도, 자동으로 하지도 않아요'
-                  : carried
-                      ? '${pauseEndClock(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하는 일은 그대로 해요'
-                      : '${pauseEndClock(until)}까지 묻지도, 자동으로 하지도 않아요',
+                  ? kDndScopeText
+                  : '${pauseEndClock(until)}까지 켜져 있어요. ${carried ? kDndCarriedScopeText : kDndScopeText}',
               style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
             ),
             // 무엇이 그대로인지도 조용한 시간과 같은 말로(첫 사용자 검토 10/19) — 정지까지 막히는 줄로 읽혔다.
             _WordsText(
-              '직접 하기와 정지는 그대로예요.',
+              kDndKeepsText,
               style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
             ),
           ],
@@ -54,7 +53,7 @@ class _DndTile extends ConsumerWidget {
         trailing: OutlinedButton(
           style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
           onPressed: () => showDndSheet(context),
-          child: Text(active ? '그만 쉬기' : '시간 고르기'),
+          child: Text(active ? '방해 금지 끄기' : '시간 고르기'),
         ),
       ),
     );

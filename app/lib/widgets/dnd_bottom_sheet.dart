@@ -98,7 +98,7 @@ class _DndSheetState extends ConsumerState<_DndSheet> {
                     Icon(AppIcons.pause,
                         color: context.appWarning, size: 22),
                     const SizedBox(width: AppSpace.md),
-                    Flexible(child: Text('잠시 쉬기', style: AppText.title)),
+                    Flexible(child: Text('방해 금지', style: AppText.title)),
                     const Spacer(),
                     if (isActive)
                       Container(
@@ -111,7 +111,7 @@ class _DndSheetState extends ConsumerState<_DndSheet> {
                               color: context.appWarning.withValues(alpha: 0.4)),
                         ),
                         child: Text(
-                          '쉬는 중',
+                          '켜져 있어요',
                           style: TextStyle(
                               color: context.appWarning,
                               fontSize: AppFont.caption,
@@ -122,16 +122,15 @@ class _DndSheetState extends ConsumerState<_DndSheet> {
                 ),
               ),
 
-              // 2026-10-17 쉬운 말 사전: 폰·본체 화면 모두 '잠시 쉬기' — 이름 해명 문장은 뺐다.
-
-              // 쉬는 동안에도 그대로인 것 — 조용한 시간과 같은 말(첫 사용자 검토 10/19). 선택지마다 붙이면 큰 글씨에서 창이 길어진다.
+              // 이름은 '방해 금지'(문구 기준 §4 10/19) — 범위 문장을 이름 바로 아래에 늘 둔다. 빼거나 자르지 않는다.
+              // 그대로인 것도 함께(첫 사용자 검토 10/19). 선택지마다 붙이면 큰 글씨에서 창이 길어진다.
               const SizedBox(height: AppSpace.sm),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    '직접 하기와 정지는 그대로예요.',
+                    '${isActive && ref.watch(dndScopeProvider) == 'suggestions_only' ? kDndCarriedScopeText : kDndScopeText} $kDndKeepsText',
                     style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
                   ),
                 ),
@@ -187,8 +186,8 @@ class _DndSheetState extends ConsumerState<_DndSheet> {
 
               // 해제
               _OptionTile(
-                label: '그만 쉬기',
-                subtitle: isActive ? '다시 물어보고 자동으로 해요' : '지금은 쉬고 있지 않아요',
+                label: '방해 금지 끄기',
+                subtitle: isActive ? '다시 물어보고 자동으로 해요' : '지금은 방해 금지가 꺼져 있어요',
                 iconColor: isActive ? context.appDanger : context.appMuted,
                 enabled: isActive && !_busy,
                 onTap: isActive && !_busy

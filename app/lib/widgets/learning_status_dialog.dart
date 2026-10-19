@@ -75,7 +75,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                                   : '습관을 알아가는 중'),
                           const SizedBox(height: AppSpace.lg),
                         ],
-                        if (status.paused) const Text('잠시 쉬는 중이라 묻지 않아요.'),
+                        if (status.paused) const Text('방해 금지가 켜져 있어 묻지 않아요.'),
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
                           title: const Text('어떻게 기억하나요?'),

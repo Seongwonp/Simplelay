@@ -62,16 +62,16 @@ void main() {
     expect(RpiHealthData.fromJson({'ok': true, 'actuator_ready': true}).dndScope, isNull);
   });
 
-  testWidgets('이어받은 잠시 쉬기(옛 범위): "HH:MM까지 새 제안만 쉬어요" — 자동 실행은 그대로라고 말한다', (tester) async {
+  testWidgets('이어받은 방해 금지(옛 범위): "HH:MM까지 켜져 있어요. 새 제안만 쉬어요" — 자동 실행은 그대로라고 말한다', (tester) async {
     await _settings(tester, until, 'suggestions_only');
-    expect(findPlainText('${_hhmm(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하는 일은 그대로 해요'),
+    expect(findPlainText('${_hhmm(until)}까지 켜져 있어요. 새 제안만 쉬어요. 자동으로 하는 일은 그대로 해요.'),
         findsOneWidget);
-    expect(findPlainText('묻지도, 자동으로 하지도 않아요', contains: true), findsNothing);
+    expect(findPlainText('새 제안과 자동으로 하는 일을', contains: true), findsNothing);
   });
 
-  testWidgets('업데이트 뒤 켠 잠시 쉬기(새 범위): "HH:MM까지 묻지도, 자동으로 하지도 않아요"', (tester) async {
+  testWidgets('업데이트 뒤 켠 방해 금지(새 범위): "HH:MM까지 켜져 있어요. 새 제안과 자동으로 하는 일을 잠시 쉬어요"', (tester) async {
     await _settings(tester, until, 'suggestions_and_auto');
-    expect(findPlainText('${_hhmm(until)}까지 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
+    expect(findPlainText('${_hhmm(until)}까지 켜져 있어요. 새 제안과 자동으로 하는 일을 잠시 쉬어요.'), findsOneWidget);
   });
 
   testWidgets('시간 고르기 창의 선택지도 새 범위를 말한다(제안만 숨긴다고 하지 않음)', (tester) async {
@@ -86,15 +86,18 @@ void main() {
 
   // 첫 사용자 검토 10/19 #14: '묻지도, 자동으로 하지도 않아요'만 있으면 직접 하기·정지까지 막히는 줄로 읽힌다 —
   // 조용한 시간과 같은 말로 무엇이 그대로인지 함께 말한다.
-  testWidgets('잠시 쉬기 줄과 시간 고르기 창이 직접 하기와 정지는 그대로라고 말한다', (tester) async {
+  testWidgets('방해 금지 줄과 시간 고르기 창이 범위와 직접 하기·정지는 그대로라고 늘 말한다', (tester) async {
     await _settings(tester, null, null);
     expect(findPlainText('직접 하기와 정지는 그대로예요.'), findsOneWidget);
+    expect(findPlainText('새 제안과 자동으로 하는 일을 잠시 쉬어요.'), findsOneWidget);
     await tester.tap(findPlainText('시간 고르기'));
     await tester.pumpAndSettle();
-    expect(findPlainText('직접 하기와 정지는 그대로예요.'), findsNWidgets(2));
+    expect(findPlainText('직접 하기와 정지는 그대로예요.', contains: true), findsNWidgets(2));
+    // 창의 이름 바로 아래 범위 문장(문구 기준 §4 10/19 — 빼거나 자르지 않는다).
+    expect(findPlainText('새 제안과 자동으로 하는 일을 잠시 쉬어요. 직접 하기와 정지는 그대로예요.'), findsOneWidget);
   });
 
-  // 첫 사용자 검토 10/19 #15: 큰 글씨·건너뛰는 일이 여럿이면 시간 고르기 창이 넘쳐 '그만 쉬기'까지 닿지 못했다.
+  // 첫 사용자 검토 10/19 #15: 큰 글씨·건너뛰는 일이 여럿이면 시간 고르기 창이 넘쳐 '그만 쉬기'(지금 '방해 금지 끄기')까지 닿지 못했다.
   testWidgets('큰 글씨(200%)·작은 화면에서도 시간 고르기 창이 넘치지 않고 끝까지 닿는다', (tester) async {
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1.0;
@@ -133,7 +136,7 @@ void main() {
     await tester.tap(find.text('열기'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    final stopPause = findPlainText('그만 쉬기');
+    final stopPause = findPlainText('방해 금지 끄기');
     await tester.scrollUntilVisible(stopPause, 100, scrollable: find.byType(Scrollable).last);
     expect(stopPause.hitTestable(), findsOneWidget);
   });

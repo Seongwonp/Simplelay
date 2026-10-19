@@ -138,10 +138,11 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpace.md),
             ],
 
-            // ── 잠시 쉬기 배너 ─────────────────────────────────────────────
+            // ── 방해 금지 배너 ─────────────────────────────────────────────
             if (dndActive) ...[
               _DndBanner(
                 until: dndUntil,
+                carried: ref.watch(dndScopeProvider) == 'suggestions_only',
                 onClear: () async {
                   final messenger = ScaffoldMessenger.of(context);
                   final bool? persisted;
@@ -1820,9 +1821,12 @@ class _SensorStrip extends StatelessWidget {
 // ── DND 활성 배너 ─────────────────────────────────────────────────────────
 
 class _DndBanner extends StatelessWidget {
-  const _DndBanner({required this.until, required this.onClear});
+  const _DndBanner({required this.until, required this.onClear, this.carried = false});
   final DateTime until;
   final VoidCallback onClear;
+
+  /// 업데이트 전에 켠 방해 금지를 이어받았다 — 새 제안만 쉰다.
+  final bool carried;
 
   String get _remaining {
     final diff = until.difference(DateTime.now());
@@ -1830,9 +1834,9 @@ class _DndBanner extends StatelessWidget {
     if (diff.inMinutes >= 60) {
       final h = diff.inHours;
       final m = diff.inMinutes.remainder(60);
-      return m > 0 ? '$h시간 $m분 남음' : '$h시간 남음';
+      return m > 0 ? '$h시간 $m분 남았어요' : '$h시간 남았어요';
     }
-    return '${diff.inMinutes + 1}분 남음';
+    return '${diff.inMinutes + 1}분 남았어요';
   }
 
   @override
@@ -1850,7 +1854,9 @@ class _DndBanner extends StatelessWidget {
             Expanded(
               child: Text(
                 // 끝나는 시각을 함께 적는다(2026-10-14 마감 확인 A5) — 남은 시간만으로는 '언제까지'를 셈해야 한다.
-                '잠시 쉬는 중. ${pauseEndClock(until)}까지, $_remaining',
+                // 범위 문장을 늘 붙인다(문구 기준 §4 10/19) — '방해 금지'만으로는 제안만 멈추는 줄로 읽혔다.
+                '방해 금지 켜짐. ${pauseEndClock(until)}까지, $_remaining. '
+                '${carried ? kDndCarriedScopeText : kDndScopeText} $kDndKeepsText',
                 style: TextStyle(color: context.appWarning, fontSize: AppFont.caption),
               ),
             ),
@@ -1861,7 +1867,7 @@ class _DndBanner extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
                 minimumSize: const Size(48, 48),
               ),
-              child: const Text('그만 쉬기', style: TextStyle(fontSize: AppFont.caption)),
+              child: const Text('방해 금지 끄기', style: TextStyle(fontSize: AppFont.caption)),
             ),
           ],
         ),

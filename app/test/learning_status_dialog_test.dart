@@ -36,7 +36,7 @@ void main() {
     expect(find.text('2일 동안 5번 썼어요'), findsOneWidget);
     expect(find.text('주방 전자레인지, 아침'), findsOneWidget);
     expect(find.text('묻지 않기로 했어요'), findsOneWidget);
-    expect(find.textContaining('잠시 쉬는 중'), findsOneWidget);
+    expect(find.textContaining('방해 금지가 켜져 있어'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
