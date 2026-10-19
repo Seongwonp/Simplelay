@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/hub.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/providers/server_appliance_provider.dart';
 import 'package:simplelay/screens/appliance_detail_screen.dart';
 import 'package:simplelay/screens/routine_record_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -71,7 +72,7 @@ class _Server {
       );
 }
 
-Widget _build(_Server server, {String initial = '/detail'}) {
+Widget _build(_Server server, {String initial = '/detail', ServerApplianceCatalog? catalog}) {
   final router = GoRouter(
     initialLocation: '/',
     routes: [
@@ -98,10 +99,28 @@ Widget _build(_Server server, {String initial = '/detail'}) {
       ...connectedOverrides(),
       ...installedOverrides([_mapped]),
       rpiApiServiceProvider.overrideWithValue(server.api()),
+      if (catalog != null)
+        serverApplianceCatalogProvider
+            .overrideWith((ref) => ServerApplianceNotifier.seeded(ref, catalog)),
     ],
     child: MaterialApp.router(theme: ThemeData.dark(), routerConfig: router),
   );
 }
+
+/// 본체 목록 한 항목(준비 판정 포함).
+ApplianceMap _hubItem(String id, String name,
+        {required bool custom, String readiness = 'operable', List<String> reasons = const []}) =>
+    ApplianceMap.fromJson({
+      'id': id,
+      'name': name,
+      'rows': 1,
+      'cols': 1,
+      'buttons': const [],
+      'is_custom': custom,
+      'can_execute': readiness == 'operable',
+      'readiness': readiness,
+      'readiness_reasons': reasons,
+    });
 
 void _tall(WidgetTester tester) {
   tester.view.physicalSize = const Size(500, 1800);
@@ -168,5 +187,48 @@ void main() {
     expect(find.byKey(const Key('order-1')), findsNothing);
 
     expect(server.requests.where((r) => r.contains('/execute')), isEmpty);
+  });
+
+  // 검토 10/19: 폰에서 추가한 가전은 본체가 누를 장치가 없다고 판정해도 이 폰 저장분에 판정이 없어 '누를까요?'를
+  // 물은 뒤에야 거절됐다. 본체 목록의 판정으로 미리 말하고, 누르기 전에 막는다.
+  testWidgets('본체가 누를 장치가 없다고 하면 상세 맨 위에 쉬운 말과 할 일을 보이고, 누르기를 묻지 않는다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server,
+        catalog: ServerApplianceCatalog(
+          status: ServerCatalogStatus.loaded,
+          appliances: [
+            _hubItem('microwave', '전자레인지', custom: false),
+            _hubItem('induction', '인덕션',
+                custom: false, readiness: 'needs_setup', reasons: const ['누름 장치가 이 가전 위에 없어서 누를 수 없어요']),
+          ],
+          customAppliances: [_hubItem('custom_1', '전자레인지', custom: true, readiness: 'disconnected')],
+        )));
+    await _settle(tester);
+
+    const notice = '이 가전에는 아직 누름 장치가 연결되지 않아 지금은 누를 수 없어요. 누름 장치는 지금 전자레인지 위에 있어요. '
+        '설치하는 분께 이 가전의 누름 장치 연결을 부탁해 주세요.';
+    expect(find.text(notice), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('mark-B02')));
+    await _settle(tester);
+    expect(find.text("'시작' 버튼을 누를까요?"), findsNothing);
+    expect(find.text(notice), findsNWidgets(2), reason: '누르면 같은 말을 한 번 더(알림 줄)');
+    expect(server.executeBody, isNull);
+  });
+
+  testWidgets('본체가 실행할 수 있다고 하면 안내 없이 종전대로 묻는다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server,
+        catalog: ServerApplianceCatalog(
+          status: ServerCatalogStatus.loaded,
+          customAppliances: [_hubItem('custom_1', '전자레인지', custom: true)],
+        )));
+    await _settle(tester);
+    expect(find.textContaining('누름 장치가 연결되지 않아'), findsNothing);
+    await tester.tap(find.byKey(const Key('mark-B02')));
+    await _settle(tester);
+    expect(find.text("'시작' 버튼을 누를까요?"), findsOneWidget);
   });
 }

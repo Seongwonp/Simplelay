@@ -289,16 +289,8 @@ class HomeScreen extends ConsumerWidget {
   /// 타일 상태의 근거가 될 서버 판정. 이 폰의 저장분은 준비 상태를 들고 있지 않으므로
   /// 같은 id의 서버 목록 항목을 본다(이름·사진은 덮어쓰지 않는다 — 판정만 읽는다).
   static ApplianceMap? _readinessSource(
-      ApplianceMap a, ServerApplianceCatalog catalog) {
-    if (a.readinessKnown) return a;
-    for (final s in catalog.appliances) {
-      if (s.id == a.id) return s;
-    }
-    for (final s in catalog.customAppliances) {
-      if (s.id == a.id) return s;
-    }
-    return null;
-  }
+          ApplianceMap a, ServerApplianceCatalog catalog) =>
+      catalog.readinessFor(a);
 }
 
 /// 홈 구획 제목(카드 제목 단계 20).

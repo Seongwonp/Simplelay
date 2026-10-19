@@ -423,9 +423,9 @@ void main() {
   // 검토 10/19: 누름 장치 대상 목록이 비었는데도 '다른 가전 위에 있어요'라고 했다.
   group('누름 장치 위치 — 본체가 준 기본 가전 판정으로 아는 만큼만', () {
     const absent = kGantryAbsentReason;
-    ApplianceMap builtin(String id, {List<String> reasons = const []}) => ApplianceMap.fromJson({
+    ApplianceMap builtin(String id, {List<String> reasons = const [], String? name}) => ApplianceMap.fromJson({
           'id': id,
-          'name': id,
+          'name': name ?? id,
           'rows': 1,
           'cols': 1,
           'buttons': const [],
@@ -459,6 +459,19 @@ void main() {
         pressHosts: hosts,
       );
       expect(t.issue!.text, '지금은 쓸 수 없어요. 누름 장치가 어느 가전 위에도 없어요');
+    });
+
+    test('누를 장치가 없는 기본 가전의 상세 안내 — 어디 있는지와 할 일', () {
+      final ind = builtin('induction', reasons: [absent]);
+      expect(
+          pressUnavailableNotice(ind, ind,
+              pressHosts: pressDeviceHosts([builtin('microwave', name: '전자레인지'), ind])),
+          startsWith('누름 장치가 이 가전 위에 없어서 지금은 누를 수 없어요. 누름 장치는 지금 전자레인지 위에 있어요.'));
+      expect(pressUnavailableNotice(ind, ind, pressHosts: const []),
+          contains('누름 장치는 지금 어느 가전 위에도 없어요.'));
+      // 실행할 수 있거나 판정이 없으면 말하지 않는다.
+      expect(pressUnavailableNotice(builtin('microwave'), builtin('microwave')), isNull);
+      expect(pressUnavailableNotice(ind, null), isNull);
     });
 
     test('판정을 받은 기본 가전이 없으면 모른다 — 다른 가전 위라고 하지 않는다', () {

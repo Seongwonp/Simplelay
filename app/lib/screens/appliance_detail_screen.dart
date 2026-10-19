@@ -5,7 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../models/command_result.dart';
-import '../models/display_status.dart' show applianceDisplayLine, isPracticeAppliance;
+import '../models/display_status.dart'
+    show applianceDisplayLine, isPracticeAppliance, pressDeviceHosts, pressUnavailableNotice;
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/appliance_sync_provider.dart';
@@ -13,6 +14,7 @@ import '../providers/clock_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
+import '../providers/server_appliance_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
@@ -53,6 +55,12 @@ class ApplianceDetailScreen extends ConsumerWidget {
       );
     }
     final a = appliance;
+    // 준비 판정은 서버 항목에서 읽는다 — 이 폰이 저장한 정의는 판정을 들고 있지 않아, 누를 장치가 없는 가전도
+    // '누를까요?'를 물은 뒤에야 거절됐다(검토 10/19). 홈 타일과 같은 근거다.
+    final catalog = ref.watch(serverApplianceCatalogProvider);
+    final source = catalog.readinessFor(a) ?? a;
+    final pressNotice =
+        pressUnavailableNotice(a, source, pressHosts: pressDeviceHosts(catalog.appliances));
     final routines = ref.watch(routinesProvider).valueOrNull ?? const <Routine>[];
     final mine = routines.where((r) => r.applianceIds.contains(a.id)).toList();
 
@@ -92,7 +100,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxxl),
         children: [
-          _ReadinessLine(appliance: a),
+          _ReadinessLine(appliance: source, notice: pressNotice),
           const SizedBox(height: AppSpace.md),
           if (a.isThinq) ...[
             Text(
@@ -112,7 +120,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
             AppliancePanel(
               appliance: a,
               imageOverride: applianceImageOverride,
-              onButton: (b) => _confirmPress(context, ref, a, b),
+              onButton: (b) => _confirmPress(context, ref, a, b, source: source, notice: pressNotice),
             ),
           ],
           const SizedBox(height: AppSpace.xl),
@@ -242,12 +250,14 @@ class ApplianceDetailScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     ApplianceMap a,
-    ApplianceButton b,
-  ) async {
-    if (a.readinessKnown && !a.canExecute) {
+    ApplianceButton b, {
+    required ApplianceMap source,
+    String? notice,
+  }) async {
+    if (source.readinessKnown && !source.canExecute) {
       _snack(
         context,
-        a.readinessReasons.firstOrNull ?? '아직 이 가전은 준비가 안 됐어요.',
+        notice ?? source.readinessReasons.firstOrNull ?? '아직 이 가전은 준비가 안 됐어요.',
       );
       return;
     }
@@ -309,14 +319,18 @@ class ApplianceDetailScreen extends ConsumerWidget {
 /// 지금 맡길 수 있는가 한 줄. **모르는 것을 준비됐다고 말하지 않는다** --
 /// 서버가 준비 상태를 알려 준 경우에만 못 쓴다고 단정한다.
 class _ReadinessLine extends StatelessWidget {
-  const _ReadinessLine({required this.appliance});
+  const _ReadinessLine({required this.appliance, this.notice});
   final ApplianceMap appliance;
+
+  /// 누를 장치가 없을 때의 쉬운 안내와 다음 할 일([pressUnavailableNotice]). 있으면 서버 이유 대신 이것.
+  final String? notice;
 
   @override
   Widget build(BuildContext context) {
     final a = appliance;
     if (!(a.readinessKnown && !a.canExecute)) return const SizedBox.shrink();
-    final why = a.readinessReasons.firstOrNull ??
+    final why = notice ??
+        a.readinessReasons.firstOrNull ??
         (a.readiness == 'disconnected' ? '아직 연결되지 않았어요' : '아직 준비가 안 됐어요');
     return Row(
       children: [

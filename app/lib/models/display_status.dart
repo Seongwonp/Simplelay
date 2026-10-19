@@ -168,6 +168,33 @@ String tileReasonText(String reason, {List<ApplianceMap>? pressHosts}) {
   return m == null ? t : m.group(1)!.trim();
 }
 
+/// 본체가 '누를 장치가 없다'고 판정한 가전의 안내 — 가전 상세 맨 위와, 버튼을 눌렀을 때 '누를까요?' 대신(검토 10/19).
+/// 해당하지 않으면 null.
+///
+/// 근거는 본체가 이미 주는 것뿐이다(새 API 없이): 같은 id의 서버 판정([source])과 [pressDeviceHosts].
+/// - 기본 가전: 이유가 '누름 장치가 이 가전 위에 없어서…'.
+/// - 사용자 등록 가전: 연결 안 됨(`disconnected`)·이유 없음, 또는 '아직 기기와 연결되지 않았어요' — 본체에 누를 장치가
+///   물려 있지 않다(실행하면 412). 예전에는 이 폰 저장분에 판정이 없어 '누를까요?'를 물은 뒤에야 거절됐다.
+String? pressUnavailableNotice(ApplianceMap a, ApplianceMap? source, {List<ApplianceMap>? pressHosts}) {
+  if (a.isThinq || a.isDemo || source == null || !source.readinessKnown || source.canExecute) return null;
+  final gantry = source.readinessReasons.any((r) => r.trim().startsWith(kGantryAbsentReason));
+  final noDevice = a.isCustom &&
+      ((source.readiness == 'disconnected' && source.readinessReasons.isEmpty) ||
+          source.readinessReasons.any((r) => r.trim() == '아직 기기와 연결되지 않았어요'));
+  if (!gantry && !noDevice) return null;
+  final hosts = pressHosts?.where((h) => h.id != a.id).toList();
+  final where = switch (hosts) {
+    null => '',
+    [] => ' 누름 장치는 지금 어느 가전 위에도 없어요.',
+    [final h, ...] => ' 누름 장치는 지금 ${applianceDisplayLine(h)} 위에 있어요.',
+  };
+  return gantry
+      ? '누름 장치가 이 가전 위에 없어서 지금은 누를 수 없어요.$where '
+          '이 가전을 누르게 하려면 설치하는 분께 누름 장치를 옮기고 본체 설정을 바꿔 달라고 부탁해 주세요.'
+      : '이 가전에는 아직 누름 장치가 연결되지 않아 지금은 누를 수 없어요.$where '
+          '설치하는 분께 이 가전의 누름 장치 연결을 부탁해 주세요.';
+}
+
 /// 연습 가전인가 — 데모 표본이거나, 서버가 이름에 '(연습)'을 붙인 연습 기기(실제 모드 안의 'LG 세탁기(연습)',
 /// 2026-10-18). 키오스크 `isPractice`와 같은 판정.
 bool isPracticeAppliance(ApplianceMap a) => a.isDemo || a.name.contains('(연습)');

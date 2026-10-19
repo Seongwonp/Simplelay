@@ -626,8 +626,14 @@ void main() {
     expect(_title(tester), '5. 자리 확인');
     await tester.tap(find.byKey(const Key('wizard-start-pass')));
     await _settle(tester);
-    expect(find.text(kPassUnavailableMessage), findsOneWidget);
+    // 누를 장치가 없다는 거절은 자리 확인만이 아니라 누르기도 안 된다고 말한다(검토 10/19).
+    expect(find.text(kPassNoPressDeviceMessage), findsOneWidget);
     expect(find.textContaining('갠트리'), findsNothing);
+
+    server.rejectPass = (409, '확인 주행을 지금 할 수 없어요');
+    await tester.tap(find.byKey(const Key('wizard-start-pass')));
+    await _settle(tester);
+    expect(find.text(kPassUnavailableMessage), findsOneWidget);
 
     server.rejectPass = (409, '다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.');
     await tester.tap(find.byKey(const Key('wizard-start-pass')));

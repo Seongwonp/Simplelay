@@ -63,6 +63,19 @@ class ServerApplianceCatalog {
   bool get isLoading => status == ServerCatalogStatus.loading;
   bool get isFailed => status == ServerCatalogStatus.failed;
   bool get isLoaded => status == ServerCatalogStatus.loaded;
+
+  /// [a]의 준비 판정을 들고 있는 정의 — [a]가 이미 서버 판정이면 그대로, 아니면(이 폰이 저장한 정의) 같은 id의 서버
+  /// 항목. 없으면 null. 홈 타일과 가전 상세가 같은 근거를 쓴다.
+  ApplianceMap? readinessFor(ApplianceMap a) {
+    if (a.readinessKnown) return a;
+    for (final s in appliances) {
+      if (s.id == a.id) return s;
+    }
+    for (final s in customAppliances) {
+      if (s.id == a.id) return s;
+    }
+    return null;
+  }
 }
 
 /// 서버 내장 가전 목록을 조회·보관한다.

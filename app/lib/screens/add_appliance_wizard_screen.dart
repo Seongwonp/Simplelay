@@ -69,6 +69,11 @@ const kSaveOrphanNote = '본체에는 이 가전이 버튼 자리 없이 남았�
 /// 다음에 할 일을 말하지 않았다(실화면 10/19).
 const kPassUnavailableMessage = '지금은 자리 확인을 할 수 없어요. "자리 확인 없이 끝내기"를 누르고, 처음 누를 때 자리가 맞는지 지켜봐 주세요.';
 
+/// 본체가 이 가전을 누를 장치가 없다고 거절할 때(서버 '…갠트리에 연결되지 않았어요'). 자리 확인만이 아니라 누르기도
+/// 안 된다 — '처음 누를 때 지켜봐 주세요'라고 하면 누를 수 있는 것처럼 읽혔다(검토 10/19).
+const kPassNoPressDeviceMessage = '이 가전에는 아직 누름 장치가 연결되지 않아 자리 확인도, 누르기도 할 수 없어요. '
+    '"자리 확인 없이 끝내기"를 누르고, 설치하는 분께 이 가전의 누름 장치 연결을 부탁해 주세요.';
+
 class _AddApplianceWizardScreenState
     extends ConsumerState<AddApplianceWizardScreen> {
   int _step = 0;
@@ -540,7 +545,14 @@ class _AddApplianceWizardScreenState
     } on RpiApiException catch (e) {
       // 409: 다른 일을 하는 중(서버 문장 그대로 — 끝난 뒤 다시) 또는 이 구성에서 할 수 없음(쉬운 말과 다음 할 일로).
       final busy = e.message.contains('다른');
-      if (mounted) setState(() => _error = e.statusCode == 409 && !busy ? kPassUnavailableMessage : e.message);
+      final noDevice = e.message.contains('갠트리에 연결되지 않았');
+      if (mounted) {
+        setState(() => _error = e.statusCode != 409 || busy
+            ? e.message
+            : noDevice
+                ? kPassNoPressDeviceMessage
+                : kPassUnavailableMessage);
+      }
     } catch (_) {
       if (mounted) setState(() => _error = '자리 확인을 시작하지 못했어요. 연결을 봐 주세요.');
     } finally {
