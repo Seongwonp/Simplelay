@@ -580,6 +580,10 @@ class ScriptedService:
     def emergency_stop_report(self):
         self.stops += 1
 
+    def stop_if_owned(self, **kw):
+        # 이 흉내는 늘 쉬는 중(status().running이 거짓)이라 소유인 실행이 없다.
+        return None
+
 
 def _runner_setup(outcomes, steps):
     store = RoutineStore()

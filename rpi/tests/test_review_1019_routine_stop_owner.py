@@ -11,6 +11,7 @@ import time
 from datetime import timedelta
 from types import SimpleNamespace
 
+from rpi.api.service import NO_STOP_FENCE
 from rpi.api.service_commands import RunRecord
 from rpi.commands import ApprovedCommand
 from rpi.intent.mock import FixedClock
@@ -63,6 +64,19 @@ class _Service:
 
     def emergency_stop_report(self):
         self.stops += 1
+
+    def stop_if_owned(self, *, expected_job_id=None, fence=NO_STOP_FENCE):
+        """실제 서비스처럼 소유일 때만 멈춘다(확인과 정지가 한 번에)."""
+        state = self.state
+        if not state.running:
+            return None
+        if expected_job_id is not None:
+            owned = state.job_id == expected_job_id
+        else:
+            owned = fence is not NO_STOP_FENCE and state.last_job_id == fence
+        if owned:
+            self.emergency_stop_report()
+        return owned or None
 
 
 def _setup(steps):

@@ -55,6 +55,8 @@ log = logging.getLogger(__name__)
 # 노드 정지 브로드캐스트 전체 상한 — 개별 요청 타임아웃(2초)보다 살짝 길게
 # 잡아, 살아 있는 노드는 확인하고 죽은 노드 하나가 호출자를 붙잡지는 않게.
 EMERGENCY_STOP_BROADCAST_SECONDS = 2.5
+#: ``stop_if_owned``의 '울타리 없음' 표시 — 울타리 값 자체가 None(앞선 실행 없음)일 수 있어 따로 둔다.
+NO_STOP_FENCE: object = object()
 
 #: 실행 도중 실행 대상과 연결이 끊겼을 때(응답 없음·링크 오류 — 예외로 끝남)의 결과 문장(2026-10-15 G1·G5).
 #: 저쪽이 이미 다 눌렀을 수도 있다 — '완료하지 못했어요'로 단정하지 않고, 다시 누르지 않는다.
@@ -1369,7 +1371,34 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         반환값은 요청 시점에 실행이 진행 중이었는지 — 클라이언트가
         "정지됨"과 "실행 중인 작업 없음"을 구분해 표시할 수 있게 한다.
         """
+        report = self._emergency_stop(None)
+        assert report is not None
+        return report
+
+    def stop_if_owned(self, *, expected_job_id: str | None = None,
+                      fence: object = NO_STOP_FENCE) -> EmergencyStopReport | None:
+        """지금 도는 실행이 부른 쪽의 것일 때만 긴급 정지한다 — 확인과 정지 등록을 한 잠금 안에서(검토 10/19).
+
+        루틴 정지가 상태를 읽고 잠금을 놓은 뒤 긴급 정지에서 잠금을 다시 잡으면, 그 사이 루틴 구간이 끝나고 다른
+        클라이언트의 실행이 시작돼 그 실행을 멈출 수 있었다. 소유 판정: ``expected_job_id``가 있으면 지금 실행 번호가
+        그것일 때, 없고 ``fence``가 주어졌으면 실행 중이고 '마지막 실행 번호'가 그 값일 때(번호를 아직 모르는 동기 구간 —
+        그 구간이 도는 동안에만 마지막 번호가 그대로다). 정지 의미·단계는 ``emergency_stop_report``와 같다. 소유가
+        아니면 아무것도 멈추지 않고 None."""
+        def owned() -> bool:
+            if not self._running:
+                return False
+            if expected_job_id is not None:
+                return self._current_job_id == expected_job_id
+            if fence is not NO_STOP_FENCE:
+                return self._last_job_id == fence
+            return False
+        return self._emergency_stop(owned)
+
+    def _emergency_stop(self, owned) -> EmergencyStopReport | None:
+        """긴급 정지 본체. ``owned``가 있으면 잠금 안에서 먼저 부르고, 거짓이면 아무것도 하지 않고 None."""
         with self._lock:
+            if owned is not None and not owned():
+                return None
             was_running = self._running
             if was_running:
                 self._stop_requested_this_run = True

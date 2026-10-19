@@ -327,21 +327,20 @@ class RoutineRunner:
         if run is None or run.status is not RunStatus.RUNNING:
             return False
         run.cancel.set()
-        if run.active and self._owns_running_job(run):
-            self._service.emergency_stop_report()
+        if run.active:
+            self._stop_own_job(run)
         return True
 
-    def _owns_running_job(self, run: RoutineRun) -> bool:
-        """지금 도는 실행이 이 루틴 구간의 것인가(검토 10/19). 예전에는 '실행 중'만 봐서, 구간이 끝난 뒤 순서기가 알아채기
-        전(``active``가 아직 참)에 시작된 상관없는 실행에 긴급 정지를 보냈다."""
-        status = self._service.status()
-        if not status.running:
-            return False
+    def _stop_own_job(self, run: RoutineRun) -> None:
+        """지금 도는 실행이 이 루틴 구간의 것일 때만 긴급 정지한다(검토 10/19).
+
+        예전에는 '실행 중'만 봐서 구간이 끝난 뒤 순서기가 알아채기 전(``active``가 아직 참)에 시작된 상관없는 실행을
+        멈췄다. 그다음에는 상태를 읽고 잠금을 놓은 뒤 정지에서 잠금을 다시 잡아, 그 사이 시작된 다른 실행을 멈출 수
+        있었다 — 이제 확인과 정지 등록을 실행 서비스가 한 잠금 안에서 한다(``stop_if_owned``)."""
         if run.active_job_id is not None:
-            return getattr(status, "job_id", None) == run.active_job_id
-        if run.active_fence_set:
-            return getattr(status, "last_job_id", None) == run.active_fence
-        return False
+            self._service.stop_if_owned(expected_job_id=run.active_job_id)
+        elif run.active_fence_set:
+            self._service.stop_if_owned(fence=run.active_fence)
 
     def halt_all(self, reason: str = "전체 정지 요청") -> int:
         """진행 중인 루틴 모두에 정지 표시만 세운다 — 입출력·로그 없음(이벤트 루프에서 바로 불러도 된다).
