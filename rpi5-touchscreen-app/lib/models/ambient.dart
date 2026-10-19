@@ -268,7 +268,8 @@ class KioskNextRun {
   /// (실행 방식은 머리말 [kindLabel]이 말한다 — '자동으로 해요'는 없앴다, 사용자 결정 10/18).
   String get statusWord {
     if (quietSkip) return '조용한 시간이라 건너뛰어요';
-    if (skipped && (skipLabel?.isNotEmpty ?? false)) return skipLabel!;
+    // 건너뛴 회차는 머리말 [skippedHead]('오늘은 안 해요')가 말한다 — 끝 줄에 '오늘은 건너뛰어요'를 또 두지 않는다(10/19,
+    // 같은 말 두 번). 끝 줄은 '되돌리기'만.
     return '';
   }
 

@@ -184,14 +184,16 @@ void main() {
       expect(taps, hasLength(1));
     });
 
-    testWidgets("건너뛴 상태 '오늘은 건너뛰어요 · 되돌리기' — 같은 작은 글씨", (tester) async {
+    // 10/19: '오늘은 건너뛰어요'를 끝 줄에 또 두지 않는다 — 머리말 '자동 루틴 · 오늘은 안 해요'가 말하고 끝 줄은 '되돌리기'만.
+    testWidgets("건너뛴 상태 '자동 루틴 · 오늘은 안 해요' + '되돌리기' — 같은 작은 글씨", (tester) async {
       await _pumpView(tester, _idle(next: _next(skipped: true), onToggle: (_) {}));
       final head = _fontOf(tester, find.text('자동 루틴'));
-      expect(_fontOf(tester, find.text('오늘은 건너뛰어요')), head);
+      expect(_fontOf(tester, find.text('오늘은 안 해요')), head);
+      expect(find.text('오늘은 건너뛰어요'), findsNothing);
       final undo = find.descendant(of: _unskip, matching: find.text('되돌리기'));
       expect(_fontOf(tester, undo), head);
       expect(tester.getRect(_unskip).height, greaterThanOrEqualTo(48));
-      expect(_texts(tester), contains('·'));
+      expect(_texts(tester), isNot(contains('·')), reason: "끝 줄은 '되돌리기'만 — 구분점 없음(10/19)");
     });
 
     for (final (scale, spacing) in [(1.0, 2.1), (1.22, 0.0), (1.22, 2.1)]) {

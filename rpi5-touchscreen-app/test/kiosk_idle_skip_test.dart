@@ -146,7 +146,8 @@ void main() {
       final s = _next(skipped: true, day: '토요일');
       expect(s.skipped, isTrue);
       expect(s.skipLabel, '토요일은 건너뛰어요');
-      expect(s.statusWord, '토요일은 건너뛰어요');
+      expect(s.statusWord, '', reason: '머리말(토요일은 안 해요)이 말한다 — 10/19');
+      expect(s.skippedHead, '토요일은 안 해요');
       expect(s.canSkip, isTrue, reason: '되돌리기');
     });
 
@@ -220,10 +221,11 @@ void main() {
       expect(find.text('오늘은 건너뛰기'), findsNothing);
     });
 
-    testWidgets("건너뛴 상태 — '오늘은 건너뛰어요' + '되돌리기'", (tester) async {
+    testWidgets("건너뛴 상태 — 머리말 '오늘은 안 해요' + '되돌리기'(같은 말 두 번 없음, 10/19)", (tester) async {
       final taps = <KioskNextRun>[];
       await _pumpIdle(tester, _next(skipped: true), onToggle: taps.add);
-      expect(find.text('오늘은 건너뛰어요'), findsOneWidget);
+      expect(find.text('오늘은 안 해요'), findsOneWidget);
+      expect(find.text('오늘은 건너뛰어요'), findsNothing);
       expect(_skip, findsNothing);
       expect(find.descendant(of: _unskip, matching: find.text('되돌리기')), findsOneWidget);
       await tester.tap(_unskip);
@@ -280,13 +282,13 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(api.skipRequests, [('rt-1', _at, true)]);
-      expect(find.text('오늘은 건너뛰어요'), findsOneWidget);
+      expect(find.text('오늘은 안 해요'), findsOneWidget);
       await tester.tap(_unskip);
       await tester.pump();
       await tester.pump();
       expect(api.skipRequests.last, ('rt-1', _at, false));
       expect(_skip, findsOneWidget);
-      expect(find.text('오늘은 건너뛰어요'), findsNothing);
+      expect(find.text('오늘은 안 해요'), findsNothing);
     });
 
     testWidgets('보내는 동안 두 번 눌러도 요청은 하나', (tester) async {
@@ -302,7 +304,7 @@ void main() {
       api.skipPending!.complete(KioskSkipResult(item: _next(skipped: true)));
       await tester.pump();
       await tester.pump();
-      expect(find.text('오늘은 건너뛰어요'), findsOneWidget);
+      expect(find.text('오늘은 안 해요'), findsOneWidget);
     });
 
     testWidgets('409 — 서버 말을 짧게 보이고 다음 루틴을 다시 불러온다', (tester) async {
