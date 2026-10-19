@@ -197,7 +197,11 @@ def test_timeout_is_at_least_three_heartbeat_periods():
 
 
 def test_any_authentic_frame_counts_as_alive():
-    """정지 보고 요청·시계 탐침도 링크가 살아 있다는 근거다(생존 신호만 세지 않는다)."""
+    """(2026-10-19 뒤집음) 이름은 옛 시험을 찾기 쉽게 그대로 둔다 — 이제는 **이 실행의 생존 신호만** 살아 있다는 근거다.
+
+    예전에는 인증된 줄이면 무엇이든(시계 탐침·정지 보고 요청·hello) 감시 시각을 새로 적었다. 그런데 RPi5가 링크를 잃고
+    이 실행을 포기한 뒤 다시 이으면 시계 탐침·hello 같은 줄은 계속 오지만 이 실행의 생존 신호는 오지 않는다 — 그동안 RPi4는
+    버려진 실행의 남은 버튼을 계속 눌렀다. 이 실행 번호를 실은 ``heartbeat``만 감시 시각을 새로 적는다."""
 
     async def _t():
         executor, reader, writer, grbl, clock = _setup()
@@ -206,13 +210,57 @@ def test_any_authentic_frame_counts_as_alive():
         await _line(executor, reader, {"type": "clock_probe", "probe": "p1"})
         clock.t += 2.5
         fired = executor.check_link_watchdog()
-        grbl.release.set()
         await executor.wait_idle()
         return fired, writer
 
     fired, writer = asyncio.run(_t())
-    assert fired is False
-    assert writer.of("result")[0]["success"] is True
+    assert fired is True
+    (result,) = writer.of("result")
+    assert result["success"] is False and result["abort_reason"] == "motion_link_lost"
+
+
+def test_heartbeat_of_another_sequence_does_not_count_as_alive():
+    """다른 실행 번호(또는 번호 없는) 생존 신호는 이 실행이 살아 있다는 근거가 아니다(2026-10-19)."""
+
+    async def _t():
+        executor, reader, writer, grbl, clock = _setup()
+        await _start(executor, reader, grbl, _execute())
+        clock.t += 2.0
+        await _line(executor, reader, {"type": "heartbeat", "sequence_id": "s-old"})
+        clock.t += 1.0
+        await _line(executor, reader, {"type": "heartbeat"})
+        clock.t += 1.0
+        fired = executor.check_link_watchdog()
+        await executor.wait_idle()
+        return fired, writer, grbl
+
+    fired, writer, grbl = asyncio.run(_t())
+    assert fired is True and grbl.stops >= 1
+    (result,) = writer.of("result")
+    assert result["abort_reason"] == "motion_link_lost"
+
+
+def test_hello_while_running_is_link_loss_and_stops_the_drive():
+    """실행 중에 hello가 오면 RPi5가 다시 이은 것이다 — RPi5는 이 실행을 이미 '링크 끊김'으로 포기했다(2026-10-19).
+
+    남은 버튼을 누르지 않고 받은 구동 정지와 같은 길로 멈추며, 결과는 ``safety_stop``·``motion_link_lost``다."""
+
+    async def _t():
+        executor, reader, writer, grbl, clock = _setup()
+        await _start(executor, reader, grbl, _execute())
+        clock.t += 0.5
+        await _line(executor, reader, {"type": "hello"})
+        await executor.wait_idle()
+        return writer, grbl, executor
+
+    writer, grbl, executor = asyncio.run(_t())
+    assert grbl.stops >= 1
+    assert len(grbl.presses) == 1  # 남은 버튼은 누르지 않았다
+    (result,) = writer.of("result")
+    assert result["success"] is False and result["outcome"] == "safety_stop"
+    assert result["abort_reason"] == "motion_link_lost"
+    assert executor.last_link_stop is not None and executor.last_link_stop["sequence_id"] == "s-1"
+    assert writer.of("act_info"), "hello에는 그대로 답한다"
 
 
 # ── 요구하지 않는 경우(하위 호환) ─────────────────────────────────────────────

@@ -169,7 +169,11 @@ class HelloMsg:
 
 @dataclass(frozen=True)
 class HeartbeatMsg:
-    """실행 중 생존 신호(2026-10-16 G5). 답하지 않는다 — 받은 것 자체가 링크가 살아 있다는 근거다."""
+    """실행 중 생존 신호(2026-10-16 G5). 답하지 않는다 — 받은 것 자체가 링크가 살아 있다는 근거다.
+
+    ``sequence_id``(RPi5는 처음부터 실었다): 2026-10-19부터 RPi4는 **지금 실행 번호와 같은** 생존 신호만 센다."""
+
+    sequence_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -342,7 +346,8 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
         return HelloMsg()
 
     if msg_type == "heartbeat":
-        return HeartbeatMsg()
+        seq = doc.get("sequence_id")
+        return HeartbeatMsg(seq if isinstance(seq, str) and seq else None)
 
     if msg_type == "clock_probe":
         probe = doc.get("probe")

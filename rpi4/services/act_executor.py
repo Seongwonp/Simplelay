@@ -434,8 +434,8 @@ class ActExecutor:
             log.warning("ignored unrecognised line: %.120s", raw)
             return
 
-        # 인증된(키가 있으면) 올바른 줄은 어떤 종류든 링크가 살아 있다는 근거다(2026-10-16 G5 생존 신호 감시).
-        self._last_rx = self._clock()
+        # 생존 신호 감시 시각은 _dispatch가 **이 실행의 heartbeat**를 받을 때만 새로 적는다(2026-10-19). 예전에는 인증된
+        # 줄이면 무엇이든 적어, RPi5가 이 실행을 포기하고 다시 이은 뒤 오는 시계 탐침·hello가 버려진 실행을 살려 두었다.
         await self._dispatch(msg)
 
     async def report_danger_sound(self, result: DangerSoundResult) -> None:
@@ -513,8 +513,12 @@ class ActExecutor:
         elif isinstance(msg, EstopAckMsg):
             self._start_estop_ack()
         elif isinstance(msg, HeartbeatMsg):
-            pass  # 받은 시각은 run_once가 이미 적었다 — 답하지 않는다
+            # 답하지 않는다. 지금 감시 중인 실행 번호와 같을 때만 살아 있다는 근거로 센다(2026-10-19).
+            watch = self._watch
+            if watch is not None and msg.sequence_id == watch[0]:
+                self._last_rx = self._clock()
         elif isinstance(msg, HelloMsg):
+            self._stop_run_on_reconnect()
             self._announce()
         elif isinstance(msg, ClockProbeMsg):
             # 사건 신선도 기준점(3차 평가 M1) — 읽은 즉시 이 프로세스의 단조 시각으로 답한다.
@@ -848,6 +852,19 @@ class ActExecutor:
         while self._watch is not None and self._watch[0] == sequence_id and self._link_lost_ms is None:
             await asyncio.sleep(poll_s)
             self.check_link_watchdog()
+
+    def _stop_run_on_reconnect(self) -> None:
+        """실행 중에 hello가 왔다 = RPi5가 링크를 다시 열었다(2026-10-19). RPi5는 끊길 때 이 실행을 이미 '링크 끊김·눌렸는지
+        모름'으로 끝냈고 결과를 기다리지 않는다 — 버려진 실행의 남은 버튼을 누르지 않게 생존 신호를 잃은 것과 같은 길
+        (``_abort("drive")``, 정지 버튼은 누르지 않음)로 멈추고 ``motion_link_lost``로 적는다. 준비 중(정지 대기 해제 중)
+        이면 시작하지 않는다. 쉬는 중·정지 버튼 위 대기 중이면 아무것도 하지 않는다."""
+        if not self._busy:
+            return
+        if self._link_lost_ms is None and not self._preparing_execute:
+            self._link_lost_ms = max(0, int((self._clock() - self._last_rx) * 1000))
+        log.error("hello received while running %r — RPi5 reconnected and gave up on this run; stopping",
+                  self._watch[0] if self._watch is not None else None)
+        self._abort("drive")
 
     def check_link_watchdog(self) -> bool:
         """감시 중인 실행에서 마지막 인증된 줄 뒤 제한 시간이 지났으면 **받은 정지와 같은 길**로 멈추고 True.
