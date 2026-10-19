@@ -223,13 +223,14 @@ void main() {
     await tester.tap(find.byKey(const Key('thinq-set-confirm')));
     await _settle(tester);
 
-    expect(hub.commands, [
-      {
-        'appliance_id': 'air_purifier',
-        'action': 'set_wind_strength',
-        'args': {'wind_strength': 'HIGH'},
-      }
-    ]);
+    // 요청 번호(client_request_id)는 보낼 때마다 새로 짓는다(검토 10/19) — 나머지가 그대로인지만 본다.
+    expect(hub.commands.length, 1);
+    expect(hub.commands.single['client_request_id'], isA<String>());
+    expect(Map.of(hub.commands.single)..remove('client_request_id'), {
+      'appliance_id': 'air_purifier',
+      'action': 'set_wind_strength',
+      'args': {'wind_strength': 'HIGH'},
+    });
     expect(find.text('상태 화면'), findsOneWidget);
     await _teardown(tester);
   });
@@ -375,7 +376,8 @@ void main() {
     await _settle(tester);
   }
 
-  testWidgets('M1: 연결 오류는 "보내지 못했어요"가 아니라 결과 모름 — 상태를 다시 읽는다',
+  // 검토 10/19: 결과 모름은 실행 상태 화면에서 요청 번호로 본체가 받은 실행을 찾는다(thinq_command_request_1019_test.dart).
+  testWidgets('M1: 연결 오류는 "보내지 못했어요"가 아니라 결과 모름 — 다시 보내지 않고 실행 상태에서 찾는다',
       (tester) async {
     _tall(tester);
     final hub = _Hub((_) => _ok(_state()),
@@ -386,10 +388,10 @@ void main() {
 
     await sendHigh(tester);
 
-    expect(find.text(kThinqUnknownOutcome), findsOneWidget);
     expect(find.textContaining('보내지 못했어요'), findsNothing);
-    expect(find.text('상태 화면'), findsNothing);
-    expect(hub.reads.length, 2); // 다시 읽어 확인한다.
+    expect(find.text('상태 화면'), findsOneWidget);
+    expect(hub.commands.length, 1);
+    await _teardown(tester);
   });
 
   testWidgets('M1: 응답이 시간 안에 오지 않아도 결과 모름 — 상태를 다시 읽는다', (tester) async {
@@ -404,9 +406,10 @@ void main() {
     await tester.pump(const Duration(seconds: 9)); // 폰 요청 제한(8초)을 넘긴다.
     await _settle(tester);
 
-    expect(find.text(kThinqUnknownOutcome), findsOneWidget);
     expect(find.textContaining('보내지 못했어요'), findsNothing);
-    expect(hub.reads.length, 2);
+    expect(find.text('상태 화면'), findsOneWidget);
+    expect(hub.commands.length, 1);
+    await _teardown(tester);
   });
 
   testWidgets('M1: 요청이 끝나기 전에는 다른 값을 눌러도 묻지도 보내지도 않는다', (tester) async {

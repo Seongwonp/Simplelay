@@ -248,31 +248,44 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
       _snack('본체와 연결되면 바꿀 수 있어요.');
       return;
     }
+    final execution = ref.read(executionStatusProvider.notifier);
+    // 아까 보낸 실행의 접수 답을 기다리는 중 — 또 보내면 늦은 답이 엇갈린다(검토 10/19).
+    if (execution.admissionInFlight) {
+      _snack(ExecutionStatusNotifier.waitAdmissionNotice);
+      return;
+    }
+    final label = '$applianceName ${control.label} $word';
+    // 보내기 전에 '보내는 중'으로 — 답을 기다리는 사이에도 본체는 이미 보냈을 수 있다. 요청 번호를 실어 같은 번호는 본체가
+    // 한 번만 보내고, 답을 잃으면 그 번호로 받은 실행을 찾는다(검토 10/19).
+    final requestId = execution.beginSubmitting(api: api, label: label, steps: [label]);
     final RpiJobAccepted accepted;
     try {
-      accepted =
-          await api.thinqCommand(applianceId, control.action, {control.arg: value});
+      accepted = await api.thinqCommand(applianceId, control.action, {control.arg: value},
+          clientRequestId: requestId);
     } on RpiApiException catch (e) {
+      execution.abandonSubmission(requestId); // 본체가 답했다 — 받지 않았다
       if (!mounted) return;
       final refusal = thinqCommandRefusal(e);
       _snack(refusal ?? kThinqUnknownOutcome);
       if (refusal == null) ref.invalidate(thinqStatusProvider(applianceId));
       return;
     } catch (_) {
-      // 시간 초과·연결 끊김·응답 해석 실패 — 허브가 이미 받았을 수 있다. package:http로는
-      // '보내기 전에 닿지 못함'과 '보낸 뒤 응답 없음'을 믿을 만하게 가를 수 없어 둘 다 이 문장이다.
+      // 시간 초과·연결 끊김·응답 해석 실패 — 허브가 이미 받았을 수 있다. package:http로는 '보내기 전에 닿지 못함'과 '보낸 뒤
+      // 응답 없음'을 믿을 만하게 가를 수 없다. 다시 보내지 않고 요청 번호로 본체가 받은 실행을 찾는다(옛 본체는 상태로).
+      execution.beginSubmissionUnknown(
+          api: api, label: label, steps: [label], requestId: requestId, byRequest: true);
       if (!mounted) return;
-      _snack(kThinqUnknownOutcome);
-      ref.invalidate(thinqStatusProvider(applianceId));
+      await context.push('/status');
+      if (mounted) ref.invalidate(thinqStatusProvider(applianceId));
       return;
     }
-    final label = '$applianceName ${control.label} $word';
-    ref.read(executionStatusProvider.notifier).beginHttpJob(
-          api: api,
-          jobId: accepted.jobId,
-          label: label,
-          steps: [label],
-        );
+    execution.beginHttpJob(
+      api: api,
+      jobId: accepted.jobId,
+      label: label,
+      steps: [label],
+      requestId: requestId,
+    );
     if (!mounted) return;
     await context.push('/status');
     // 돌아오면 바뀐 상태를 다시 읽는다.

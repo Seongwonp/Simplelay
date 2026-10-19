@@ -1144,17 +1144,24 @@ class RpiApiService {
   /// 시간 초과·연결 오류(그 밖의 예외)는 **보내지 못했다는 뜻이 아니다** — 요청이 이미
   /// 허브에 닿았을 수 있다. 부르는 쪽은 '결과를 모른다'로 다루고 상태를 다시 읽는다
   /// (package:http로는 '보내기 전 거부'와 '보낸 뒤 응답 없음'을 믿을 만하게 가르지 못한다).
+  /// [clientRequestId]가 있으면 싣는다 — 새 본체는 같은 번호를 한 번만 보내고 같은 job_id를 주며, 답을 잃으면
+  /// [jobByRequest]로 찾는다(검토 10/19). 옛 본체는 이 필드를 모른다(다시 보내면 또 보낸다).
   Future<RpiJobAccepted> thinqCommand(
     String applianceId,
     String action,
-    Map<String, String> args,
-  ) async {
+    Map<String, String> args, {
+    String? clientRequestId,
+  }) async {
     final res = await _client
         .post(
           _base.replace(path: '/thinq/command'),
           headers: _jsonHeaders,
-          body: jsonEncode(
-              {'appliance_id': applianceId, 'action': action, 'args': args}),
+          body: jsonEncode({
+            'appliance_id': applianceId,
+            'action': action,
+            'args': args,
+            if (clientRequestId != null) 'client_request_id': clientRequestId,
+          }),
         )
         .timeout(_timeout);
     _checkStatus(res);
