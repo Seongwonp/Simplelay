@@ -66,7 +66,6 @@ class _AddApplianceWizardScreenState
   /// 이 폰 문서 폴더에 옮겨 둔 사진 경로(찍을 때 옮긴다). 위치를 다시 맞출 때는 등록된 사진에서 시작한다.
   late String? _keptPhoto = widget.initial?.photoPath;
   final _name = TextEditingController(text: '전자레인지');
-  late final String _initialName;
   final _room = TextEditingController();
   ApplianceCategory _category = ApplianceCategory.microwave;
 
@@ -127,8 +126,20 @@ class _AddApplianceWizardScreenState
         unawaited(_loadFrame());
       }
     }
-    _initialName = _name.text;
+    _initialSnapshot = _snapshot();
   }
+
+  /// 처음 연 때의 입력([_snapshot]). 이와 같으면 닫을 때 묻지 않는다 — 위치를 다시 맞추러 들어와 아무것도
+  /// 안 바꿨는데 '저장하지 않은 내용을 잃어요'라고 묻던 것(실화면 10/19).
+  late final String _initialSnapshot;
+
+  String _snapshot() => [
+        _photo?.path, _name.text, _room.text, _category.value,
+        for (final c in _corners) '${c.x},${c.y}',
+        for (final b in _buttons) '${b.id}:${b.label}@${b.point.x},${b.point.y}',
+        _stopId, _stopPresses, _park == null ? null : '${_park!.x},${_park!.y}',
+        _frameW.text, _frameH.text,
+      ].join('|');
 
   @override
   void dispose() {
@@ -500,7 +511,7 @@ class _AddApplianceWizardScreenState
   @override
   Widget build(BuildContext context) {
     return InputGuard(
-      dirty: !_transferring && _saved == null && (_photo != null || _room.text.isNotEmpty || _name.text != _initialName || _buttons.isNotEmpty),
+      dirty: !_transferring && _saved == null && _snapshot() != _initialSnapshot,
       child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -510,7 +521,8 @@ class _AddApplianceWizardScreenState
           // maybePop으로 InputGuard의 확인 대화를 거친다.
           onPressed: _step == 4 ? _finish : () => Navigator.of(context).maybePop(),
         ),
-        title: const Text('가전 추가'),
+        // 등록된 가전의 자리를 다시 맞출 때는 '가전 추가'가 아니다(실화면 10/19: 새로 하나 더 만드는 줄 알았다).
+        title: Text(widget.initial == null ? '가전 추가' : '버튼 자리 맞추기'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxl),
@@ -638,56 +650,62 @@ class _AddApplianceWizardScreenState
           ),
         ],
         const SizedBox(height: AppSpace.md),
-        TextField(
-          key: const Key('wizard-name'),
-          controller: _name,
-          maxLength: 40,
-          decoration: InputDecoration(
-            labelText: '가전 이름 (예: 전자레인지)',
-            errorText: _nameTaken ? kNameTakenMessage : null,
-            errorMaxLines: 3,
+        // 등록된 가전의 자리를 다시 맞출 때는 이름·방·종류를 여기서 바꾸지 않는다 — 칸만 열려 있고 저장되지 않았다(실화면 10/19).
+        if (widget.initial case final a?)
+          Text('가전: ${a.name}', key: const Key('wizard-fixed-name'),
+              style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600))
+        else ...[
+          TextField(
+            key: const Key('wizard-name'),
+            controller: _name,
+            maxLength: 40,
+            decoration: InputDecoration(
+              labelText: '가전 이름 (예: 전자레인지)',
+              errorText: _nameTaken ? kNameTakenMessage : null,
+              errorMaxLines: 3,
+            ),
+            onChanged: (_) => setState(() {}),
           ),
-          onChanged: (_) => setState(() {}),
-        ),
-        TextField(
-          controller: _room,
-          onChanged: (_) => setState(() {}),
-          maxLength: 20,
-          decoration: const InputDecoration(labelText: '방 (선택, 예: 주방)'),
-        ),
-        const SizedBox(height: AppSpace.xs),
-        Wrap(
-          spacing: AppSpace.sm,
-          runSpacing: AppSpace.sm,
-          children: [
-            for (final c in ApplianceCategory.values)
-              ChoiceChip(
-                avatar: Icon(c.icon, size: 18),
-                label: Text(c.label),
-                selected: _category == c,
-                onSelected: (_) => setState(() {
-                  if (_name.text.isEmpty || _name.text == _category.label) _name.text = c.label;
-                  _category = c;
-                }),
-              ),
-          ],
-        ),
-        const SizedBox(height: AppSpace.sm),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton(
-            onPressed: widget.initial != null ? null : () async {
-              setState(() => _transferring = true);
-              await WidgetsBinding.instance.endOfFrame;
-              if (!mounted) return;
-              if (context.mounted) {
-                context.pushReplacement('/appliance/new', extra: ApplianceDraft(
-                    name: _name.text, room: _room.text, category: _category));
-              }
-            },
-            child: const Text('사진 없이 버튼판으로 등록하기'),
+          TextField(
+            controller: _room,
+            onChanged: (_) => setState(() {}),
+            maxLength: 20,
+            decoration: const InputDecoration(labelText: '방 (선택, 예: 주방)'),
           ),
-        ),
+          const SizedBox(height: AppSpace.xs),
+          Wrap(
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
+            children: [
+              for (final c in ApplianceCategory.values)
+                ChoiceChip(
+                  avatar: Icon(c.icon, size: 18),
+                  label: Text(c.label),
+                  selected: _category == c,
+                  onSelected: (_) => setState(() {
+                    if (_name.text.isEmpty || _name.text == _category.label) _name.text = c.label;
+                    _category = c;
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () async {
+                setState(() => _transferring = true);
+                await WidgetsBinding.instance.endOfFrame;
+                if (!mounted) return;
+                if (context.mounted) {
+                  context.pushReplacement('/appliance/new', extra: ApplianceDraft(
+                      name: _name.text, room: _room.text, category: _category));
+                }
+              },
+              child: const Text('사진 없이 버튼판으로 등록하기'),
+            ),
+          ),
+        ],
       ];
 
   List<Widget> _cornerStep() {

@@ -149,6 +149,10 @@ Widget _build(_Server server,
             path: 'appliance/add',
             builder: (_, __) => const AddApplianceWizardScreen(),
           ),
+          GoRoute(
+            path: 'appliance/setup',
+            builder: (_, state) => AddApplianceWizardScreen(initial: state.extra as ApplianceMap),
+          ),
         ],
       ),
       GoRoute(
@@ -497,6 +501,47 @@ void main() {
     // 손대지 않고 닫으면 묻지 않는다.
     await tester.tap(find.byTooltip('닫기'));
     await _settle(tester);
+    expect(find.text('홈'), findsOneWidget);
+  });
+
+  testWidgets('등록된 가전의 자리를 다시 맞출 때는 제목이 다르고, 이름·방·종류 칸이 없고, 안 바꾸고 닫으면 묻지 않는다(실화면 10/19)',
+      (tester) async {
+    const mapped = ApplianceMap(
+      id: 'custom_washer',
+      name: '세탁기',
+      category: ApplianceCategory.washingMachine,
+      rows: 1,
+      cols: 1,
+      buttons: [ApplianceButton(id: 'B01', label: '시작', x: 0, y: 0)],
+      isCustom: true,
+      photoPath: '/photos/custom_washer.jpg',
+      panelMapping: PanelMapping(
+        photoWidth: 1000,
+        photoHeight: 800,
+        corners: [PhotoPoint(100, 80), PhotoPoint(900, 80), PhotoPoint(900, 720), PhotoPoint(100, 720)],
+        buttons: {'B01': PhotoPoint(300, 300)},
+      ),
+    );
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server(), installed: const [mapped]));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/setup', extra: mapped);
+    await _settle(tester);
+
+    expect(find.text('버튼 자리 맞추기'), findsOneWidget);
+    expect(find.text('가전 추가'), findsNothing);
+    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
+    await tester.tap(find.byKey(const Key('wizard-back')));
+    await tester.pump();
+    expect(_title(tester), '1. 조작부 사진');
+    expect(find.byKey(const Key('wizard-name')), findsNothing, reason: '여기서 바꿔도 저장되지 않는 칸은 두지 않는다');
+    expect(find.text('사진 없이 버튼판으로 등록하기'), findsNothing);
+    expect(find.text('가전: 세탁기'), findsOneWidget);
+    expect(find.text('다시 찍기'), findsOneWidget, reason: '등록할 때 찍은 사진에서 시작한다');
+
+    await tester.tap(find.byTooltip('닫기'));
+    await _settle(tester);
+    expect(find.text('저장하지 않고 나가기'), findsNothing, reason: '아무것도 안 바꿨다');
     expect(find.text('홈'), findsOneWidget);
   });
 }
