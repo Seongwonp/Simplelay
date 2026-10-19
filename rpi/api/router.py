@@ -16,6 +16,7 @@ from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestion
 from rpi.services import DangerAlertStore, NodeRegistry
 from rpi.services.act_client import AlertEvent
 from rpi.services.history import history_csv
+from rpi.services.person_acks import FAILURE_CARE_KINDS, base_job_id, legacy_failures_seen_until
 from rpi.services.stop_confirm import stop_level_confirmed
 from rpi.services.thinq.wording import dispatch_of
 from rpi.services.readiness import (
@@ -375,18 +376,44 @@ def list_care_events(
     ]
 
 
-def _acks_response(snap) -> AcksResponse:
+def _acks_response(snap, care) -> AcksResponse:
     return AcksResponse(
         care_seen_id=snap.care_seen_id,
-        failures_seen_until=snap.failures_seen_until,
+        failures_seen_id=snap.failures_seen_id,
+        # 옛 앱 호환 시각 — 안 본 못 한 일을 덮지 않게 알림 목록으로 만든다(person_acks 머리말).
+        failures_seen_until=legacy_failures_seen_until(snap, care.recent(limit=CARE_ACK_SCAN)),
         job_answers=dict(snap.job_answers),
     )
 
 
 @router.get("/acks", response_model=AcksResponse)
-def get_acks(acks=Depends(get_person_acks)) -> AcksResponse:
+def get_acks(acks=Depends(get_person_acks), care=Depends(get_care_events)) -> AcksResponse:
     """사람이 확인한 것(2026-10-19) — 폰 홈 못 한 일 경고·설정 탭 배지·키오스크 지난 일·가전 칸 표시가 같은 값을 읽는다."""
-    return _acks_response(acks.snapshot())
+    return _acks_response(acks.snapshot(), care)
+
+
+def _clamp_to_newest_care(event_id: int | None, care) -> int | None:
+    """아직 없는 번호까지 '봤다'고 하면 앞으로 올 알림이 미리 지워진다 — 본체에 있는 가장 새 번호까지만."""
+    if event_id is None:
+        return None
+    newest = care.recent(limit=1)
+    return min(event_id, newest[0].event_id) if newest else 0
+
+
+def _seen_jobs(body: AckRequest, history) -> list[str]:
+    """화면에 보인 실행 기록만(검토 2026-10-19 #3). 커서 없는 옛 ``failures_seen``만 최근 기록 전체(호환)."""
+    seen: list[str] = list(body.seen_job_ids or ())
+    if body.seen_until_job_id is not None:
+        recent = history.recent(limit=JOB_ACK_SCAN)
+        mark = body.seen_until_job_id
+        start = next((i for i, e in enumerate(recent)
+                      if e.job_id == mark or base_job_id(e.job_id) == mark), None)
+        # 본체 기록에 없는 번호면 아무것도 적지 않는다(무엇을 봤는지 모른다 — 다시 보이는 쪽).
+        if start is not None:
+            seen.extend(e.job_id for e in recent[start:])
+    elif body.failures_seen and body.seen_job_ids is None:
+        seen.extend(e.job_id for e in history.recent(limit=JOB_ACK_SCAN))
+    return seen
 
 
 @router.post("/acks", response_model=AcksResponse)
@@ -396,29 +423,31 @@ def post_acks(
     care=Depends(get_care_events),
     history=Depends(get_job_history),
 ) -> AcksResponse:
-    """사람이 봤다·답했다를 적는다(모든 기기에서 사라지게). 새 실패는 아직 확인 전이라 다시 뜬다."""
-    if body.care_seen_id is None and not body.failures_seen and body.job_id is None:
+    """사람이 봤다·답했다를 적는다(모든 기기에서 사라지게). 화면에 보인 것만 — 새 실패는 아직 확인 전이라 다시 뜬다."""
+    if (body.care_seen_id is None and not body.failures_seen and body.failures_seen_id is None
+            and body.seen_job_ids is None and body.seen_until_job_id is None and body.job_id is None):
         raise HTTPException(status_code=422, detail="확인할 것을 하나 이상 보내 주세요")
     if body.answer is not None and body.job_id is None:
         raise HTTPException(status_code=422, detail="답에는 실행 번호(job_id)가 필요해요")
-    seen_id = body.care_seen_id
-    if seen_id is not None:
-        # 아직 없는 번호까지 '봤다'고 하면 앞으로 올 알림이 미리 지워진다 — 본체에 있는 가장 새 번호까지만.
-        newest = care.recent(limit=1)
-        seen_id = min(seen_id, newest[0].event_id) if newest else 0
-    seen_jobs = [e.job_id for e in history.recent(limit=JOB_ACK_SCAN)] if body.failures_seen else []
+    failures_id = body.failures_seen_id
+    if failures_id is None and body.failures_seen:
+        # 옛 폰(커서 없음) 호환 — 본체에 있는 가장 새 못 한 일까지. 새 앱은 화면에 보인 번호를 싣는다.
+        newest_failure = next((e for e in care.recent(limit=CARE_ACK_SCAN) if e.kind in FAILURE_CARE_KINDS), None)
+        failures_id = newest_failure.event_id if newest_failure is not None else None
     snap = acks.change(
-        care_seen_id=seen_id,
-        failures_seen=body.failures_seen,
-        seen_job_ids=seen_jobs,
+        care_seen_id=_clamp_to_newest_care(body.care_seen_id, care),
+        failures_seen_id=_clamp_to_newest_care(failures_id, care),
+        seen_job_ids=_seen_jobs(body, history),
         job_id=body.job_id,
         answer=body.answer,
     )
-    return _acks_response(snap)
+    return _acks_response(snap, care)
 
 
 #: '기록 보기'가 '봤다'로 적는 최근 실행 기록 수(``person_acks.JOB_LIMIT``와 같은 폭).
 JOB_ACK_SCAN = 200
+#: 못 한 일 번호·옛 앱 호환 시각을 고를 때 보는 보호자 알림 수(``CareEventStore.MEMORY_LIMIT``와 같은 폭).
+CARE_ACK_SCAN = 200
 
 
 @router.get("/appliances", response_model=list[ApplianceResponse])

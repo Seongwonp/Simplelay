@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -65,20 +65,31 @@ def test_answer_and_seen_survive_a_restart(tmp_path):
     store = PersonAckStore(clock, db=db)
     store.change(job_id="j1", answer="moved")
     store.change(care_seen_id=7)
+    store.change(failures_seen_id=5)
     db.close()
 
     again = PersonAckStore(clock, db=SimpleLayDb(str(tmp_path / "a.db")))
     snap = again.snapshot()
     assert snap.job_answers == {"j1": "moved"}
     assert snap.care_seen_id == 7
-    assert snap.failures_seen_until == clock.t, "답하면 못 한 일 표시도 지금까지 올린다"
+    assert snap.failures_seen_id == 5
+
+
+def test_answer_on_one_job_does_not_move_the_failure_mark():
+    """검토 2026-10-19 #2로 뒤집은 계약: 예전 이 자리의 시험은 '답하면 못 한 일 표시도 지금까지 올린다'를 고정했다. 그러면
+    키오스크에서 전자레인지 지난 일에 답한 것만으로 아무도 안 본 공기청정기 자동 실행 실패가 폰에서 사라졌다. 실행 답은 그
+    실행만 바꾼다."""
+    store = PersonAckStore(_Clock())
+    snap = store.change(job_id="j1", answer="moved")
+    assert snap.failures_seen_id == 0
+    assert snap.job_answers == {"j1": "moved"}
 
 
 def test_seen_does_not_overwrite_a_movement_answer_and_care_seen_only_grows():
     store = PersonAckStore(_Clock())
     store.change(job_id="j1", answer="not_moved")
     store.change(job_id="j1", answer="seen")
-    store.change(failures_seen=True, seen_job_ids=["j1", "j2"])
+    store.change(seen_job_ids=["j1", "j2"])
     assert store.snapshot().job_answers == {"j1": "not_moved", "j2": "seen"}
     store.change(care_seen_id=9)
     store.change(care_seen_id=3)
@@ -87,7 +98,7 @@ def test_seen_does_not_overwrite_a_movement_answer_and_care_seen_only_grows():
 
 def test_job_answers_are_bounded():
     store = PersonAckStore(_Clock())
-    store.change(failures_seen=True, seen_job_ids=[f"j{i}" for i in range(JOB_LIMIT + 5)])
+    store.change(seen_job_ids=[f"j{i}" for i in range(JOB_LIMIT + 5)])
     answers = store.snapshot().job_answers
     assert len(answers) == JOB_LIMIT
     assert "j0" not in answers and f"j{JOB_LIMIT + 4}" in answers
@@ -104,7 +115,7 @@ def test_unreadable_saved_value_means_nothing_acked(tmp_path):
 
 def test_get_acks_starts_empty(api):
     body = api.get("/acks").json()
-    assert body == {"care_seen_id": 0, "failures_seen_until": None, "job_answers": {}}
+    assert body == {"care_seen_id": 0, "failures_seen_id": 0, "failures_seen_until": None, "job_answers": {}}
 
 
 def test_post_needs_something(api):
@@ -123,18 +134,23 @@ def test_care_seen_id_is_clamped_to_the_newest_event(api):
 def test_history_view_marks_recent_jobs_and_failures_then_a_new_failure_shows_again(api):
     history = deps.get_job_history()
     history.append(_job("old-fail"))
+    care = deps.get_care_events()
+    old_event = care.append("execution_failed", "'공기청정기' 못 했어요")
+    # 옛 폰(커서 없음) 호환 — 본체에 있는 가장 새 못 한 일·최근 실행 기록 전체.
     body = api.post("/acks", json={"failures_seen": True}).json()
     assert body["job_answers"] == {"old-fail": "seen"}
+    assert body["failures_seen_id"] == old_event.event_id
     assert body["failures_seen_until"] is not None
     until = datetime.fromisoformat(body["failures_seen_until"])
+    assert old_event.occurred_at <= until
 
-    # 새 실패 — 확인 전이다(목록에 없고, 알림 시각은 표시보다 뒤).
+    # 새 실패 — 확인 전이다(목록에 없고, 알림 번호·시각은 표시보다 뒤).
     history.append(_job("new-fail"))
-    care = deps.get_care_events()
     event = care.append("execution_failed", "'공기청정기' 못 했어요")
     body = api.get("/acks").json()
     assert "new-fail" not in body["job_answers"]
-    assert event.occurred_at >= until
+    assert event.event_id > body["failures_seen_id"]
+    assert event.occurred_at > datetime.fromisoformat(body["failures_seen_until"])
 
 
 def test_kiosk_answer_reaches_the_phone_and_survives_restart(api):
@@ -146,7 +162,9 @@ def test_kiosk_answer_reaches_the_phone_and_survives_restart(api):
     again = TestClient(app)
     body = again.get("/acks").json()
     assert body["job_answers"] == {"job-7": "moved"}
-    assert body["failures_seen_until"] is not None
+    # 실행 답은 그 실행만 — 못 한 일 표시는 그대로(검토 2026-10-19 #2, 예전에는 '지금'까지 올렸다).
+    assert body["failures_seen_id"] == 0
+    assert body["failures_seen_until"] is None
 
 
 # ── 키오스크 확인 필요 안내(/ambient) ────────────────────────────────────────
@@ -190,11 +208,9 @@ def test_ambient_attention_hides_after_ack_and_returns_for_a_new_failure(monkeyp
     assert len(_attention(_failed_service("j2"), _Registry(), _Alerts(), None, acks)) == 1
 
 
-def test_failures_seen_until_moves_forward_only():
-    clock = _Clock()
-    store = PersonAckStore(clock)
-    store.change(failures_seen=True)
-    first = store.snapshot().failures_seen_until
-    clock.t = clock.t - timedelta(minutes=5)  # 시계가 뒤로 가도 표시는 내려가지 않는다
-    store.change(failures_seen=True)
-    assert store.snapshot().failures_seen_until == first
+def test_failures_seen_id_moves_forward_only():
+    # 시각 대신 알림 번호(검토 2026-10-19 #4) — 번호도 늘기만 한다.
+    store = PersonAckStore(_Clock())
+    store.change(failures_seen_id=9)
+    store.change(failures_seen_id=3)
+    assert store.snapshot().failures_seen_id == 9

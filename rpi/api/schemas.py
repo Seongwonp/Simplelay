@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import math
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -988,23 +988,32 @@ class AcksResponse(BaseModel):
     """GET/POST /acks — 사람이 확인한 것(2026-10-19, ``rpi/services/person_acks.py``).
 
     - care_seen_id: 보호자 알림을 이 번호까지 봤다(모든 기기 공통).
-    - failures_seen_until: 이 시각(본체 시계)까지의 '못 한 일' 알림(execution_failed·appliance_done_undelivered)은 봤다.
+    - failures_seen_id: 이 알림 번호까지의 '못 한 일' 알림(execution_failed·appliance_done_undelivered)은 봤다(2026-10-19
+      검토 — 번호 비교라 본체 시계가 뒤로 가도 새 실패를 덮지 않는다).
+    - failures_seen_until: 옛 앱 호환 파생값(시각) — 안 본 못 한 일 알림을 덮지 않는 시각. 새 앱은 failures_seen_id를 쓴다.
     - job_answers: 실행 하나에 남긴 답(seen·moved·not_moved), 최근 200건."""
 
     care_seen_id: int
+    failures_seen_id: int = 0
     failures_seen_until: datetime | None = None
     job_answers: dict[str, str] = {}
 
 
 class AckRequest(BaseModel):
-    """POST /acks — 하나 이상. 못 한 일 표시(failures_seen·answer)는 본체 시계의 지금까지 올린다.
+    """POST /acks — 하나 이상. 화면에 **실제로 보인 것만** 적는다(계약은 ``rpi/services/person_acks.py`` 머리말).
 
     - care_seen_id: 알림함을 연 기기가 본 가장 새 알림 번호(본체에 있는 가장 새 번호를 넘지 않게 줄인다).
-    - failures_seen: 못 한 일을 봤다(폰 '기록 보기') — 최근 실행 기록도 모두 '봤다'로.
-    - job_id + answer: 키오스크 지난 일 '확인'(seen)·'움직였어요'(moved)·'안 움직였어요'(not_moved)."""
+    - failures_seen_id: 화면에 보인 가장 새 못 한 일 알림 번호 — 이 번호까지만 '봤다'(같은 방식으로 줄인다).
+    - seen_job_ids: 화면에 보인 실행 기록 번호들 — 그 번호만 '봤다'.
+    - seen_until_job_id: 화면에 보인 가장 새 실행 기록 번호 — 그것과 그보다 오래된 최근 기록만 '봤다'.
+    - failures_seen: 옛 폰 '기록 보기'(호환) — 커서가 없으면 본체에 있는 가장 새 못 한 일·최근 실행 기록 전체까지.
+    - job_id + answer: 키오스크 지난 일 '확인'(seen)·'움직였어요'(moved)·'안 움직였어요'(not_moved) — 그 실행 하나만."""
 
     care_seen_id: int | None = Field(default=None, ge=0)
     failures_seen: bool = False
+    failures_seen_id: int | None = Field(default=None, ge=0)
+    seen_job_ids: list[Annotated[str, Field(min_length=1, max_length=64)]] | None = Field(default=None, max_length=200)
+    seen_until_job_id: str | None = Field(default=None, min_length=1, max_length=64)
     job_id: str | None = Field(default=None, min_length=1, max_length=64)
     answer: Literal["seen", "moved", "not_moved"] | None = None
 
