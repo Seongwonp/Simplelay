@@ -960,8 +960,10 @@ class KioskApiService {
     return KioskSuggestion.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// POST /stop. 4xx·5xx도 [KioskApiException]으로 던진다 — 본체가 거절한 정지를 '보냈어요'로 보이지 않게(검토 10/19).
   Future<void> stop() async {
-    await _client.post(_base.replace(path: '/stop')).timeout(_timeout);
+    final res = await _client.post(_base.replace(path: '/stop')).timeout(_timeout);
+    _ensureOk(res);
   }
 
   /// POST /stop/ack — 사람이 확인한 비상정지 해제 요청(2026-10-05).

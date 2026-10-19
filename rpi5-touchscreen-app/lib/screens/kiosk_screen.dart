@@ -174,6 +174,9 @@ class _KioskScreenState extends State<KioskScreen> {
   // (서버 재시작·추월 유실) 실행 화면 고착 대신 실패로 탈출한다.
   int _foreignPolls = 0;
 
+  // 실행 화면에서 정지를 누른 뒤의 상태(검토 10/19) — 보냈으면 '멈추는 중', 닿지 않았으면 그 말과 정지 단추 그대로.
+  KioskExecStop _execStop = KioskExecStop.none;
+
   String? _currentButton;
 
   // 이 실행에서 이미 누른 버튼(화면이 본 차례대로, 평가 3차 10/18) — 실행 화면 버튼판의 끝난 칸 ✓.
@@ -1495,6 +1498,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _retryAction = null;
     _lastStatusOk = DateTime.now();
     _foreignPolls = 0;
+    _execStop = KioskExecStop.none;
     setState(() {
       _phase = KioskPhase.executing;
       _execTitle = title;
@@ -1750,9 +1754,13 @@ class _KioskScreenState extends State<KioskScreen> {
     // 하드웨어가 멈추기 전에 '정지됨' 화면부터 띄우면 실제 상태와 어긋난다.
     try {
       await _api.stop();
+      if (!mounted || _phase != KioskPhase.executing) return;
+      setState(() => _execStop = KioskExecStop.stopping);
     } catch (_) {
-      // 정지 요청조차 실패 = 통신 문제 — 실행 화면 유지, 30초 탈출 타이머가
-      // (_pollExecuting의 _statusLostTimeout) 결국 실패 화면으로 빼낸다.
+      // 정지 요청조차 실패(통신·본체 거절) — 실행 화면과 정지 단추를 그대로 두고 닿지 않았다고 말한다(검토 10/19).
+      // 통신이 계속 끊기면 30초 탈출 타이머가(_pollExecuting의 _statusLostTimeout) 결국 실패 화면으로 빼낸다.
+      if (!mounted || _phase != KioskPhase.executing) return;
+      setState(() => _execStop = KioskExecStop.failed);
     }
   }
 
@@ -2192,6 +2200,7 @@ class _KioskScreenState extends State<KioskScreen> {
           verificationConfidence: _verificationConfidence,
           verificationDetail: _verificationDetail,
           onStop: _onStop,
+          stopState: _execStop,
           thinqOnly: _execThinqOnly,
           thinqActionText: _execThinqActionText,
         );

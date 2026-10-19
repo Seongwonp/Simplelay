@@ -39,7 +39,12 @@ class KioskExecutingView extends StatelessWidget {
     required this.onStop,
     this.thinqOnly = false,
     this.thinqActionText,
+    this.stopState = KioskExecStop.none,
   });
+
+  /// 정지를 누른 뒤의 상태(검토 10/19) — 위 띠가 '멈추는 중' 또는 '정지가 닿지 않았어요'로 바뀐다. 정지 단추는 그대로 남는다.
+  /// 멈췄는지는 서버 보고를 받은 결과 화면이 말한다.
+  final KioskExecStop stopState;
 
   /// LG 가전 명령 하나만 보내는 실행(사용자 요청 10/18) — 버튼판·누를 순서·누름 장치 문구 없이 가운데 기다림 표시와
   /// 하려는 일 한 줄('공기청정기를 켜고 있어요', 평가 10차 10/18). 정지 단추는 같은 자리·같은 모양. 서버가 누르는
@@ -74,6 +79,25 @@ class KioskExecutingView extends StatelessWidget {
   final VoidCallback onStop;
 
   bool get _retrying => (currentAttempt ?? 1) > 1;
+
+  /// 정지를 누른 뒤면 그 상태 띠, 아니면 [normal].
+  KioskStatusBand _band(KioskStatusBand normal, String what) => switch (stopState) {
+        KioskExecStop.none => normal,
+        KioskExecStop.stopping => KioskStatusBand(
+            key: const ValueKey('exec-stopping-band'),
+            tone: KioskBandTone.neutral,
+            icon: Icons.hourglass_top,
+            label: '멈추는 중',
+            detail: what.isEmpty ? null : what,
+            detailIcon: target?.icon,
+            practice: _mock),
+        // 닿지 않았으면 할 일만 — 가전 이름까지 붙이면 띠가 길어진다.
+        KioskExecStop.failed => const KioskStatusBand(
+            key: ValueKey('exec-stop-failed-band'),
+            tone: KioskBandTone.danger,
+            icon: Icons.error_outline,
+            label: kExecStopFailed),
+      };
 
   /// 무엇을 하는 중인가 — 가전 이름과 할 일(위 띠에 싣는다, 10/18). 사이는 ' · '(평가 13차 10/18 — 빈칸만이면 한 이름처럼 읽혔다). 이어받은 실행은 제목이 가전 이름일 수 있고,
   /// 버튼 하나를 누르는 실행이면 제목이 버튼과 같다 — 같은 말이면 한 번만.
@@ -192,15 +216,17 @@ class KioskExecutingView extends StatelessWidget {
     final large = KioskLayout.isLarge(context);
     return KioskRunFrame(
       oneColumn: true,
-      band: _mock
-          ? const KioskStatusBand.practice()
-          : KioskStatusBand(
-              tone: KioskBandTone.running,
-              icon: Icons.play_circle_outline,
-              label: '실행 중',
-              detail: action.title,
-              detailIcon: target?.icon,
-            ),
+      band: _band(
+          _mock
+              ? const KioskStatusBand.practice()
+              : KioskStatusBand(
+                  tone: KioskBandTone.running,
+                  icon: Icons.play_circle_outline,
+                  label: '실행 중',
+                  detail: action.title,
+                  detailIcon: target?.icon,
+                ),
+          action.title),
       header: const SizedBox.shrink(),
       // 정지가 무엇을 하는지 사실대로 한 줄(평가 10차 10/18) — 서버는 보내기 전이면 보내지 않고, 이미 보냈으면
       // 되돌리지 않는다(취소·반대 명령 없음). 연습은 실제 가전에 보내지 않으니 두지 않는다. 정지 단추 왼쪽 빈자리.
@@ -304,16 +330,18 @@ class KioskExecutingView extends StatelessWidget {
 
     return KioskRunFrame(
       // 연습은 위 청록 띠(§3-2·2026-10-16 §4) — 작은 '연습 모드' 칩은 처음 보는 사람이 놓쳤다.
-      band: _mock
-          // 연습 띠는 한 줄로 둔다(문장이 길다) — 가전·할 일은 왼쪽 마지막 한 줄이 말한다.
-          ? const KioskStatusBand.practice()
-          : KioskStatusBand(
-              tone: KioskBandTone.running,
-              icon: Icons.play_circle_outline,
-              label: '실행 중',
-              detail: bandDetail,
-              detailIcon: target?.icon,
-            ),
+      band: _band(
+          _mock
+              // 연습 띠는 한 줄로 둔다(문장이 길다) — 가전·할 일은 왼쪽 마지막 한 줄이 말한다.
+              ? const KioskStatusBand.practice()
+              : KioskStatusBand(
+                  tone: KioskBandTone.running,
+                  icon: Icons.play_circle_outline,
+                  label: '실행 중',
+                  detail: bandDetail,
+                  detailIcon: target?.icon,
+                ),
+          bandDetail),
       // 다 누른 뒤 결과 화면으로 넘어가기 전 잠깐(0.9초)은 상태를 새로 지어내지 않고 목록 제목만 둔다.
       header: isDone
           ? KioskStatusHeader(
@@ -357,6 +385,12 @@ class KioskExecutingView extends StatelessWidget {
     );
   }
 }
+
+/// 실행 화면에서 정지를 누른 뒤(검토 10/19). [stopping]은 정지를 보냈거나, 접수 응답 전이라 job이 오는 대로 다시 보낼 때.
+enum KioskExecStop { none, stopping, failed }
+
+/// 실행 화면 정지가 본체에 닿지 않았을 때(통신 실패·거절) — 정지 대기 화면과 같은 말.
+const kExecStopFailed = '정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.';
 
 /// 실행 중 버튼판 위 한 줄(출시 검토 10/18) — 세 줄 설명 대신 할 일만. 연습도 같은 말(연습은 위 청록 띠가 말한다).
 const kExecPanelCaption = '화면은 누르지 않아도 돼요';

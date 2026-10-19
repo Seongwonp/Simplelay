@@ -128,9 +128,15 @@ class FakeKioskApi implements KioskApiService {
     List<String> buttons, {
     String? applianceId,
   }) async {
+    executeCalls++;
     if (executeError != null) throw executeError!;
+    // 차례대로 꺼내 쓰는 접수 응답(검토 10/19) — 비면 바로 nextJobId.
+    if (executePending.isNotEmpty) return executePending.removeAt(0).future;
     return KioskJobAccepted(jobId: nextJobId);
   }
+
+  int executeCalls = 0;
+  final executePending = <Completer<KioskJobAccepted>>[];
 
   @override
   Future<KioskJobAccepted> approveSuggestion(String id) async {
@@ -150,7 +156,11 @@ class FakeKioskApi implements KioskApiService {
   @override
   Future<void> stop() async {
     stopCalls++;
+    if (stopError != null) throw stopError!;
   }
+
+  /// 정지 실패(통신·본체 거절)를 흉내 낸다(검토 10/19).
+  Object? stopError;
 
   /// 잠시 쉬기 저장 결과(서버 `persisted`) — false면 키오스크가 '지금만 적용'을 알린다(2026-10-14 HIGH 재확인 M-R1).
   bool? dndPersisted = true;
