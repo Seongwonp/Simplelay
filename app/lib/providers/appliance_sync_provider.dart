@@ -34,7 +34,8 @@ class SyncOperation {
   final SyncOpKind kind;
   final DateTime createdAt;
 
-  /// upsert일 때 보낼 가전 정의 스냅샷. delete는 null.
+  /// upsert일 때 보낼 가전 정의 스냅샷. delete는 지울 때 본 정의(없을 수 있다 — 옛 대기열) —
+  /// 판만 어긋난 충돌인지 가를 때 쓴다([ApplianceSyncNotifier] `_rebaseRevisionOnly`).
   final Map<String, dynamic>? payload;
 
   final int _revision;
@@ -271,6 +272,8 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
         applianceId: applianceId,
         kind: SyncOpKind.delete,
         createdAt: DateTime.now(),
+        // 지울 때 본 정의 — 판만 어긋난 충돌을 가린다. 판 번호는 아래 revision이 말한다.
+        payload: known == null ? null : ({...known.toJson()}..remove('revision')),
         // 삭제 직전에 본 판을 함께 싣는다 -- 없으면 오래된 삭제가 남의
         // 수정을 무조건 지운다.
         revision: expectedRevision ?? known?.revision ?? 0,
@@ -352,7 +355,13 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
         remaining.add(op);
         continue;
       }
-      final outcome = await _send(api, op);
+      var outcome = await _send(api, op);
+      if (outcome == _SendOutcome.conflict) {
+        // 본체 판만 올랐고 내용은 내가 본 그대로면 그 판으로 한 번 더 보낸다 — 아니면 '다시 하기'가
+        // 영영 같은 옛 판을 보내 끝나지 않았다(실화면 10/19).
+        final rebased = await _rebaseRevisionOnly(api, op);
+        if (rebased != null) outcome = await _send(api, rebased);
+      }
       switch (outcome) {
         case _SendOutcome.ok:
           sent++;
@@ -417,6 +426,38 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     } catch (_) {
       return _SendOutcome.failed;
     }
+  }
+
+  /// 충돌한 작업이 **판 번호만** 어긋났는가 — 본체의 지금 정의가 이 작업이 본 정의와 같으면
+  /// 본체 판으로 바꾼 작업을 돌려준다. 내용이 다르거나(정말 다른 데서 바꿨다) 비교할 정의가 없으면 null —
+  /// 그때는 종전대로 사람이 정한다. 본체에서 이미 사라진 가전의 삭제는 404가 성공으로 처리하므로 여기 오지 않는다.
+  Future<SyncOperation?> _rebaseRevisionOnly(RpiApiService api, SyncOperation op) async {
+    final seen = op.payload;
+    if (seen == null) return null;
+    final List<ApplianceMap>? remote;
+    try {
+      remote = await api.customAppliances();
+    } catch (_) {
+      return null;
+    }
+    final server = remote?.where((a) => a.id == op.applianceId).firstOrNull;
+    if (server == null || server.revision <= 0) return null;
+    final mine = ApplianceMap.fromJson(seen);
+    // 목록 병합보다 엄하게 — 종류·정지 버튼·사진 위 자리까지 같아야 남의 수정이 없었다고 본다.
+    if (!_sameDefinition(server, mine) ||
+        server.category != mine.category ||
+        server.stopButton != mine.stopButton ||
+        jsonEncode(server.panelMapping?.toJson()) != jsonEncode(mine.panelMapping?.toJson())) {
+      return null;
+    }
+    return SyncOperation(
+      opId: op.opId,
+      applianceId: op.applianceId,
+      kind: op.kind,
+      createdAt: op.createdAt,
+      payload: {...seen, 'revision': server.revision},
+      revision: server.revision,
+    );
   }
 
   /// 서버에만 있는 가전을 이 폰에 더한다. 조회 실패는 null(빈 목록과 구분).

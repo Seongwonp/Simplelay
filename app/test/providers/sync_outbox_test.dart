@@ -56,6 +56,9 @@ class _FakeServer {
   /// 이 id의 PUT은 409(다른 기기가 먼저 바꿈)로 거절한다.
   Set<String> refusePutWith409 = {};
 
+  /// PUT의 expected_revision이 지금 판과 다르면 409(본체와 같은 규칙). 켜면 받은 PUT은 판을 하나 올린다.
+  bool checkPutRevision = false;
+
   /// 응답을 붙잡아 둔다 — single-flight 검증용.
   Completer<void>? gate;
 
@@ -96,6 +99,19 @@ class _FakeServer {
             }
             if (refusePut.contains(id)) {
               return http.Response('{"detail":"boom"}', 500);
+            }
+            if (checkPutRevision) {
+              final expected = putBodies.last['expected_revision'];
+              final current = customs[id]?['revision'] as int?;
+              if (expected != null && current != null && expected != current) {
+                return http.Response.bytes(
+                  utf8.encode('{"detail":"다른 기기에서 먼저 변경되었어요"}'),
+                  409,
+                  headers: {'content-type': 'application/json; charset=utf-8'},
+                );
+              }
+              customs[id] = {..._def(id), 'revision': (current ?? 0) + 1};
+              return _json(customs[id]!);
             }
             customs[id] = _def(id);
             return _json(customs[id]!);
@@ -585,6 +601,7 @@ void _auditTests() {
       // 삭제가 폰 B의 방금 수정을 무조건 지운다.
       final server = _FakeServer(['fan']);
       server.customs['fan']!['revision'] = 2; // B가 먼저 고쳤다
+      server.customs['fan']!['name'] = '거실 선풍기';
       final container = await _phone(server, localCustoms: ['fan']);
 
       // A는 판 1을 보고 지운다
@@ -627,6 +644,36 @@ void _auditTests() {
       await container.read(applianceSyncProvider.notifier).deleteAppliance('fan');
       expect(server.customs.containsKey('fan'), isFalse, reason: '본체에서도 지워져야 한다');
       expect(container.read(applianceSyncProvider).pendingCount, 0);
+    });
+
+    test('본체 판만 올랐고 내용이 그대로면 그 판으로 다시 보내 지운다 — 다시 하기가 끝나지 않던 것(실화면 10/19)',
+        () async {
+      final server = _FakeServer(['fan']);
+      server.customs['fan']!['revision'] = 2; // 내 다시 보내기가 판만 올렸다
+      final container = await _phone(server, localCustoms: ['fan']);
+
+      await container
+          .read(applianceSyncProvider.notifier)
+          .deleteAppliance('fan', expectedRevision: 1);
+
+      expect(server.customs.containsKey('fan'), isFalse);
+      expect(container.read(applianceSyncProvider).pendingCount, 0);
+    });
+
+    test('판만 어긋난 다시 보내기(upsert)도 본체 판으로 한 번 더 보내 끝낸다', () async {
+      final server = _FakeServer(['fan']);
+      server.customs['fan']!['revision'] = 5;
+      final container = await _phone(server, prefs: {
+        'custom_appliances': [
+          jsonEncode({..._local('fan').toJson(), 'revision': 1}),
+        ],
+      });
+      server.checkPutRevision = true;
+      final result = await container.read(applianceSyncProvider.notifier).resendAll();
+      expect(result.conflicts, 0);
+      expect(container.read(applianceSyncProvider).pendingCount, 0);
+      expect(server.putBodies.map((b) => b['expected_revision']).toList(), [1, 5]);
+      expect(server.customs['fan']!['revision'], 6);
     });
 
     test('이미 지워진 가전의 삭제는 여전히 멱등 성공이다', () async {
