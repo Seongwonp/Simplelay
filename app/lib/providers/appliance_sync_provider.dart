@@ -389,16 +389,21 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
         heldBack.add(op.applianceId);
         continue;
       }
-      var outcome = await _send(api, op);
+      var (outcome, savedRevision) = await _send(api, op);
+      SyncOperation? rebased;
       if (outcome == _SendOutcome.conflict) {
         // 본체 판만 올랐고 내용은 내가 본 그대로면 그 판으로 한 번 더 보낸다 — 아니면 '다시 하기'가
         // 영영 같은 옛 판을 보내 끝나지 않았다(실화면 10/19).
-        final rebased = await _rebaseRevisionOnly(api, op);
-        if (rebased != null) outcome = await _send(api, rebased);
+        rebased = await _rebaseRevisionOnly(api, op);
+        if (rebased != null) (outcome, savedRevision) = await _send(api, rebased);
       }
       switch (outcome) {
         case _SendOutcome.ok:
           sent++;
+          // 대기열에서 빼기 전에 본체가 돌려준 판을 받아 둔다(검토 10/19).
+          if (savedRevision > 0) {
+            await _adoptSavedRevision(op, rebased, savedRevision);
+          }
           await _dequeue(op.opId);
         case _SendOutcome.conflict:
           // 다른 기기가 먼저 바꿨다. 자동으로 덮어쓰지도, 조용히 버리지도
@@ -480,7 +485,8 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     }
   }
 
-  Future<_SendOutcome> _send(RpiApiService api, SyncOperation op) async {
+  /// 보낸 결과와, 고치기(PUT)가 성공했으면 본체가 저장한 판 번호(모르면 0).
+  Future<(_SendOutcome, int)> _send(RpiApiService api, SyncOperation op) async {
     if (op.kind == SyncOpKind.delete) {
       // 이미 없으면 되돌려 놓으려던 상태가 이미 성립했다 -- 실패로 치면
       // 대기열에서 영영 안 빠진다. (api가 404를 성공으로 돌려준다.)
@@ -490,27 +496,73 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
           expectedRevision:
               op.expectedRevision > 0 ? op.expectedRevision : null,
         );
-        return ok ? _SendOutcome.ok : _SendOutcome.failed;
+        return (ok ? _SendOutcome.ok : _SendOutcome.failed, 0);
       } on RpiApiException catch (error) {
-        return error.statusCode == 409
-            ? _SendOutcome.conflict
-            : _SendOutcome.failed;
+        return (
+          error.statusCode == 409 ? _SendOutcome.conflict : _SendOutcome.failed,
+          0,
+        );
       } catch (_) {
-        return _SendOutcome.failed;
+        return (_SendOutcome.failed, 0);
       }
     }
     final appliance = op.appliance;
-    if (appliance == null) return _SendOutcome.ok; // 보낼 내용이 없다 -- 버린다
+    if (appliance == null) return (_SendOutcome.ok, 0); // 보낼 내용이 없다 -- 버린다
     try {
-      final ok = await api.registerAppliance(appliance);
-      return ok ? _SendOutcome.ok : _SendOutcome.failed;
+      final saved = await api.registerAppliance(appliance);
+      return saved == null ? (_SendOutcome.failed, 0) : (_SendOutcome.ok, saved);
     } on RpiApiException catch (error) {
-      return error.statusCode == 409
-          ? _SendOutcome.conflict
-          : _SendOutcome.failed;
+      return (
+        error.statusCode == 409 ? _SendOutcome.conflict : _SendOutcome.failed,
+        0,
+      );
     } catch (_) {
-      return _SendOutcome.failed;
+      return (_SendOutcome.failed, 0);
     }
+  }
+
+  /// 고치기가 성공해 본체가 돌려준 판 [saved]를 받아 둔다 — 이 폰의 가전과, 같은 가전의 뒤 작업 중 **보낸 것과 같은
+  /// 판 위에서 만든 것**만. 내용은 건드리지 않는다: 그 사이 이 폰에서 다시 고쳤으면 그 고치기도 방금 보낸 것 위에서
+  /// 한 것이라 판만 따라가면 된다. 다른 판 위의 것(본체에서 받은 더 새 내용 등)은 그대로 둔다.
+  Future<void> _adoptSavedRevision(
+    SyncOperation op,
+    SyncOperation? rebased,
+    int saved,
+  ) async {
+    final bases = {op.expectedRevision, if (rebased != null) rebased.expectedRevision};
+    final local = _ref
+        .read(customAppliancesProvider)
+        .where((a) => a.id == op.applianceId)
+        .firstOrNull;
+    if (local != null && local.revision != saved && bases.contains(local.revision)) {
+      await _ref
+          .read(customAppliancesProvider.notifier)
+          .replace(ApplianceMap.fromJson({...local.toJson(), 'revision': saved}));
+    }
+    var changed = false;
+    final next = <SyncOperation>[];
+    for (final o in state.pending) {
+      if (o.opId == op.opId ||
+          o.applianceId != op.applianceId ||
+          !bases.contains(o.expectedRevision)) {
+        next.add(o);
+        continue;
+      }
+      changed = true;
+      next.add(SyncOperation(
+        opId: o.opId,
+        applianceId: o.applianceId,
+        kind: o.kind,
+        createdAt: o.createdAt,
+        payload: o.kind == SyncOpKind.upsert && o.payload != null
+            ? {...o.payload!, 'revision': saved}
+            : o.payload,
+        revision: saved,
+      ));
+    }
+    if (!changed) return;
+    state = ApplianceSyncState(pending: next, lastFailed: state.lastFailed);
+    await _persist(next);
   }
 
   /// 충돌한 작업이 **판 번호만** 어긋났는가 — 본체의 지금 정의가 이 작업이 본 정의와 같으면

@@ -1738,7 +1738,9 @@ class RpiApiService {
   // PUT /appliances/{id} — 커스텀 가전을 서버에 등록 (키오스크가 같은
   // 목록을 받아 폰에서 추가한 가전이 키오스크에도 뜬다). 서버가 죽어 있어도
   // 폰 로컬 저장은 이미 끝난 뒤라, 실패는 false만 돌려주고 막지 않는다.
-  Future<bool> registerAppliance(ApplianceMap appliance) async {
+  /// 저장된 판 번호를 돌려준다 — 못 보냈으면 null, 판을 말하지 않는 옛 본체는 0. 판을 버리면 이어진 목록 조회가
+  /// 실패했을 때 이 폰이 옛 판을 들고 있어, 다음 고치기가 방금 자기가 한 고치기와 충돌했다(검토 10/19).
+  Future<int?> registerAppliance(ApplianceMap appliance) async {
     try {
       final res = await _client
           .put(
@@ -1764,11 +1766,17 @@ class RpiApiService {
         // 보고 계속 재시도한다 -- 같은 충돌이 영원히 반복된다.
         throw RpiApiException(409, _detailOf(res));
       }
-      return res.statusCode == 200;
+      if (res.statusCode != 200) return null;
+      try {
+        final body = jsonDecode(utf8.decode(res.bodyBytes));
+        return body is Map<String, dynamic> ? (body['revision'] as num?)?.toInt() ?? 0 : 0;
+      } on FormatException {
+        return 0;
+      }
     } on RpiApiException {
       rethrow;
     } catch (_) {
-      return false;
+      return null;
     }
   }
 

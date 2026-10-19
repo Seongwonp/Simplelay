@@ -66,6 +66,9 @@ class _FakeServer {
   /// PUT 응답만 붙잡아 둔다 — 보내는 사이 새 변경이 쌓이는 것을 흉내낸다.
   Completer<void>? putGate;
 
+  /// 목록 조회(GET /appliances)만 실패시킨다.
+  bool failList = false;
+
   static Map<String, dynamic> _def(String id) => {
         'id': id,
         'name': id,
@@ -83,6 +86,7 @@ class _FakeServer {
         final path = request.url.path;
         if (path == '/appliances' && request.method == 'GET') {
           if (gate != null) await gate!.future;
+          if (failList) return http.Response('{"detail":"boom"}', 500);
           return _json([
             {..._def('microwave'), 'is_custom': false},
             ...customs.values,
@@ -897,6 +901,26 @@ void _auditTests() {
       expect(result.conflicts, 1);
       expect(server.putBodies.map((b) => b['expected_revision']).toList(), [1],
           reason: '본체 판으로 바꿔 다시 보내면 다른 기기가 정한 목적을 지운다');
+    });
+
+    // 검토 10/19(9): 고치기(PUT)가 성공해 본체가 새 판을 돌려줘도 버렸다. 이어진 목록 조회가 실패하면 이 폰은
+    // 옛 판을 들고 있어, 다음 고치기가 방금 자기가 한 고치기와 충돌했다.
+    test('고치기가 성공하면 돌려받은 판을 받아 둔다 — 목록 조회가 실패해도 다음 고치기가 충돌하지 않는다', () async {
+      final server = _FakeServer(['fan']);
+      final container = await _phone(server, prefs: {
+        'custom_appliances': [jsonEncode(_syncedJson('fan'))],
+      });
+      server.checkPutRevision = true;
+      server.failList = true;
+      final sync = container.read(applianceSyncProvider.notifier);
+
+      await sync.saveAppliance(ApplianceMap.fromJson(_syncedJson('fan')));
+      expect(container.read(customAppliancesProvider).single.revision, 2);
+
+      final again = await sync.saveAppliance(container.read(customAppliancesProvider).single);
+      expect(again.conflicts, 0);
+      expect(server.putBodies.map((b) => b['expected_revision']).toList(), [1, 2]);
+      expect(container.read(applianceSyncProvider).pendingCount, 0);
     });
 
     test('이미 지워진 가전의 삭제는 여전히 멱등 성공이다', () async {
