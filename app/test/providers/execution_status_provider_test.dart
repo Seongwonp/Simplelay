@@ -7,7 +7,18 @@ import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/services/ble_service.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
+
+/// 정지 프레임을 실제로 보낸 것처럼 답하는 블루투스(실기기 없이).
+class _SentBle extends BleService {
+  int stops = 0;
+  @override
+  Future<bool> emergencyStop() async {
+    stops++;
+    return true;
+  }
+}
 
 ProviderContainer makeContainer() {
   final c = ProviderContainer();
@@ -252,6 +263,37 @@ void main() {
       expect(sent, isTrue);
       expect(stops, 1);
       expect(c.read(executionStatusProvider).message, contains('본체에 멈추라고 보냈어요'));
+    });
+
+    // 검토 10/19(4): 블루투스로 정지를 보낸 것만으로 끝난 단계(failed)가 돼, 정지 띠·음성 정지가 사라졌다 — 본체까지 정지가
+    // 닿지 않았어도 다시 멈출 길이 없었다.
+    test('블루투스 정지를 보내도 결과가 올 때까지 끝나지 않은 단계로 정지를 남긴다', () async {
+      final ble = _SentBle();
+      final c = ProviderContainer(overrides: [
+        bleServiceProvider.overrideWithValue(ble),
+        rpiApiServiceProvider.overrideWithValue(null),
+      ]);
+      addTearDown(c.dispose);
+      final n = c.read(executionStatusProvider.notifier);
+      n.begin(_suggestion);
+
+      expect(await n.emergencyStop(), isTrue);
+      var status = c.read(executionStatusProvider);
+      expect(status.phase, ExecutionPhase.unknown, reason: '정지 띠·음성 정지가 남는 단계');
+      expect(status.message, ExecutionStatusNotifier.bleStopSentNotice);
+
+      // 다시 누를 수 있다.
+      await n.emergencyStop();
+      expect(ble.stops, 2);
+
+      // 다른 실행의 결과는 받지 않고, 같은 실행의 결과가 오면 끝난다.
+      ble.injectMessage({'type': 'result', 'sequence_id': 'other', 'success': false});
+      await Future<void>.delayed(Duration.zero);
+      expect(c.read(executionStatusProvider).phase, ExecutionPhase.unknown);
+      ble.injectMessage({'type': 'result', 'sequence_id': 'exec-001', 'success': false});
+      await Future<void>.delayed(Duration.zero);
+      status = c.read(executionStatusProvider);
+      expect(status.phase, ExecutionPhase.failed);
     });
   });
 }

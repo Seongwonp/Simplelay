@@ -126,6 +126,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   Timer? _recoverTimer;
   static const _recoverTries = 15;
   static const _recoverJobTries = 3;
+  static const bleStopSentNotice = '멈추라고 보냈어요. 멈췄다는 답은 아직 없어요. 멈추지 않으면 정지를 다시 눌러 주세요.';
   static const submissionUnknownNotice = '보냈는데 답이 없어 시작됐는지 몰라요. 가전을 보고, 움직이면 정지를 눌러 주세요.';
 
   void beginSubmissionUnknown({
@@ -616,9 +617,11 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       return _stopViaHub(sequenceId);
     }
     if (!mounted || state.sequenceId != sequenceId) return sent;
+    // 블루투스로 보낸 것은 정지 프레임이 건너갔다는 뜻일 뿐, 실행이 멈췄다는 확인이 아니다(검토 10/19). 끝난 단계로 바꾸면
+    // 정지 띠·음성 정지가 사라져 다시 멈출 길이 없었다. 같은 실행의 결과 프레임이 올 때까지 '모름'으로 두고 정지를 남긴다.
     state = state.copyWith(
-      phase: ExecutionPhase.failed,
-      message: sent ? '멈추라고 했어요.' : '연습 연결이라 실제로 보낸 정지는 없어요.',
+      phase: sent ? ExecutionPhase.unknown : ExecutionPhase.failed,
+      message: sent ? bleStopSentNotice : '연습 연결이라 실제로 보낸 정지는 없어요.',
     );
     return sent;
   }
