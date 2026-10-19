@@ -840,7 +840,7 @@ class _MicButton extends StatelessWidget {
   // 햅틱: 듣기 시작/정지 전환을 손끝으로도 확인 (시각 비의존 채널).
   Widget build(BuildContext context) => Semantics(
         button: true,
-        label: listening ? '음성 인식 정지' : '음성 명령 시작',
+        label: listening ? '듣기 끝내기' : '말하기 시작',
         child: GestureDetector(
           onTap: () {
             HapticFeedback.mediumImpact();

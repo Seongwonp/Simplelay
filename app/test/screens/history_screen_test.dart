@@ -509,7 +509,7 @@ void main() {
     ]);
     expect(findPlainText('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다. 목적 없는 실행은 수동 조작 화면에서 고른 것(평가 13차).
-    expect(findPlainText('오전 8:10 · 화면에서 골라 누름'), findsOneWidget);
+    expect(findPlainText('오전 8:10 · 화면에서 직접 골랐어요'), findsOneWidget);
     expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), findsNWidgets(2)); // 평가 17차: '확인 필요'는 칩이 말한다
     expect(findPlainText('버튼 누르기'), findsOneWidget);
   });
@@ -626,11 +626,11 @@ void main() {
     expect(find.byIcon(AppIcons.routine), findsOneWidget);
     expect(find.byIcon(AppIcons.manual), findsOneWidget);
     // 상태를 다시 읽어 확인한 것만 초록 '됐어요' — 무엇을 확인했는지 짧게('켜짐 확인', 평가 14차 10/18).
-    expect(findPlainText('켜짐 확인'), findsOneWidget);
+    expect(findPlainText('켜진 걸 봤어요'), findsOneWidget);
     expect(findPlainText('못 했어요'), findsOneWidget);
     expect(findPlainText('확인 필요'), findsOneWidget);
     // 배지는 행 오른쪽.
-    expect(tester.getCenter(findPlainText('켜짐 확인')).dx,
+    expect(tester.getCenter(findPlainText('켜진 걸 봤어요')).dx,
         greaterThan(tester.getCenter(findPlainText('공기청정기 켜기')).dx));
     // 결과 문장·버튼판 길은 접혀 있다.
     expect(findPlainText('버튼판에서 직접 누르기'), findsNothing);

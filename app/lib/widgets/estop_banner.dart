@@ -91,7 +91,7 @@ class EstopBanner extends ConsumerWidget {
                     disabledForegroundColor: AppColors.stop,
                     minimumSize: const Size(120, 48),
                   ),
-                  child: Text(estop.acking ? '해제하는 중…' : kEstopAckLabel),
+                  child: Text(estop.acking ? '풀고 있어요…' : kEstopAckLabel),
                 ),
               ),
             ],
@@ -105,7 +105,7 @@ class EstopBanner extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('비상정지 해제'),
+        title: const Text('비상정지 풀기'),
         content: const Text(kEstopConfirmQuestion),
         actions: [
           TextButton(
@@ -117,7 +117,7 @@ class EstopBanner extends ConsumerWidget {
             key: const Key('estop-confirm'),
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(minimumSize: const Size(64, 48)),
-            child: const Text('해제'),
+            child: const Text('풀기'),
           ),
         ],
       ),

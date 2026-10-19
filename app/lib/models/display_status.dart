@@ -475,7 +475,7 @@ String historySourceLabel(RpiHistoryEntry e) {
   // 목적 문장이 있으면 말·제안 가운데 무엇인지 가를 필드가 없어 중립어 '바로 실행'(물어보고 한 루틴·자동과 구분).
   if (routine == null) {
     if (source != '직접') return source;
-    return purpose.isEmpty ? '화면에서 골라 누름' : '바로 실행';
+    return purpose.isEmpty ? '화면에서 직접 골랐어요' : '바로 실행';
   }
   return source == '자동' ? '루틴 · 자동으로' : '루틴 · 물어보고';
 }

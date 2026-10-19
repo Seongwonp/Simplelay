@@ -145,7 +145,7 @@ void main() {
 
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
-    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.tap(find.bySemanticsLabel('말하기 시작'));
     await tester.pump();
 
     expect(container.read(voiceListeningProvider), true);
@@ -177,7 +177,7 @@ void main() {
 
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
-    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.tap(find.bySemanticsLabel('말하기 시작'));
     await tester.pump();
 
     voice.emitError('error_audio_error');
@@ -219,7 +219,7 @@ void main() {
 
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
-    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.tap(find.bySemanticsLabel('말하기 시작'));
     await tester.pump();
 
     voice.emitSilence('즉석밥 데워줘');
@@ -246,7 +246,7 @@ void main() {
     container.read(currentTabIndexProvider.notifier).state = voiceTabIndex;
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
-    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.tap(find.bySemanticsLabel('말하기 시작'));
     await tester.pump();
     expect(container.read(voiceListeningProvider), true);
 
@@ -271,7 +271,7 @@ void main() {
 
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
-    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.tap(find.bySemanticsLabel('말하기 시작'));
     await tester.pump();
     expect(container.read(voiceListeningProvider), true);
 
@@ -627,7 +627,7 @@ void main() {
       );
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+      await tester.tap(find.bySemanticsLabel('말하기 시작'));
       await tester.pump();
       return voice;
     }

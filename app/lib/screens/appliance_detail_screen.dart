@@ -455,7 +455,7 @@ class _TodayUse extends ConsumerWidget {
       if (detail.isEmpty) return '직접 바꿈';
       return detail.endsWith('.') ? detail.substring(0, detail.length - 1) : detail;
     }
-    return '직접 누름';
+    return '직접 고른 버튼';
   }
 
   static String _hm(DateTime t) => ampmOf(t);

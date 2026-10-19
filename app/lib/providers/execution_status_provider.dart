@@ -903,7 +903,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     // 정지 띠·음성 정지가 사라져 다시 멈출 길이 없었다. 같은 실행의 결과 프레임이 올 때까지 '모름'으로 두고 정지를 남긴다.
     state = state.copyWith(
       phase: sent ? ExecutionPhase.unknown : ExecutionPhase.failed,
-      message: sent ? bleStopSentNotice : '연습 연결이라 실제로 보낸 정지는 없어요.',
+      message: sent ? bleStopSentNotice : '연습 연결이라 실제로는 정지를 보내지 않았어요.',
     );
     return sent;
   }

@@ -230,7 +230,7 @@ void main() {
       expect(sent, isFalse);
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
       // 보낸 것이 없으니 '멈추라고 했어요'라고 하지 않는다(검토 10/19).
-      expect(c.read(executionStatusProvider).message, '연습 연결이라 실제로 보낸 정지는 없어요.');
+      expect(c.read(executionStatusProvider).message, '연습 연결이라 실제로는 정지를 보내지 않았어요.');
     });
 
     // 검토 10/19(4): 블루투스가 끊겨 정지 프레임을 못 보내면 예외가 그대로 새어 나가 아무 문구도 없이

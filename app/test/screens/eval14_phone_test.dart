@@ -275,10 +275,10 @@ void main() {
       await _pump(tester, const HistoryScreen(), _Hub());
       final ok = find.byKey(const ValueKey('history-h-on'));
       expect(_in(ok, find.byType(StatusBadge)), findsNothing);
-      // 성공 줄도 무엇을 확인했는지 짧게 — 상태를 다시 읽은 켜기는 '켜짐 확인'(낭독은 '됐어요, 켜짐 확인').
-      expect(_in(ok, findPlainText('켜짐 확인')), findsOneWidget);
-      expect(tester.widget<Text>(_in(ok, findPlainText('켜짐 확인'))).semanticsLabel, '됐어요, 켜짐 확인');
-      expect(_in(find.byKey(const ValueKey('history-h-mid')), findPlainText('바뀐 상태 확인')), findsOneWidget);
+      // 성공 줄도 무엇을 확인했는지 짧게 — 상태를 다시 읽은 켜기는 '켜진 걸 봤어요'(낭독은 '됐어요, 켜진 걸 봤어요').
+      expect(_in(ok, findPlainText('켜진 걸 봤어요')), findsOneWidget);
+      expect(tester.widget<Text>(_in(ok, findPlainText('켜진 걸 봤어요'))).semanticsLabel, '됐어요, 켜진 걸 봤어요');
+      expect(_in(find.byKey(const ValueKey('history-h-mid')), findPlainText('바뀐 걸 봤어요')), findsOneWidget);
       expect(_in(find.byKey(const ValueKey('history-f-1')), find.byType(StatusBadge)), findsOneWidget);
       final circles = find.ancestor(
         of: find.byKey(const Key('history-icon-h-on')),
@@ -306,14 +306,14 @@ void main() {
         });
 
     test('확인한 것만 확인했다고 말한다', () {
-      expect(historyConfirmedPhrase(h('자동 실행 · 공기청정기 켜기')), '켜짐 확인');
-      expect(historyConfirmedPhrase(h('공기청정기 꺼줘', confirmation: 'state_confirmed_unknown_before')), '꺼짐 확인');
-      expect(historyConfirmedPhrase(h('공기청정기 바람 세게 해줘')), '바뀐 상태 확인');
-      expect(historyConfirmedPhrase(h('공기청정기 꺼줘', confirmation: 'already_at_target')), '이미 그 상태');
+      expect(historyConfirmedPhrase(h('자동 실행 · 공기청정기 켜기')), '켜진 걸 봤어요');
+      expect(historyConfirmedPhrase(h('공기청정기 꺼줘', confirmation: 'state_confirmed_unknown_before')), '꺼진 걸 봤어요');
+      expect(historyConfirmedPhrase(h('공기청정기 바람 세게 해줘')), '바뀐 걸 봤어요');
+      expect(historyConfirmedPhrase(h('공기청정기 꺼줘', confirmation: 'already_at_target')), '이미 그 설정이었어요');
       // 루틴은 이름이 한 일을 다 말하지 않을 수 있다.
-      expect(historyConfirmedPhrase(h("자동 실행 · '저녁 공기청정기 켜기' 루틴")), '상태 확인');
-      expect(historyConfirmedPhrase(h('즉석밥 데워줘', route: 'physical', confirmation: 'operation_confirmed')), '동작 확인');
-      expect(historyConfirmedPhrase(h('즉석밥 데워줘', route: 'physical', confirmation: 'press_confirmed')), '눌림 확인');
+      expect(historyConfirmedPhrase(h("자동 실행 · '저녁 공기청정기 켜기' 루틴")), '상태를 봤어요');
+      expect(historyConfirmedPhrase(h('즉석밥 데워줘', route: 'physical', confirmation: 'operation_confirmed')), '전기 쓰는 걸 봤어요');
+      expect(historyConfirmedPhrase(h('즉석밥 데워줘', route: 'physical', confirmation: 'press_confirmed')), '눌린 걸 봤어요');
       // 확인하지 않은 것 — 접수만·보고만·연습·실패는 말하지 않는다.
       expect(historyConfirmedPhrase(h('공기청정기 켜줘', confirmation: 'accepted')), isNull);
       expect(historyConfirmedPhrase(h('즉석밥 데워줘', route: 'physical', confirmation: 'none')), isNull);

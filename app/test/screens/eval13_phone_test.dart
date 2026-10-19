@@ -5,7 +5,7 @@
 //    있을 때만(설정이 남았어요, 실패·정지 같은 알림이 섞였을 때) — 그때만 '못 한 일이 있어요' 같은 짧은 말을 붙인다.
 // 2. 기록: LG 가전 자동 실행은 가전 아이콘 + '자동 · LG 가전'. 누름 장치 가전의 자동 실행은 기존대로(자동 아이콘·'자동').
 // 3. 기록 시각 줄: 가운뎃점이 줄 머리에 오지 않는다. '사람이 직접' 대신 사실에 맞는 말 — 목적 없이 버튼을 고른
-//    실행(/execute-buttons)은 '화면에서 골라 누름', 그 밖(말·제안)은 '바로 실행'.
+//    실행(/execute-buttons)은 '화면에서 직접 골랐어요', 그 밖(말·제안)은 '바로 실행'.
 // 4. 시각 표기: 본체 알림 문장의 '밤 10시'도 '오후 10:00' 꼴로.
 import 'dart:convert';
 
@@ -251,7 +251,7 @@ void main() {
       RpiHistoryEntry e(String id) => RpiHistoryEntry.fromJson(_history.firstWhere((h) => h['job_id'] == id));
       expect(historySourceLabel(e('j-auto-lg')), '자동 · LG 가전');
       expect(historySourceLabel(e('j-auto-arm')), '자동');
-      expect(historySourceLabel(e('j-manual')), '화면에서 골라 누름');
+      expect(historySourceLabel(e('j-manual')), '화면에서 직접 골랐어요');
       expect(historySourceLabel(e('j-voice')), '바로 실행');
     });
 
@@ -264,7 +264,7 @@ void main() {
       expect(tester.widget<Icon>(find.byKey(const Key('history-icon-j-auto-lg'))).icon, ApplianceCategory.airPurifier.icon);
       expect(tester.widget<Icon>(find.byKey(const Key('history-icon-j-auto-arm'))).icon, AppIcons.auto);
       expect(findPlainText('사람이 직접', contains: true), findsNothing);
-      expect(_in(find.byKey(const ValueKey('history-j-manual')), findPlainText('화면에서 골라 누름', contains: true)),
+      expect(_in(find.byKey(const ValueKey('history-j-manual')), findPlainText('화면에서 직접 골랐어요', contains: true)),
           findsOneWidget);
     });
 
@@ -274,7 +274,7 @@ void main() {
       final data = t.data!;
       expect(data.replaceAll(kWordJoiner, ''), contains('$kNoBreakSpace· '));
       expect(data, isNot(contains(' ·')), reason: '보통 빈칸 뒤 가운뎃점은 줄 머리로 넘어갈 수 있다');
-      expect(t.semanticsLabel, startsWith('오후 12:05 · 화면에서 골라 누름'));
+      expect(t.semanticsLabel, startsWith('오후 12:05 · 화면에서 직접 골랐어요'));
     });
   });
 

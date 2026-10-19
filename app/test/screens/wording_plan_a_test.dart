@@ -64,7 +64,7 @@ void main() {
     test('안전 정지는 가전을 먼저 보고, 이미 켜졌다면 다시 시도하지 말라고 한다', () {
       final m = finishedMessage(kind: ResultKind.safetyStop);
       expect(m, contains('다시 하기 전에 집에서 가전을 확인해야 해요'));
-      expect(m, contains('이미 움직이고 있으면 다시 시도하지 마세요'));
+      expect(m, contains('이미 움직이고 있으면 다시 누르지 마세요'));
       expect(m, isNot(contains('두 번 누르지 않')));
     });
 

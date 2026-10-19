@@ -99,7 +99,7 @@ class _VoiceStopIndicatorState extends ConsumerState<VoiceStopIndicator> {
                     const SizedBox(width: AppSpace.sm),
                     const Expanded(
                       child: Text(
-                        "'멈춰'라고 말하면 멈춰요",
+                        "'멈춰'라고 말하면 정지를 보내요",
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: AppFont.caption),
