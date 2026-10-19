@@ -571,13 +571,14 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
-  /// 사람이 확인한 실행을 본체에서 읽는다(2026-10-19) — 폰에서 '기록 보기'로 본 실패도 여기서 사라진다. 못 읽으면 그대로.
-  Future<void> _fetchAcks() async {
+  /// 사람이 확인한 실행을 본체에서 읽는다(2026-10-19) — 폰에서 '기록 보기'로 본 실패도 여기서 사라진다. 못 읽으면 그대로(null).
+  Future<Map<String, String>?> _fetchAcks() async {
     final acked = await _api.ackedJobs();
-    if (!mounted || acked == null) return;
+    if (!mounted || acked == null) return null;
     // 화면이 먼저 보인 답은 본체 목록에 나타날 때까지 지킨다(검토 10/19 #9) — POST보다 먼저 온 조회가 덮어써 '!'이 다시 떴다.
     _pendingAcks.removeWhere((id, answer) => acked[id] == answer);
     _applyAcks({...acked, ..._pendingAcks});
+    return acked;
   }
 
   /// 화면에는 보였지만 본체 목록(GET /acks)에 아직 없는 답 — 실행 번호 → 답. 본체에 나타나거나 POST가 실패하면 뺀다.
@@ -600,19 +601,23 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 사람이 봤다·답했다를 본체에 적는다(2026-10-19) — 화면은 바로 반영하고, 적지 못해도 막지 않는다.
   /// 화면에 보인 그 실행 하나만(검토 10/19). 실행 번호를 모르면(접수 전에 끊긴 실행) 적지 않는다 — 무엇을 봤는지 댈 수 없다.
-  void _ack(String? jobId, String answer) {
+  /// [restore]는 화면이 먼저 지운 지난 일 줄 — 본체가 적지 못하면 되살린다(검토 10/19 코어 4차 #11).
+  void _ack(String? jobId, String answer, {KioskPastResult? restore}) {
     if (jobId == null) return;
     _pendingAcks[jobId] = answer;
     _applyAcks({..._ackedJobs, jobId: answer});
-    unawaited(_postAck(jobId, answer));
+    unawaited(_postAck(jobId, answer, restore));
   }
 
   /// 본체에 적지 못하면(검토 10/19 #9) 화면의 답을 거두고 본체 목록을 다시 읽는다 — 본체에 없는 확인을 화면만 지어내지 않는다.
-  Future<void> _postAck(String jobId, String answer) async {
+  /// 본체 목록을 읽었는데 그 답이 없으면(분명히 못 적음) 지운 지난 일 줄도 되살린다. 목록을 못 읽으면(옛 본체·끊김) 종전처럼 둔다.
+  Future<void> _postAck(String jobId, String answer, [KioskPastResult? restore]) async {
     final ok = await _api.postAck(jobId: jobId, answer: answer);
     if (ok || !mounted || _pendingAcks[jobId] != answer) return;
     _pendingAcks.remove(jobId);
-    await _fetchAcks();
+    final acked = await _fetchAcks();
+    if (!mounted || restore == null || acked == null || acked.containsKey(jobId) || _pastResult != null) return;
+    setState(() => _pastResult = restore);
   }
 
   /// 가전 칸 '!'(확인 필요)를 만든 실행 번호 — 사람이 확인하면 표시를 내린다.
@@ -2123,9 +2128,9 @@ class _KioskScreenState extends State<KioskScreen> {
             now: _now,
             onAcknowledge: () {
               // 본체에 '봤다'로 적는다 — 폰 홈 못 한 일 경고·설정 탭 배지에서도 사라진다(2026-10-19).
-              final jobId = _pastResult?.jobId;
+              final shown = _pastResult;
               setState(() => _pastResult = null);
-              _ack(jobId, 'seen');
+              _ack(shown?.jobId, 'seen', restore: shown);
             },
           )
         : null;
