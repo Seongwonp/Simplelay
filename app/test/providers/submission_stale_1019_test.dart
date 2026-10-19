@@ -62,4 +62,20 @@ void main() {
     n.beginHttpJob(api: api, jobId: 'job-second', label: '끄기', requestId: second);
     expect(c.read(executionStatusProvider).sequenceId, 'job-second');
   });
+
+  test('다시 확인도 요청 번호로 찾는다 — 돌고 있는 다른 실행을 잡지 않는다', () async {
+    final paths = <String>[];
+    final api = hub(paths: paths);
+    final c = make(api);
+    final n = c.read(executionStatusProvider.notifier);
+    final id = n.beginSubmitting(api: api, label: '켜기');
+    n.beginSubmissionUnknown(api: api, label: '켜기', requestId: id, byRequest: true);
+    n.recheck();
+    await Future<void>.delayed(const Duration(milliseconds: 2300));
+    final s = c.read(executionStatusProvider);
+    expect(s.sequenceId, isNot('job-other'));
+    expect(s.phase, ExecutionPhase.unknown);
+    expect(paths.where((p) => p == '/status'), isEmpty);
+    expect(paths.where((p) => p.startsWith('/jobs/by-request/')), isNotEmpty);
+  });
 }

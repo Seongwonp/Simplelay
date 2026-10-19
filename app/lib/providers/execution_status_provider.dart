@@ -144,6 +144,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   // 정지는 바로 본체 전체 정지로 보낸 뒤 job_id가 오거나 복구가 그 실행을 찾으면 한 번 더 보낸다.
   String? _submitRequestId;
   bool _stopWhileSubmitting = false;
+  // 답을 모르는 보냄을 요청 번호로 찾는가 — 다시 확인([recheck])도 같은 방식으로 찾는다. 본체가 조회를 모른다고 답했을
+  // 때만 꺼진다(그때만 그냥 '돌고 있는 실행'을 따라간다, 검토 10/19).
+  bool _recoverByRequest = false;
   _Tracking? _beforeSubmit;
   static const submittingNotice = '보내는 중이에요';
   static const waitAdmissionNotice = '아까 보낸 것의 답을 기다리는 중이에요. 답이 온 뒤 다시 해 주세요.';
@@ -215,6 +218,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   void _endSubmission() {
     _submitRequestId = null;
     _stopWhileSubmitting = false;
+    _recoverByRequest = false;
     _beforeSubmit = null;
   }
 
@@ -255,6 +259,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     // 답을 모르는 동안에도 같은 보냄이다 — 정지를 누르면 기억해 두었다가 복구가 실행을 찾을 때 다시 보낸다. 되돌릴 화면은 없다.
     _submitRequestId = id;
     _stopWhileSubmitting = resendStop;
+    _recoverByRequest = byRequest && continuing;
     _beforeSubmit = null;
     final key = 'unsent-${DateTime.now().microsecondsSinceEpoch}';
     state = ExecutionStatus(
@@ -267,16 +272,15 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       requestId: id,
     );
     _announce(submissionUnknownNotice);
-    _recoverSubmission(api, key, label, steps, recoverJobId, byRequest: byRequest && continuing);
+    _recoverSubmission(api, key, label, steps, recoverJobId);
     if (resendStop) unawaited(emergencyStop());
   }
 
   void _recoverSubmission(RpiApiService api, String key, String label, List<String> steps,
-      Future<String> Function()? recoverJobId, {bool byRequest = false}) {
+      Future<String> Function()? recoverJobId) {
     final requestId = state.requestId;
     _recoverTimer?.cancel();
     var recover = recoverJobId;
-    var lookup = byRequest && requestId != null;
     var tries = 0;
     var jobTries = 0;
     var inFlight = false;
@@ -289,8 +293,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       tries++;
       inFlight = true;
       try {
-        if (lookup) {
-          final found = await api.jobByRequest(requestId!);
+        if (_recoverByRequest && requestId != null) {
+          final found = await api.jobByRequest(requestId);
           if (!mounted || !timer.isActive || state.sequenceId != key) return;
           switch (found.kind) {
             case RpiRequestLookupKind.found:
@@ -302,7 +306,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
               _submissionNotAccepted();
               return;
             case RpiRequestLookupKind.unsupported:
-              lookup = false; // 옛 본체 — 아래 종전 방식으로
+              _recoverByRequest = false; // 옛 본체 — 아래 종전 방식으로(다시 확인도)
           }
         }
         final ask = recover;
@@ -657,7 +661,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     final api = _httpApi;
     final key = state.sequenceId;
     if (api != null && _httpJobId == null && key != null && key.startsWith('unsent-')) {
-      // 접수 답을 못 받은 실행 — 다시 상태를 보며 돌고 있는 실행을 찾는다(다시 보내지는 않는다).
+      // 접수 답을 못 받은 실행 — 처음과 같은 방식(요청 번호 조회, 옛 본체만 상태)으로 다시 찾는다(다시 보내지는 않는다).
       state = state.copyWith(message: '새로 보는 중이에요…');
       _recoverSubmission(api, key, state.label ?? '', state.steps, null);
       return;
