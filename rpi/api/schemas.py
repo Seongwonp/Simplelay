@@ -281,6 +281,8 @@ class ApplianceResponse(BaseModel):
     stop_park_check: dict | None = None
     #: 사진 매핑 기록(사진 크기·모서리·버튼 px). 가전 상세가 사진 위에 버튼을 그릴 때 쓴다.
     panel_mapping: dict | None = None
+    #: 놓인 곳(방 이름, 선택 — 2026-10-19). 없으면 키를 싣지 않던 옛 응답과 같게 null.
+    location: str | None = None
 
 
 class WellnessPauseRequest(BaseModel):
@@ -343,6 +345,18 @@ class ApplianceRegisterRequest(BaseModel):
     stop_button: str | None = None
     stop_presses: int | None = None
     park_xy: list[float] | None = None
+    #: 놓인 곳(방 이름, 선택 — 2026-10-19). 보내지 않으면 저장된 값을 이어받고, 빈 문자열이면 지운다.
+    location: str | None = None
+
+    @field_validator("location")
+    @classmethod
+    def location_short(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        stripped = v.strip()
+        if len(stripped) > MAX_BUTTON_LABEL_LEN:
+            raise ValueError(f"location must be at most {MAX_BUTTON_LABEL_LEN} characters")
+        return stripped
 
     @field_validator("name")
     @classmethod

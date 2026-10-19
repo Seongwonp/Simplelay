@@ -4,6 +4,7 @@ import logging
 import os
 import time
 from collections import deque
+from dataclasses import replace
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
@@ -324,6 +325,7 @@ def _appliance_response_base(
         functions={name: list(steps) for name, steps in a.functions},
         calibration_version=a.calibration_version,
         **_stop_park_fields(a),
+        location=getattr(a, "location", None),
         readiness=readiness,
         readiness_reasons=readiness_reasons,
         can_execute=can_execute,
@@ -618,6 +620,11 @@ def register_appliance(
         raise HTTPException(status_code=422, detail="park_xy는 [x, y] 두 값이어야 해요")
     try:
         existing = registry.get(appliance.appliance_id)
+        # 놓인 곳(방): 보낸 값이 이긴다(빈 문자열은 지움). 보내지 않은 옛 폰은 저장된 값을 이어받는다(2026-10-19).
+        if "location" in body.model_fields_set:
+            appliance = replace(appliance, location=body.location or None)
+        elif existing is not None and existing.is_custom:
+            appliance = replace(appliance, location=existing.location)
         validate_stop_park(
             merge_for_save(existing if existing is not None and existing.is_custom else None, appliance)
         )

@@ -262,6 +262,8 @@ class ApplianceDef:
     park_xy: tuple[float, float] | None = None
     #: 사진 매핑 기록(사진 크기·프레임 모서리·버튼 px). 사진 파일은 서버에 두지 않는다.
     panel_mapping: "dict | None" = field(default=None, hash=False, compare=False)
+    #: 놓인 곳(방 이름, 선택 — 2026-10-19). 폰이 보낸 그대로 두고 돌려준다. 실행·판정에는 쓰지 않는다.
+    location: str | None = None
 
     def function_steps(self, purpose: str) -> tuple[FunctionStep, ...] | None:
         """등록한 기능 이름 → 단계. 정확히 같은 이름이 먼저, 없으면 본체 공통 말 다듬기(`rpi/intent/normalize.py`)로

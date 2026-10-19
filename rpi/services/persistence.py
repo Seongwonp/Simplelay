@@ -391,6 +391,8 @@ class SimpleLayDb:
             document["park_xy"] = [appliance.park_xy[0], appliance.park_xy[1]]
         if appliance.panel_mapping:
             document["panel_mapping"] = appliance.panel_mapping
+        if appliance.location:
+            document["location"] = appliance.location
         payload = json.dumps(document, ensure_ascii=False)
         with self._lock:
             self._conn.execute(
@@ -479,6 +481,7 @@ class SimpleLayDb:
                             else None
                         ),
                         panel_mapping=data.get("panel_mapping"),
+                        location=(str(data["location"]) if data.get("location") else None),
                     )
                 )
             except Exception:
