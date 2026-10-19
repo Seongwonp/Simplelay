@@ -174,7 +174,7 @@ void main() {
 
     await tester.tap(find.text('켜기'));
     await tester.pump(); // 접수 요청 발송
-    await tester.pump(const Duration(milliseconds: 600)); // 첫 상태 폴링
+    await tester.pump(const Duration(milliseconds: 1100)); // 첫 상태 폴링(공용 실행 상태, 1초)
     await tester.pump();
 
     expect(jsonDecode(captured!.body), {
@@ -228,6 +228,7 @@ void main() {
     await tester.tap(find.text('켜기'));
     await tester.pump();
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10)); // 기다림 시간(0)이 지나 모름으로
     expect(executeCallCount, 1);
     expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
     expect(find.byIcon(Icons.cancel_outlined), findsNothing, reason: '모름을 실패로 보이지 않는다');
@@ -289,7 +290,7 @@ void main() {
     // 첫 실행이 아직 진행 중일 때 다른 버튼을 탭 — 무시되어야 함.
     await tester.tap(find.text('끄기'));
     await tester.pump(const Duration(milliseconds: 200)); // 접수 응답 도착
-    await tester.pump(const Duration(milliseconds: 600)); // 완료 폴링
+    await tester.pump(const Duration(milliseconds: 1100)); // 완료 폴링(공용 실행 상태, 1초)
     await tester.pump(const Duration(seconds: 3)); // 결과 표시 타이머 정리
 
     expect(executeCallCount, 1);
@@ -326,7 +327,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('켜기'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(milliseconds: 1100)); // 공용 실행 상태의 첫 조회(1초)
       await tester.pump();
       expect(find.text(sentence), findsOneWidget);
       await tester.pump(const Duration(seconds: 3));
@@ -360,7 +361,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('켜기'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(milliseconds: 1100)); // 공용 실행 상태의 첫 조회(1초)
       await tester.pump();
       expect(find.text(sentence), findsOneWidget);
       await tester.pump(const Duration(seconds: 3));
@@ -410,5 +411,97 @@ void main() {
     await container.read(executionStatusProvider.notifier).emergencyStop();
     expect(stops, 1, reason: '그 본체로 정지를 보낸다');
     await tester.pump(const Duration(seconds: 16)); // 상태 확인 차례를 다 쓴다
+  });
+
+  // 검토 10/19(core6 9): 접수 답을 잃은 누름은 공용 상태가 요청 번호로 그 실행을 찾아 끝내도 이 화면의 '다시 누를까요?'
+  // 잠금이 풀리지 않았다(이 화면은 그 결과를 보지 않았다).
+  testWidgets('접수 답을 잃은 누름도 공용 상태가 요청 번호로 찾아 끝내면 결과를 말하고 잠금을 거둔다', (tester) async {
+    var executeCallCount = 0;
+    final client = MockClient((request) async {
+      final path = request.url.path;
+      if (path == '/execute-buttons') {
+        executeCallCount++;
+        if (executeCallCount == 1) throw http.ClientException('응답 유실');
+        return jsonRes({'job_id': 'job-r2', 'status': 'accepted'});
+      }
+      if (path.startsWith('/jobs/by-request/')) {
+        return jsonRes({'client_request_id': path.substring('/jobs/by-request/'.length), 'job_id': 'job-r1'});
+      }
+      return jsonRes({
+        'running': false,
+        'last_status': 'succeeded',
+        'last_buttons': [
+          {'button': '켜기', 'success': true},
+        ],
+        'last_job_id': executeCallCount == 1 ? 'job-r1' : 'job-r2',
+      });
+    });
+    final api = RpiApiService('http://rpi5.local:8000', client: client);
+    final container = await _makeContainerWithAppliance(
+      tester,
+      extra: [rpiApiServiceProvider.overrideWithValue(api)],
+    );
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
+
+    // 공용 상태가 요청 번호로 실행을 찾고(1초), 그 실행의 끝을 본다(1초).
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+    expect(container.read(executionStatusProvider).phase, ExecutionPhase.completed);
+    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 집에서 확인해야 해요"), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    expect(find.text('다시 누를까요?'), findsNothing, reason: '결과를 안 뒤에는 묻지 않는다');
+    expect(executeCallCount, 2);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  // 검토 10/19(core6 10): 이 화면이 공용 상태와 따로 같은 job을 0.5초마다 또 묻고, 45초 뒤에는 2초마다 기한 없이 물어
+  // 본체가 잊은 job은 화면이 열려 있는 동안 끝없이 물었다. 이제 묻는 것은 공용 상태 하나이고, 그 상태가 끝을 정한다.
+  testWidgets('결과를 모르는 누름도 화면이 따로 끝없이 묻지 않는다', (tester) async {
+    var polls = 0;
+    final client = MockClient((request) async {
+      if (request.url.path == '/execute-buttons') {
+        return jsonRes({'job_id': 'job-gone', 'status': 'accepted'});
+      }
+      final path = request.url.path;
+      if (path == '/status' || path.startsWith('/jobs/')) polls++;
+      return jsonRes({'running': false}); // 본체가 이 job을 잊었다(재시작 등)
+    });
+    final api = RpiApiService('http://rpi5.local:8000', client: client);
+    final container = await _makeContainerWithAppliance(
+      tester,
+      extra: [rpiApiServiceProvider.overrideWithValue(api)],
+    );
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: ManualControlScreen(resultWait: Duration(seconds: 5))),
+    ));
+    await tester.pump();
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(polls, lessThanOrEqualTo(7), reason: '1초에 한 번(공용 상태)만 묻는다 — 첫 번은 job 조회가 없어 상태로 한 번 더');
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(container.read(executionStatusProvider).phase, ExecutionPhase.unknown);
+    final settled = polls;
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(polls, settled, reason: '모름으로 끝난 뒤에는 더 묻지 않는다');
+    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
   });
 }

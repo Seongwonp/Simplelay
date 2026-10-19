@@ -12,6 +12,7 @@ import '../models/display_status.dart' show isPracticeAppliance;
 import '../models/command_result.dart'
     show ResultKind, manualPressSentence, manualPressUnknownSentence, resultKindOf;
 import '../providers/appliance_provider.dart';
+import '../models/execution_status.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
@@ -56,14 +57,68 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   String? _resultSentence;
   Timer? _resultClearTimer;
 
-  // 결과를 아직 모르는 누름(검토 10/19) — 그 job을 계속 지켜보고, 같은 버튼은 확인을 받은 뒤에만 다시 보낸다.
-  String? _unknownJobId;
+  // 결과를 아직 모르는 누름(검토 10/19) — 같은 버튼은 확인을 받은 뒤에만 다시 보낸다. 결과는 이 화면이 따로 묻지 않고 공용 실행
+  // 상태가 그 요청 번호로 끝내는 것을 본다 — 화면이 따로 물으면 같은 job을 두 번씩 묻고, 본체가 잊은 job은 끝없이 물었다
+  // (검토 10/19). 접수 답을 잃은 누름도 공용 상태가 요청 번호로 찾아 끝내면 잠금을 거둔다.
+  String? _unknownRequestId;
   String? _unknownButtonId;
+  ApplianceButton? _unknownButton;
+
+  /// 이 화면이 결과를 기다리는 누름(요청 번호와 그 끝).
+  (String, Completer<ExecutionStatus?>)? _waiting;
+  ProviderSubscription<ExecutionStatus>? _executionSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _executionSub =
+        ref.listenManual<ExecutionStatus>(executionStatusProvider, (_, next) => _onExecution(next));
+  }
 
   @override
   void dispose() {
     _resultClearTimer?.cancel();
+    _executionSub?.close();
+    final waiting = _waiting;
+    if (waiting != null && !waiting.$2.isCompleted) waiting.$2.complete(null);
     super.dispose();
+  }
+
+  static bool _ended(ExecutionStatus s) =>
+      s.phase == ExecutionPhase.completed ||
+      s.phase == ExecutionPhase.failed ||
+      s.phase == ExecutionPhase.unconfirmed;
+
+  /// 끝난 실행의 결과 종류 — 서버 결과(last_outcome)가 있으면 그것, 옛 서버는 공용 상태의 단계로.
+  static ResultKind _kindOf(ExecutionStatus s) => s.outcome != null
+      ? resultKindOf(outcome: s.outcome)
+      : switch (s.phase) {
+          ExecutionPhase.completed => ResultKind.success,
+          ExecutionPhase.unconfirmed => ResultKind.unconfirmed,
+          _ => ResultKind.failed,
+        };
+
+  void _onExecution(ExecutionStatus next) {
+    final waiting = _waiting;
+    if (waiting != null && !waiting.$2.isCompleted) {
+      // 다른 실행이 공용 상태를 가져갔거나 공용 상태도 모름이 됐다 — 이 화면은 모름으로 둔다.
+      if (next.requestId != waiting.$1 || next.phase == ExecutionPhase.unknown) {
+        waiting.$2.complete(null);
+      } else if (_ended(next)) {
+        waiting.$2.complete(next);
+      }
+    }
+    final button = _unknownButton;
+    if (_unknownRequestId == null || next.requestId != _unknownRequestId || !_ended(next) || button == null) {
+      return;
+    }
+    _unknownRequestId = null;
+    _unknownButtonId = null;
+    _unknownButton = null;
+    if (mounted && _pendingButtonId == null && _resultSuccess == null && _resultLabel == button.label) {
+      _showResult(button,
+          kind: _kindOf(next), confirmation: next.confirmation, mode: next.executionMode);
+    }
   }
 
   Future<void> _press(
@@ -76,8 +131,9 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       // 아까 누른 것이 눌렸는지 모른다 — 그대로 보내면 두 번 눌릴 수 있다.
       if (!await _confirmRepeat(button.label) || !mounted) return;
       if (_pendingButtonId != null) return;
-      _unknownJobId = null;
+      _unknownRequestId = null;
       _unknownButtonId = null;
+      _unknownButton = null;
     }
     _resultClearTimer?.cancel();
     setState(() {
@@ -92,14 +148,13 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     ResultKind kind;
     String? confirmation;
     var mode = 'unknown';
-    String? unknownJobId;
-    var submissionUnknown = false;
+    var unknown = false;
     final execution = ref.read(executionStatusProvider.notifier);
     // 보내기 전에 '보내는 중'으로 — 답을 기다리는 사이에도 정지 띠가 있다(검토 10/19).
     final requestId =
         execution.beginSubmitting(api: api, label: button.label, steps: [button.label]);
     try {
-      // job 모델: 접수 즉시 job_id가 오고, 완료는 /status 폴링으로 판정한다.
+      // job 모델: 접수 즉시 job_id가 오고, 완료는 공용 실행 상태의 job 조회로 판정한다.
       final accepted = await api.executeButtons(
         [button.label],
         applianceId: applianceId,
@@ -116,13 +171,11 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
         steps: [button.label],
         requestId: requestId,
       );
-      final done = await _waitJobDone(api, accepted.jobId);
-      if (done == null) unknownJobId = accepted.jobId;
-      kind = done == null
-          ? ResultKind.failed
-          : resultKindOf(outcome: done.lastOutcome, status: done.lastStatus);
-      confirmation = done?.lastConfirmation;
-      mode = done?.lastExecutionMode ?? 'unknown';
+      final done = await _waitJobDone(requestId);
+      unknown = done == null;
+      kind = done == null ? ResultKind.failed : _kindOf(done);
+      confirmation = done?.confirmation;
+      mode = done?.executionMode ?? 'unknown';
     } on RpiApiException {
       kind = ResultKind.failed; // 본체가 답했다 — 받지 않았다(다른 일 하는 중·준비 안 됨 등)
       execution.abandonSubmission(requestId);
@@ -130,7 +183,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       // 보냈는데 답이 없다(시간 초과·연결 끊김) — 본체가 받아 이미 누르기 시작했을 수 있다(검토 10/19). 못 함으로 보이고
       // 버튼을 풀면 같은 버튼을 확인 없이 또 보낼 수 있었다. 모름으로 두고 정지를 남긴다(다시 보내지는 않는다).
       kind = ResultKind.failed;
-      submissionUnknown = true;
+      unknown = true;
       execution.beginSubmissionUnknown(
         api: api,
         label: button.label,
@@ -141,7 +194,8 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     }
 
     if (!mounted) return;
-    if (submissionUnknown) {
+    if (unknown) {
+      // 실패로 보이지 않는다 — 아직 돌거나 이미 눌렸을 수 있다. 같은 버튼은 확인 뒤에만, 결과는 공용 상태가 끝내면 말한다.
       setState(() {
         _pendingButtonId = null;
         _pendingLabel = null;
@@ -149,24 +203,12 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
         _resultLabel = button.label;
         _resultSuccess = null;
         _resultSentence = manualPressUnknownSentence(button.label);
-        _unknownJobId = null;
+        _unknownRequestId = requestId;
         _unknownButtonId = button.id;
+        _unknownButton = button;
       });
-      return;
-    }
-    if (unknownJobId != null) {
-      // 실패로 보이지 않는다 — 아직 돌거나 이미 눌렸을 수 있다. 같은 버튼은 확인 뒤에만, 결과는 계속 지켜본다.
-      setState(() {
-        _pendingButtonId = null;
-        _pendingLabel = null;
-        _resultButtonId = null;
-        _resultLabel = button.label;
-        _resultSuccess = null;
-        _resultSentence = manualPressUnknownSentence(button.label);
-        _unknownJobId = unknownJobId;
-        _unknownButtonId = button.id;
-      });
-      _trackUnknown(api, unknownJobId, button);
+      // 기다림을 마친 사이 이미 끝났을 수 있다.
+      _onExecution(ref.read(executionStatusProvider));
       return;
     }
     _showResult(button, kind: kind, confirmation: confirmation, mode: mode);
@@ -197,33 +239,6 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     });
   }
 
-  /// 결과를 모르는 [jobId]를 계속 지켜본다. 끝난 결과가 보이면 그 결과를 말하고 같은 버튼 확인을 거둔다. 다른 실행이
-  /// 시작돼 결과 자리를 잃으면 그만두고 모름으로 둔다(확인은 남는다).
-  Future<void> _trackUnknown(RpiApiService api, String jobId, ApplianceButton button) async {
-    while (mounted && _unknownJobId == jobId) {
-      await Future<void>.delayed(const Duration(seconds: 2));
-      if (!mounted || _unknownJobId != jobId) return;
-      try {
-        final status = await api.jobStatus(jobId);
-        if (!mounted || _unknownJobId != jobId) return;
-        if (status.lastJobId == jobId) {
-          _unknownJobId = null;
-          _unknownButtonId = null;
-          if (_pendingButtonId == null && _resultSuccess == null && _resultLabel == button.label) {
-            _showResult(button,
-                kind: resultKindOf(outcome: status.lastOutcome, status: status.lastStatus),
-                confirmation: status.lastConfirmation,
-                mode: status.lastExecutionMode);
-          }
-          return;
-        }
-        if (status.running && status.jobId != null && status.jobId != jobId) return;
-      } catch (_) {
-        // 일시적 통신 오류는 다음에 다시 본다
-      }
-    }
-  }
-
   Future<bool> _confirmRepeat(String label) async {
     final again = await showDialog<bool>(
       context: context,
@@ -246,24 +261,26 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     return again ?? false;
   }
 
-  // 내 job이 끝날 때까지 /status를 폴링한다. 버튼 1개 실행은 재시도를
-  // 포함해도 수십 초 안에 끝나므로 45초를 상한으로 두고, 그 안에 판정이
-  // 안 나면(서버 유실 등) '아직 모름'으로 pending 잠금에서 탈출한다(실패가 아니다).
-  /// 내 job이 끝난 /status(확인 근거·실행 환경까지). 시간 안에 판정이 안 나면 null.
-  Future<RpiStatusResult?> _waitJobDone(RpiApiService api, String jobId) async {
-    final deadline = DateTime.now().add(widget.resultWait);
-    while (mounted && DateTime.now().isBefore(deadline)) {
-      try {
-        final status = await api.jobStatus(jobId); // 내 job만(옛 본체는 /status)
-        // running 여부와 무관하게 lastJobId로 판정 — 완료 직후 다른
-        // 클라이언트의 새 실행이 시작돼도(running=true) 내 결과를 놓치지 않는다
-        if (status.lastJobId == jobId) return status;
-      } catch (_) {
-        // 일시적 통신 오류는 다음 폴링에서 재시도
-      }
-      await Future.delayed(const Duration(milliseconds: 500));
+  // 내 job이 끝날 때까지 공용 실행 상태를 본다(그 상태가 job을 묻는다 — 이 화면이 따로 묻지 않는다). 버튼 1개 실행은
+  // 재시도를 포함해도 수십 초 안에 끝나므로 45초를 상한으로 두고, 그 안에 판정이 안 나면(서버 유실 등) '아직 모름'으로
+  // pending 잠금에서 탈출한다(실패가 아니다).
+  /// 공용 실행 상태가 이 요청([requestId])을 끝낸 상태(확인 근거·실행 환경까지). 시간 안에 안 끝나거나, 다른 실행이 상태를
+  /// 가져가거나, 공용 상태도 모름이 되면 null.
+  Future<ExecutionStatus?> _waitJobDone(String requestId) async {
+    final now = ref.read(executionStatusProvider);
+    if (now.requestId != requestId || now.phase == ExecutionPhase.unknown) return null;
+    if (_ended(now)) return now;
+    final completer = Completer<ExecutionStatus?>();
+    _waiting = (requestId, completer);
+    final timer = Timer(widget.resultWait, () {
+      if (!completer.isCompleted) completer.complete(null);
+    });
+    try {
+      return await completer.future;
+    } finally {
+      timer.cancel();
+      if (identical(_waiting?.$2, completer)) _waiting = null;
     }
-    return null;
   }
 
   @override
