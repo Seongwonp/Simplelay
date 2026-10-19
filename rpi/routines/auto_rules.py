@@ -979,7 +979,9 @@ class AutoRuleEngine:
                        enabled=True, allowed_fingerprint=draft.fingerprint(),
                        created_at=existing.created_at if existing else now,
                        allowed_at=now, updated_at=now, disabled_reason=None)
-        self._save_allowed(rule, start_generation)
+        # 검토 10/19 (2): 읽은 규칙을 바꿀 때는 철회와 같은 잠금 안에서 그대로인지 보고 바꾼다 — 읽은 뒤 끝난 삭제·끄기를
+        # 덮어 지운 규칙을 되살리거나 끈 규칙을 다시 켜지 않는다(404·409로 남기고 자동 허용만 실패).
+        self._save_allowed(rule, start_generation, expected=existing)
         log.info("auto rule allowed by user: %s (%s → %s %s)", rule.rule_id, rule.condition_event,
                  rule.target_appliance_id, rule.action)
         return rule
