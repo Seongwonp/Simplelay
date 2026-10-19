@@ -32,6 +32,7 @@ import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/appliance_sync_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/providers/server_appliance_provider.dart';
 
 /// 서버 흉내 — 커스텀 가전 목록을 들고 PUT/DELETE를 반영하고, 무엇이
 /// 어떤 순서로 들어왔는지 기록한다.
@@ -187,6 +188,10 @@ Future<ProviderContainer> _phone(
   }
   return container;
 }
+
+/// 본체와 한 번 맞춘 가전 — 본체가 매긴 판 번호를 들고 있다.
+Map<String, dynamic> _syncedJson(String id, {int revision = 1}) =>
+    {..._local(id).toJson(), 'revision': revision};
 
 List<String> _localIds(ProviderContainer c) =>
     c.read(customAppliancesProvider).map((a) => a.id).toList()..sort();
@@ -534,6 +539,127 @@ void main() {
       // 대기 상태로 남는다 — 조용히 버리면 사용자는 자기 변경이 사라진
       // 것도 모른다. 화면이 "보내지 못했어요"로 알린다.
       expect(container.read(applianceSyncProvider).pendingCount, 1);
+    });
+  });
+
+  group('9. 본체에서 지운 가전은 폰에서도 빠진다', () {
+    // 본체 API로 세탁기·인터폰을 지웠는데 폰에는 '가전 2대 설정이 남았어요'·'본체에 보낼 것 3건'이 영영 남았다(10/19).
+    // 남은 고치기는 본체 판 0과 어긋나 409로 매번 거절됐다. 본체가 본 적 있는 가전(판 번호가 있다)은 본체가 진실원천이다.
+    test('본체가 본 적 있는 가전이 본체 목록에 없으면 폰에서 빼고 대기 작업도 버린다', () async {
+      // 본체는 없는 가전에 판을 밝힌 고치기를 409로 거절한다(판 0과 어긋남).
+      final server = _FakeServer(['fan'])..refusePutWith409 = {'washer', 'intercom'};
+      final container = await _phone(server, prefs: {
+        'custom_appliances': [
+          jsonEncode(_syncedJson('fan')),
+          jsonEncode(_syncedJson('washer', revision: 3)),
+          jsonEncode(_syncedJson('intercom', revision: 2)),
+        ],
+        'appliance_sync_outbox': [
+          jsonEncode({
+            'op_id': 'op-1',
+            'appliance_id': 'washer',
+            'kind': 'upsert',
+            'created_at': '2026-10-19T19:00:00+09:00',
+            'payload': _syncedJson('washer', revision: 3),
+          }),
+          jsonEncode({
+            'op_id': 'op-2',
+            'appliance_id': 'intercom',
+            'kind': 'upsert',
+            'created_at': '2026-10-19T19:01:00+09:00',
+            'payload': _syncedJson('intercom', revision: 2),
+          }),
+          jsonEncode({
+            'op_id': 'op-3',
+            'appliance_id': 'intercom',
+            'kind': 'delete',
+            'created_at': '2026-10-19T19:02:00+09:00',
+            'revision': 2,
+          }),
+        ],
+      });
+
+      final result =
+          await container.read(applianceSyncProvider.notifier).sync();
+
+      expect(_localIds(container), ['fan']);
+      expect(container.read(applianceSyncProvider).pendingCount, 0);
+      expect(await _storedOps(), isEmpty);
+      expect(server.calls.where((c) => c.startsWith('PUT')), isEmpty);
+      expect(result.conflicts, 0);
+      expect(result.allDone, isTrue);
+    });
+
+    test('이 폰에서만 만들고 아직 못 보낸 가전(판 0)은 빼지 않고 보낸다', () async {
+      final server = _FakeServer(['fan']);
+      final container = await _phone(server, prefs: {
+        'custom_appliances': [
+          jsonEncode(_syncedJson('fan')),
+          jsonEncode(_local('humidifier').toJson()),
+        ],
+        'appliance_sync_outbox': [
+          jsonEncode({
+            'op_id': 'op-1',
+            'appliance_id': 'humidifier',
+            'kind': 'upsert',
+            'created_at': '2026-10-19T19:00:00+09:00',
+            'payload': _local('humidifier').toJson(),
+          }),
+        ],
+      });
+
+      await container.read(applianceSyncProvider.notifier).sync();
+
+      expect(_localIds(container), ['fan', 'humidifier']);
+      expect(server.calls, ['PUT humidifier']);
+      expect(server.customs.keys, contains('humidifier'));
+    });
+
+    test('다른 본체로 주소를 바꾼 것 같으면(맞춘 가전이 하나도 없고 주소도 다름) 빼지 않는다', () async {
+      final server = _FakeServer(['other-hub-fan']);
+      final container = await _phone(server, prefs: {
+        'appliance_sync_hub_url': 'http://old-hub.local:8000',
+        'custom_appliances': [jsonEncode(_syncedJson('washer'))],
+      });
+
+      await container.read(applianceSyncProvider.notifier).sync();
+
+      expect(_localIds(container), contains('washer'));
+    });
+
+    test('본체 목록에서 맞춘 가전이 빠진 걸 보면 누르지 않아도 맞춘다', () async {
+      final server = _FakeServer(['fan']);
+      SharedPreferences.setMockInitialValues({
+        'rpi_base_url': 'http://rpi5.local:8000',
+        'custom_appliances': [
+          jsonEncode(_syncedJson('fan')),
+          jsonEncode(_syncedJson('washer')),
+        ],
+      });
+      final container = ProviderContainer(
+        overrides: [
+          rpiHttpClientProvider.overrideWithValue(server.client()),
+          serverApplianceCatalogProvider.overrideWith(
+            (ref) => ServerApplianceNotifier.seeded(
+              ref,
+              ServerApplianceCatalog(
+                status: ServerCatalogStatus.loaded,
+                baseUrl: 'http://rpi5.local:8000',
+                customAppliances: [ApplianceMap.fromJson(_syncedJson('fan'))],
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(customAppliancesProvider.notifier).ensureLoaded();
+      container.read(rpiUrlProvider);
+      container.read(applianceSyncProvider);
+      for (var i = 0; i < 40 && _localIds(container).contains('washer'); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      expect(_localIds(container), ['fan']);
     });
   });
 }

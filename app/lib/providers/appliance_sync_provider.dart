@@ -12,6 +12,9 @@ import 'server_appliance_provider.dart';
 /// 아직 서버에 전달하지 못한 변경들. **순서가 있는 목록**이다.
 const _kOutboxKey = 'appliance_sync_outbox';
 
+/// 마지막으로 목록을 맞춰 본 본체 주소 — 본체에서 지워진 가전을 폰에서도 뺄 때 '같은 본체인가'를 가린다.
+const _kHubUrlKey = 'appliance_sync_hub_url';
+
 enum SyncOpKind { upsert, delete }
 
 /// 서버로 보내야 하는 변경 하나.
@@ -137,6 +140,11 @@ class ApplianceSyncState {
 class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
   ApplianceSyncNotifier(this._ref) : super(const ApplianceSyncState()) {
     _loaded = _load();
+    // 본체 목록을 받아 보니 이 폰이 본체와 맞췄던 가전(판 번호가 있다)이 빠져 있으면 한 번 맞춘다 — 본체에서 지운
+    // 가전이 폰에 '설정이 남았어요'·'보낼 것 N건'으로 영영 남던 것(10/19). 실제로 뺄지는 [_sync]가 새로 받은 목록으로 정한다.
+    _ref.listen<bool>(_hubDroppedSyncedProvider, (_, next) {
+      if (next) sync();
+    }, fireImmediately: true);
   }
 
   final Ref _ref;
@@ -339,6 +347,11 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
       );
     }
 
+    // 보내기 전에 본체에서 이미 지워진 가전을 걷어낸다 — 안 그러면 그 가전의 고치기(PUT)가 본체 판 0과 어긋나
+    // '다른 기기에서 먼저 변경'으로 매번 거절돼 대기열에서 영영 안 빠진다.
+    final hubNow = await api.customAppliances();
+    if (hubNow != null) await _dropGoneFromHub(api.baseUrl, hubNow);
+
     var sent = 0;
     var conflicts = 0;
     final remaining = <SyncOperation>[];
@@ -393,6 +406,57 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
       adopted: merged ?? 0,
       serverUnreachable: merged == null,
     );
+  }
+
+  /// 본체가 **본 적 있는** 가전(판 번호가 있다)이 지금 본체 목록에 없으면 본체에서 지운 것이다 — 본체가 진실원천이므로
+  /// 폰에서도 빼고 그 가전의 대기 작업을 버린다(지우기는 이미 이뤄졌고, 고치기는 보낼 곳이 없다).
+  ///
+  /// 이 폰에서만 만들고 아직 못 보낸 가전(판 0)은 건드리지 않는다 — 그것은 '본체가 아직 못 받았다'이지 '지웠다'가 아니다.
+  /// 다른 본체로 주소를 바꾼 것일 수도 있으므로, 지난번과 같은 주소이거나 이 폰이 맞춘 가전이 하나라도 이 본체에 있을
+  /// 때만 뺀다 — 새 본체에 붙자마자 옛 본체의 가전을 모두 지우지 않게.
+  Future<void> _dropGoneFromHub(String hubUrl, List<ApplianceMap> hub) async {
+    final onHub = {for (final a in hub) a.id};
+    final synced = [
+      for (final a in _ref.read(customAppliancesProvider))
+        if (a.isCustom && !a.isDemo && a.revision > 0) a,
+    ];
+    String? lastHub;
+    SharedPreferences? prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+      lastHub = prefs.getString(_kHubUrlKey);
+    } catch (_) {}
+    final sameHub = lastHub == null ||
+        lastHub == hubUrl ||
+        synced.any((a) => onHub.contains(a.id));
+    if (!sameHub) return;
+    try {
+      if (lastHub != hubUrl) await prefs?.setString(_kHubUrlKey, hubUrl);
+    } catch (_) {}
+
+    final gone = {
+      for (final a in synced)
+        if (!onHub.contains(a.id)) a.id,
+    };
+    // 본체가 본 판을 들고 있는 고치기는 본체에서 지워진 가전의 것이다. 판 없는 고치기(처음 등록)는 남긴다 — 보내면
+    // 본체에 생긴다. 그 밖의 없는 가전 지우기는 그대로 보낸다 — 앞의 처음 등록이 먼저 만들 수 있고, 이미 없으면 404가 끝낸다.
+    bool settledByHub(SyncOperation op) =>
+        gone.contains(op.applianceId) ||
+        (!onHub.contains(op.applianceId) &&
+            op.kind == SyncOpKind.upsert &&
+            op.expectedRevision > 0);
+    final kept = [
+      for (final op in state.pending)
+        if (!settledByHub(op)) op,
+    ];
+    for (final id in gone) {
+      await _ref.read(customAppliancesProvider.notifier).remove(id);
+      _ref.read(serverApplianceCatalogProvider.notifier).forgetCustom(id);
+    }
+    if (kept.length != state.pending.length) {
+      state = ApplianceSyncState(pending: kept, lastFailed: state.lastFailed);
+      await _persist(kept);
+    }
   }
 
   Future<_SendOutcome> _send(RpiApiService api, SyncOperation op) async {
@@ -529,6 +593,17 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
 }
 
 enum _SendOutcome { ok, conflict, failed }
+
+/// 받아 둔 본체 목록에 이 폰이 맞췄던 가전(판 번호가 있다)이 빠져 있는가 — 동기화를 한 번 돌릴 신호일 뿐이다.
+/// 받아 둔 목록은 오래됐을 수 있으므로 뺄지는 [ApplianceSyncNotifier] 동기화가 새로 받은 목록으로 정한다.
+final _hubDroppedSyncedProvider = Provider<bool>((ref) {
+  final catalog = ref.watch(serverApplianceCatalogProvider);
+  if (!catalog.isLoaded) return false;
+  final onHub = {for (final a in catalog.customAppliances) a.id};
+  return ref.watch(customAppliancesProvider).any(
+        (a) => a.isCustom && !a.isDemo && a.revision > 0 && !onHub.contains(a.id),
+      );
+});
 
 final applianceSyncProvider =
     StateNotifierProvider<ApplianceSyncNotifier, ApplianceSyncState>(

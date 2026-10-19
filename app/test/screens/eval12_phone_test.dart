@@ -249,7 +249,8 @@ void main() {
     });
 
     testWidgets("이 폰의 가전이 본체에 없으면 '본체 화면에 반영하기'", (tester) async {
-      final local = ApplianceMap.fromJson(_appliance('fan', '선풍기', 'other'));
+      // 본체에 아직 닿지 못한 가전(판 0). 판이 있는데 본체에 없으면 본체에서 지운 것이라 폰에서도 빠진다(10/19).
+      final local = ApplianceMap.fromJson({..._appliance('fan', '선풍기', 'other'), 'revision': 0});
       await _pump(tester, const SettingsScreen(), installed: [..._installed, local]);
       await tester.scrollUntilVisible(findPlainText('본체 화면에 반영하기'), 200);
       expect(findPlainText('본체 화면에 반영하기'), findsOneWidget);
