@@ -642,11 +642,17 @@ class SeenEvents:
 
 
 def event_key(record: Mapping) -> str | None:
-    """완료 사건 키 — 가전·이벤트·출처·RPi4 끝 시각(at_s). 끝 시각이 없으면 None(같은 사건인지 모름)."""
+    """완료 사건 키 — 가전·이벤트·출처·RPi4 끝 시각(at_s)·그 시각의 시계(clock_id). 끝 시각이 없으면 None(같은 사건인지 모름).
+
+    ``at_s``는 RPi4 프로세스의 단조 시각이라 RPi4가 다시 켜지면 처음부터 다시 센다 — 시계가 다르면 같은 ``at_s``라도 다른
+    사건이다(검토 10/19 #6). ``clock_id``가 없는 옛 프레임은 예전 키 그대로(저장된 처리 기록과 맞게)."""
     at_s = record.get("at_s")
     if not isinstance(at_s, (int, float)) or isinstance(at_s, bool) or not math.isfinite(at_s):
         return None
     raw = f"{record.get('appliance_id')}|{record.get('event')}|{record.get('source')}|{float(at_s):.3f}"
+    clock_id = record.get("clock_id")
+    if isinstance(clock_id, str) and clock_id:
+        raw += f"|{clock_id}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
