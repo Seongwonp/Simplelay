@@ -448,8 +448,10 @@ void main() {
       expect(rich.textAlign, anyOf(TextAlign.start, TextAlign.left));
       final text = rich.text.toPlainText().replaceAll('⁠', '').replaceAll(' ', ' ');
       expect(text, isNot(contains('\n')));
-      expect('.'.allMatches(text.replaceAll(RegExp(r'\.$'), '')), isEmpty, reason: '한 문장');
-      expect(text, contains('더 하지 않'));
+      // 10/19: 두 짧은 문장까지 — 더 보내지 않는다 + 이미 보낸 것은 되돌리지 못할 수 있다.
+      expect('.'.allMatches(text.replaceAll(RegExp(r'\.$'), '')).length, lessThanOrEqualTo(1), reason: '두 문장 이하');
+      expect(text, contains('더 보내지 않'));
+      expect(text, contains('되돌리지 못할 수 있어요'));
       expect(text, isNot(contains('그대로일 수 있어요')), reason: '평가 14차(10/18): 엔지니어 설명투 없이 한 줄');
       final stop = tester.getRect(find.byKey(const ValueKey('kiosk-stop-area')));
       final r = tester.getRect(note);

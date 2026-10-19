@@ -55,7 +55,8 @@ KioskSuggestion _card(String action, String summary) => KioskSuggestion(
 final _powerOn = _card('set_power', '공기청정기 전원 켜기');
 final _windHigh = _card('set_wind_strength', '공기청정기 바람 세기 강');
 
-const _stopNote = '정지를 누르면 더 하지 않아요'; // 평가 15차(10/18) — '보내다'는 기계가 한 일
+// 평가 15차(10/18) '더 하지 않아요' → 10/19 이미 보낸 것은 되돌리지 못할 수 있다고 사실대로.
+const _stopNote = '정지를 누르면 더 보내지 않아요. 이미 보낸 것은 되돌리지 못할 수 있어요';
 final _sending = find.byKey(const ValueKey('thinq-sending'));
 final _result = find.byKey(const ValueKey('thinq-result'));
 final _band = find.byKey(const ValueKey('status-band'));

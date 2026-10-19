@@ -210,7 +210,7 @@ void main() {
 
   group('4. LG 가전 보내는 중 — 정지 안내 한 줄', () {
     test('짧은 사실 문장', () {
-      expect(kThinqStopNote, '정지를 누르면 더 하지 않아요');
+      expect(kThinqStopNote, '정지를 누르면 더 보내지 않아요. 이미 보낸 것은 되돌리지 못할 수 있어요'); // 10/19
     });
 
     testWidgets('화면에 그 한 줄만, 엔지니어 설명 없음', (tester) async {
@@ -231,7 +231,7 @@ void main() {
             onStop: () {},
           ));
       final texts = _texts(tester);
-      expect(texts, contains('정지를 누르면 더 하지 않아요'));
+      expect(texts, contains(kThinqStopNote));
       expect(texts.where((t) => t.contains('이미 바뀐')), isEmpty);
       expect(tester.takeException(), isNull);
     });

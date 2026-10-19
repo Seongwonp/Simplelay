@@ -381,10 +381,10 @@ void main() {
       expect(copy.headline + copy.sub, isNot(contains('보냈')));
     });
 
-    test('정지 안내는 더 하지 않아요(되돌린다고 약속하지 않는다)', () {
-      expect(kThinqStopNote, '정지를 누르면 더 하지 않아요');
-      expect(kThinqStopNote, isNot(contains('보내')));
-      expect(kThinqStopNote, isNot(contains('되돌')));
+    // 10/19: 이미 보낸 명령을 멈추는 것처럼 읽혔다 — 되돌리지 못할 수 있다고 말한다(되돌린다고 약속하지 않는다).
+    test('정지 안내는 더 보내지 않는다 + 되돌리지 못할 수 있다', () {
+      expect(kThinqStopNote, '정지를 누르면 더 보내지 않아요. 이미 보낸 것은 되돌리지 못할 수 있어요');
+      expect(kThinqStopNote, isNot(contains('되돌려요')));
     });
 
     testWidgets('보내는 중·확인 못 함 화면에 보내다 없음', (tester) async {
@@ -404,7 +404,8 @@ void main() {
             verificationDetail: null,
             onStop: () {},
           ));
-      expect(_texts(tester).where((t) => t.contains('보내') || t.contains('보냈')), isEmpty);
+      // 정지 안내(10/19 — 이미 보낸 것은 되돌리지 못할 수 있다)만 빼고.
+      expect(_texts(tester).where((t) => t != kThinqStopNote && (t.contains('보내') || t.contains('보냈'))), isEmpty);
       await _pump15(tester, _thinqDone(confirmed: false));
       expect(_texts(tester).where((t) => t.contains('보내') || t.contains('보냈')), isEmpty);
     });
