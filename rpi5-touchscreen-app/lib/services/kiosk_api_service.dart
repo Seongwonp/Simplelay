@@ -339,9 +339,32 @@ class KioskStatus {
     this.lastStopAckMs,
     this.lastStopJobId,
     this.reportsStopJobId = false,
+    this.finished,
+    this.routineRunId,
+    this.routineStatus,
+    this.routineSegment,
+    this.routineSegmentJobId,
+    this.routineDetail,
   });
 
   final bool running;
+
+  /// GET /jobs/{job_id}의 끝남(검토 10/19). /status·옛 본체는 null — 그때는 종전처럼 last_job_id 대조로 본다.
+  final bool? finished;
+
+  // ── 루틴 실행(GET /jobs의 첫 실행 번호, 검토 10/19) — 루틴 전체 수명. 루틴이 아니거나 옛 본체면 모두 null ──
+  /// 루틴 실행 번호(`/routines/runs/{id}/stop`의 번호, 첫 구간 번호와 같다).
+  final String? routineRunId;
+
+  /// running | succeeded | failed | stopped | unconfirmed — 루틴 전체 상태.
+  final String? routineStatus;
+
+  /// 지금(끝났으면 마지막) 구간의 순번(1부터)과 그 구간의 실행 번호.
+  final int? routineSegment;
+  final String? routineSegmentJobId;
+
+  /// 루틴 결과 한 줄(끝났을 때).
+  final String? routineDetail;
 
   /// 마지막 긴급 정지의 확인 단계(2026-10-13): sent | mcu_ack | verified. 옛 서버·보고 없음은 null.
   final String? lastStopLevel;
@@ -487,6 +510,12 @@ class KioskStatus {
         lastStopAckMs: (json['last_stop_ack_ms'] as num?)?.toInt(),
         lastStopJobId: json['last_stop_job_id'] as String?,
         reportsStopJobId: json.containsKey('last_stop_job_id'),
+        finished: json['finished'] as bool?,
+        routineRunId: json['routine_run_id'] as String?,
+        routineStatus: json['routine_status'] as String?,
+        routineSegment: (json['routine_segment'] as num?)?.toInt(),
+        routineSegmentJobId: json['routine_segment_job_id'] as String?,
+        routineDetail: json['routine_detail'] as String?,
       );
 }
 
@@ -1083,6 +1112,15 @@ class KioskApiService {
     ).timeout(_timeout);
     _ensureOk(res);
     return KioskSuggestion.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  /// POST /routines/runs/{run_id}/stop — 그 루틴 실행만 멈춘다(남은 구간을 보내지 않고, 지금 누르는 중이면 본체가 긴급 정지도
+  /// 보낸다, 검토 10/19). 진행 중인 루틴이 아니면 409, 경로가 없는 옛 본체는 404·405([KioskApiException]) — 부르는 쪽이 /stop으로 갈음한다.
+  Future<void> stopRoutineRun(String runId) async {
+    final res = await _client
+        .post(_base.replace(path: '/routines/runs/${Uri.encodeComponent(runId)}/stop'))
+        .timeout(_timeout);
+    _ensureOk(res);
   }
 
   /// POST /stop. 4xx·5xx도 [KioskApiException]으로 던진다 — 본체가 거절한 정지를 '보냈어요'로 보이지 않게(검토 10/19).

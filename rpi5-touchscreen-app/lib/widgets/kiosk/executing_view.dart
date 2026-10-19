@@ -40,7 +40,17 @@ class KioskExecutingView extends StatelessWidget {
     this.thinqOnly = false,
     this.thinqActionText,
     this.stopState = KioskExecStop.none,
+    this.routineSegment,
+    this.routineWaiting = false,
   });
+
+  /// 루틴이면 지금(구간 사이면 막 끝낸) 차례 순번(1부터, 검토 10/19) — '루틴 N번째 차례' 한 줄. 루틴이 아니거나 옛 본체면 null.
+  final int? routineSegment;
+
+  /// 루틴이 다음 구간을 기다리는 중(구간 사이, 검토 10/19) — 누르는 버튼이 없다. 루틴은 아직 하는 중이고 정지는 그대로다.
+  final bool routineWaiting;
+
+  String? get _routineLine => routineSegment == null ? null : '루틴 $routineSegment번째 차례';
 
   /// 정지를 누른 뒤의 상태(검토 10/19) — 위 띠가 '멈추는 중' 또는 '정지가 닿지 않았어요'로 바뀐다. 정지 단추는 그대로 남는다.
   /// 멈췄는지는 서버 보고를 받은 결과 화면이 말한다.
@@ -163,6 +173,7 @@ class KioskExecutingView extends StatelessWidget {
   /// 상태 영역의 아이콘도 함께 정한다(2026-10-16 §1-2) — 색만으로 말하지 않는다.
   (String, IconData, Color) _phrase() {
     if (currentButton == null) {
+      if (routineWaiting) return (kExecRoutineWaiting, Icons.hourglass_empty, KioskColors.muted);
       return ('준비 중', Icons.hourglass_empty, KioskColors.muted);
     }
     if (_retrying) {
@@ -283,7 +294,7 @@ class KioskExecutingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (thinqOnly && currentButton == null) return _thinqSending(context);
+    if (thinqOnly && currentButton == null && !routineWaiting) return _thinqSending(context);
     final isDone = lastButtons != null;
     final target = this.target;
     final onPanel = currentOnPanel;
@@ -352,6 +363,7 @@ class KioskExecutingView extends StatelessWidget {
               liveRegion: true,
               label: [
                 if (bandDetail.isNotEmpty) bandDetail,
+                if (_routineLine case final r?) r,
                 if (currentButton != null) '$currentButton 버튼',
                 phrase,
                 if (_evidence() case final e?) e,
@@ -391,6 +403,9 @@ enum KioskExecStop { none, stopping, failed }
 
 /// 실행 화면 정지가 본체에 닿지 않았을 때(통신 실패·거절) — 정지 대기 화면과 같은 말.
 const kExecStopFailed = '정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.';
+
+/// 루틴 구간 사이 상태(검토 10/19) — 앞 차례를 마치고 다음 차례를 기다린다(가전이 끝나기를 기다릴 수도 있다).
+const kExecRoutineWaiting = '다음 차례를 기다리는 중';
 
 /// 실행 중 버튼판 위 한 줄(출시 검토 10/18) — 세 줄 설명 대신 할 일만. 연습도 같은 말(연습은 위 청록 띠가 말한다).
 const kExecPanelCaption = '화면은 누르지 않아도 돼요';
@@ -434,6 +449,15 @@ class _NowBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (view._routineLine case final routine?) ...[
+            KioskText(routine,
+                textKey: const ValueKey('exec-routine-segment'),
+                style: TextStyle(
+                    fontSize: KioskType.body,
+                    color: KioskColors.muted,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+          ],
           if (total != null && total > 0) ...[
             KioskText(view.progressLine(total, done),
                 textKey: const ValueKey('execution-step'),

@@ -188,6 +188,16 @@ class FakeKioskApi implements KioskApiService {
   /// 정지 실패(통신·본체 거절)를 흉내 낸다(검토 10/19).
   Object? stopError;
 
+  /// POST /routines/runs/{id}/stop(검토 10/19) — 멈추라고 보낸 루틴 실행 번호.
+  final routineStops = <String>[];
+  Object? routineStopError;
+
+  @override
+  Future<void> stopRoutineRun(String runId) async {
+    routineStops.add(runId);
+    if (routineStopError != null) throw routineStopError!;
+  }
+
   /// 잠시 쉬기 저장 결과(서버 `persisted`) — false면 키오스크가 '지금만 적용'을 알린다(2026-10-14 HIGH 재확인 M-R1).
   bool? dndPersisted = true;
   final dndSets = <int>[];

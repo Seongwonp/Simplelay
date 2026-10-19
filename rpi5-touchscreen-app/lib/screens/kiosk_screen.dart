@@ -182,6 +182,12 @@ class _KioskScreenState extends State<KioskScreen> {
   // 폰 앱이 시작한 실행은 idle 폴링의 /status.job_id에서 얻는다. 완료 판정은
   // last_job_id 대조 — 이전 실행 결과를 내 것으로 오인하는 레이스가 없다.
   String? _activeJobId;
+  // 따라가는 실행이 루틴이면(본체가 GET /jobs에 routine_run_id를 실었다, 검토 10/19) 그 루틴 실행 번호·지금 차례·그 구간의
+  // 실행 번호와 구간 사이 기다림. 정지는 그 루틴만 멈추는 /routines/runs/{id}/stop으로 먼저 보낸다.
+  String? _execRoutineRunId;
+  int? _execRoutineSegment;
+  String? _execRoutineSegmentJobId;
+  bool _execRoutineWaiting = false;
   DateTime? _lastStatusOk;
   bool _pollInFlight = false;
   // 내 job의 흔적이 안 보인 연속 폴링 수 — 시작 직후 창은 정상, 계속되면
@@ -952,11 +958,19 @@ class _KioskScreenState extends State<KioskScreen> {
         return;
       }
       // 이 실행의 진행·결과는 실행 번호로 따로 묻는다 — 기기 전체 값(비상정지·대기·자동 실행·정지 재전송)은 /status([st])에서.
-      final job = await _jobView(jobId, st);
+      final lookup = await _api.jobStatus(jobId);
       if (!mounted || _phase != KioskPhase.executing ||
           _activeJobId != jobId) {
         return;
       }
+      if (lookup.unsupported && _execRoutineRunId != null) {
+        // 루틴을 따라가는데 실행 번호 조회가 실패했다(본체는 조회를 안다) — /status로 보지 않는다. 루틴이 도는 동안 /status는
+        // 구간 번호만 내놓아 남의 실행처럼 셌다(검토 10/19). 정지·비상정지만 옮기고, 조회가 오래 안 되면 결과 화면으로.
+        _trackEstop(st);
+        throw StateError('routine job lookup failed');
+      }
+      // 옛 본체(조회 없음)·조회 실패면 /status의 마지막 한 건으로 종전처럼. null이면 본체가 그 실행을 모른다(흔적 없음과 같다).
+      final job = lookup.unsupported ? st : lookup.status;
       _lastStatusOk = DateTime.now();
       _trackStrip(st);
       _trackEstop(st);
@@ -965,7 +979,8 @@ class _KioskScreenState extends State<KioskScreen> {
       // ① 완료 판정 최우선 — 내 job 완료 직후 다른 클라이언트의 새 job이
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
       // 처리하면 그 완료를 영영 놓친다(추월 레이스).
-      if (job != null && job.lastJobId != null && job.lastJobId == _activeJobId) {
+      // 끝났다고 한 답만(finished, 검토 10/19 — 루틴은 모든 구간이 끝나야 참). 옛 본체·/status는 null이라 종전처럼.
+      if (job != null && job.lastJobId != null && job.lastJobId == _activeJobId && job.finished != false) {
         if (st.lastAutoRun?.jobId == jobId) {
           // 자동 실행(허용 규칙)은 완료 화면 대신 위 한 줄로 실제 결과를 알린다(C2).
           _seenLastJobId = jobId;
@@ -981,6 +996,7 @@ class _KioskScreenState extends State<KioskScreen> {
         final mine = _activeJobId == null || job.jobId == _activeJobId;
         if (mine) {
           _foreignPolls = 0;
+          if (job.routineRunId != null && _followRoutine(job)) return;
           setState(() {
             _executionMode = job.executionMode;
             final prevButton = _currentButton;
@@ -1035,11 +1051,33 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
-  /// [jobId] 실행의 진행·결과(검토 10/19 코어 5차 #4) — 본체가 실행 번호로 알려 주면 그것을, 옛 본체(조회 없음)·조회 실패면
-  /// /status([device])의 마지막 한 건으로 종전처럼. null이면 본체가 그 실행을 모른다(흔적 없음과 같다).
-  Future<KioskStatus?> _jobView(String jobId, KioskStatus device) async {
-    final lookup = await _api.jobStatus(jobId);
-    return lookup.unsupported ? device : lookup.status;
+  /// 도는 루틴의 차례를 옮긴다(검토 10/19). 구간이 바뀌면 앞 구간의 누른 버튼·칸 수·확인을 지운다 — 루틴 전체가 아니라 그
+  /// 구간 것이다. 구간 사이(진행 필드 없음)면 누르는 버튼 없이 '다음 차례를 기다리는 중'으로 두고 true(진행 갱신 없음).
+  bool _followRoutine(KioskStatus job) {
+    final segmentJob = job.routineSegmentJobId;
+    final waiting = job.currentButton == null && job.applianceId == null;
+    setState(() {
+      _execRoutineRunId = job.routineRunId;
+      _execRoutineSegment = job.routineSegment ?? _execRoutineSegment;
+      _execRoutineWaiting = waiting;
+      // 처음 본 구간은 지울 것이 없다 — 승인 때 정한 LG 가전 표시도 그대로 둔다.
+      final previous = _execRoutineSegmentJobId;
+      _execRoutineSegmentJobId = segmentJob;
+      if (previous != null && segmentJob != previous) {
+        _currentButton = null;
+        _execDoneButtons = const [];
+        _currentAttempt = null;
+        _completedSteps = null;
+        _totalSteps = null;
+        _execBarValue = 0;
+        _verificationConfidence = null;
+        _verificationDetail = null;
+        // 구간마다 경로가 다르다(LG 가전 단계·누름 단계) — 아래 진행 갱신이 이 구간 값으로 다시 정한다.
+        _execThinqOnly = false;
+      }
+      if (waiting) _currentButton = null;
+    });
+    return waiting;
   }
 
   /// 서버가 보고한 [jobId]의 끝을 완료 화면으로 옮긴다(내 job·이어받은 job·놓친 짧은 실행 공통).
@@ -1611,6 +1649,10 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneOperationDetail = null;
     _doneRunSteps = const [];
     _activeJobId = jobId;
+    _execRoutineRunId = null;
+    _execRoutineSegment = null;
+    _execRoutineSegmentJobId = null;
+    _execRoutineWaiting = false;
     _retryAction = null;
     _lastStatusOk = DateTime.now();
     _foreignPolls = 0;
@@ -2034,6 +2076,19 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Future<void> _sendExecStop() async {
     final gen = _admitGen;
+    final routineRunId = _execRoutineRunId;
+    if (routineRunId != null) {
+      // 루틴이면 그 루틴만 멈춘다(남은 구간을 보내지 않고, 누르는 중이면 본체가 긴급 정지도 보낸다, 검토 10/19). 본체가 받지 않으면
+      // (진행 중인 루틴이 아님·옛 본체·끊김) 아래 본체 전체 정지로 갈음한다 — 멈추라는 뜻은 그대로 전한다.
+      try {
+        await _api.stopRoutineRun(routineRunId);
+        if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) return;
+        setState(() => _execStop = KioskExecStop.stopping);
+        return;
+      } catch (_) {
+        if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) return;
+      }
+    }
     try {
       await _api.stop();
       if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) return;
@@ -2500,6 +2555,8 @@ class _KioskScreenState extends State<KioskScreen> {
           verificationDetail: _verificationDetail,
           onStop: _onStop,
           stopState: _execStop,
+          routineSegment: _execRoutineSegment,
+          routineWaiting: _execRoutineWaiting,
           thinqOnly: _execThinqOnly,
           thinqActionText: _execThinqActionText,
         );
