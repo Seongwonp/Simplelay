@@ -630,6 +630,12 @@ void main() {
     expect(find.text(kPassNoPressDeviceMessage), findsOneWidget);
     expect(find.textContaining('갠트리'), findsNothing);
 
+    // 지금 본체의 문장(10/19 쉬운 말)도 같다.
+    server.rejectPass = (409, '이 가전 위에는 누름 장치가 없어 자리 확인을 할 수 없어요 — 누름 장치를 이 가전에 올린 뒤 다시 해 주세요');
+    await tester.tap(find.byKey(const Key('wizard-start-pass')));
+    await _settle(tester);
+    expect(find.text(kPassNoPressDeviceMessage), findsOneWidget);
+
     server.rejectPass = (409, '확인 주행을 지금 할 수 없어요');
     await tester.tap(find.byKey(const Key('wizard-start-pass')));
     await _settle(tester);
