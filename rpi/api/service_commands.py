@@ -468,23 +468,47 @@ class CommandExecutionMixin:
         latched = getattr(self, "estop_latched", None)
         return bool(callable(latched) and latched())
 
-    def _with_estop_guard(self, inner):
-        """ThinQ 단계의 보내기 직전 확인에 비상정지 걸림을 더한다(2026-10-15 검토 H1).
+    def _thinq_stop_requested(self) -> bool:
+        """이번 실행에 정지를 받았는지(단계 사이 표시 또는 이번 실행 정지). 잠금 없이 읽는다 — 실행기 잠금 안(전송권
+        확인 자리)에서도 불리고, /stop은 서비스 잠금 → 실행기 잠금 순으로 잡으므로 여기서 서비스 잠금을 잡으면 엇갈린다.
+        /stop은 실행기 ``request_stop``보다 **먼저** 두 표시를 세운다 — 실행기 잠금 안에서 표시를 못 봤다면 그 정지의
+        ``request_stop``은 아직 실행기 잠금을 못 잡았고, 곧 '보냄(dispatched)'을 보고 취소 불가로 알린다."""
+        return bool(self._stop_sticky or self._stop_requested_this_run)
+
+    def _with_estop_guard(self, inner, stop_hit: list | None = None):
+        """ThinQ 단계의 보내기 직전 확인에 비상정지 걸림과 정지 표시를 더한다(2026-10-15 검토 H1, 2026-10-19 정지).
 
         실행기에 넘기기 전과, 실행기가 프로필·상태 조회를 마친 뒤 **보내기 직전**에 불린다(``dispatch_guard``와 같은
         자리). 걸려 있으면 보내지 않고(``not_dispatched``) 사유를 남긴다. 인자 없이도, 바인딩 하나로도 불린다.
-        안쪽 확인의 반환값(자동 실행 규칙의 전송권 등)은 그대로 돌려준다."""
+        안쪽 확인의 반환값(자동 실행 규칙의 전송권 등)은 실행기 잠금 안 POST 바로 앞에서 불리는 확인으로 감싸 돌려준다 —
+        거기서도 정지 표시를 한 번 더 본다(2026-10-19: 단계 확인 뒤·실행기가 '보내는 중'이 되기 전에 온 /stop은 실행기
+        ``request_stop``이 idle이라 아무것도 세우지 않았다). 정지로 막혔으면 ``stop_hit``에 남겨 결과를 '멈춤'으로 바꾼다."""
+        def stop_check():
+            if self._thinq_stop_requested():
+                if stop_hit is not None:
+                    stop_hit.append(True)
+                raise RuntimeError("멈추기를 눌러서 하지 않았어요.")
+
         def guard(*args):
             if self._thinq_estop_latched():
                 raise RuntimeError(THINQ_ESTOP_REASON)
-            return inner(*args) if inner is not None else None
+            stop_check()
+            commit = inner(*args) if inner is not None else None
+            if not args:
+                return commit  # 실행기에 넘기기 전 확인 — 반환값은 쓰지 않는다
+
+            def guarded_commit(*c_args, **c_kwargs):
+                stop_check()
+                return commit(*c_args, **c_kwargs) if callable(commit) else None
+            return guarded_commit
         return guard
 
     def _run_thinq_step(self, job_id, step: _Step, purpose, usage_source, scenario_id,
                         dispatch_guard=None) -> CommandResult:
         command = step.command
         blocked = None
-        dispatch_guard = self._with_estop_guard(dispatch_guard)
+        stop_hit: list = []
+        dispatch_guard = self._with_estop_guard(dispatch_guard, stop_hit)
         if dispatch_guard is not None:
             try:
                 dispatch_guard()
@@ -511,6 +535,10 @@ class CommandExecutionMixin:
                 detail="실행기 오류로 보냈는지 알 수 없어요 — 자동으로 다시 보내지 않아요",
                 observed_at=self._clock.now(),
             )
+        if stop_hit and result.receipt is Receipt.NOT_DISPATCHED:
+            # 보내기 직전 확인이 정지 표시로 막았다 — 실패가 아니라 '멈춤·보내지 않음'(2026-10-19)
+            result = replace(result, status=CommandStatus.STOPPED, confirmation=Confirmation.NONE,
+                             detail="멈추기를 눌러서 하지 않았어요.", stop_requested=True)
         with self._lock:
             stopped_by_user = self._stop_requested_this_run
             stop_requested_at = self._stop_requested_at
