@@ -599,14 +599,18 @@ class ApplianceRegistry:
                     raise RevisionConflictError(appliance_id, current)
                 revision = current + 1
                 if self._store is not None and hasattr(self._store, "save_setting"):
+                    # 보정 좌표와 정지·보관 위치는 같은 보정에서 나온 한 묶음이다 — 한 번에 저장한다(검토 10/19 #8:
+                    # 따로 쓰다 뒤가 실패하면 다음 기동이 새 정지 위치와 옛 보정을 함께 썼다).
+                    values = {}
                     if stop_park is not None:
-                        self._store.save_setting(
-                            _stop_park_key(appliance_id), _encode_stop_park(stop_park)
-                        )
-                    self._store.save_setting(
-                        _calibration_key(appliance_id),
-                        _encode_overlay(version, mapped, revision),
-                    )
+                        values[_stop_park_key(appliance_id)] = _encode_stop_park(stop_park)
+                    values[_calibration_key(appliance_id)] = _encode_overlay(version, mapped, revision)
+                    save_all = getattr(self._store, "save_settings", None)
+                    if save_all is not None:
+                        save_all(values)
+                    else:  # 여러 칸 저장이 없는 저장소(시험 흉내) — 예전 순서 그대로
+                        for key, value in values.items():
+                            self._store.save_setting(key, value)
                 with self._mem_lock:
                     if stop_park is not None:
                         self._builtin_stop_park[appliance_id] = dict(stop_park)

@@ -189,6 +189,16 @@ class SimpleLayDb:
             )
             self._conn.commit()
 
+    def save_settings(self, values: "dict[str, str | None]") -> None:
+        """설정 여러 칸을 **한 트랜잭션**으로 — 다 쓰이거나 하나도 안 쓰인다(검토 10/19 #8: 내장 가전 보정·정지 위치)."""
+        with self._lock, self._conn:
+            for key, value in values.items():
+                self._conn.execute(
+                    "INSERT INTO settings (key, value) VALUES (?, ?)"
+                    " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (key, value),
+                )
+
     def save_wellness_pause(self, until: date | None) -> None:
         with self._lock:
             self._conn.execute(
