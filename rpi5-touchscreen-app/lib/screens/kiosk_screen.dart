@@ -2284,7 +2284,7 @@ class _KioskScreenState extends State<KioskScreen> {
         onDismiss: _toIdle,
         // 사람 확인 흐름(휴리스틱 평가 10/18) — 답하면 키오스크 안에 기억하고 처음 화면으로('지난 일' 줄은 남기지 않는다).
         onChecked: _onDoneChecked,
-        // '안 움직였어요·안 켜졌어요'라고 답한 뒤의 '한 번 더 하기' — 다시 보낼 요청이 있고, 본체 끊김·누름 장치 걸림이 아닐 때.
+        // '안 바뀌었어요·안 켜졌어요'라고 답한 뒤의 '한 번 더 하기' — 다시 보낼 요청이 있고, 본체 끊김·누름 장치 걸림이 아닐 때.
         // LG 가전 확인 못 함도 사람이 바뀌지 않았다고 본 뒤에는 연다(같은 설정을 다시 보내는 것 — 이미 그 값이면 서버가 보내지 않는다).
         onRetryAfterCheck: _retryAction == null ||
                 _doneReason == KioskFailureReason.serverLost ||

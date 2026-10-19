@@ -61,12 +61,12 @@ class KioskDoneView extends StatelessWidget {
     this.onRetryAfterCheck,
   });
 
-  /// '가전을 보고 알려 주세요'에 사람이 답했다(휴리스틱 평가 10/18) — true '움직였어요·켜졌어요', false '안 …' 뒤
+  /// '가전을 보고 알려 주세요'에 사람이 답했다(휴리스틱 평가 10/18) — true '바뀌었어요·켜졌어요', false '안 …' 뒤
   /// '손으로 할게요'. 화면(kiosk_screen)이 키오스크 안에 사람 확인으로 기억하고 처음 화면으로 간다('지난 일' 줄은 남기지
   /// 않는다 — 사람이 이미 답했다). null이면(시험·옛 호출) 두 답 모두 [onDismiss]로 나간다.
   final ValueChanged<bool>? onChecked;
 
-  /// 사람이 '안 움직였어요·안 켜졌어요'라고 답한 뒤의 '한 번 더 하기'(확인 창을 거친다). null이면 [onRetry]를 쓴다 —
+  /// 사람이 '안 바뀌었어요·안 켜졌어요'라고 답한 뒤의 '한 번 더 하기'(확인 창을 거친다). null이면 [onRetry]를 쓴다 —
   /// LG 가전 확인 못 함처럼 답 없이는 다시 보내지 않는 결과에서, 사람이 바뀌지 않았다고 본 뒤에만 연다.
   final VoidCallback? onRetryAfterCheck;
 
@@ -131,7 +131,7 @@ class KioskDoneView extends StatelessWidget {
   /// 사람 확인 흐름(휴리스틱 평가 10/18) — 사람이 가전을 보고 답할 결과면 그 말. 아니면 null.
   ///
   /// 눌렸는지 모름·LG 가전 확인 못 함·본체 끊김(어떻게 됐는지 모름)·버튼 누름 보고만(가전은 사람이 본다) — 주 행동이
-  /// '처음 화면으로'면 어르신이 해결 없이 나가 결과를 잃었다. 대신 '움직였어요 / 안 움직였어요' 두 개의 대등한 큰 단추.
+  /// '처음 화면으로'면 어르신이 해결 없이 나가 결과를 잃었다. 대신 '바뀌었어요 / 안 바뀌었어요' 두 개의 대등한 큰 단추.
   /// '한 번 더 하기'는 '안 …'이라고 답한 뒤에만, 확인 창을 거쳐서(열린 문제 R1 — 다시 누르기를 가장 쉬운 행동으로 두지 않는다).
   /// 연습·확인한 성공·사용자 정지(정지가 주인공)·원인을 아는 걸림에는 없다.
   KioskCheckWords? get personCheck {
@@ -423,7 +423,7 @@ class KioskDoneView extends StatelessWidget {
                     : '버튼은 다 눌렀어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
     // 연습은 위 띠가 '실제 가전은 움직이지 않아요'를 말한다 — 같은 말을 아래에 또 쓰지 않는다(10/18).
-    // 사람 확인 흐름(휴리스틱 평가 10/18)이어도 이 할 일 줄은 남긴다(폰과 같은 말) — 아래 물음은 '전자레인지가 움직였나요?'만.
+    // 사람 확인 흐름(휴리스틱 평가 10/18)이어도 이 할 일 줄은 남긴다(폰과 같은 말) — 아래 물음은 '전자레인지 화면·불빛·소리가 바뀌었나요?'만.
     final String? successSub = thinq || mock || steps != null
         ? null
         : operationVerified
@@ -1605,23 +1605,27 @@ const kCheckPrompt = '가전을 보고 알려 주세요';
 class KioskCheckWords {
   const KioskCheckWords({required this.question, required this.yes, required this.no, required this.noSaid});
 
-  /// '전자레인지가 움직였나요?'
+  /// '전자레인지 화면·불빛·소리가 바뀌었나요?'
   final String question;
 
-  /// '움직였어요'
+  /// '바뀌었어요'
   final String yes;
 
-  /// '안 움직였어요'
+  /// '안 바뀌었어요'
   final String no;
 
-  /// '가전이 안 움직였다고 알려 주셨어요'의 가운데 — '안 움직였다고'.
+  /// '가전이 안 바뀌었다고 알려 주셨어요'의 가운데 — '안 바뀌었다고'.
   final String noSaid;
 
   static String _who(String? name) => withSubject((name?.isNotEmpty ?? false) ? name! : '가전');
 
   /// 누름 장치 가전 — 화면·불빛·소리 무엇이든 가전이 반응했는가(어느 버튼이든 맞는 말).
+  /// 무엇을 보면 되는지 물음에 적는다(첫 사용 검토 10/19 #11) — '움직였나요?'는 '30초'만 누른 뒤처럼 화면만 바뀌는 때에 헷갈렸다.
   factory KioskCheckWords.moved(String? name) => KioskCheckWords(
-      question: '${_who(name)} 움직였나요?', yes: '움직였어요', no: '안 움직였어요', noSaid: '안 움직였다고');
+      question: '${(name?.isNotEmpty ?? false) ? name : '가전'} 화면·불빛·소리가 바뀌었나요?',
+      yes: '바뀌었어요',
+      no: '안 바뀌었어요',
+      noSaid: '안 바뀌었다고');
 
   /// LG 가전 켜기.
   factory KioskCheckWords.on(String? name) =>
@@ -1696,9 +1700,9 @@ class KioskRetryPrimary extends StatelessWidget {
 
 /// 사람 확인 흐름의 아래 줄(휴리스틱 평가 10/18, 2차 독립 평가 C).
 ///
-/// 1단계: 물음('전자레인지가 움직였나요?') + **대등한 큰 단추 둘** '움직였어요' / '안 움직였어요'(같은 크기·같은 모양 —
+/// 1단계: 물음('전자레인지 화면·불빛·소리가 바뀌었나요?') + **대등한 큰 단추 둘** '바뀌었어요' / '안 바뀌었어요'(같은 크기·같은 모양 —
 /// 어느 쪽도 먼저 눌리게 하지 않는다) + 옆에 보조 모양 '처음 화면으로'(답하지 않고 나가면 처음 화면 '지난 일'에 남는다).
-/// 2단계('안 …'): '가전이 안 움직였다고 알려 주셨어요' + '손으로 할게요'(처음 화면) · '한 번 더 하기'(확인 창, 다시 할 수
+/// 2단계('안 …'): '가전이 안 바뀌었다고 알려 주셨어요' + '손으로 할게요'(처음 화면) · '한 번 더 하기'(확인 창, 다시 할 수
 /// 있을 때만). '손으로 할게요'가 앞이다 — 다시 누르기를 가장 쉬운 행동으로 두지 않는다(R1).
 class KioskCheckActions extends StatefulWidget {
   const KioskCheckActions({
@@ -1719,7 +1723,7 @@ class KioskCheckActions extends StatefulWidget {
   /// '한 번 더 하기'가 켜고 끄는 한 버튼을 다시 누르나 — 확인 창 경고([confirmKioskRetry]의 toggle).
   final bool retryToggle;
 
-  /// 물음만('전자레인지가 움직였나요?') — 위에 할 일 줄이 이미 '봐 주세요'라고 말할 때.
+  /// 물음만('전자레인지 화면·불빛·소리가 바뀌었나요?') — 위에 할 일 줄이 이미 '봐 주세요'라고 말할 때.
   final bool shortPrompt;
   final bool mock;
   final bool thinq;

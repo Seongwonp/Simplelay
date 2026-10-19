@@ -125,7 +125,7 @@ class KioskPersonCheck {
   /// 무엇이었는지(행동 이름 또는 가전 이름).
   final String label;
 
-  /// true '움직였어요·켜졌어요', false '안 …' 뒤 '손으로 할게요'.
+  /// true '바뀌었어요·켜졌어요', false '안 …' 뒤 '손으로 할게요'.
   final bool worked;
 }
 

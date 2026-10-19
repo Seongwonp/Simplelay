@@ -115,8 +115,9 @@ void main() {
       final no = find.byKey(const ValueKey('done-check-no'));
       expect(yes, findsOneWidget);
       expect(no, findsOneWidget);
-      expect(_plain(tester, yes), contains('움직였어요'));
-      expect(_plain(tester, no), contains('안 움직였어요'));
+      // 무엇을 보면 되는지 말한다(첫 사용 검토 10/19 #11) — '움직였나요?'는 '30초'만 누른 뒤처럼 화면·불빛·소리만 바뀌는 때에 헷갈렸다.
+      expect(_plain(tester, yes), contains('바뀌었어요'));
+      expect(_plain(tester, no), contains('안 바뀌었어요'));
       // 같은 크기 — 어느 쪽도 먼저 눌리게 하지 않는다.
       expect(tester.getSize(yes), tester.getSize(no));
       expect(tester.getSize(yes).height, greaterThanOrEqualTo(KioskSizes.primaryButton));
@@ -127,7 +128,7 @@ void main() {
       // 다시 누르기는 답하기 전에는 없다(R1). 누름 장치로 골라 누르기도 두지 않는다.
       expect(find.byKey(const ValueKey('done-retry')), findsNothing);
       expect(find.byKey(const ValueKey('done-manual')), findsNothing);
-      expect(_plain(tester, find.byKey(const ValueKey('done-check-prompt'))), contains('전자레인지가 움직였나요?'));
+      expect(_plain(tester, find.byKey(const ValueKey('done-check-prompt'))), contains('전자레인지 화면·불빛·소리가 바뀌었나요?'));
     });
 
     testWidgets("'안 움직였어요' → '손으로 할게요'가 앞, '한 번 더 하기'는 확인 창(같은 버튼 경고)", (tester) async {
@@ -146,7 +147,7 @@ void main() {
           ));
       await tester.tap(find.byKey(const ValueKey('done-check-no')));
       await tester.pump();
-      expect(_plain(tester, find.byKey(const ValueKey('done-check-prompt'))), contains('안 움직였다고'));
+      expect(_plain(tester, find.byKey(const ValueKey('done-check-prompt'))), contains('가전이 안 바뀌었다고'));
       final hand = find.byKey(const ValueKey('done-check-hand'));
       final retry = find.byKey(const ValueKey('done-retry'));
       expect(hand, findsOneWidget);
