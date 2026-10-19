@@ -759,7 +759,7 @@ class _UnknownTargetScreen extends StatelessWidget {
             const SizedBox(height: AppSpace.sm),
             Text(
               "'${suggestion.label}'의 가전을 찾지 못했어요. "
-              '다른 폰에서 지웠거나 목록을 아직 못 받았을 수 있어요.',
+              '지워졌거나 이 폰이 목록을 아직 못 받았을 수 있어요.',
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appMuted),
             ),

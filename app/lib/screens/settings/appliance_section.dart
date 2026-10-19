@@ -8,6 +8,10 @@ part of '../settings_screen.dart';
 /// 가전이 본체에 아직 없을 때만 뜬다([hasPendingSyncProvider]).
 const kResyncLabel = '본체 화면에 반영하기';
 
+/// 본체에 저장된 내용과 달라 이 폰 변경을 보내지 않고 본체 내용으로 맞췄을 때. 다른 폰이 없어도 생긴다(키오스크에서
+/// 다시 맞추기·본체 판 번호만 바뀜 등) — '다른 폰에서 바꾼 것이 있어'라고 하지 않는다(검토 10/19).
+const kSyncConflictMessage = '본체에 저장된 내용과 달라서 본체 내용으로 맞췄어요.';
+
 /// LG 가전 줄 부제(평가 12차 10/18).
 /// 평가 17차(10/18): '켜기·끄기는 여기서 / 등록은 LG 앱에서' 토막말 두 줄 → 할 일 한 문장. 켜기·끄기는 줄을 눌러
 /// 들어간 상태 카드에서 한다(줄 끝 >가 말한다).
@@ -120,7 +124,7 @@ class _ApplianceSection extends ConsumerWidget {
   static String _syncMessage(ApplianceSyncResult r) {
     if (r.conflicts > 0) {
       // 자동으로 덮어쓰지 않았다는 것을 분명히 말한다.
-      return '다른 폰에서 바꾼 것이 있어 본체 내용으로 맞췄어요.';
+      return kSyncConflictMessage;
     }
     if (r.allDone) {
       final parts = [

@@ -15,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/providers/appliance_sync_provider.dart';
 import 'package:simplelay/widgets/sync_status_line.dart';
-import 'package:simplelay/screens/settings_screen.dart' show kResyncLabel;
+import 'package:simplelay/screens/settings_screen.dart' show kResyncLabel, kSyncConflictMessage;
 
 /// 대기열을 기기에 심어 둔 채 화면만 띄운다 — 네트워크를 타지 않는다.
 ///
@@ -77,6 +77,11 @@ void main() {
   test('다시 보내기 단추는 쉬운 말 — "동기화"를 쓰지 않는다(UI 평가 10/17)', () {
     expect(kResyncLabel, '본체 화면에 반영하기');
     expect(kResyncLabel, isNot(contains('동기화')));
+  });
+
+  test('본체 내용으로 맞췄을 때는 다른 폰이 있다고 짐작하지 않는다(검토 10/19)', () {
+    expect(kSyncConflictMessage, isNot(contains('다른 폰')));
+    expect(kSyncConflictMessage, '본체에 저장된 내용과 달라서 본체 내용으로 맞췄어요.');
   });
 
   testWidgets('평상시에는 아무것도 띄우지 않는다', (tester) async {
