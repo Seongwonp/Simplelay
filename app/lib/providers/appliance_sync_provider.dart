@@ -158,6 +158,8 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
   final Ref _ref;
   late final Future<void> _loaded;
   Future<ApplianceSyncResult>? _inFlight;
+  bool _queuedDuringFlight = false;
+  Future<ApplianceSyncResult>? _followUp;
   var _seq = 0;
 
   /// 대기열 한 줄. 못 읽으면 null — 줄마다 따로 읽는다(검토 10/19: 한 줄이 깨지면 전체 읽기가 멈춰 대기열이 빈 채로
@@ -259,6 +261,8 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
 
   Future<void> _enqueue(SyncOperation op) async {
     await _loaded; // 저장된 대기열 위에 얹어야 한다 — 덮어쓰면 잃는다
+    // 도는 패스가 이미 대기열을 다 본 뒤(병합 중)일 수 있다 — 그 패스가 끝나면 한 번 더 돈다([sync]).
+    if (_inFlight != null) _queuedDuringFlight = true;
     final next = [...state.pending, op];
     state = ApplianceSyncState(pending: next, lastFailed: state.lastFailed);
     await _persist(next);
@@ -373,9 +377,21 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
   ///
   /// 겹쳐 부르면 **진행 중인 것을 기다린다**(single-flight). 그냥 또 돌리면
   /// 같은 작업이 두 번 나가고, 그 사이 순서가 뒤집힐 수 있다.
+  ///
+  /// 도는 사이 새 작업이 쌓였으면 그 패스를 기다린 뒤 **한 번 더** 돈다 — 패스가 대기열을 다 보고 병합하는 중에
+  /// 쌓인 작업은 그 패스가 보내지 않아, 다음 동기화 때까지 폰에만 남았다(검토 10/19).
   Future<ApplianceSyncResult> sync() {
     final running = _inFlight;
-    if (running != null) return running;
+    if (running != null) {
+      if (!_queuedDuringFlight) return running;
+      return _followUp ??= running
+          .catchError((Object _) => const ApplianceSyncResult())
+          .then((_) {
+        _followUp = null;
+        return sync();
+      });
+    }
+    _queuedDuringFlight = false;
     final started = _sync();
     _inFlight = started;
     return started.whenComplete(() {
@@ -662,14 +678,15 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     final remote = await api.customAppliances();
     if (remote == null) return null;
     final notifier = _ref.read(customAppliancesProvider.notifier);
-    final locals = _ref.read(customAppliancesProvider);
-    final localById = {for (final a in locals) a.id: a};
+    // 대기열은 **지금 것**을 본다 — 병합 조회를 기다리는 사이 저장한 변경이 패스 처음의 목록에는 없어, 방금 고친 가전을
+    // 본체의 옛 내용으로 덮었다(검토 10/19). [stillPending]은 패스가 남긴 작업으로, 지금 대기열에 함께 있다.
+    bool pendingFor(String id) =>
+        state.pending.any((op) => op.applianceId == id) ||
+        stillPending.any((op) => op.applianceId == id);
     // 아직 못 지운 가전은 도로 받아오지 않는다 -- 지운 것이 동기화 때마다
     // 되살아나면 지운 것이 아니다.
-    final pendingDeletes = {
-      for (final op in stillPending)
-        if (op.kind == SyncOpKind.delete) op.applianceId,
-    };
+    bool pendingDelete(String id) => [...state.pending, ...stillPending]
+        .any((op) => op.applianceId == id && op.kind == SyncOpKind.delete);
 
     var adopted = 0;
     for (final incoming in remote) {
@@ -677,8 +694,9 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
       // 여기로 새어 들어오면 기기에 저장되고 다음 동기화가 올려 보낸다.
       // 마지막 문에서 한 번 더 막는다.
       if (!incoming.isCustom) continue;
-      if (pendingDeletes.contains(incoming.id)) continue;
-      final mine = localById[incoming.id];
+      if (pendingDelete(incoming.id)) continue;
+      // 가전 목록도 지금 것으로 — 병합 사이 고친 내용을 옛 모습으로 견주지 않는다.
+      final mine = _ref.read(customAppliancesProvider).where((a) => a.id == incoming.id).firstOrNull;
       if (mine == null) {
         await notifier.add(incoming);
         adopted++;
@@ -690,8 +708,7 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
       // 본 내용이 있다는 뜻이고, 그걸 보여주는 것이 "서버 내용을 가져왔어요"
       // 의 실체다. 못 보낸 변경은 대기열에 그대로 남아 있고, 화면이 그
       // 사실을 따로 알린다 — 둘 다 사실이므로 둘 다 보여준다.
-      if (!conflicted.contains(incoming.id) &&
-          stillPending.any((op) => op.applianceId == incoming.id)) {
+      if (!conflicted.contains(incoming.id) && pendingFor(incoming.id)) {
         continue;
       }
       // 사진을 얹은 모습으로 견준다 — 이 폰에만 있는 것은 차이가 아니다.

@@ -69,6 +69,10 @@ class _FakeServer {
   /// 목록 조회(GET /appliances)만 실패시킨다.
   bool failList = false;
 
+  /// 두 번째 목록 조회(한 패스의 병합 조회)만 붙잡아 둔다.
+  Completer<void>? secondListGate;
+  int listCalls = 0;
+
   static Map<String, dynamic> _def(String id) => {
         'id': id,
         'name': id,
@@ -82,9 +86,17 @@ class _FakeServer {
         ],
       };
 
+  /// 마지막 PUT이 보낸 이름 — 받은 고치기의 이름을 목록에 남긴다(병합이 그 이름을 다시 받는다).
+  Map<String, dynamic> _sentName() {
+    final name = putBodies.last['name'];
+    return name is String ? {'name': name} : const {};
+  }
+
   http.Client client() => MockClient((request) async {
         final path = request.url.path;
         if (path == '/appliances' && request.method == 'GET') {
+          listCalls++;
+          if (listCalls == 2 && secondListGate != null) await secondListGate!.future;
           if (gate != null) await gate!.future;
           if (failList) return http.Response('{"detail":"boom"}', 500);
           return _json([
@@ -122,7 +134,7 @@ class _FakeServer {
               customs[id] = {..._def(id), 'revision': (current ?? 0) + 1};
               return _json(customs[id]!);
             }
-            customs[id] = _def(id);
+            customs[id] = {..._def(id), ..._sentName()};
             return _json(customs[id]!);
           }
           if (request.method == 'DELETE') {
@@ -435,6 +447,37 @@ void main() {
         reason: '동기화 중에 저장한 변경은 보내졌거나 대기열에 남아 있어야 한다',
       );
       expect(stored.any((line) => line.contains('"appliance_id":"fan"')), isFalse);
+    });
+
+    test('병합 조회 중에 고친 가전을 본체 내용으로 덮지 않고, 그 고치기를 이어서 보낸다(검토 10/19 core6 5)', () async {
+      final server = _FakeServer(['fan']);
+      final container = await _phone(
+        server,
+        prefs: {
+          'custom_appliances': [jsonEncode(_syncedJson('fan'))],
+        },
+      );
+      final sync = container.read(applianceSyncProvider.notifier);
+      server.secondListGate = Completer<void>();
+      server.listCalls = 0;
+
+      final first = sync.sync();
+      for (var i = 0; i < 50 && server.listCalls < 2; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(server.listCalls, 2, reason: '병합 조회에서 붙잡혔다');
+      final edited = ApplianceMap.fromJson({..._syncedJson('fan'), 'name': '내 선풍기'});
+      final saved = sync.saveAppliance(edited);
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      server.secondListGate!.complete();
+      await Future.wait([first, saved]);
+
+      final fan = container.read(customAppliancesProvider).firstWhere((a) => a.id == 'fan');
+      expect(fan.name, '내 선풍기', reason: '방금 고친 내용이 본체의 옛 내용으로 덮이면 안 된다');
+      expect(server.calls, contains('PUT fan'), reason: '병합 중에 쌓인 고치기는 이어서 보낸다');
+      expect(await _storedOps(), isEmpty);
     });
   });
 
