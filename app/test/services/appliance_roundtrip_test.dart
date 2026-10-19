@@ -85,4 +85,35 @@ void main() {
         {...a.toJson()}..remove('functions'))));
     expect(body.containsKey('functions'), isFalse);
   });
+  // 10/19: 폰이 적은 방(놓인 곳)을 등록 PUT에 싣지 않아, 본체 사본으로 바꾸면(서버 응답 채택) 방 이름이 사라졌다.
+  for (final (name, send) in <(String, Future<void> Function(RpiApiService, ApplianceMap))>[
+    ('registerAppliance', (api, a) => api.registerAppliance(a)),
+    ('registerApplianceStrict', (api, a) => api.registerApplianceStrict(a)),
+  ]) {
+    test('$name: 사용자가 적은 방을 location으로 싣는다', () async {
+      final body = await sentBody(
+          (api, a) => send(api, ApplianceMap.fromJson({...a.toJson(), 'location': '주방'})));
+      expect(body['location'], '주방');
+    });
+
+    test('$name: 방을 비우면 빈 문자열로 보내 본체 값도 지운다 — 빼면 본체가 옛 방을 이어받는다', () async {
+      final body = await sentBody((api, a) => send(api, a));
+      expect(body.containsKey('location'), isTrue);
+      expect(body['location'], '');
+    });
+  }
+
+  test('방을 실어 보낸 뒤 본체 응답(사본)을 채택해도 방이 남는다', () async {
+    Map<String, dynamic>? sent;
+    final api = RpiApiService('http://hub', client: MockClient((req) async {
+      sent = jsonDecode(req.body) as Map<String, dynamic>;
+      // 본체(a71da41e 이후)는 받은 location을 저장하고 돌려준다.
+      final reply = {..._serverItem(), if (sent!['location'] case final String l when l.isNotEmpty) 'location': l};
+      return http.Response.bytes(utf8.encode(jsonEncode(reply)), 200,
+          headers: {'content-type': 'application/json'});
+    }));
+    final mine = ApplianceMap.fromJson({..._serverItem(), 'location': '안방'});
+    final reply = await api.registerApplianceStrict(mine);
+    expect(ApplianceMap.fromJson(reply).withPhotoFrom(mine).location, '안방');
+  });
 }

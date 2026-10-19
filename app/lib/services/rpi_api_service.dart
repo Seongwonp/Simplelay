@@ -1754,6 +1754,7 @@ class RpiApiService {
               // id나 'custom'을 넣어서, 식별자와 종류가 뭉개지고
               // 커스텀 가전의 종류는 아예 사라졌다.
               'category': appliance.category.value,
+              'location': _locationOf(appliance),
               ..._layoutBody(appliance),
             }),
           )
@@ -1770,6 +1771,10 @@ class RpiApiService {
       return false;
     }
   }
+
+  /// 놓인 곳(방). 늘 싣는다 — 비우면 빈 문자열로 본체 값도 지운다. 빼면 본체가 저장된 옛 방을 이어받고, 싣지
+  /// 않던 때는 본체 사본으로 바꿀 때 사용자가 적은 방이 사라졌다(10/19). 옛 본체는 모르는 키를 무시한다.
+  static String _locationOf(ApplianceMap appliance) => appliance.location?.trim() ?? '';
 
   /// 등록 PUT의 격자·버튼·목적 부분. 폰이 고치지 않는 서버 필드(다이얼 `kind`·`detents`·`press_ms`·`behavior`·
   /// 모르는 키, `functions`)는 받은 그대로 다시 싣는다 — 빼면 본체가 기본값으로 갈아 끼우고 목적을 지웠다(검토 10/19).
@@ -2227,6 +2232,7 @@ class RpiApiService {
           body: jsonEncode({
             'name': appliance.name,
             'category': appliance.category.value,
+            'location': _locationOf(appliance),
             ..._layoutBody(appliance),
           }),
         )
