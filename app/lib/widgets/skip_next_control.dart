@@ -75,7 +75,8 @@ class _SkipNextControlState extends ConsumerState<SkipNextControl> {
     final undo = n.skipped;
     final label = undo ? '되돌리기' : n.skipActionLabel;
     final semantic = undo ? '${n.name} 건너뛰기 되돌리기' : '${n.name} ${n.skipActionLabel}';
-    final color = _busy ? context.appMuted : context.appInk;
+    // '되돌리기'는 작은 회색 굵은 글자만(10/19) — 건너뛴 표시가 이미 말하므로 눈에 덜 띄게. '오늘은 건너뛰기'는 그대로.
+    final color = _busy || undo ? context.appMuted : context.appInk;
     return Semantics(
       label: semantic,
       button: true,
@@ -100,9 +101,9 @@ class _SkipNextControlState extends ConsumerState<SkipNextControl> {
                     height: AppSpace.lg,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                else
-                  Icon(undo ? Icons.undo_rounded : AppIcons.skipOnce, size: AppSpace.xl, color: context.appMuted),
-                const SizedBox(width: AppSpace.sm),
+                else if (!undo)
+                  Icon(AppIcons.skipOnce, size: AppSpace.xl, color: context.appMuted),
+                if (_busy || !undo) const SizedBox(width: AppSpace.sm),
                 Flexible(
                   child: Text(
                     keepWordsTogether(label),

@@ -22,6 +22,7 @@ import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/routines_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
+import 'package:simplelay/theme/app_tokens.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -215,6 +216,29 @@ void main() {
     expect(hub.count('POST /routines/next/unskip'), 1);
     expect(_skipButton(), findsOneWidget);
     expect(find.text('오늘은 건너뛰어요'), findsNothing);
+  });
+
+  // 10/19: 건너뛴 상태는 표시 하나('오늘은 건너뛰어요')가 말하고, 그 아래는 작은 회색 굵은 '되돌리기'만(아이콘 없이) —
+  // 검은 글자·되돌림 아이콘의 '되돌리기'가 표시와 같은 무게로 한 번 더 말하는 것처럼 보였다. '오늘은 건너뛰기' 모양은 그대로.
+  testWidgets('홈: 건너뛰면 표시는 한 번, 되돌리기는 작은 회색 굵은 글자만', (tester) async {
+    _size(tester);
+    final hub = _Hub();
+    await tester.pumpWidget(_app(hub, '/'));
+    await _settle(tester);
+    final skipText = tester.widget<Text>(
+        find.descendant(of: _skipButton(), matching: find.text(keepWordsTogether('오늘은 건너뛰기'))));
+    final skipColor = skipText.style?.color;
+    expect(find.descendant(of: _skipButton(), matching: find.byType(Icon)), findsOneWidget, reason: '건너뛰기 모양 그대로');
+
+    await tester.tap(_skipButton());
+    await _settle(tester);
+    expect(find.text('오늘은 건너뛰어요'), findsOneWidget);
+    expect(find.descendant(of: _undoButton(), matching: find.byType(Icon)), findsNothing);
+    final undoText = tester.widget<Text>(find.descendant(of: _undoButton(), matching: find.byType(Text)));
+    expect(undoText.style?.fontWeight, FontWeight.w700);
+    expect(undoText.style?.fontSize, AppFont.caption);
+    expect(undoText.style?.color, isNot(skipColor), reason: '회색');
+    expect(tester.getRect(_undoButton()).height, greaterThanOrEqualTo(48));
   });
 
   testWidgets('응답을 기다리는 동안 두 번 눌러도 요청은 한 번', (tester) async {
