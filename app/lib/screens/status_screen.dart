@@ -225,7 +225,10 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       big: true,
                       label: i == status.completedSteps && active && now.button != null
                           ? '${now.button} 버튼'
-                          : '${i + 1}번째 버튼',
+                          // 본 이름(폴링·끝난 뒤 last_buttons)이 있으면 그 이름, 못 봤으면 번호(10/19 — 키오스크와 같게).
+                          : (i < status.stepNames.length && status.stepNames[i] != null)
+                              ? '${status.stepNames[i]} 버튼'
+                              : '${i + 1}번째 버튼',
                       state: i < status.completedSteps
                           ? _StepState.done
                           : (i == status.completedSteps && active)

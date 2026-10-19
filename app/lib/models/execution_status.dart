@@ -24,6 +24,7 @@ class ExecutionStatus {
     this.steps = const [],
     this.completedSteps = 0,
     this.currentButton,
+    this.stepNames = const [],
     this.totalSteps,
     this.currentAttempt,
     this.verificationConfidence,
@@ -54,6 +55,10 @@ class ExecutionStatus {
   // 서버가 주는 실시간 폐루프 증거. 음성 실행처럼 steps 미리보기가
   // 없는 경로에서도 진행을 보여줄 수 있도록 totalSteps를 따로 둔다.
   final String? currentButton;
+
+  /// 칸 번호별 버튼 이름 — 폴링에서 '지금 버튼'으로 본 이름, 끝나면 서버 `last_buttons`의 누른 순서(10/19).
+  /// 서버는 실행 중 끝낸 칸 이름을 주지 않는다. 못 본 칸은 null — 화면은 번호로 둔다(이름을 지어내지 않는다).
+  final List<String?> stepNames;
   final int? totalSteps;
   final int? currentAttempt;
   final double? verificationConfidence;
@@ -119,6 +124,7 @@ class ExecutionStatus {
     List<String>? steps,
     int? completedSteps,
     String? currentButton,
+    List<String?>? stepNames,
     int? totalSteps,
     int? currentAttempt,
     double? verificationConfidence,
@@ -146,6 +152,7 @@ class ExecutionStatus {
         steps: steps ?? this.steps,
         completedSteps: completedSteps ?? this.completedSteps,
         currentButton: currentButton ?? this.currentButton,
+        stepNames: stepNames ?? this.stepNames,
         totalSteps: totalSteps ?? this.totalSteps,
         currentAttempt: currentAttempt ?? this.currentAttempt,
         verificationConfidence:

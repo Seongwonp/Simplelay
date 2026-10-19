@@ -211,6 +211,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           completedSteps: success
               ? (state.totalSteps ?? state.steps.length)
               : state.completedSteps,
+          // 끝난 실행의 누른 순서 이름(서버 last_buttons) — 실행 중 못 본 칸도 이름이 생긴다.
+          stepNames: (status.lastButtons?.isNotEmpty ?? false)
+              ? [for (final b in status.lastButtons!) b.button]
+              : null,
           message: message,
           outcome: status.lastOutcome,
           route: status.lastRoute,
@@ -235,9 +239,12 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (status.running && status.jobId == jobId) {
         _missingPolls = 0;
         final retrying = (status.currentAttempt ?? 1) > 1;
+        final index = status.completedSteps ?? state.completedSteps;
         state = state.copyWith(
           executionMode: status.executionMode,
           completedSteps: status.completedSteps ?? state.completedSteps,
+          // 서버는 끝낸 칸 이름을 주지 않는다 — 본 '지금 버튼'을 그 칸 번호에 묶어 둔다(키오스크와 같은 뜻, 10/19).
+          stepNames: _withStepName(state.stepNames, index, status.currentButton),
           // 폐루프 증거를 그대로 흘려보낸다 -- 여기서 버리면 화면은
           // "빙글빙글 돌다 완료되는 앱"이 된다(차별점이 안 보임).
           currentButton: status.currentButton,
@@ -500,6 +507,18 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _apiWait?.close();
     super.dispose();
   }
+}
+
+/// 칸 [index]에 본 버튼 이름을 적은 새 목록. 이름이 없으면 null(그대로 둔다). 사이 칸은 null로 채운다.
+List<String?>? _withStepName(List<String?> names, int index, String? button) {
+  if (button == null || index < 0 || index > 63) return null;
+  if (index < names.length && names[index] == button) return null;
+  final next = [...names];
+  while (next.length <= index) {
+    next.add(null);
+  }
+  next[index] = button;
+  return next;
 }
 
 final executionStatusProvider =
