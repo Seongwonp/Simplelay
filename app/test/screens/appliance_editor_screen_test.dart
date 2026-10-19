@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
-import 'package:simplelay/models/display_status.dart' show kNameTakenMessage;
+import 'package:simplelay/models/display_status.dart' show nameTakenMessage;
 import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/photo_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
@@ -207,7 +207,7 @@ void main() {
         onContainerReady: (c) => container = c);
 
     Finder underName() => find.descendant(
-        of: find.byType(TextField).first, matching: find.text(kNameTakenMessage));
+        of: find.byType(TextField).first, matching: find.text(nameTakenMessage('세탁기')));
     await tester.enterText(find.byType(TextField).first, '세탁기');
     await tester.pump();
     expect(underName(), findsOneWidget);

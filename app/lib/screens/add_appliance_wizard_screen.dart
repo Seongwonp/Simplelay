@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
-import '../models/display_status.dart' show applianceNameTaken, kNameTakenMessage;
+import '../models/display_status.dart' show applianceNameTaken, nameTakenMessage;
 import '../models/hub.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/photo_provider.dart';
@@ -700,7 +700,7 @@ class _AddApplianceWizardScreenState
             maxLength: 40,
             decoration: InputDecoration(
               labelText: '가전 이름 (예: 전자레인지)',
-              errorText: _nameTaken ? kNameTakenMessage : null,
+              errorText: _nameTaken ? nameTakenMessage(_name.text) : null,
               errorMaxLines: 3,
             ),
             onChanged: (_) => setState(() {}),

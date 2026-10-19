@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/appliance.dart';
-import '../models/display_status.dart' show applianceNameTaken, kNameTakenMessage;
+import '../models/display_status.dart' show applianceNameTaken, nameTakenMessage;
 import '../providers/appliance_provider.dart';
 import '../providers/appliance_sync_provider.dart';
 import '../providers/photo_provider.dart';
@@ -270,7 +270,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     }
     if (_nameTaken) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text(kNameTakenMessage)));
+          .showSnackBar(SnackBar(content: Text(nameTakenMessage(name))));
       return;
     }
 
@@ -457,7 +457,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
             decoration: InputDecoration(
               border: const OutlineInputBorder(),
               hintText: '예: 식기세척기',
-              errorText: _nameTaken ? kNameTakenMessage : null,
+              errorText: _nameTaken ? nameTakenMessage(_nameController.text) : null,
               errorMaxLines: 3,
             ),
           ),

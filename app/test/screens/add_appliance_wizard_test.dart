@@ -16,7 +16,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
-import 'package:simplelay/models/display_status.dart' show kNameTakenMessage;
+import 'package:simplelay/models/display_status.dart' show nameTakenMessage;
 import 'package:simplelay/models/hub.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/photo_provider.dart';
@@ -485,12 +485,12 @@ void main() {
     // 종류 칩 '세탁기'를 고르면 이름도 '세탁기'가 된다 — 이미 있는 이름.
     await tester.tap(find.widgetWithText(ChoiceChip, '세탁기'));
     await tester.pump();
-    expect(find.text(kNameTakenMessage), findsOneWidget);
+    expect(find.text(nameTakenMessage('세탁기')), findsOneWidget);
     expect(next().onPressed, isNull);
 
     await tester.enterText(find.byKey(const Key('wizard-name')), '세탁기 2');
     await tester.pump();
-    expect(find.text(kNameTakenMessage), findsNothing);
+    expect(find.textContaining('같은 이름의 가전이 이미 있어요'), findsNothing);
     expect(next().onPressed, isNotNull);
   });
 
@@ -509,7 +509,7 @@ void main() {
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
     expect(tester.widget<TextField>(find.byKey(const Key('wizard-name'))).controller!.text, isEmpty);
-    expect(find.text(kNameTakenMessage), findsNothing);
+    expect(find.textContaining('같은 이름의 가전이 이미 있어요'), findsNothing);
     // 손대지 않고 닫으면 묻지 않는다.
     await tester.tap(find.byTooltip('닫기'));
     await _settle(tester);
@@ -687,5 +687,9 @@ void main() {
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
     expect(find.text(kSaveOfflineMessage), findsOneWidget);
+  });
+
+  test('같은 이름 경고의 예시는 적은 그 이름으로 든다', () {
+    expect(nameTakenMessage(' 인덕션 '), contains('(예: 인덕션 2)'));
   });
 }

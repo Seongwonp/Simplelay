@@ -825,5 +825,6 @@ bool applianceNameTaken(List<ApplianceMap> installed, String name, String? room)
   return installed.any((a) => '${a.name.trim()}\u0000${(a.location ?? '').trim()}' == key);
 }
 
-/// [applianceNameTaken]일 때 이름 칸 아래에 적는 말.
-const kNameTakenMessage = '같은 이름의 가전이 이미 있어요. 이름을 바꾸거나(예: 세탁기 2) 방을 적어 주세요.';
+/// [applianceNameTaken]일 때 이름 칸 아래에 적는 말 — 예시는 적은 그 이름으로.
+String nameTakenMessage(String name) =>
+    '같은 이름의 가전이 이미 있어요. 이름을 바꾸거나(예: ${name.trim()} 2) 방을 적어 주세요.';
