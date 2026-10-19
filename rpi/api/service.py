@@ -1366,15 +1366,23 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             # 이 정지를 지금 실행(세대·job)에 묶는다 — 보고는 락 밖에서 늦게 온다(H1).
             generation = self._run_generation
             stop_job_id = self._current_job_id if was_running else None
+            if was_running:
+                # 시나리오의 남은 단계를 보내지 않게 단계 사이에도 남긴다. 표시는 **먼저** 세운다(2026-10-19) — 아래 정지
+                # 호출이 예외를 올려도 남은 단계·ThinQ 보내기 직전 확인이 이 표시를 본다.
+                self._stop_sticky = True
             stop_handle = None
             if hasattr(local, "request_stop"):
-                stop_handle = local.request_stop()
+                try:
+                    stop_handle = local.request_stop()
+                except Exception:  # noqa: BLE001 - 로컬 정지 고장이 노드·ThinQ 정지를 막지 않는다
+                    log.exception("emergency stop: local request_stop failed")
             # 노드 목록은 모터 정지 **뒤에** 모은다(2026-10-16) — 레지스트리가 처음 쓰는 노드의 컨트롤러를 여기서 만들 수
             # 있고(HTTP 클라이언트 생성, 데스크톱 약 230 ms), 그동안 모터 정지가 기다렸다. 노드에도 정지는 그대로 간다.
-            nodes = self._stoppable_nodes()
-            if was_running:
-                # 시나리오의 남은 단계를 보내지 않게 단계 사이에도 남긴다.
-                self._stop_sticky = True
+            try:
+                nodes = self._stoppable_nodes()
+            except Exception:  # noqa: BLE001 - 목록 고장이 ThinQ 정지를 막지 않는다
+                log.exception("emergency stop: listing stoppable nodes failed")
+                nodes = []
             # ThinQ: 보내기 전이면 취소, 보냈으면 취소 불가로 보고(결정 #5).
             cloud_cancelled, cloud_uncancellable = self._stop_command_paths()
 
