@@ -21,6 +21,7 @@ import logging
 
 from rpi.commands import CommandStatus, Confirmation, ControlRoute
 from rpi.controller.models import ExecutionMode
+from rpi.josa import quoted_josa
 
 from .catalog import ScenarioCatalog, ScenarioDefinition, same_question
 
@@ -193,7 +194,7 @@ class ScenarioEngine:
                 problems.append("필요한 가전이 아직 등록되지 않았어요.")
                 continue
             if appliance.control_path is not command.route:
-                problems.append(f"'{appliance.name}'은 이 방법으로 움직일 수 없어요.")
+                problems.append(f"{quoted_josa(appliance.name, '은', '는')} 이 방법으로 움직일 수 없어요.")
                 continue
             if command.route is ControlRoute.THINQ:
                 readiness = self._service.thinq_readiness(command.target_id)

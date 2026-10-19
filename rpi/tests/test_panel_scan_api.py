@@ -91,7 +91,7 @@ def test_scan_returns_a_draft_and_saves_nothing(serve) -> None:
     assert body["model"] == "fake-vision"
     assert len(body["dropped"]) == 1
     notes = " ".join(body["notes"])
-    assert "초안" in notes and "임시 이름" in notes and "딸깍 수" in notes and "mm" in notes
+    assert "초안" in notes and "임시 이름" in notes and "딸깍 수" in notes and "누를 자리" in notes
     assert scanner.calls == [(PNG, "image/png")]
     assert len(client.get("/appliances").json()) == before
 

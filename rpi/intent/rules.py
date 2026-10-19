@@ -1,5 +1,7 @@
 from collections.abc import Mapping, Sequence
 
+from rpi.josa import quoted_josa
+
 from .base import IntentResolver
 from .normalize import is_negated, normalize_utterance
 
@@ -9,8 +11,8 @@ class UnknownIntentError(ValueError):
 
 
 def not_understood_message(text: str) -> str:
-    """못 알아들었을 때 사람에게 보일 쉬운 말."""
-    return f"'{text.strip()}'을(를) 알아듣지 못했어요"
+    """못 알아들었을 때 사람에게 보일 쉬운 말. 조사는 말의 끝 글자로 고른다('을(를)'은 깨진 문장으로 읽힌다)."""
+    return f"{quoted_josa(text.strip(), '을', '를')} 알아듣지 못했어요"
 
 
 class UnrecognizedPurposeError(UnknownIntentError):

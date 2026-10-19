@@ -21,10 +21,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from rpi.josa import quoted_josa, with_josa
+
 #: 정지 버튼 누름 횟수 범위. RPi4 메시지 검증(act_messages.STOP_PRESSES_RANGE)과 같다.
 STOP_PRESSES_RANGE = (1, 3)
 #: 보관 위치와 보정된 버튼 중심 사이 최소 거리(mm). 설계 초기값 — 캐리지가 버튼을 가리지 않게.
 PARK_CLEARANCE_MM = 15.0
+#: 보관 위치의 화면 이름 — 폰 가전 추가 화면의 말과 같다(panel_mapping·확인 주행도 이 이름을 쓴다).
+PARK_LABEL = "기다리는 자리"
 
 
 @dataclass(frozen=True)
@@ -37,6 +41,11 @@ class StopParkCheck:
 
     def as_dict(self) -> dict:
         return {"status": self.status, "notes": list(self.notes)}
+
+
+#: 누름 장치가 움직일 수 있는 범위를 설치 때 정하지 않았다 — 저장은 하되 닿는지는 아직 모른다(폰에 보인다).
+UNCHECKED_RANGE_NOTE = ("누름 장치가 움직일 수 있는 범위가 아직 정해지지 않아, 고른 자리에 닿는지는 확인하지 못했어요 "
+                        "— 자리 확인을 해서 누름 장치가 고른 자리에 닿는지 봐 주세요")
 
 
 def _soft_limits(env: Mapping[str, str] | None = None):
@@ -64,57 +73,67 @@ def _finite_pair(value: object) -> tuple[float, float] | None:
 
 
 def validate_stop_park(appliance: Any, env: Mapping[str, str] | None = None) -> StopParkCheck:
-    """정지·보관 필드를 검증한다. 틀리면 ``ValueError``(사용자에게 보일 한국어 문장)."""
+    """정지·보관 필드를 검증한다. 틀리면 ``ValueError``(사용자에게 보일 한국어 문장).
+
+    거절 문장과 ``notes``는 폰에 그대로 보인다 — 갠트리·소프트 리밋·mm 좌표 같은 속말과 '이(가)' 같은 겹친 조사를
+    쓰지 않고, 다음에 할 일을 함께 적는다(첫 사용 점검 2026-10-19)."""
     from rpi.services.appliance_registry import MM_RANGE, ButtonKind  # noqa: PLC0415
 
     presses = appliance.stop_presses
     if isinstance(presses, bool) or not isinstance(presses, int) or not (
         STOP_PRESSES_RANGE[0] <= presses <= STOP_PRESSES_RANGE[1]
     ):
-        raise ValueError(f"정지 버튼 누름 횟수는 {STOP_PRESSES_RANGE[0]}~{STOP_PRESSES_RANGE[1]}번이어야 해요")
+        raise ValueError(f"정지 버튼 누름 횟수는 {STOP_PRESSES_RANGE[0]}~{STOP_PRESSES_RANGE[1]}번 중에서 골라 주세요")
     stop = None
     if appliance.stop_button is not None:
         stop = next((b for b in appliance.buttons if b.id == appliance.stop_button), None)
         if stop is None:
-            raise ValueError(f"정지 버튼 '{appliance.stop_button}'이 이 가전의 버튼에 없어요")
+            raise ValueError(f"정지 버튼으로 고른 {quoted_josa(appliance.stop_button, '이', '가')} 이 가전의 버튼에 없어요 "
+                             "— 정지 버튼을 다시 골라 주세요")
         if stop.kind is not ButtonKind.BUTTON:
-            raise ValueError(f"'{stop.label}'은 다이얼이라 정지 버튼으로 쓸 수 없어요")
+            raise ValueError(f"{quoted_josa(stop.label, '은', '는')} 돌리는 다이얼이라 정지 버튼으로 쓸 수 없어요 "
+                             "— 누르는 버튼을 골라 주세요")
     park = None
     if appliance.park_xy is not None:
         park = _finite_pair(appliance.park_xy)
         lo, hi = MM_RANGE
         if park is None or not all(lo <= v <= hi for v in park):
-            raise ValueError(f"보관 위치는 {lo:g}~{hi:g}mm 안의 좌표여야 해요")
+            raise ValueError(f"{with_josa(PARK_LABEL, '이', '가')} 누름 장치가 갈 수 없는 곳이에요 "
+                             "— 버튼판 네 귀퉁이 안쪽에서 다시 골라 주세요")
         for b in appliance.buttons:
             if b.calibrated and math.dist(park, (b.x_mm, b.y_mm)) < PARK_CLEARANCE_MM:
                 raise ValueError(
-                    f"보관 위치가 버튼 '{b.label}'과 너무 가까워요({PARK_CLEARANCE_MM:g}mm 이상 떨어뜨려 주세요)"
+                    f"{with_josa(PARK_LABEL, '이', '가')} 버튼 {quoted_josa(b.label, '과', '와')} 너무 가까워요 "
+                    f"— 버튼에서 {PARK_CLEARANCE_MM / 10:g}cm 넘게 떨어진 곳을 골라 주세요"
                 )
         if stop is not None and stop.calibrated and park == (stop.x_mm, stop.y_mm):
-            raise ValueError("보관 위치와 정지 버튼 위치가 같아요")
+            raise ValueError(f"{with_josa(PARK_LABEL, '과', '와')} 정지 버튼이 같은 곳이에요 "
+                             "— 버튼을 가리지 않는 다른 곳을 골라 주세요")
     if stop is None and park is None:
         return StopParkCheck("none")
     notes: list[str] = []
     if stop is None:
-        notes.append("정지 버튼이 없어 정지 대기를 하지 않아요")
+        notes.append("정지 버튼을 고르지 않아, 가전이 움직이는 동안 정지 버튼 위에서 기다리지 않아요")
     elif not stop.calibrated:
-        notes.append("정지 버튼 좌표(mm)가 없어 정지 대기를 하지 않아요 — 사진 매핑 먼저")
+        notes.append("정지 버튼 자리를 아직 정하지 않아 정지 버튼 위에서 기다리지 않아요 "
+                     "— 사진에서 정지 버튼을 골라 주세요")
     if park is None:
-        notes.append("보관 위치가 없어 정지 대기를 하지 않아요")
+        notes.append(f"{with_josa(PARK_LABEL, '을', '를')} 고르지 않아 정지 버튼 위에서 기다리지 않아요 "
+                     "— 사진에서 기다리는 자리를 골라 주세요")
     limits = _soft_limits(env)
     points = []
     if park is not None:
-        points.append(("보관 위치", park))
+        points.append((PARK_LABEL, park))
     if stop is not None and stop.calibrated:
         points.append((f"정지 버튼 '{stop.label}'", (stop.x_mm, stop.y_mm)))
     if limits is None:
-        notes.append("갠트리 이동 범위(소프트 리밋)가 설정되지 않아 범위는 미확인이에요")
+        notes.append(UNCHECKED_RANGE_NOTE)
     else:
         for label, (x, y) in points:
             if not (limits.x_min_mm <= x <= limits.x_max_mm and limits.y_min_mm <= y <= limits.y_max_mm):
                 raise ValueError(
-                    f"{label}({x:g}, {y:g}mm)가 갠트리 이동 범위 "
-                    f"X {limits.x_min_mm:g}~{limits.x_max_mm:g}, Y {limits.y_min_mm:g}~{limits.y_max_mm:g}mm 밖이에요"
+                    f"{with_josa(label, '이', '가')} 누름 장치의 이동 범위 밖이에요 "
+                    "— 버튼판 안쪽에서 누름 장치가 닿는 곳으로 다시 골라 주세요"
                 )
     if stop is None or not stop.calibrated or park is None:
         return StopParkCheck("incomplete", tuple(notes))

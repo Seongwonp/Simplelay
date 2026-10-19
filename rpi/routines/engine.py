@@ -36,6 +36,7 @@ from datetime import datetime, timedelta
 
 from rpi.commands import CommandStatus, Confirmation, ControlRoute
 from rpi.controller.models import ExecutionMode
+from rpi.josa import quoted_josa
 
 from .model import (
     MODE_LABELS,
@@ -434,7 +435,7 @@ class RoutineEngine:
         for routine in self._store.list():
             trigger = routine.trigger
             if routine.enabled and trigger.kind == "event" and trigger.event == name:
-                reason = f"가전 알림 '{name}'이 왔어요." + (" 연습 알림이에요." if is_demo else "")
+                reason = f"가전 알림 {quoted_josa(str(name), '이', '가')} 왔어요." + (" 연습 알림이에요." if is_demo else "")
                 self._fire(routine, reason, is_demo, "event")
 
     def on_appliance_done(self, record: dict) -> list:

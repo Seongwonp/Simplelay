@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from rpi.controller.models import ExecutionOutcome, outcome_of
+from rpi.josa import josa
 from rpi.services.connections import (
     network_item,
     plug_item,
@@ -197,14 +198,8 @@ def _kiosk_tip_text(message: str) -> str:
 
 
 def _subject_particle(name: str) -> str:
-    """이/가 — 끝의 괄호 표기("(모의)")는 건너뛰고 마지막 한글 글자의 받침으로 고른다."""
-    stem = name.strip()
-    while stem.endswith(")") and "(" in stem:
-        stem = stem[: stem.rindex("(")].rstrip()
-    last = stem[-1:]
-    if "가" <= last <= "힣":
-        return "이" if (ord(last) - 0xAC00) % 28 else "가"
-    return "이"
+    """이/가 — rpi/josa.py(끝의 괄호 표기는 건너뛴다)."""
+    return josa(name, "이", "가")
 
 
 def _attention(service, registry, alerts, care_events=None, acks=None) -> list[AttentionItem]:

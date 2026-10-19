@@ -51,6 +51,7 @@ from rpi.commands import (
     Receipt,
 )
 from rpi.controller.models import ExecutionMode
+from rpi.josa import josa
 
 from .bindings import CapabilityError, ThinqBinding, ThinqCapability
 from .client import (
@@ -139,10 +140,7 @@ def _rejected_sentence(exc: Exception) -> str:
 
 
 def _josa_eul(word: str) -> str:
-    last = word.strip()[-1:]
-    if "가" <= last <= "힣":
-        return "을" if (ord(last) - 0xAC00) % 28 else "를"
-    return "을"
+    return josa(word, "을", "를")
 
 
 def _reason(exc: Exception, fallback: str) -> str:

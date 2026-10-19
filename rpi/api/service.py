@@ -36,6 +36,7 @@ from rpi.intent.models import UsageSource
 from rpi.intent.completed_actions import CompletedActions
 from rpi.intent.rules import UnknownIntentError, RuleBasedIntentResolver, UnrecognizedPurposeError
 from rpi.intent.stop_words import StopPhraseError, refuse_stop_phrase
+from rpi.josa import quoted_josa
 from rpi.services import NodeRegistry
 from rpi.commands import ApprovalMismatchError, CommandStatus, Confirmation, ControlRoute, Receipt
 from rpi.services.appliance_registry import BUILTIN_APPLIANCES
@@ -1089,7 +1090,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             # ThinQ 가전에는 누를 조작부가 없다. 로컬 갠트리로 흘리면 전자레인지를
             # 누른다 -- 물리 오라우팅이므로 여기서 거절한다(422).
             raise WrongRouteError(
-                f"'{appliance_id}'는 ThinQ 가전이라 버튼 시퀀스로 실행하지 않아요 — "
+                f"{quoted_josa(appliance_id, '은', '는')} ThinQ 가전이라 버튼 시퀀스로 실행하지 않아요 — "
                 "등록된 동작 이름으로 요청해 주세요"
             )
         controller = self._route_to(appliance_id)

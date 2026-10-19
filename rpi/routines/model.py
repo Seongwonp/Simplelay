@@ -26,6 +26,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, time as dtime
 
 from rpi.commands import ArgumentError, Command, ControlRoute, canonical_json, normalize_args
+from rpi.josa import quoted_josa, with_josa
 
 #: 저장 문서의 형식 번호. 올리면 ``migrate_document``에 한 단계를 더한다.
 SCHEMA_VERSION = 1
@@ -63,13 +64,13 @@ def _fail(message: str) -> None:
 def _text(value, what: str, limit: int, *, required: bool = True) -> str | None:
     if value is None or (isinstance(value, str) and not value.strip()):
         if required:
-            _fail(f"{what}을(를) 적어 주세요")
+            _fail(f"{with_josa(what, '을', '를')} 적어 주세요")
         return None
     if not isinstance(value, str):
-        _fail(f"{what}은(는) 글자여야 해요")
+        _fail(f"{with_josa(what, '은', '는')} 글자여야 해요")
     value = value.strip()
     if len(value) > limit:
-        _fail(f"{what}은(는) {limit}자 이내로 적어 주세요 (지금 {len(value)}자)")
+        _fail(f"{with_josa(what, '은', '는')} {limit}자 이내로 적어 주세요 (지금 {len(value)}자)")
     return value
 
 
@@ -81,7 +82,7 @@ def _ident(value, what: str) -> str:
 
 def parse_hhmm(value, what: str = "시각") -> dtime:
     if not isinstance(value, str) or not _TIME.fullmatch(value.strip()):
-        _fail(f"{what}은(는) 07:30처럼 24시간 형식으로 적어 주세요")
+        _fail(f"{with_josa(what, '은', '는')} 07:30처럼 24시간 형식으로 적어 주세요")
     hour, minute = value.strip().split(":")
     return dtime(int(hour), int(minute))
 
@@ -257,7 +258,7 @@ class RoutineTrigger:
                 return f"'{name}' 루틴이 끝나면"
             return f"{self.appliance_id} 동작이 끝나면"
         if self.kind == "event":
-            return f"가전 알림 '{self.event}'이 오면"
+            return f"가전 알림 {quoted_josa(str(self.event), '이', '가')} 오면"
         return "직접 실행할 때"
 
 
@@ -444,7 +445,7 @@ def step_command(step: RoutineStep, registry) -> Command:
         _fail(f"'{step.appliance_id}' 가전이 등록되어 있지 않아요")
     if step.kind == "press_sequence":
         if appliance.control_path is not ControlRoute.PHYSICAL:
-            _fail(f"'{appliance.name}'은(는) 버튼을 누르는 가전이 아니에요 — ThinQ 명령 단계를 써 주세요")
+            _fail(f"{quoted_josa(appliance.name, '은', '는')} 버튼을 누르는 가전이 아니에요 — ThinQ 명령 단계를 써 주세요")
         labels = []
         missing = []
         for token in step.buttons:
@@ -457,7 +458,7 @@ def step_command(step: RoutineStep, registry) -> Command:
         except ValueError as exc:
             _fail(f"'{appliance.name}' 버튼 순서가 실행 한도를 넘어요 ({exc})")
     if appliance.control_path is not ControlRoute.THINQ or appliance.thinq is None:
-        _fail(f"'{appliance.name}'은(는) ThinQ로 연결된 가전이 아니에요")
+        _fail(f"{quoted_josa(appliance.name, '은', '는')} ThinQ로 연결된 가전이 아니에요")
     try:
         return appliance.thinq.command(appliance.appliance_id, step.action, dict(step.args))
     except Exception as exc:  # noqa: BLE001 -- CapabilityError 등 허용 범위 밖

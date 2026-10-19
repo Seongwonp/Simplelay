@@ -43,7 +43,7 @@ def test_validation_accepts_unverified_without_limits_and_ok_with_limits():
     assert validate_stop_park(appliance(), env=LIMITS).status == "ok"
     assert validate_stop_park(appliance(stop_button=None, park_xy=None), env={}).status == "none"
     check = validate_stop_park(appliance(park_xy=None), env={})
-    assert check.status == "incomplete" and any("보관 위치" in n for n in check.notes)
+    assert check.status == "incomplete" and any("기다리는 자리" in n for n in check.notes)
 
 
 @pytest.mark.parametrize("over, message", [
@@ -52,7 +52,7 @@ def test_validation_accepts_unverified_without_limits_and_ok_with_limits():
     ({"stop_button": "Z"}, "버튼에 없어요"),
     ({"stop_button": "C"}, "다이얼"),
     ({"park_xy": (55.0, 55.0)}, "너무 가까워요"),
-    ({"park_xy": (700.0, 5.0)}, "mm 안의"),
+    ({"park_xy": (700.0, 5.0)}, "누름 장치가 갈 수 없는 곳"),
 ])
 def test_validation_rejects(over, message):
     with pytest.raises(ValueError, match=message):

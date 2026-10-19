@@ -27,6 +27,8 @@ import numpy as np
 
 from rpi.calibration import CalibrationRejected, PointPair, calibrate, fit_homography
 from rpi.calibration.transform import _version_of  # noqa: PLC2701 - 같은 버전 규칙을 쓴다
+from rpi.josa import with_josa
+from rpi.services.stop_park import PARK_LABEL  # 보관 위치의 화면 이름(폰 가전 추가 화면의 말)
 
 #: 모서리 사각형 넓이의 사진 대비 최소 비율(사진 크기를 알 때). 설계 초기값.
 MIN_QUAD_AREA_RATIO = 0.02
@@ -42,7 +44,10 @@ CORNER_NAMES = ("왼쪽 위", "오른쪽 위", "오른쪽 아래", "왼쪽 아�
 
 
 class MappingRejected(ValueError):
-    """사용자에게 그대로 보여 줄 한국어 문장으로 거절한다."""
+    """사용자에게 그대로 보여 줄 한국어 문장으로 거절한다.
+
+    폰 가전 추가 화면의 말(버튼판 네 귀퉁이·기다리는 자리·누름 장치)로 쓰고, 프레임·갠트리·mm 좌표 같은 속말과
+    '이(가)'처럼 둘 다 적은 조사는 쓰지 않는다(첫 사용 점검 2026-10-19). 다음에 할 일을 함께 적는다."""
 
 
 @dataclass(frozen=True)
@@ -93,6 +98,8 @@ class MappingInput:
     park_px: tuple[float, float] | None = None
     #: 선택 — (사진 px, mm) 기준점. 있으면 잔차 검증을 한다.
     extra_points: tuple[tuple[tuple[float, float], tuple[float, float]], ...] = ()
+    #: 선택 — 버튼 id → 화면 이름. 거절 문장에 id 대신 이름을 쓴다.
+    button_labels: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -119,28 +126,29 @@ def check_corners(corners: Sequence[tuple[float, float]], photo_w: int, photo_h:
                   frame: FrameConfig) -> dict:
     """네 모서리 배치를 본다. 통과하면 품질 요약, 아니면 ``MappingRejected``."""
     if len(corners) != 4:
-        raise MappingRejected("프레임 모서리 네 곳을 모두 짚어 주세요")
+        raise MappingRejected("버튼판 네 귀퉁이를 모두 골라 주세요")
     pts = [(float(u), float(v)) for u, v in corners]
     for i, (u, v) in enumerate(pts):
         if not (math.isfinite(u) and math.isfinite(v)) or not (0 <= u <= photo_w and 0 <= v <= photo_h):
-            raise MappingRejected(f"{CORNER_NAMES[i]} 모서리가 사진 밖에 있어요 — 다시 짚어 주세요")
+            raise MappingRejected(f"{CORNER_NAMES[i]} 귀퉁이가 사진 밖에 있어요 — 사진 안에서 다시 골라 주세요")
     for i in range(4):
         for j in range(i + 1, 4):
             if math.dist(pts[i], pts[j]) < 1e-6 * max(photo_w, photo_h):
-                raise MappingRejected(f"{CORNER_NAMES[i]}와 {CORNER_NAMES[j]} 모서리가 같은 점이에요")
+                raise MappingRejected(f"{with_josa(CORNER_NAMES[i], '과', '와')} {CORNER_NAMES[j]} 귀퉁이가 같은 곳이에요 "
+                                      "— 네 귀퉁이를 따로따로 골라 주세요")
     if _segments_intersect(pts[0], pts[1], pts[2], pts[3]) or _segments_intersect(pts[1], pts[2], pts[3], pts[0]):
-        raise MappingRejected("모서리 순서가 꼬였어요 — 왼쪽 위부터 시계 방향(오른쪽 위 → 오른쪽 아래 → "
-                              "왼쪽 아래)으로 다시 짚어 주세요")
+        raise MappingRejected("귀퉁이 순서가 꼬였어요 — 왼쪽 위부터 시계 방향(오른쪽 위 → 오른쪽 아래 → "
+                              "왼쪽 아래)으로 다시 골라 주세요")
     crosses = [_cross(pts[i], pts[(i + 1) % 4], pts[(i + 2) % 4]) for i in range(4)]
     if not (all(c > 0 for c in crosses) or all(c < 0 for c in crosses)):
-        raise MappingRejected("네 모서리가 볼록한 사각형이 아니에요 — 프레임 모서리를 정확히 짚어 주세요")
+        raise MappingRejected("고른 네 귀퉁이가 네모 모양이 되지 않아요 — 버튼판 귀퉁이를 다시 골라 주세요")
     if crosses[0] < 0:
         # 사진 좌표는 y가 아래로 커진다 — 시계 방향이면 외적이 양수다.
-        raise MappingRejected("모서리를 반대 방향으로 짚었어요 — 왼쪽 위부터 시계 방향으로 짚어 주세요")
+        raise MappingRejected("귀퉁이를 반대 방향으로 골랐어요 — 왼쪽 위부터 시계 방향으로 다시 골라 주세요")
     sums = [u + v for u, v in pts]
     if sums.index(min(sums)) != 0:
-        raise MappingRejected("첫 모서리가 사진의 왼쪽 위가 아니에요 — 사진이 돌아가 있지 않은지 보고, "
-                              "왼쪽 위부터 짚어 주세요")
+        raise MappingRejected("첫 귀퉁이가 사진의 왼쪽 위가 아니에요 — 사진이 돌아가 있지 않은지 보고, "
+                              "왼쪽 위부터 다시 골라 주세요")
     angles = []
     for i in range(4):
         a, o, b = pts[i - 1], pts[i], pts[(i + 1) % 4]
@@ -149,12 +157,12 @@ def check_corners(corners: Sequence[tuple[float, float]], photo_w: int, photo_h:
         angles.append(math.degrees(math.acos(max(-1.0, min(1.0, cosang)))))
     worst = min(range(4), key=lambda i: min(angles[i] - MIN_CORNER_ANGLE_DEG, MAX_CORNER_ANGLE_DEG - angles[i]))
     if not MIN_CORNER_ANGLE_DEG <= angles[worst] <= MAX_CORNER_ANGLE_DEG:
-        raise MappingRejected(f"{CORNER_NAMES[worst]} 모서리 각도가 {angles[worst]:.0f}°라 너무 찌그러졌어요 — "
-                              "프레임을 더 정면에서 찍어 주세요")
+        raise MappingRejected(f"사진 속 버튼판이 {CORNER_NAMES[worst]} 귀퉁이 쪽으로 너무 찌그러졌어요 — "
+                              "버튼판을 정면에서 다시 찍어 주세요")
     area = 0.5 * abs(sum(pts[i][0] * pts[(i + 1) % 4][1] - pts[(i + 1) % 4][0] * pts[i][1] for i in range(4)))
     area_ratio = area / float(photo_w * photo_h)
     if area_ratio < MIN_QUAD_AREA_RATIO:
-        raise MappingRejected("사진 속 프레임이 너무 작아요 — 프레임이 사진을 채우도록 가까이서 찍어 주세요")
+        raise MappingRejected("사진 속 버튼판이 너무 작아요 — 버튼판이 사진을 채우도록 가까이서 다시 찍어 주세요")
     top, bottom = math.dist(pts[0], pts[1]), math.dist(pts[3], pts[2])
     left, right = math.dist(pts[0], pts[3]), math.dist(pts[1], pts[2])
     photo_aspect = ((top + bottom) / 2) / ((left + right) / 2)
@@ -162,8 +170,8 @@ def check_corners(corners: Sequence[tuple[float, float]], photo_w: int, photo_h:
     factor = max(photo_aspect / frame_aspect, frame_aspect / photo_aspect)
     if factor > MAX_ASPECT_FACTOR:
         raise MappingRejected(
-            f"사진 속 프레임 비율({photo_aspect:.2f})이 프레임 치수 비율({frame_aspect:.2f})과 크게 달라요 — "
-            "프레임 가로·세로 치수나 모서리 순서를 확인해 주세요")
+            "사진 속 버튼판의 가로·세로 비율이 적어 준 크기와 많이 달라요 — "
+            "버튼판 가로·세로 크기와 귀퉁이를 고른 순서(왼쪽 위부터 시계 방향)를 확인해 주세요")
     return {"corner_angles_deg": [round(a, 1) for a in angles], "area_ratio": round(area_ratio, 4),
             "photo_aspect": round(photo_aspect, 3), "frame_aspect": round(frame_aspect, 3),
             "aspect_factor": round(factor, 3)}
@@ -172,12 +180,12 @@ def check_corners(corners: Sequence[tuple[float, float]], photo_w: int, photo_h:
 def compute_mapping(data: MappingInput) -> MappingResult:
     frame = data.frame
     if frame.width_mm is None or frame.height_mm is None:
-        raise MappingRejected("프레임 치수(mm)가 없어요 — 요청에 frame_w_mm·frame_h_mm를 주거나 "
-                              "서버에 SIMPLELAY_FRAME_W_MM·SIMPLELAY_FRAME_H_MM를 설정해 주세요")
+        # 화면에는 할 일만 — 설치하는 분용 설정 이름(SIMPLELAY_FRAME_W_MM·_H_MM)은 이 주석과 문서에 둔다.
+        raise MappingRejected("버튼판 가로·세로 크기가 없어요 — 자로 재서 가로·세로 크기(mm)를 적어 주세요")
     if not (frame.width_mm > 0 and frame.height_mm > 0):
-        raise MappingRejected("프레임 치수는 0보다 커야 해요")
+        raise MappingRejected("버튼판 가로·세로 크기는 0보다 커야 해요 — 크기를 다시 적어 주세요")
     if data.photo_w <= 0 or data.photo_h <= 0:
-        raise MappingRejected("사진 크기가 올바르지 않아요")
+        raise MappingRejected("사진 크기를 읽지 못했어요 — 사진을 다시 찍어 주세요")
     quality = check_corners(data.corners_px, data.photo_w, data.photo_h, frame)
     w, h, ox, oy = frame.width_mm, frame.height_mm, frame.origin_x_mm, frame.origin_y_mm
     targets = [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)]
@@ -200,19 +208,20 @@ def compute_mapping(data: MappingInput) -> MappingResult:
     def to_mm(label: str, point: tuple[float, float]) -> tuple[float, float]:
         u, v = float(point[0]), float(point[1])
         if not (math.isfinite(u) and math.isfinite(v)) or not (0 <= u <= data.photo_w and 0 <= v <= data.photo_h):
-            raise MappingRejected(f"{label} 위치가 사진 밖이에요")
+            raise MappingRejected(f"{with_josa(label, '이', '가')} 사진 밖에 있어요 — 사진 안에서 다시 골라 주세요")
         try:
             x, y = transform.apply((u, v))
         except ValueError as exc:
-            raise MappingRejected(f"{label} 위치를 mm로 옮길 수 없어요: {exc}") from exc
+            raise MappingRejected(f"{label} 자리를 계산하지 못했어요 — 버튼판 네 귀퉁이를 다시 골라 주세요") from exc
         m = FRAME_MARGIN_MM
         if not (ox - m <= x <= ox + w + m and oy - m <= y <= oy + h + m):
-            raise MappingRejected(f"{label}이(가) 프레임 밖이에요({x:.0f}, {y:.0f}mm) — 프레임 안쪽을 짚어 주세요")
+            raise MappingRejected(f"{with_josa(label, '이', '가')} 버튼판 네 귀퉁이 밖에 있어요 "
+                                  "— 네 귀퉁이 안쪽에서 다시 골라 주세요")
         return (round(float(np.clip(x, ox, ox + w)), 2), round(float(np.clip(y, oy, oy + h)), 2))
 
-    buttons_mm = {bid: to_mm(f"버튼 '{bid}'", p) for bid, p in data.buttons_px.items()}
+    buttons_mm = {bid: to_mm(f"버튼 '{data.button_labels.get(bid, bid)}'", p) for bid, p in data.buttons_px.items()}
     stop_mm = to_mm("정지 버튼", data.stop_px) if data.stop_px is not None else None
-    park_mm = to_mm("보관 위치", data.park_px) if data.park_px is not None else None
+    park_mm = to_mm(PARK_LABEL, data.park_px) if data.park_px is not None else None
     record = {
         "photo": {"width": data.photo_w, "height": data.photo_h},
         "corners_px": [[float(u), float(v)] for u, v in data.corners_px],
@@ -235,12 +244,12 @@ def verify_targets(appliance: Any, button_ids: Sequence[str] | None = None) -> l
         if b is None:
             raise MappingRejected(f"이 가전에 없는 버튼이에요: {bid}")
         if not b.calibrated:
-            raise MappingRejected(f"버튼 '{b.label}'에 좌표(mm)가 없어요 — 사진 매핑 먼저")
+            raise MappingRejected(f"버튼 '{b.label}'의 자리를 아직 정하지 않았어요 — 사진에서 버튼을 먼저 골라 주세요")
         targets.append({"button": b.label, "button_id": b.id, "kind": "button",
                         "x_mm": float(b.x_mm), "y_mm": float(b.y_mm)})
     if appliance.park_xy is not None:
-        targets.append({"button": "보관 위치", "button_id": None, "kind": "park",
+        targets.append({"button": PARK_LABEL, "button_id": None, "kind": "park",
                         "x_mm": float(appliance.park_xy[0]), "y_mm": float(appliance.park_xy[1])})
     if not targets:
-        raise MappingRejected("확인할 좌표가 없어요 — 사진 매핑을 먼저 저장해 주세요")
+        raise MappingRejected("확인할 자리가 없어요 — 사진에서 버튼을 골라 먼저 저장해 주세요")
     return targets

@@ -185,7 +185,7 @@ async def _stop_phrase_response(service: SimpleLayService) -> JobAcceptedRespons
 def _not_understood_response(exc: UnknownIntentError):
     """해석 실패 422. 못 알아들은 말이면(2026-10-19) ``detail`` 옆에 후보·동작 목록을 싣는다::
 
-        {"detail": "'공기청전기 켜 줘'을(를) 알아듣지 못했어요",
+        {"detail": "'공기청전기 켜 줘'를 알아듣지 못했어요",
          "suggestion": {"purpose": "공기청정기 켜줘", "label": "공기청정기 전원 켜기"} | null,
          "choices": [{"purpose": "공기청정기 켜줘", "label": "공기청정기 전원 켜기"}, ...]}
 
@@ -792,6 +792,9 @@ class _PanelScanGate:
 
 _panel_scan_gate = _PanelScanGate()
 
+#: 사진 인식 초안에는 누를 자리가 아직 없다 — 다음 단계에서 버튼판 네 귀퉁이를 고르면 정해진다.
+PANEL_SCAN_NO_POSITION_NOTE = "누를 자리는 아직 정하지 않았어요 — 다음 단계에서 사진 속 버튼판 네 귀퉁이를 고르면 정해져요"
+
 
 @router.post("/panel-scan", response_model=PanelScanResponse)
 async def panel_scan(
@@ -884,7 +887,8 @@ async def panel_scan(
     if dials:
         notes.append(f"다이얼({', '.join(dials)})은 딸깍 수를 입력해야 저장할 수 있어요")
     if not mapped:
-        notes.append("누를 좌표(mm)는 아직 없어요 — 기준점 보정 뒤에 채워져요")
+        # 폰에 그대로 보인다 — '좌표(mm)·기준점 보정' 대신 다음 단계(버튼판 귀퉁이 고르기)를 말한다(2026-10-19).
+        notes.append(PANEL_SCAN_NO_POSITION_NOTE)
 
     return PanelScanResponse(
         rows=draft.rows,

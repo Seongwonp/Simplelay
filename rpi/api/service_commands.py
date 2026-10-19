@@ -45,6 +45,7 @@ from rpi.controller import ExecutionResult, ExecutionStatus
 from rpi.intent import UsageOutcome, UsageRecord
 from rpi.intent.models import UsageSource
 from rpi.intent.rules import UnknownIntentError
+from rpi.josa import quoted_josa, with_josa
 from rpi.services.history import ExecutionMode, JobHistoryEntry, Termination
 
 log = logging.getLogger(__name__)
@@ -239,7 +240,7 @@ class CommandExecutionMixin:
 
         binding = self._binding(appliance_id)
         if binding is None:
-            raise UnknownIntentError(f"'{appliance_id}'는 ThinQ 등록 정보가 없어요")
+            raise UnknownIntentError(f"{quoted_josa(appliance_id, '은', '는')} ThinQ 등록 정보가 없어요")
         name = self._history_name(appliance_id)
         names = (name,) if name else ()
         try:
@@ -284,7 +285,7 @@ class CommandExecutionMixin:
         current_route = self.route_of(target)
         if current_route is not command.route:
             error = (ApprovalMismatchError if approved is not None else UnknownIntentError)
-            raise error(f"'{target}'의 제어 경로가 {current_route.value}로 바뀌었어요")
+            raise error(f"'{target}'의 제어 경로가 {with_josa(current_route.value, '으로', '로')} 바뀌었어요")
         summary = approved.shown_summary if approved is not None else self.summary_of(command)
         if command.route is ControlRoute.THINQ:
             binding = self._binding(target)

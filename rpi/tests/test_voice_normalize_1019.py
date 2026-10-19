@@ -275,7 +275,7 @@ def test_not_understood_422_carries_a_suggestion_and_choices_but_runs_nothing(cl
     res = client.post("/execute", json={"text": "공기청전기 켜 줘", "appliance_id": "air_purifier"})
     assert res.status_code == 422
     body = res.json()
-    assert body["detail"] == "'공기청전기 켜 줘'을(를) 알아듣지 못했어요"
+    assert body["detail"] == "'공기청전기 켜 줘'를 알아듣지 못했어요"
     assert body["suggestion"]["purpose"] == "공기청정기 켜줘"
     assert body["suggestion"]["label"].endswith("전원 켜기")
     purposes = [c["purpose"] for c in body["choices"]]
@@ -301,7 +301,7 @@ def test_physical_appliance_422_lists_its_functions_and_a_close_one(client):  # 
     res = client.post("/execute", json={"text": "즉석빱 데워 줘", "appliance_id": "microwave"})
     assert res.status_code == 422
     body = res.json()
-    assert body["detail"] == "'즉석빱 데워 줘'을(를) 알아듣지 못했어요"
+    assert body["detail"] == "'즉석빱 데워 줘'를 알아듣지 못했어요"
     assert body["suggestion"] == {"purpose": "즉석밥 데워줘", "label": "즉석밥 데워줘"}
     assert "즉석밥 데워줘" in [c["purpose"] for c in body["choices"]]
 

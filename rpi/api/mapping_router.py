@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from rpi.commands import ControlRoute
+from rpi.josa import quoted_josa
 from rpi.services.appliance_registry import RevisionConflictError
 from rpi.services.panel_mapping import (
     MappingInput,
@@ -34,6 +35,9 @@ from rpi.services.verify_pass import VerifyPassUnavailable, get_verify_runner
 from .deps import get_appliance_registry, get_service
 
 router = APIRouter()
+
+#: 확인 주행을 이 본체의 누름 장치로 할 수 없는 가전(폰에 그대로 보인다 — 2026-10-19 첫 사용 점검: 속말 '갠트리'를 뺐다).
+VERIFY_NOT_LOCAL_DETAIL = "이 가전 위에는 누름 장치가 없어 자리 확인을 할 수 없어요 — 누름 장치를 이 가전에 올린 뒤 다시 해 주세요"
 
 
 def _pair(value: list[float] | None, label: str) -> list[float] | None:
@@ -131,7 +135,9 @@ def _prepare(appliance_id: str, body: MappingRequest, registry):
     buttons_px = dict(body.buttons_px)
     if body.stop_button is not None:
         if body.stop_button not in known:
-            raise HTTPException(status_code=422, detail=f"정지 버튼 '{body.stop_button}'이 이 가전에 없어요")
+            raise HTTPException(status_code=422,
+                                detail=f"정지 버튼으로 고른 {quoted_josa(body.stop_button, '이', '가')} 이 가전에 없어요 "
+                                       "— 정지 버튼을 다시 골라 주세요")
         if body.stop_px is not None:
             buttons_px[body.stop_button] = body.stop_px
         if body.stop_button not in buttons_px:
@@ -146,6 +152,7 @@ def _prepare(appliance_id: str, body: MappingRequest, registry):
         buttons_px={k: tuple(v) for k, v in buttons_px.items()},  # type: ignore[misc]
         park_px=tuple(body.park_px) if body.park_px else None,  # type: ignore[arg-type]
         extra_points=tuple((tuple(p.px), tuple(p.mm)) for p in body.extra_points),  # type: ignore[misc]
+        button_labels={b.id: b.label for b in appliance.buttons},
     )
     try:
         result = compute_mapping(data)
@@ -227,7 +234,7 @@ async def verify_pass_start(appliance_id: str, body: VerifyPassRequest | None = 
     if service.status().running:
         raise HTTPException(status_code=409, detail="다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.")
     if not service.runs_locally(appliance_id):
-        raise HTTPException(status_code=409, detail="이 가전은 이 허브의 갠트리에 연결되지 않았어요")
+        raise HTTPException(status_code=409, detail=VERIFY_NOT_LOCAL_DETAIL)
     try:
         # 실행기 최초 생성도 스레드 안에서(인자로 부르면 루프에서 만든다 — 지금은 메모리뿐이지만 같은 모양을 남기지 않는다)
         return await asyncio.to_thread(lambda: get_verify_runner().start(appliance_id, targets, service._controller))

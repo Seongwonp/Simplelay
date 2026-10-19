@@ -55,6 +55,7 @@ from uuid import uuid4
 from rpi.commands import ApprovedCommand, ControlRoute, canonical_json
 from rpi.controller.models import ExecutionMode
 from rpi.intent.models import UsageSource
+from rpi.josa import josa, josa_stem
 from rpi.services.quiet_hours import SKIP_REASON as QUIET_SKIP_REASON
 from rpi.services.thinq.wording import direction, dispatch_of
 
@@ -216,20 +217,9 @@ def is_low_risk(device_type: str | None, action: str | None, value, *, time_rule
     return values is None or value in values
 
 
-def _josa(word: str, with_final: str, without_final: str) -> str:
-    """받침이 있으면 앞, 없으면 뒤(한글 끝 글자 기준, 그 밖은 앞)."""
-    last = word.strip()[-1:] if word.strip() else ""
-    if "가" <= last <= "힣":
-        return with_final if (ord(last) - 0xAC00) % 28 else without_final
-    return with_final
-
-
-def _josa_stem(word: str) -> str:
-    """조사 고를 낱말 — 끝의 괄호 표기("(모의)")는 건너뛴다."""
-    stem = word.strip()
-    while stem.endswith(")") and "(" in stem:
-        stem = stem[: stem.rindex("(")].rstrip()
-    return stem
+# 조사 고르기는 rpi/josa.py 하나로(2026-10-19) — 옛 이름은 candidates.py 등이 그대로 쓴다.
+_josa = josa
+_josa_stem = josa_stem
 
 
 #: 대상 기능을 찾지 못했을 때 동작 이름 대신 보일 말(원시 이름을 화면에 내지 않는다).

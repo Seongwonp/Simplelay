@@ -83,9 +83,9 @@ def test_wrong_or_degenerate_corners_are_rejected_in_plain_korean(corners, messa
 
 
 def test_taps_outside_the_frame_and_missing_frame_size_are_rejected():
-    with pytest.raises(MappingRejected, match="프레임 밖"):
+    with pytest.raises(MappingRejected, match="버튼판 네 귀퉁이 밖"):
         compute_mapping(data(buttons_px={"BT-05": tuple(px(360, 100))}))
-    with pytest.raises(MappingRejected, match="프레임 치수"):
+    with pytest.raises(MappingRejected, match="버튼판 가로·세로 크기가 없어요"):
         compute_mapping(data(frame=FrameConfig(None, None)))
 
 
@@ -209,4 +209,4 @@ def test_verify_pass_on_the_local_mock_controller(client):
         time.sleep(0.01)
     assert doc["state"] == "done" and doc["route"] == "local_mock"
     assert [(s["button"], s["status"]) for s in doc["steps"]] == [("즉석밥", "reached"), ("취소", "reached"),
-                                                                  ("보관 위치", "reached")]
+                                                                  ("기다리는 자리", "reached")]
