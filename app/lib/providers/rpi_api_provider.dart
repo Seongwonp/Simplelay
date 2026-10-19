@@ -366,23 +366,36 @@ class DndNotifier extends StateNotifier<DateTime?> {
   }
 
   /// 서버 `persisted`를 돌려준다 — false면 이번 세션만 적용(화면이 [kSettingNotSavedNotice]로 알린다).
+  /// 본체에 보내지 못했으면(본체 주소 없음·통신 끊김·본체 거절) 던진다 — 조용히 끝나면 쉬는 줄 알았다(검토 10/19).
   Future<bool?> set(int minutes) async {
     final service = _ref.read(rpiApiServiceProvider);
-    if (service == null) return null;
+    if (service == null) throw const DndNotSentException();
     final persisted = await service.setDnd(minutes);
-    await refresh();
+    // 본체는 받았다 — 남은 시간을 다시 읽다 끊겨도 '보내지 못했어요'가 아니다.
+    try {
+      await refresh();
+    } catch (_) {}
     return persisted;
   }
 
   Future<bool?> clear() async {
     final service = _ref.read(rpiApiServiceProvider);
-    if (service == null) return null;
+    if (service == null) throw const DndNotSentException();
     final persisted = await service.clearDnd();
     _ref.read(dndScopeProvider.notifier).state = null;
     state = null;
     return persisted;
   }
 }
+
+/// 잠시 쉬기를 보낼 본체가 없다(주소 없음) — 통신 실패와 같이 '보내지 못했어요'로 알린다.
+class DndNotSentException implements Exception {
+  const DndNotSentException();
+}
+
+/// 잠시 쉬기·그만 쉬기를 보내지 못했을 때의 말(키오스크와 같은 말) — 쉬기 상태는 그대로다.
+const kDndNotSentNotice = '잠시 쉬기를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.';
+const kDndClearNotSentNotice = '그만 쉬기를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.';
 
 /// 켜진 잠시 쉬기의 범위(서버 `dnd_scope`, 2026-10-14 마감 2번). `suggestions_only`면 업데이트 전에 켠 설정을
 /// 이어받은 것이라 새 제안만 쉰다(자동 실행은 그대로) — 화면 문구가 범위대로 말한다.

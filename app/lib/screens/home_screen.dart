@@ -144,7 +144,15 @@ class HomeScreen extends ConsumerWidget {
                 until: dndUntil,
                 onClear: () async {
                   final messenger = ScaffoldMessenger.of(context);
-                  if (await ref.read(dndProvider.notifier).clear() == false) {
+                  final bool? persisted;
+                  try {
+                    persisted = await ref.read(dndProvider.notifier).clear();
+                  } catch (_) {
+                    // 보내지 못했다 — 쉬기는 그대로다(검토 10/19: 예외가 새어 아무 말이 없었다).
+                    messenger.showSnackBar(const SnackBar(content: Text(kDndClearNotSentNotice)));
+                    return;
+                  }
+                  if (persisted == false) {
                     messenger.showSnackBar(const SnackBar(content: Text(kSettingNotSavedNotice)));
                   }
                 },

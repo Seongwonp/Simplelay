@@ -65,4 +65,42 @@ void main() {
       expect(find.text(kSettingNotSavedNotice), shown ? findsOneWidget : findsNothing);
     });
   }
+
+  // 검토 10/19(core6 12): 창을 먼저 닫고 기다려, 통신이 끊기면 예외가 새고 아무 말 없이 끝나 쉬는 줄 알았다.
+  testWidgets('잠시 쉬기를 보내지 못하면 창을 두고 보내지 못했다고 말한다', (tester) async {
+    final api = RpiApiService('http://rpi5.local:8000', client: MockClient((req) async {
+      if (req.url.path == '/dnd') throw http.ClientException('끊김');
+      return http.Response('{"detail":"not found"}', 404);
+    }));
+    await tester.pumpWidget(_host(api));
+    await tester.tap(find.text('열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1시간'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text(kDndNotSentNotice), findsOneWidget);
+    expect(find.text('30분'), findsOneWidget, reason: '창은 그대로 — 다시 누를 수 있다');
+  });
+
+  testWidgets('잠시 쉬기를 보내는 동안 다른 시간을 눌러도 한 번만 보낸다', (tester) async {
+    final calls = <String>[];
+    final api = RpiApiService('http://rpi5.local:8000', client: MockClient((req) async {
+      calls.add('${req.method} ${req.url.path}');
+      if (req.url.path == '/dnd') {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        return http.Response.bytes(utf8.encode(jsonEncode({'ok': true, 'persisted': true})), 200,
+            headers: {'content-type': 'application/json'});
+      }
+      return http.Response('{"detail":"not found"}', 404);
+    }));
+    await tester.pumpWidget(_host(api));
+    await tester.tap(find.text('열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('30분'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('1시간'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(calls.where((c) => c == 'POST /dnd'), hasLength(1));
+    expect(find.text('30분'), findsNothing, reason: '본체가 받은 뒤 창을 닫는다');
+  });
 }

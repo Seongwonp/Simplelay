@@ -20,11 +20,46 @@ void showDndSheet(BuildContext context) {
   );
 }
 
-class _DndSheet extends ConsumerWidget {
+class _DndSheet extends ConsumerStatefulWidget {
   const _DndSheet();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DndSheet> createState() => _DndSheetState();
+}
+
+class _DndSheetState extends ConsumerState<_DndSheet> {
+  // 보내는 동안은 다른 시간·그만 쉬기를 받지 않는다 — 겹친 요청 중 늦게 끝난 쪽이 남는다.
+  bool _busy = false;
+  String? _error;
+
+  /// 본체가 받았다고 답한 뒤에만 창을 닫는다. 예전에는 먼저 닫고 기다려, 통신이 끊기면 아무 말 없이 끝나 쉬는 줄 알았다
+  /// (검토 10/19). 못 보냈으면 창에 그대로 두고 그 사실을 말한다.
+  Future<void> _send(Future<bool?> Function() request, String notSent) async {
+    if (_busy) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final bool? persisted;
+    try {
+      persisted = await request();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = notSent;
+        });
+      }
+      return;
+    }
+    if (mounted) navigator.pop();
+    _notSaved(messenger, persisted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final dndUntil = ref.watch(dndProvider);
     final isActive = dndUntil != null && dndUntil.isAfter(DateTime.now());
     final rules = ref.watch(autoRulesProvider).valueOrNull ?? const <AutoRule>[];
@@ -115,6 +150,18 @@ class _DndSheet extends ConsumerWidget {
                 ),
               ],
 
+              if (_error case final error?) ...[
+                const SizedBox(height: AppSpace.sm),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                  child: Text(
+                    error,
+                    key: const Key('dnd-not-sent'),
+                    style: TextStyle(color: context.appDanger, fontSize: AppFont.caption),
+                  ),
+                ),
+              ],
+
               const SizedBox(height: AppSpace.xl),
               const Divider(height: 1),
               const SizedBox(height: AppSpace.sm),
@@ -129,11 +176,10 @@ class _DndSheet extends ConsumerWidget {
                       '${opt.subtitle}. 이때 건너뛰는 일: ${skipped.join(', ')}',
                     _ => opt.subtitle,
                   },
-                  onTap: () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    Navigator.of(context).pop();
-                    _notSaved(messenger, await ref.read(dndProvider.notifier).set(opt.minutes));
-                  },
+                  enabled: !_busy,
+                  onTap: _busy
+                      ? null
+                      : () => _send(() => ref.read(dndProvider.notifier).set(opt.minutes), kDndNotSentNotice),
                 ),
               ),
 
@@ -144,13 +190,9 @@ class _DndSheet extends ConsumerWidget {
                 label: '그만 쉬기',
                 subtitle: isActive ? '다시 물어보고 자동으로 해요' : '지금은 쉬고 있지 않아요',
                 iconColor: isActive ? context.appDanger : context.appMuted,
-                enabled: isActive,
-                onTap: isActive
-                    ? () async {
-                        final messenger = ScaffoldMessenger.of(context);
-                        Navigator.of(context).pop();
-                        _notSaved(messenger, await ref.read(dndProvider.notifier).clear());
-                      }
+                enabled: isActive && !_busy,
+                onTap: isActive && !_busy
+                    ? () => _send(() => ref.read(dndProvider.notifier).clear(), kDndClearNotSentNotice)
                     : null,
               ),
 
