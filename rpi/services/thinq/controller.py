@@ -37,7 +37,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Protocol
@@ -358,10 +358,14 @@ class ThinqController:
         if command.route is not ControlRoute.THINQ:
             raise ValueError("ThinqController runs thinq commands only")
         requested_at = self._now()
+        # 실행 환경은 시작할 때 그 가전의 값으로 정한다(2026-10-19) — 확인 조회 중에 실제↔연습으로 다시 묶여도 결과가
+        # 바뀐 값으로 적히지 않게. 결과마다 다시 읽지 않는다.
+        mode = self.execution_mode_for(command.target_id)
         with self._lock:
             self._phase = "pending"
         try:
-            return self._execute(command, requested_at, dispatch_guard)
+            result = self._execute(command, requested_at, dispatch_guard)
+            return result if result.execution_mode is mode else replace(result, execution_mode=mode)
         finally:
             with self._lock:
                 self._phase = "idle"
