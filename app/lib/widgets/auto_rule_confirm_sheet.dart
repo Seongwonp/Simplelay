@@ -45,8 +45,11 @@ Future<bool> showAutoRuleConfirmSheet(
               ),
               const SizedBox(height: AppSpace.sm),
             ],
+            // 무엇을 허락하는지 한 문장으로(첫 사용자 검토 10/19) — '버튼 누르기는 매번 허락'만 있으면 '자동으로'와 부딪혀
+            // 읽혔다. 버튼 누르기는 본체가 자동 규칙으로 받지 않는다(PHYSICAL_REFUSED).
             Text(
-              '버튼 누르기는 매번 허락을 받아요. 루틴 탭에서 언제든 끌 수 있어요.',
+              '이 허락은 위에 적은 일에만 써요. 가전 버튼을 누르는 일은 자동으로 하지 않고 매번 물어봐요. '
+              '루틴 탭에서 언제든 끌 수 있어요.',
               style: TextStyle(fontSize: AppFont.caption, color: sheetContext.appMuted),
             ),
             const SizedBox(height: AppSpace.lg),
