@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../models/command_result.dart';
+import '../models/execution_status.dart';
 import '../models/display_status.dart'
     show applianceDisplayLine, isPracticeAppliance, pressDeviceHosts, pressUnavailableNotice;
 import '../models/routine.dart';
@@ -261,7 +262,10 @@ class ApplianceDetailScreen extends ConsumerWidget {
       );
       return;
     }
-    final ok = await showDialog<bool>(
+    // 아까 보낸 같은 버튼이 눌렸는지 모르면 다시 누를지부터 묻는다(그 확인이 누르기 확인을 대신한다).
+    final repeat = await _confirmRepeatIfUnknown(context, ref, b);
+    if (repeat == false || !context.mounted) return;
+    final ok = repeat ?? await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text("'${b.label}' 버튼을 누를까요?"),
@@ -287,17 +291,22 @@ class ApplianceDetailScreen extends ConsumerWidget {
       _snack(context, '본체와 연결되면 누를 수 있어요.');
       return;
     }
+    final execution = ref.read(executionStatusProvider.notifier);
+    // 보내기 전에 '보내는 중'으로 — 답을 기다리는 사이에도 정지 띠가 있다(검토 10/19).
+    final requestId = execution.beginSubmitting(api: api, label: b.label, steps: [b.label]);
     try {
       final accepted = await api.executeButtons([b.label], applianceId: a.id);
       // 공용 실행 상태에 등록한다 -- 이 화면을 떠나도 정지 수단이 남는다.
-      ref.read(executionStatusProvider.notifier).beginHttpJob(
-            api: api,
-            jobId: accepted.jobId,
-            label: b.label,
-            steps: [b.label],
-          );
+      execution.beginHttpJob(
+        api: api,
+        jobId: accepted.jobId,
+        label: b.label,
+        steps: [b.label],
+        requestId: requestId,
+      );
       if (context.mounted) context.push('/status');
     } on RpiApiException catch (e) {
+      execution.abandonSubmission(requestId); // 본체가 답했다 — 받지 않았다
       if (!context.mounted) return;
       _snack(
         context,
@@ -308,8 +317,51 @@ class ApplianceDetailScreen extends ConsumerWidget {
         },
       );
     } catch (_) {
-      if (context.mounted) _snack(context, '누르라고 보내지 못했어요. 연결을 봐 주세요.');
+      // 보냈는데 답이 없다(시간 초과·연결 끊김) — 본체가 받아 이미 눌렀을 수 있다(검토 10/19, 수동 조작 화면과 같은 규칙).
+      // '보내지 못했어요'라고 하면 정지 없이 같은 버튼을 또 눌러, 켜기·끄기 버튼이면 도로 꺼질 수 있었다.
+      execution.beginSubmissionUnknown(
+        api: api,
+        label: b.label,
+        steps: [b.label],
+        requestId: requestId,
+      );
+      if (!context.mounted) return;
+      _snack(context, manualPressUnknownSentence(b.label));
+      context.push('/status');
     }
+  }
+
+  /// 아까 이 버튼을 보냈는데 눌렸는지 모른다(보내는 중·접수 답을 못 받음) — 다시 누를지 묻는다. 다시 누르면 true, 그만두면
+  /// false, 모르는 버튼이 아니면 null(평소 누르기 확인으로).
+  static Future<bool?> _confirmRepeatIfUnknown(
+    BuildContext context,
+    WidgetRef ref,
+    ApplianceButton b,
+  ) async {
+    final status = ref.read(executionStatusProvider);
+    final unresolved = status.phase == ExecutionPhase.waiting ||
+        (status.phase == ExecutionPhase.unknown &&
+            (status.sequenceId?.startsWith('unsent-') ?? false));
+    if (!unresolved || status.label != b.label) return null;
+    final again = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('다시 누를까요?'),
+        content: Text("아까 누른 '${b.label}' 버튼은 눌렸는지 아직 몰라요. 다시 누르면 두 번 눌릴 수 있어요. "
+            '가전을 보고 안 눌렸을 때만 다시 눌러 주세요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('그만두기'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('다시 누르기'),
+          ),
+        ],
+      ),
+    );
+    return again ?? false;
   }
 
   static void _snack(BuildContext context, String text) =>
