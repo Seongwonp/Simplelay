@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections import OrderedDict
 from dataclasses import dataclass, replace
 from datetime import datetime
 
@@ -49,6 +50,9 @@ from rpi.josa import quoted_josa, with_josa
 from rpi.services.history import ExecutionMode, JobHistoryEntry, Termination
 
 log = logging.getLogger(__name__)
+
+#: 실행 번호별로 남기는 최근 기록 수 — 루틴이 자기 구간의 기록을 찾는 창. 한 번 확인하는 사이에 이만큼 끝나는 일은 없다.
+RUN_RECORDS_KEPT = 32
 
 
 class WrongRouteError(UnknownIntentError, RuntimeError):
@@ -164,6 +168,9 @@ class CommandExecutionMixin:
         self._system_controllers = dict(system_controllers or {})
         self._job_listeners: list = []
         self._last_run: RunRecord | None = None
+        #: 실행 번호 → 기록(최근 ``RUN_RECORDS_KEPT``건). 루틴이 자기 구간의 기록을 찾는다 — 그 사이 다른 실행이 끝나
+        #: ``_last_run``이 바뀌어도 앞 실행의 기록이 가려지지 않게(검토 10/19 #3 남은 경합).
+        self._runs_by_job: OrderedDict[str, RunRecord] = OrderedDict()
         self._last_command_result: CommandResult | None = None
         self._current_route: ControlRoute | None = None
         self._last_route: ControlRoute | None = None
@@ -185,6 +192,19 @@ class CommandExecutionMixin:
 
     def last_run(self) -> RunRecord | None:
         return self._last_run
+
+    def run_record(self, job_id: str) -> RunRecord | None:
+        """그 실행 번호의 기록(최근 ``RUN_RECORDS_KEPT``건 안에서). 없으면 None — 아직 안 끝났거나 오래됐다."""
+        with self._lock:
+            return self._runs_by_job.get(job_id)
+
+    def _remember_run(self, record: RunRecord) -> None:
+        """``_lock`` 안에서 부른다. 마지막 기록과 번호별 기록을 함께 바꾼다."""
+        self._last_run = record
+        self._runs_by_job[record.job_id] = record
+        self._runs_by_job.move_to_end(record.job_id)
+        while len(self._runs_by_job) > RUN_RECORDS_KEPT:
+            self._runs_by_job.popitem(last=False)
 
     def route_of(self, appliance_id: str | None) -> ControlRoute:
         if appliance_id is None or self._appliance_registry is None:
@@ -458,7 +478,7 @@ class CommandExecutionMixin:
                            tuple(s.summary for s in steps), self._clock.now())
         with self._lock:
             self._step_suffix = None
-        self._last_run = record
+            self._remember_run(record)
         return record
 
     def _history_job_id(self) -> str:

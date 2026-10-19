@@ -645,18 +645,30 @@ class RoutineRunner:
 
         예전에는 '쉬는 중이고 마지막 실행 번호가 이 실행'일 때만 기록을 봤다 — 그 사이 다른 실행이 시작되면 마지막 실행
         번호가 이 실행을 거치지 않고 넘어가 끝을 놓쳤다. 이제 번호가 이 실행인 기록이 보이면 곧바로 그것으로 판단한다.
-        기록 없이 이 실행이 끝났으면(실행 스레드 예외 등) 예전처럼 None(모름)."""
+        기록 없이 이 실행이 끝났으면(실행 스레드 예외 등) 예전처럼 None(모름).
+
+        남은 경합(검토 10/19 #3 후속): 한 번 확인하는 사이에 다른 실행(J2)까지 끝나면 '마지막 기록'이 J2라 J1의 기록이
+        가려졌다. 서비스가 실행 번호별 기록(``run_record``)을 주면 그것부터 본다. 없는 옛 서비스는 종전대로."""
         deadline = time.monotonic() + self._job_timeout
         while time.monotonic() < deadline:
-            last = self._service.last_run()
-            if last is not None and last.job_id == job_id:
-                return last
+            record = self._record_of(job_id)
+            if record is not None:
+                return record
             status = self._service.status()
             if not status.running and status.last_job_id == job_id:
-                last = self._service.last_run()
-                return last if last is not None and last.job_id == job_id else None
+                return self._record_of(job_id)
             self._sleep(self._poll)
         return None
+
+    def _record_of(self, job_id: str):
+        """그 실행 번호의 기록 — 번호별 기록이 먼저, 없으면 마지막 기록이 그 번호일 때만."""
+        by_job = getattr(self._service, "run_record", None)
+        if callable(by_job):
+            record = by_job(job_id)
+            if record is not None:
+                return record
+        last = self._service.last_run()
+        return last if last is not None and last.job_id == job_id else None
 
     def _await_idle(self) -> bool:
         deadline = time.monotonic() + self._idle_timeout
