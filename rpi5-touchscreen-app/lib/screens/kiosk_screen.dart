@@ -1905,6 +1905,8 @@ class _KioskScreenState extends State<KioskScreen> {
       }
       _followPendingStop(st);
       if (++_admitUnknownPolls >= _admitUnknownIdlePolls) {
+        // 찾지 못하고 포기한다 — 남은 정지도 버린다. 남기면 결과 화면이 그 뒤 이어받은 남의 실행에 보냈다(검토 10/19 코어 6차).
+        _stopWhileAccepting = false;
         _endAdmitUnknown();
         _toDone(false, _execTitle, reason: KioskFailureReason.serverLost);
       }
@@ -1912,6 +1914,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (stale()) return;
       final since = _lastStatusOk;
       if (since != null && DateTime.now().difference(since) > _statusLostTimeout) {
+        _stopWhileAccepting = false;
         _endAdmitUnknown();
         _toDone(false, _execTitle, reason: KioskFailureReason.serverLost);
       }

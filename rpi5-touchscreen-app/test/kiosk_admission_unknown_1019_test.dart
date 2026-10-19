@@ -217,6 +217,29 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
+    testWidgets('옛 본체에서 찾지 못하고 결과 화면으로 가면 남은 정지를 버린다 — 그 뒤 폰이 시작한 실행을 멈추지 않는다(검토 10/19 코어 6차 #1)',
+        (tester) async {
+      final api = await _pumpKiosk(tester, suggestions: [_sug]);
+      api.executeError = TimeoutException('approve');
+      await _approve(tester, api);
+      await tester.pump();
+      await tester.tap(_stopButton);
+      await tester.pump();
+      for (var i = 0; i < 4; i++) {
+        await _poll(tester);
+      }
+      expect(find.byType(KioskDoneView), findsOneWidget);
+      final given = api.stopCalls;
+
+      // 정지 대기 창(20초) 안에 다른 기기가 실행을 시작했다 — 결과 화면이 그 실행을 이어받아도 내 정지를 보내지 않는다.
+      api.statusResult = _running('job-phone');
+      await _poll(tester);
+      await _poll(tester);
+      expect(find.byType(KioskExecutingView), findsOneWidget);
+      expect(api.stopCalls, given, reason: '찾지 못하고 포기한 접수의 정지를 남의 실행에 보내면 안 된다');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('본체가 분명히 거절하면(409) 종전처럼 바로 결과 화면', (tester) async {
       final api = await _pumpKiosk(tester, suggestions: [_sug]);
       api.executeError = KioskApiException(409, '다른 작업을 실행 중이에요');
