@@ -626,8 +626,16 @@ class RoutineRunner:
                           "detail": "안내를 알림함에 남겼어요."})
 
     def _await_job(self, job_id: str):
+        """그 실행(``job_id``) 자신의 기록을 기다린다(검토 10/19 #3).
+
+        예전에는 '쉬는 중이고 마지막 실행 번호가 이 실행'일 때만 기록을 봤다 — 그 사이 다른 실행이 시작되면 마지막 실행
+        번호가 이 실행을 거치지 않고 넘어가 끝을 놓쳤다. 이제 번호가 이 실행인 기록이 보이면 곧바로 그것으로 판단한다.
+        기록 없이 이 실행이 끝났으면(실행 스레드 예외 등) 예전처럼 None(모름)."""
         deadline = time.monotonic() + self._job_timeout
         while time.monotonic() < deadline:
+            last = self._service.last_run()
+            if last is not None and last.job_id == job_id:
+                return last
             status = self._service.status()
             if not status.running and status.last_job_id == job_id:
                 last = self._service.last_run()
