@@ -275,9 +275,16 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         }
         return;
       }
+      if (error.statusCode == 422) {
+        // 옛 서버의 못 알아들은 말도 화면에 남기고 그 말은 지운다 — '이대로 실행'에 그대로 두면 같은 말을 또 보낸다.
+        if (mounted) {
+          setState(() => _recognitionError = '무슨 말인지 몰랐어요. 다시 말해 주세요.');
+          _cancelPending();
+        }
+        return;
+      }
       if (mounted) {
         _notice(switch (error.statusCode) {
-          422 => '무슨 말인지 몰랐어요. 다시 말해 주세요.',
           409 => '다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.',
           503 => '본체에서 말 알아듣기가 꺼져 있어요. 버튼으로 해 주세요.',
           // 412: 가전이 아직 조작할 준비가 안 됐다. 서버가 무엇이

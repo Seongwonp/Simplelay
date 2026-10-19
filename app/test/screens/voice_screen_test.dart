@@ -886,5 +886,15 @@ void main() {
       expect(find.textContaining('혹시 이것인가요?'), findsNothing);
       expect(find.textContaining('할 수 있는 일이에요'), findsNothing);
     });
+
+    // 못 알아들은 말이 '이대로 실행' 앞에 그대로 남으면 같은 말을 다시 보내게 된다(첫 사용자 검토 10/19 #12).
+    testWidgets('옛 서버 422 뒤에는 못 알아들은 말을 지우고 다시 말하기·버튼으로 하기를 남긴다', (tester) async {
+      final (container, _) = await setUpScreen(tester, {'detail': 'not understood'});
+
+      expect(container.read(voiceTextProvider), '');
+      expect(find.text('이대로 실행'), findsNothing);
+      expect(find.text('다시 말하기'), findsOneWidget);
+      expect(find.text('버튼으로 하기'), findsOneWidget);
+    });
   });
 }
