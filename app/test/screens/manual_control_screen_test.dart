@@ -504,4 +504,68 @@ void main() {
     expect(polls, settled, reason: '모름으로 끝난 뒤에는 더 묻지 않는다');
     expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
   });
+
+  // 검토 10/19(core7 3): 같은 버튼 다시 보냄 잠금이 화면 안에만 있어, 화면을 나갔다 다시 들어오면 아직 모르는 누름의 같은
+  // 버튼을 확인 없이 새 요청 번호로 또 보냈다(켜기·끄기 버튼이면 두 번 눌린다). 잠금은 공용 실행 상태에서 읽는다.
+  testWidgets('화면을 나갔다 다시 들어와도 결과를 모르는 같은 버튼은 확인 뒤에만 보낸다', (tester) async {
+    var executeCallCount = 0;
+    final client = MockClient((request) async {
+      if (request.url.path == '/execute-buttons') {
+        executeCallCount++;
+        throw http.ClientException('응답 유실');
+      }
+      return jsonRes({'running': false});
+    });
+    final api = RpiApiService('http://rpi5.local:8000', client: client);
+    final container = await _makeContainerWithAppliance(
+      tester,
+      extra: [rpiApiServiceProvider.overrideWithValue(api)],
+    );
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    await tester.pump();
+    expect(executeCallCount, 1);
+    expect(container.read(executionStatusProvider).phase, ExecutionPhase.unknown);
+
+    // 화면을 나갔다가 다시 들어온다 — 새 화면 상태.
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: SizedBox()),
+    ));
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget,
+        reason: '왜 묻는지 다시 들어와서도 말한다');
+
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    expect(find.text('다시 누를까요?'), findsOneWidget);
+    await tester.tap(find.text('그만두기'));
+    await tester.pump();
+    expect(executeCallCount, 1, reason: '그만두면 보내지 않는다');
+    await tester.pump(const Duration(seconds: 16)); // 상태 확인 차례를 다 쓴다
+  });
+
+  testWidgets('다시 들어왔을 때 앞 누름의 접수 답을 기다리는 중이면 버튼을 잠근다', (tester) async {
+    var executeCallCount = 0;
+    final client = MockClient((request) async {
+      if (request.url.path == '/execute-buttons') executeCallCount++;
+      return jsonRes({'running': false});
+    });
+    final api = RpiApiService('http://rpi5.local:8000', client: client);
+    final container = await _makeContainerWithAppliance(
+      tester,
+      extra: [rpiApiServiceProvider.overrideWithValue(api)],
+    );
+    // 앞 화면이 보내고 접수 답을 기다리는 중에 나갔다.
+    container.read(executionStatusProvider.notifier).beginSubmitting(api: api, label: '켜기', steps: ['켜기']);
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+
+    await tester.tap(find.text('끄기'));
+    await tester.pump();
+    expect(executeCallCount, 0, reason: '늦은 답이 새 실행과 정지 대상을 엇갈리게 한다');
+  });
 }

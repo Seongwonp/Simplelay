@@ -57,11 +57,11 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   String? _resultSentence;
   Timer? _resultClearTimer;
 
-  // 결과를 아직 모르는 누름(검토 10/19) — 같은 버튼은 확인을 받은 뒤에만 다시 보낸다. 결과는 이 화면이 따로 묻지 않고 공용 실행
+  // 결과를 아직 모르는 누름(검토 10/19) — 끝나면 결과를 말하려고 기억한다. 결과는 이 화면이 따로 묻지 않고 공용 실행
   // 상태가 그 요청 번호로 끝내는 것을 본다 — 화면이 따로 물으면 같은 job을 두 번씩 묻고, 본체가 잊은 job은 끝없이 물었다
-  // (검토 10/19). 접수 답을 잃은 누름도 공용 상태가 요청 번호로 찾아 끝내면 잠금을 거둔다.
+  // (검토 10/19). 같은 버튼 다시 보냄 잠금은 여기 두지 않고 공용 상태에서 읽는다([_unresolvedPress]) — 화면 안에만 두면
+  // 나갔다 다시 들어온 화면이 아직 모르는 누름을 잊고 같은 버튼을 확인 없이 또 보냈다(검토 10/19 core7 3).
   String? _unknownRequestId;
-  String? _unknownButtonId;
   ApplianceButton? _unknownButton;
 
   /// 이 화면이 결과를 기다리는 누름(요청 번호와 그 끝).
@@ -73,6 +73,16 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     super.initState();
     _executionSub =
         ref.listenManual<ExecutionStatus>(executionStatusProvider, (_, next) => _onExecution(next));
+    // 다시 들어온 화면 — 앞서 보낸 누름을 아직 모르면 그 말을 다시 하고, 끝나면 결과를 말한다.
+    final appliance = ref.read(selectedApplianceProvider);
+    final status = ref.read(executionStatusProvider);
+    final button = appliance == null ? null : _unresolvedPress(status, appliance);
+    if (button != null) {
+      _unknownRequestId = status.requestId;
+      _unknownButton = button;
+      _resultLabel = button.label;
+      _resultSentence = manualPressUnknownSentence(button.label);
+    }
   }
 
   @override
@@ -98,6 +108,14 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
           _ => ResultKind.failed,
         };
 
+  /// 공용 실행 상태에서 이 가전의 버튼 누름 중 아직 끝을 모르는 것(보내는 중·접수 답을 잃음·도는 중·모름). 요청 번호가 있는
+  /// 실행만 — 이 화면이 이 가전으로 보낸 그 버튼(이름)이다. 없으면 null.
+  static ApplianceButton? _unresolvedPress(ExecutionStatus s, ApplianceMap appliance) {
+    if (s.requestId == null || s.phase == ExecutionPhase.idle || _ended(s)) return null;
+    if (s.applianceId != null && s.applianceId != appliance.id) return null;
+    return appliance.buttons.where((b) => b.label == s.label).firstOrNull;
+  }
+
   void _onExecution(ExecutionStatus next) {
     final waiting = _waiting;
     if (waiting != null && !waiting.$2.isCompleted) {
@@ -113,7 +131,6 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       return;
     }
     _unknownRequestId = null;
-    _unknownButtonId = null;
     _unknownButton = null;
     if (mounted && _pendingButtonId == null && _resultSuccess == null && _resultLabel == button.label) {
       _showResult(button,
@@ -124,15 +141,16 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   Future<void> _press(
     RpiApiService api,
     ApplianceButton button,
-    String applianceId,
+    ApplianceMap appliance,
   ) async {
-    if (_pendingButtonId != null) return; // 이미 실행 중 — 무시
-    if (_unknownButtonId == button.id) {
+    final execution = ref.read(executionStatusProvider.notifier);
+    // 이미 실행 중 — 무시. 앞 누름의 접수 답을 기다리는 중이면 늦은 답이 새 실행과 정지 대상을 엇갈리게 한다(검토 10/19).
+    if (_pendingButtonId != null || execution.admissionInFlight) return;
+    if (_unresolvedPress(ref.read(executionStatusProvider), appliance)?.id == button.id) {
       // 아까 누른 것이 눌렸는지 모른다 — 그대로 보내면 두 번 눌릴 수 있다.
       if (!await _confirmRepeat(button.label) || !mounted) return;
-      if (_pendingButtonId != null) return;
+      if (_pendingButtonId != null || execution.admissionInFlight) return;
       _unknownRequestId = null;
-      _unknownButtonId = null;
       _unknownButton = null;
     }
     _resultClearTimer?.cancel();
@@ -149,7 +167,6 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     String? confirmation;
     var mode = 'unknown';
     var unknown = false;
-    final execution = ref.read(executionStatusProvider.notifier);
     // 보내기 전에 '보내는 중'으로 — 답을 기다리는 사이에도 정지 띠가 있다(검토 10/19).
     final requestId =
         execution.beginSubmitting(api: api, label: button.label, steps: [button.label]);
@@ -157,7 +174,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       // job 모델: 접수 즉시 job_id가 오고, 완료는 공용 실행 상태의 job 조회로 판정한다.
       final accepted = await api.executeButtons(
         [button.label],
-        applianceId: applianceId,
+        applianceId: appliance.id,
         clientRequestId: requestId,
       );
       // 공용 실행 상태에 등록한다. 이 화면을 떠나도 상태 탭이 진행을
@@ -204,7 +221,6 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
         _resultSuccess = null;
         _resultSentence = manualPressUnknownSentence(button.label);
         _unknownRequestId = requestId;
-        _unknownButtonId = button.id;
         _unknownButton = button;
       });
       // 기다림을 마친 사이 이미 끝났을 수 있다.
@@ -336,7 +352,10 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
 
     final photoPath = appliance.photoPath;
     final hasPhoto = photoPath != null && File(photoPath).existsSync();
-    final busy = _pendingButtonId != null;
+    // 보내는 중인 누름은 공용 상태에서도 본다 — 다시 들어온 화면은 앞 화면이 보낸 것을 모른다(검토 10/19 core7 3).
+    ref.watch(executionStatusProvider);
+    final busy =
+        _pendingButtonId != null || ref.read(executionStatusProvider.notifier).admissionInFlight;
 
     return Scaffold(
       appBar: AppBar(title: const Text('버튼 누르기')),
@@ -388,7 +407,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                 // 거절하지만(이중 방어), 누를 수 있는데 안 되는 버튼을
                 // 두면 사용자가 원인을 가전 쪽에서 찾게 된다.
                 onTap: appliance.canExecute && !busy
-                    ? (button) => _press(api, button, appliance.id)
+                    ? (button) => _press(api, button, appliance)
                     : null,
               ),
             ),
