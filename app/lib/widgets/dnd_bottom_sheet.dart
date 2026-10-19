@@ -86,6 +86,19 @@ class _DndSheet extends ConsumerWidget {
 
             // 2026-10-17 쉬운 말 사전: 폰·본체 화면 모두 '잠시 쉬기' — 이름 해명 문장은 뺐다.
 
+            // 쉬는 동안에도 그대로인 것 — 조용한 시간과 같은 말(첫 사용자 검토 10/19). 선택지마다 붙이면 큰 글씨에서 창이 길어진다.
+            const SizedBox(height: AppSpace.sm),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '직접 하기와 정지는 그대로예요.',
+                  style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+                ),
+              ),
+            ),
+
             // 현재 DND 남은 시간
             if (isActive) ...[
               const SizedBox(height: AppSpace.sm),

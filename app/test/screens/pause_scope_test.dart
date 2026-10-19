@@ -79,4 +79,14 @@ void main() {
     expect(findPlainText('2시간 동안 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
     expect(findPlainText('사용 습관 제안을', contains: true), findsNothing);
   });
+
+  // 첫 사용자 검토 10/19 #14: '묻지도, 자동으로 하지도 않아요'만 있으면 직접 하기·정지까지 막히는 줄로 읽힌다 —
+  // 조용한 시간과 같은 말로 무엇이 그대로인지 함께 말한다.
+  testWidgets('잠시 쉬기 줄과 시간 고르기 창이 직접 하기와 정지는 그대로라고 말한다', (tester) async {
+    await _settings(tester, null, null);
+    expect(findPlainText('직접 하기와 정지는 그대로예요.'), findsOneWidget);
+    await tester.tap(findPlainText('시간 고르기'));
+    await tester.pumpAndSettle();
+    expect(findPlainText('직접 하기와 정지는 그대로예요.'), findsNWidgets(2));
+  });
 }

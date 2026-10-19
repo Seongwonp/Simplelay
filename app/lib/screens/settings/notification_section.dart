@@ -30,15 +30,25 @@ class _DndTile extends ConsumerWidget {
             : AppIcons.pause),
         title: const Text('잠시 쉬기'),
         // 어절 단위 줄바꿈·14pt(UI 평가 3차 10/17 — '쉬 / 어요'로 끊기고 12pt는 작았다).
-        subtitle: _WordsText(
-          // 잠시 쉬기도 조용한 시간과 같은 판정이다(2026-10-14) — 아직 시작하지 않은 자동 실행도 건너뛴다.
-          // 켜져 있으면 끝나는 시각을 함께(2026-10-14 마감 확인 A5).
-          !active
-              ? '몇 시간 동안 묻지도, 자동으로 하지도 않아요'
-              : carried
-                  ? '${pauseEndClock(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하는 일은 그대로 해요'
-                  : '${pauseEndClock(until)}까지 묻지도, 자동으로 하지도 않아요',
-          style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _WordsText(
+              // 잠시 쉬기도 조용한 시간과 같은 판정이다(2026-10-14) — 아직 시작하지 않은 자동 실행도 건너뛴다.
+              // 켜져 있으면 끝나는 시각을 함께(2026-10-14 마감 확인 A5).
+              !active
+                  ? '몇 시간 동안 묻지도, 자동으로 하지도 않아요'
+                  : carried
+                      ? '${pauseEndClock(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하는 일은 그대로 해요'
+                      : '${pauseEndClock(until)}까지 묻지도, 자동으로 하지도 않아요',
+              style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+            ),
+            // 무엇이 그대로인지도 조용한 시간과 같은 말로(첫 사용자 검토 10/19) — 정지까지 막히는 줄로 읽혔다.
+            _WordsText(
+              '직접 하기와 정지는 그대로예요.',
+              style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+            ),
+          ],
         ),
         // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17). 고령 사용자 기준 최소 터치 대상.
         trailing: OutlinedButton(
