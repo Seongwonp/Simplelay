@@ -127,6 +127,9 @@ class RoutineEngine:
         self._environment = environment_reader
         self.runner = runner
         self._lock = threading.Lock()
+        #: 저장 잠금(검토 2026-10-19 #8) — 스냅숏과 저장을 함께 줄 세운다. 예전에는 저장이 잠금 밖이라 동시 요청이면 먼저
+        #: 찍은 옛 스냅숏이 나중에 저장될 수 있었다. ``_lock``은 DB를 기다리는 동안 쥐지 않는다(``tick``·화면 읽기가 막히지 않게).
+        self._persist_lock = threading.Lock()
         self._fired: dict[str, tuple] = {}
         #: '이 회차는 이미 띄웠다'를 남기는 저장소(2026-10-16 결함 ①) — 없으면 메모리만(재시작하면 10분 창 안에서
         #: 같은 카드가 다시 떴다). restore_fired로 연결한다.
@@ -191,12 +194,13 @@ class RoutineEngine:
         save = self._save_fired
         if save is None:
             return
-        with self._lock:
-            snapshot = json.dumps({k: list(v) for k, v in self._fired.items()})
-        try:
-            save(FIRED_SETTING, snapshot)
-        except Exception:  # noqa: BLE001 — 저장 실패로 카드를 막지 않는다(메모리 기억은 남는다)
-            log.exception("routine fired occurrence save failed")
+        with self._persist_lock:
+            with self._lock:
+                snapshot = json.dumps({k: list(v) for k, v in self._fired.items()})
+            try:
+                save(FIRED_SETTING, snapshot)
+            except Exception:  # noqa: BLE001 — 저장 실패로 카드를 막지 않는다(메모리 기억은 남는다)
+                log.exception("routine fired occurrence save failed")
 
     # ── 다음 회차 한 번 건너뛰기(2026-10-18) ──────────────────────────────────
     def restore_skips(self, load, save) -> None:
@@ -215,12 +219,13 @@ class RoutineEngine:
         save = self._save_skips
         if save is None:
             return
-        with self._lock:
-            snapshot = json.dumps(self._skips)
-        try:
-            save(SKIP_SETTING, snapshot)
-        except Exception:  # noqa: BLE001 — 저장 실패는 기록만(메모리 기억은 남는다)
-            log.exception("routine skip save failed")
+        with self._persist_lock:  # 스냅숏과 저장을 함께(검토 2026-10-19 #8) — 마지막 저장이 늘 마지막 상태
+            with self._lock:
+                snapshot = json.dumps(self._skips)
+            try:
+                save(SKIP_SETTING, snapshot)
+            except Exception:  # noqa: BLE001 — 저장 실패는 기록만(메모리 기억은 남는다)
+                log.exception("routine skip save failed")
 
     def _prune_skips_locked(self, now: datetime) -> bool:
         """회차 시각 + 창이 지난 건너뛰기는 버린다(그 회차는 이미 지나 의미가 없다 — 꺼진 루틴 등으로 쓰이지 않은 것)."""
