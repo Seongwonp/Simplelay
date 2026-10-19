@@ -98,6 +98,14 @@ def halt_routines_if_any(reason: str = "전체 정지 요청") -> int:
     return runner.halt_all(reason)
 
 
+def routine_run_containing(job_id: str | None):
+    """그 실행 번호를 구간으로 가진 루틴 실행(검토 10/19). 엔진이 아직 없으면 만들지 않고 None."""
+    engine = _engine
+    runner = getattr(engine, "runner", None) if engine is not None else None
+    finder = getattr(runner, "run_containing", None)
+    return finder(job_id) if callable(finder) else None
+
+
 def stop_routines_if_any(reason: str = "전체 정지 요청") -> int:
     """``POST /stop``·비상정지 — 이미 만들어진 루틴 러너가 있으면 진행 중인 루틴을 모두 멈춘다(평가 B5).
     엔진이 아직 없으면 아무것도 만들지 않는다(정지 경로에서 새 객체를 띄우지 않는다)."""

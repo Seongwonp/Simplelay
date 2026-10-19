@@ -1309,3 +1309,13 @@ class JobStatusResponse(StatusResponse):
     finished: bool
     #: 여러 단계 실행의 단계 번호(``<기본>-<n>``)로 물었을 때 n. 아니면 null.
     step: int | None = None
+    # ── 루틴 실행(검토 10/19) — 루틴 승인이 돌려준 첫 번호로 물으면 루틴 전체 수명. 루틴이 아니면 모두 null ──
+    #: 루틴 실행 번호(``/routines/runs/{id}``, 첫 구간 번호와 같다).
+    routine_run_id: str | None = None
+    #: running | succeeded | failed | stopped | unconfirmed — 루틴 전체 상태(모든 구간이 성공일 때만 succeeded).
+    routine_status: str | None = None
+    #: 지금(끝났으면 마지막) 구간의 순번(1부터)과 그 구간의 실행 번호.
+    routine_segment: int | None = None
+    routine_segment_job_id: str | None = None
+    #: 루틴 결과 한 줄(끝났을 때). 루틴이 성공하지 못했으면 ``last_detail``도 이 문장이다.
+    routine_detail: str | None = None

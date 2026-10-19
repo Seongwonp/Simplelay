@@ -9,6 +9,10 @@
 - ``GET /jobs/by-request/{client_request_id}`` → ``{"client_request_id", "job_id"}`` 또는 404.
 - ``GET /jobs/{job_id}`` → 그 실행 하나의 상태·결과. /status와 같은 필드 이름(실행 중이면 ``job_id``·진행, 끝났으면
   ``last_job_id``·``last_*``) + ``finished``·``step``. 최근 64건, 모르면 404. /status의 last_*는 여전히 마지막 한 건이다.
+- 루틴(여러 구간): 승인이 돌려준 첫 번호의 ``GET /jobs``는 **루틴 실행 전체의 수명**이다 — 루틴이 도는 동안(구간 사이 기다림
+  포함) ``running: true``·``finished: false``, 끝나면 루틴 전체 결과(모든 구간이 성공일 때만 성공, last_*는 마지막 구간의 것)와
+  ``routine_run_id``·``routine_status``·``routine_segment``·``routine_segment_job_id``·``routine_detail``. /status는 루틴이 도는
+  동안 그 루틴 구간을 ``last_job_id``로 내놓지 않고, 끝나면 첫 번호와 루틴 전체 결과로 내놓는다(필드 모양은 그대로).
 """
 
 import asyncio
@@ -1040,7 +1044,8 @@ async def status(
     service: SimpleLayService = Depends(get_service),
 ) -> StatusResponse:
     snapshot = service.status()
-    response = StatusResponse(developer_mode=developer_mode_enabled(), **snapshot_job_fields(snapshot))
+    response = StatusResponse(developer_mode=developer_mode_enabled(),
+                              **_routine_status_fields(snapshot_job_fields(snapshot)))
     from rpi.routines.wiring import last_auto_run_if_any  # noqa: PLC0415
     from rpi.services.stop_park import hold_status_fields  # noqa: PLC0415
 
@@ -1093,6 +1098,11 @@ async def job_status(
     last_*가 그 실행의 결과다. 여러 단계 실행의 단계 번호(``<기본>-<n>``)도 받는다. 기기 전체 값(비상정지·대기·링크)은 싣지
     않는다(/status에서). 최근 64건(단계는 최근 32 실행)만 — 모르면 404.
     """
+    from rpi.routines.wiring import routine_run_containing  # noqa: PLC0415
+
+    run = routine_run_containing(job_id)
+    if run is not None and run.run_id == job_id:
+        return _routine_job_response(service, job_id, run)
     lookup = service.job_status(job_id)
     if lookup is None:
         raise HTTPException(status_code=404, detail="job not found")
@@ -1105,6 +1115,74 @@ async def job_status(
         last_stop_ack_ms=stop.get("ack_ms"),
         last_stop_job_id=stop.get("job_id"),
     )
+
+
+#: 루틴 전체 상태 → /status 계약의 (last_status, last_outcome). ThinQ 결과와 같은 값을 쓴다(``command_status_fields``).
+_ROUTINE_LAST = {
+    "succeeded": ("succeeded", "success"), "failed": ("failed", "failed"),
+    "stopped": ("stopped", "stopped"), "unconfirmed": ("unconfirmed", "unconfirmed"),
+}
+
+
+def _routine_job_response(service: SimpleLayService, job_id: str, run) -> JobStatusResponse:
+    """루틴 첫 번호의 ``GET /jobs`` — 루틴 실행 전체의 수명(검토 10/19).
+
+    루틴이 도는 동안(구간 사이 기다림·안내 포함)은 ``running: true``·``finished: false``·``job_id``가 첫 번호이고, 지금 구간이
+    실행 중이면 그 진행 필드를 싣는다. 끝나면 ``last_job_id``가 첫 번호, last_*는 마지막 구간의 결과이되 상태는 루틴 전체 결과다
+    (모든 구간이 성공일 때만 성공 — 아니면 루틴 상태와 문장으로 덮는다)."""
+    status = run.status.value  # 한 번만 읽는다 — 끝남은 구간 번호를 다 적은 뒤에 세워진다
+    segments = list(run.job_ids) or [job_id]
+    current = segments[-1]
+    segment = service.job_status(current)
+    routine = dict(routine_run_id=run.run_id, routine_status=status, routine_segment=len(segments),
+                   routine_segment_job_id=current)
+    if status == "running":
+        live = segment is not None and segment.running
+        fields = snapshot_job_fields(segment.snapshot) if live else {"last_status": None, "last_buttons": None}
+        fields.update(running=True, job_id=job_id, last_job_id=None)
+        return JobStatusResponse(**fields, finished=False, **routine)
+    done = segment is not None and not segment.running
+    fields = snapshot_job_fields(segment.snapshot) if done else {"last_status": None, "last_buttons": None}
+    fields.update(running=False, job_id=None, last_job_id=job_id)
+    fields.update(_routine_outcome_fields(fields, status, run.detail))
+    stop = (segment.stop if done else None) or {}
+    return JobStatusResponse(
+        **fields, finished=True, **routine, routine_detail=run.detail or None,
+        last_stop_level=stop.get("stop_level"), last_stop_ack_ms=stop.get("ack_ms"),
+        last_stop_job_id=stop.get("job_id"),
+    )
+
+
+def _routine_outcome_fields(fields: dict, status: str, detail: str) -> dict:
+    """끝난 루틴의 last_status·last_outcome(·last_detail). 성공 루틴이고 마지막 구간도 성공이면 구간 값 그대로."""
+    last_status, last_outcome = _ROUTINE_LAST[status]
+    if status == "succeeded" and fields.get("last_outcome") == "success":
+        return {}
+    update = {"last_status": last_status, "last_outcome": last_outcome}
+    if status != "succeeded" and detail:
+        update["last_detail"] = detail
+    return update
+
+
+def _routine_status_fields(fields: dict) -> dict:
+    """/status의 마지막 실행이 루틴 구간이면(검토 10/19) — 모양은 그대로, 값만 루틴 전체에 맞춘다.
+
+    루틴이 아직 돌면 ``last_job_id``를 비운다(첫 번호를 '쉬는 중·성공'으로 내놓지 않는다). 끝났고 마지막 결과가 그 루틴의
+    마지막 구간이면 ``last_job_id``를 첫 번호로, 상태를 루틴 전체 결과로 바꾼다."""
+    from rpi.routines.wiring import routine_run_containing  # noqa: PLC0415
+
+    last = fields.get("last_job_id")
+    run = routine_run_containing(last)
+    if run is None:
+        return fields
+    status = run.status.value
+    if status == "running":
+        return {**fields, "last_job_id": None}
+    if run.job_ids and last == run.job_ids[-1]:
+        updated = {**fields, "last_job_id": run.run_id}
+        updated.update(_routine_outcome_fields(updated, status, run.detail))
+        return updated
+    return fields
 
 
 def _last_stop_fields(service: SimpleLayService) -> dict:

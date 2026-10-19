@@ -340,6 +340,14 @@ class RoutineRunner:
         with self._lock:
             return next((r for r in self._runs if r.run_id == run_id), None)
 
+    def run_containing(self, job_id: str | None) -> RoutineRun | None:
+        """그 실행 번호를 구간으로 가진 루틴 실행(검토 10/19 — ``GET /jobs``·/status가 루틴 전체 수명을 보게). 루틴의 첫
+        번호는 곧 루틴 실행 번호(``run_id``)다. 최근 실행(20건) 안에서만 찾고, 모르면 None."""
+        if not job_id:
+            return None
+        with self._lock:
+            return next((r for r in reversed(self._runs) if job_id in r.job_ids), None)
+
     def stop(self, run_id: str) -> bool:
         """남은 단계를 보내지 않는다. 지금 실행 중인 구간이 있으면 긴급 정지도 보낸다."""
         run = self.get(run_id)
