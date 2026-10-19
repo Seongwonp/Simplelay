@@ -61,6 +61,9 @@ class _AddApplianceWizardScreenState
   // ① 사진
   File? _photo;
   Size? _photoSize;
+
+  /// 이 폰 문서 폴더에 옮겨 둔 사진 경로(찍을 때 옮긴다). 위치를 다시 맞출 때는 등록된 사진에서 시작한다.
+  late String? _keptPhoto = widget.initial?.photoPath;
   final _name = TextEditingController(text: '전자레인지');
   final _room = TextEditingController();
   ApplianceCategory _category = ApplianceCategory.microwave;
@@ -192,10 +195,19 @@ class _AddApplianceWizardScreenState
       setState(() => _error = '사진을 읽지 못했어요. 다시 찍어 주세요.');
       return;
     }
+    // 찍자마자 문서 폴더로 옮긴다. 저장 단계까지 캐시에 두면 그사이 OS가 캐시를 비워 사진 없이 등록됐다
+    // (실화면 10/19: 상세·위치 맞추기에서 사진 자리가 검게 비었다). 같은 등록에서 다시 찍으면 앞서 옮긴 것은 지운다.
+    final kept = await service.persist(photo, '${_id}_${DateTime.now().millisecondsSinceEpoch}');
+    if (!mounted) return;
+    final previous = _keptPhoto;
+    if (previous != null && previous != widget.initial?.photoPath) {
+      unawaited(File(previous).delete().then((_) {}, onError: (_) {}));
+    }
+    _keptPhoto = kept;
     setState(() {
-      _photo = photo;
+      _photo = kept == null ? photo : File(kept);
       _photoSize = size;
-      _error = null;
+      _error = kept == null ? '사진을 이 폰에 남기지 못했어요. 등록은 되지만 나중에 사진이 안 보일 수 있어요.' : null;
       // 사진이 바뀌면 짚은 자리는 모두 무효다.
       _corners.clear();
       _buttons.clear();
@@ -410,12 +422,14 @@ class _AddApplianceWizardScreenState
     );
   }
 
-  /// 사진은 image_picker 임시 캐시에 있다 -- 문서 폴더로 복사한 경로만 남긴다.
+  /// 찍을 때 문서 폴더로 옮긴 경로([_keptPhoto]). 그때 못 옮겼으면 지금 한 번 더 해 본다.
   /// 복사 실패는 등록을 막지 않는다(사진 없이 자리만 남는다).
   Future<String?> _persistPhoto() async {
+    final kept = _keptPhoto;
+    if (kept != null) return kept;
     final photo = _photo;
     if (photo == null) return null;
-    return ref.read(photoServiceProvider).persist(photo, _id);
+    return _keptPhoto = await ref.read(photoServiceProvider).persist(photo, _id);
   }
 
   // ── ⑤ 확인 주행 ───────────────────────────────────────────────────────

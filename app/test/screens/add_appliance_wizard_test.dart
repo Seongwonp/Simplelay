@@ -36,8 +36,18 @@ class _FakePhoto extends PhotoService {
   @override
   Future<ui.Size?> imageSize(File file) async => const ui.Size(1000, 800);
 
+  /// 문서 폴더로 옮긴 사진 이름(옮긴 순서대로).
+  final persisted = <String>[];
+
+  /// 옮기기를 실패시킨다.
+  bool failPersist = false;
+
   @override
-  Future<String?> persist(File photo, String id) async => '/photos/$id.jpg';
+  Future<String?> persist(File photo, String id) async {
+    if (failPersist) return null;
+    persisted.add(id);
+    return '/photos/$id.jpg';
+  }
 }
 
 class _Server {
@@ -124,7 +134,7 @@ class _Server {
       );
 }
 
-Widget _build(_Server server, {void Function(ProviderContainer)? onReady}) {
+Widget _build(_Server server, {void Function(ProviderContainer)? onReady, _FakePhoto? photo}) {
   final router = GoRouter(
     initialLocation: '/',
     routes: [
@@ -148,7 +158,7 @@ Widget _build(_Server server, {void Function(ProviderContainer)? onReady}) {
     overrides: [
       ...connectedOverrides(),
       ...installedOverrides(const []),
-      photoServiceProvider.overrideWithValue(_FakePhoto()),
+      photoServiceProvider.overrideWithValue(photo ?? _FakePhoto()),
       rpiApiServiceProvider.overrideWithValue(server.api()),
     ],
     onContainerReady: onReady,
@@ -179,6 +189,11 @@ Future<void> _tapPhoto(WidgetTester tester, double fx, double fy) async {
 Future<void> _walkToStopStep(WidgetTester tester, {String name = '전자레인지'}) async {
   await tester.tap(find.byKey(const Key('wizard-take-photo')));
   await _settle(tester);
+  await _walkToStopStepFromPhoto(tester, name: name);
+}
+
+/// 사진을 찍은 ①에서 ④까지.
+Future<void> _walkToStopStepFromPhoto(WidgetTester tester, {String name = '전자레인지'}) async {
   await tester.enterText(find.byKey(const Key('wizard-name')), name);
   await tester.pump();
   await tester.tap(find.byKey(const Key('wizard-next')));
@@ -383,5 +398,48 @@ void main() {
     final next = tester.getRect(find.byKey(const Key('wizard-next')));
     expect(error.bottom, lessThanOrEqualTo(next.top));
     expect(_title(tester), '4. 정지 버튼과 기다리는 자리', reason: '거절되면 다음 단계로 가지 않는다');
+  });
+
+  testWidgets('사진은 찍자마자 이 폰 문서 폴더로 옮기고 그 경로로 등록한다 — 저장까지 캐시에 두지 않는다(실화면 10/19)',
+      (tester) async {
+    final server = _Server();
+    final photo = _FakePhoto();
+    late ProviderContainer container;
+    _tall(tester);
+    await tester.pumpWidget(_build(server, onReady: (c) => container = c, photo: photo));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    expect(photo.persisted, hasLength(1), reason: '찍은 그 자리에서 옮긴다');
+    expect(find.byKey(const Key('wizard-error')), findsNothing);
+
+    // 같은 등록에서 다시 찍으면 새로 옮긴다.
+    await tester.tap(find.text('다시 찍기'));
+    await _settle(tester);
+    expect(photo.persisted, hasLength(2));
+
+    await _walkToStopStepFromPhoto(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(_title(tester), '5. 자리 확인');
+    final saved = container.read(customAppliancesProvider).single;
+    expect(saved.photoPath, '/photos/${photo.persisted.last}.jpg');
+    expect(photo.persisted, hasLength(2), reason: '저장할 때 또 옮기지 않는다');
+  });
+
+  testWidgets('사진을 이 폰에 남기지 못하면 그렇다고 말한다', (tester) async {
+    final server = _Server();
+    final photo = _FakePhoto()..failPersist = true;
+    _tall(tester);
+    await tester.pumpWidget(_build(server, photo: photo));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    expect(find.textContaining('사진을 이 폰에 남기지 못했어요'), findsOneWidget);
   });
 }
