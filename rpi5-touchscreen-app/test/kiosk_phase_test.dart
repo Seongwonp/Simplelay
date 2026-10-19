@@ -127,8 +127,10 @@ class FakeKioskApi implements KioskApiService {
   Future<KioskJobAccepted> executeButtons(
     List<String> buttons, {
     String? applianceId,
+    String? clientRequestId,
   }) async {
     executeCalls++;
+    requestIds.add(clientRequestId);
     if (executeError != null) throw executeError!;
     // 차례대로 꺼내 쓰는 접수 응답(검토 10/19) — 비면 바로 nextJobId.
     if (executePending.isNotEmpty) return executePending.removeAt(0).future;
@@ -138,8 +140,22 @@ class FakeKioskApi implements KioskApiService {
   int executeCalls = 0;
   final executePending = <Completer<KioskJobAccepted>>[];
 
+  // 실행 요청 번호(검토 10/19) — 접수 요청마다 보낸 client_request_id, 그 번호로 찾은 결과.
+  // [requestLookup]이 null이면 옛 본체(조회 없음)처럼 — 종전 시험이 종전 동작을 본다.
+  final requestIds = <String?>[];
+  final requestLookups = <String>[];
+  KioskRequestLookup Function(String id)? requestLookup;
+
   @override
-  Future<KioskJobAccepted> approveSuggestion(String id) async {
+  Future<KioskRequestLookup> jobByRequest(String clientRequestId) async {
+    requestLookups.add(clientRequestId);
+    return requestLookup?.call(clientRequestId) ??
+        const KioskRequestLookup(KioskRequestLookupKind.unsupported);
+  }
+
+  @override
+  Future<KioskJobAccepted> approveSuggestion(String id, {String? clientRequestId}) async {
+    requestIds.add(clientRequestId);
     if (executeError != null) throw executeError!;
     approvedIds.add(id);
     if (approvalPending != null) return approvalPending!.future;

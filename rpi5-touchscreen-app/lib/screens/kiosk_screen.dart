@@ -204,6 +204,10 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _admitBaseKnown = false;
   String? _admitBase;
 
+  // 지금 접수의 요청 번호(본체 client_request_id, 검토 10/19). 응답을 잃으면 이 번호로 내 실행을 찾는다 —
+  // 그때 마침 도는 실행(자동 실행·폰)을 내 것으로 이어받지 않는다. 옛 본체(조회 없음)일 때만 종전처럼 /status로 찾는다.
+  String? _admitRequestId;
+
   String? _currentButton;
 
   // 이 실행에서 이미 누른 버튼(화면이 본 차례대로, 평가 3차 10/18) — 실행 화면 버튼판의 끝난 칸 ✓.
@@ -1713,7 +1717,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
     try {
       // job 모델: 즉시 접수 — 진행·완료는 _pollExecuting이 job_id 대조로 따라간다
-      final accepted = await _api.approveSuggestion(suggestion.id);
+      final accepted = await _api.approveSuggestion(suggestion.id, clientRequestId: _admitRequestId);
       if (gen != _admitGen) return;
       _accepting = false;
       _activeJobId = accepted.jobId;
@@ -1748,9 +1752,10 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
-  /// 새 실행 접수를 시작한다 — 앞 실행의 남은 정지는 넘기지 않고, 응답을 잃을 때 견줄 마지막 결과 번호를 잡는다.
+  /// 새 실행 접수를 시작한다 — 앞 실행의 남은 정지는 넘기지 않고, 새 요청 번호와 응답을 잃을 때 견줄 마지막 결과 번호를 잡는다.
   void _beginAdmission() {
     _stopWhileAccepting = false;
+    _admitRequestId = newKioskRequestId();
     _admitBaseKnown = _seenLastJobInit;
     _admitBase = _seenLastJobId;
   }
@@ -1780,17 +1785,43 @@ class _KioskScreenState extends State<KioskScreen> {
     _admitUnknownNotice = null;
   }
 
-  /// 응답을 잃은 접수의 실행을 본체에서 찾는다 — 돌고 있으면 이어받고, 그 사이 끝났으면 그 결과를, 계속 쉬면 결과 화면('어떻게 됐는지 몰라요').
+  /// 응답을 잃은 접수의 실행을 본체에서 찾는다 — 요청 번호로 찾으면 그 실행을 따라가고, 본체가 모르는 번호라고 하면 남의 실행을
+  /// 이어받지 않고 기다리다 결과 화면('어떻게 됐는지 몰라요'). 옛 본체(요청 번호 조회 없음)만 종전처럼: 돌고 있으면 이어받고,
+  /// 그 사이 끝났으면 그 결과를, 계속 쉬면 결과 화면.
   Future<void> _pollAdmitUnknown() async {
     final gen = _admitGen;
+    final requestId = _admitRequestId;
     bool stale() =>
         !mounted || gen != _admitGen || _phase != KioskPhase.executing || !_admitUnknown || _activeJobId != null;
     try {
       final st = await _api.status();
       if (stale()) return;
-      _lastStatusOk = DateTime.now();
       _trackStrip(st);
       _trackEstop(st);
+      final lookup = requestId == null
+          ? const KioskRequestLookup(KioskRequestLookupKind.unsupported)
+          : await _api.jobByRequest(requestId);
+      if (stale()) return;
+      // 무엇도 알지 못했다 — 끊김과 같이 센다(오래 이어지면 [_statusLostTimeout]으로 결과 화면).
+      if (lookup.kind == KioskRequestLookupKind.failed) throw StateError('job lookup failed');
+      _lastStatusOk = DateTime.now();
+      if (lookup.kind == KioskRequestLookupKind.found) {
+        _endAdmitUnknown();
+        _foreignPolls = 0;
+        setState(() => _activeJobId = lookup.jobId);
+        // 그 실행이 아직 돌면 남은 정지를 다시 보낸다. 끝났으면 다음 조회가 그 결과를 보인다.
+        _followPendingStop(st);
+        return;
+      }
+      if (lookup.kind == KioskRequestLookupKind.unknown) {
+        // 본체가 이 요청을 접수하지 않았다(아직이거나 실패) — 지금 도는 실행은 남의 것이다. 정지도 그 실행에 다시 보내지 않는다.
+        if (++_admitUnknownPolls >= _admitUnknownIdlePolls) {
+          _stopWhileAccepting = false;
+          _endAdmitUnknown();
+          _toDone(false, _execTitle, reason: KioskFailureReason.serverLost);
+        }
+        return;
+      }
       if (st.running && st.jobId != null) {
         _endAdmitUnknown();
         _foreignPolls = 0;
@@ -1861,6 +1892,7 @@ class _KioskScreenState extends State<KioskScreen> {
       final accepted = await _api.executeButtons(
         [button.label],
         applianceId: _currentAppliance.id,
+        clientRequestId: _admitRequestId,
       );
       if (gen != _admitGen) return;
       _accepting = false;

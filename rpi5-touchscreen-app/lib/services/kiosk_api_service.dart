@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
@@ -508,6 +509,35 @@ class KioskJobAccepted {
       KioskJobAccepted(jobId: json['job_id'] as String);
 }
 
+/// 실행 접수 하나에 붙이는 요청 번호(본체 `client_request_id`, `[A-Za-z0-9_-]{1,64}`, 검토 10/19).
+/// 같은 번호를 다시 보내도 본체는 한 번만 접수하고, 응답을 잃으면 [KioskApiService.jobByRequest]로 그 실행 번호를 찾는다.
+String newKioskRequestId() {
+  final rand = Random();
+  final tail = List.generate(2, (_) => rand.nextInt(1 << 32).toRadixString(36)).join();
+  return 'kiosk-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-$tail';
+}
+
+/// 요청 번호로 찾은 결과(GET /jobs/by-request, 검토 10/19).
+enum KioskRequestLookupKind {
+  /// 본체가 이 요청을 접수했다 — [KioskRequestLookup.jobId]가 그 실행.
+  found,
+
+  /// 본체는 요청 번호 조회를 아는데 이 번호로 접수한 실행이 없다(아직 안 닿았거나 접수 실패).
+  unknown,
+
+  /// 옛 본체 — 이 조회 자체가 없다. 부른 쪽이 종전 방식으로 찾는다.
+  unsupported,
+
+  /// 통신 실패·해석 불가 — 아무것도 알지 못했다.
+  failed,
+}
+
+class KioskRequestLookup {
+  const KioskRequestLookup(this.kind, [this.jobId]);
+  final KioskRequestLookupKind kind;
+  final String? jobId;
+}
+
 class NodeInfo {
   const NodeInfo({required this.applianceId, required this.baseUrl});
 
@@ -688,9 +718,11 @@ class KioskApiService {
         jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
   }
 
+  /// [clientRequestId]가 있으면 본체가 같은 번호를 한 번만 접수한다(검토 10/19). 옛 본체는 이 필드를 무시한다.
   Future<KioskJobAccepted> executeButtons(
     List<String> buttons, {
     String? applianceId,
+    String? clientRequestId,
   }) async {
     final res = await _client
         .post(
@@ -698,6 +730,7 @@ class KioskApiService {
           body: jsonEncode({
             'buttons': buttons,
             if (applianceId != null) 'appliance_id': applianceId,
+            if (clientRequestId != null) 'client_request_id': clientRequestId,
           }),
           headers: _jsonHeaders,
         )
@@ -707,15 +740,46 @@ class KioskApiService {
         jsonDecode(res.body) as Map<String, dynamic>);
   }
 
-  Future<KioskJobAccepted> approveSuggestion(String id) async {
+  Future<KioskJobAccepted> approveSuggestion(String id, {String? clientRequestId}) async {
     final res = await _client
-        .post(_base.replace(path: '/suggestions/$id/approve'))
+        .post(_base.replace(path: '/suggestions/$id/approve'),
+            headers: clientRequestId == null ? null : _jsonHeaders,
+            body: clientRequestId == null ? null : jsonEncode({'client_request_id': clientRequestId}))
         .timeout(_timeout);
     _ensureOk(res);
     return KioskJobAccepted.fromJson(
       jsonDecode(res.body) as Map<String, dynamic>,
     );
   }
+
+  /// GET /jobs/by-request/{id} — 응답을 잃은 접수의 실행 번호(검토 10/19). 본체는 접수 중이면 끝날 때까지 기다렸다 답한다.
+  /// 404는 '모르는 번호'와 '옛 본체(조회 없음)' 둘 다다 — 형식이 틀린 번호로 한 번 더 물어 가른다(새 본체 422, 옛 본체 404).
+  Future<KioskRequestLookup> jobByRequest(String clientRequestId) async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/jobs/by-request/$clientRequestId'))
+          .timeout(_lookupTimeout);
+      if (res.statusCode == 200) {
+        final body = jsonDecode(utf8.decode(res.bodyBytes));
+        final job = body is Map<String, dynamic> ? body['job_id'] : null;
+        return job is String
+            ? KioskRequestLookup(KioskRequestLookupKind.found, job)
+            : const KioskRequestLookup(KioskRequestLookupKind.failed);
+      }
+      if (res.statusCode != 404) return const KioskRequestLookup(KioskRequestLookupKind.failed);
+      final probe = await _client.get(_base.replace(path: '/jobs/by-request/!')).timeout(_timeout);
+      return switch (probe.statusCode) {
+        422 => const KioskRequestLookup(KioskRequestLookupKind.unknown),
+        404 => const KioskRequestLookup(KioskRequestLookupKind.unsupported),
+        _ => const KioskRequestLookup(KioskRequestLookupKind.failed),
+      };
+    } catch (_) {
+      return const KioskRequestLookup(KioskRequestLookupKind.failed);
+    }
+  }
+
+  /// 본체가 접수 중인 요청을 기다렸다 답하는 몫까지(본체 상한 30초보다 짧게 — 그동안 다른 조회가 오래 멈추지 않게).
+  static const _lookupTimeout = Duration(seconds: 12);
 
   // 에러 응답({"detail": ...})을 접수 성공으로 오파싱하지 않도록 명시 확인 —
   // 409(이미 실행 중) 등이 조용히 삼켜져 실행 화면에 고착되는 것을 막는다.
