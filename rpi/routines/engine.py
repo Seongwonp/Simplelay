@@ -56,6 +56,8 @@ KIND_ROUTINE_NOTICE = "routine_notice"
 SKIP_SETTING = "routine_skip_next"
 #: 건너뛴 회차의 기록 말(루틴 기록·자동 실행 기록) — 그 회차 시각에 쓰므로 늘 '오늘'이다.
 SKIP_REASON = "오늘은 건너뛰기로 해서 안 했어요"
+#: 쓰이지 않은 건너뛰기를 정리하기까지 회차 시각 뒤로 기다리는 시간(검토 10/19 #7 — 벽시계가 잠깐 앞으로 튀어도 지우지 않게).
+SKIP_PRUNE_GRACE = timedelta(days=7)
 
 _ZONE_LEVEL = {"idle": 0, "room_present": 1, "approaching": 2, "at_device": 2}
 _ZONE_NEEDS = {"room": 1, "near": 2}
@@ -228,12 +230,17 @@ class RoutineEngine:
                 log.exception("routine skip save failed")
 
     def _prune_skips_locked(self, now: datetime) -> bool:
-        """회차 시각 + 창이 지난 건너뛰기는 버린다(그 회차는 이미 지나 의미가 없다 — 꺼진 루틴 등으로 쓰이지 않은 것)."""
+        """회차 시각이 넉넉히(``SKIP_PRUNE_GRACE``) 지난 건너뛰기는 버린다(꺼진 루틴 등으로 쓰이지 않은 것 — 정리일 뿐이다).
+
+        검토 10/19 #7: RPi5는 RTC 배터리가 없어 벽시계가 잠깐 앞으로 튈 수 있다. 예전에는 회차 + 창(10분)이 지난 것으로
+        보이면 곧바로 지워, 시계가 돌아오면 건너뛰기로 한 회차가 그대로 카드로 떴다. 건너뛰기는 그 회차에서 쓰고 지우므로
+        (``tick``) 여기서는 시계 한 번 본 것만으로 앞으로 올 회차를 지우지 않는다. 지난 회차의 건너뛰기는 그 시각과 정확히
+        같은 회차에만 맞으므로 남아 있어도 다른 회차를 건너뛰게 하지 않는다."""
         stale = []
         for routine_id, raw in self._skips.items():
             at = _parse_at(raw)
             try:
-                if at is None or at + timedelta(minutes=TIME_WINDOW_MINUTES) <= now:
+                if at is None or at + SKIP_PRUNE_GRACE <= now:
                     stale.append(routine_id)
             except TypeError:
                 stale.append(routine_id)
