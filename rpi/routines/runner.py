@@ -290,11 +290,28 @@ class RoutineRunner:
         run.done_mark = mark
         for text in leading:
             self._announce_step(run, text)
-        thread = threading.Thread(target=self._continue_safely,
-                                  args=(run, routine, rest, job_id, None, scenario_id, kwargs),
-                                  daemon=True, name=f"simplelay-routine-{job_id}")
-        thread.start()
+        try:
+            thread = threading.Thread(target=self._continue_safely,
+                                      args=(run, routine, rest, job_id, None, scenario_id, kwargs),
+                                      daemon=True, name=f"simplelay-routine-{job_id}")
+            thread.start()
+        except Exception:  # noqa: BLE001
+            # 첫 구간은 이미 접수됐다 — 예외를 올리면 제안 서비스가 승인을 되돌려 같은 카드를 다시 승인(이중 실행)할 수
+            # 있다(검토 10/19 B). 이어 갈 스레드가 없으니 루틴을 멈춰 끝내고, 접수한 실행 번호는 그대로 돌려준다.
+            log.exception("routine run %s could not continue", run.run_id)
+            self._abandon(run, routine)
         return job_id
+
+    def _abandon(self, run: RoutineRun, routine: Routine) -> None:
+        """이어 갈 수 없는 루틴(순서기 스레드 시작 실패) — 남은 단계는 보내지 않고, 지켜볼 수 없는 첫 구간은 멈춘다."""
+        run.stop_reason = run.stop_reason or "루틴 순서기 시작 실패"
+        run.cancel.set()
+        try:
+            self._stop_own_job(run)
+        except Exception:  # noqa: BLE001
+            log.exception("routine run %s first segment stop failed", run.run_id)
+        self._finish(run, routine, RunStatus.FAILED,
+                     "루틴을 이어 갈 수 없어 멈췄어요. 첫 할 일이 됐는지 가전을 봐 주세요.", notify=True)
 
     def execute_approved(self, approved, *, purpose=None, usage_source=None,
                          approval_guard=None, scenario_id=None) -> RoutineRun:

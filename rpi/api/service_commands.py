@@ -418,22 +418,28 @@ class CommandExecutionMixin:
             raise UnknownIntentError("실행할 명령이 없어요")
         first = steps[0]
         job_id = self._begin_run(len(steps), first.controller, first.command.target_id, approval_guard)
-        with self._lock:
-            self._current_route = first.command.route
-        # 정지 토큰은 게이트가 모든 대상에 대해 리셋하지 않는다(로컬만) -- ThinQ도 리셋.
-        for step in steps:
-            reset = getattr(step.controller, "reset_stop", None)
-            if reset is not None and step.controller is not first.controller:
-                reset()
-        args = (job_id, steps, purpose, usage_source, scenario_id, dispatch_guard)
+        try:
+            with self._lock:
+                self._current_route = first.command.route
+            # 정지 토큰은 게이트가 모든 대상에 대해 리셋하지 않는다(로컬만) -- ThinQ도 리셋.
+            for step in steps:
+                reset = getattr(step.controller, "reset_stop", None)
+                if reset is not None and step.controller is not first.controller:
+                    reset()
+            args = (job_id, steps, purpose, usage_source, scenario_id, dispatch_guard)
+            if background:
+                thread = threading.Thread(target=self._run_plan_job, args=args, daemon=True,
+                                          name=f"simplelay-cmd-{job_id}")
+                thread.start()
+        except BaseException:
+            # 실행이 시작되지 못했다(스레드 시작 실패 등, 검토 10/19 B) — '실행 중'·제어권을 되돌린다.
+            self._abort_begun_run(job_id)
+            raise
         if not background:
             try:
                 return self._run_plan(*args)
             finally:
                 self._end_run()
-        thread = threading.Thread(target=self._run_plan_job, args=args, daemon=True,
-                                  name=f"simplelay-cmd-{job_id}")
-        thread.start()
         return job_id
 
     def _run_plan_job(self, *args) -> None:

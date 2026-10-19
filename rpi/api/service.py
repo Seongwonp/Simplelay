@@ -659,14 +659,18 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         targets = self._targets_snapshot(snapshot_id, buttons, controller)
         behaviors = self._button_behaviors_snapshot(snapshot_id, buttons)
         job_id = self._begin_run(len(buttons), controller, snapshot_id, approval_guard)
-        thread = threading.Thread(
-            target=self._run_job,
-            args=(buttons, controller, purpose, appliance_id, calibration, usage_source, learning_purpose),
-            kwargs={"targets": targets, "button_behaviors": behaviors},
-            daemon=True,
-            name=f"simplelay-exec-{job_id}",
-        )
-        thread.start()
+        try:
+            thread = threading.Thread(
+                target=self._run_job,
+                args=(buttons, controller, purpose, appliance_id, calibration, usage_source, learning_purpose),
+                kwargs={"targets": targets, "button_behaviors": behaviors},
+                daemon=True,
+                name=f"simplelay-exec-{job_id}",
+            )
+            thread.start()
+        except BaseException:
+            self._abort_begun_run(job_id)
+            raise
         return job_id
 
     def _run_job(
@@ -798,6 +802,28 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
         return job_id
+
+    def _abort_begun_run(self, job_id: str) -> None:
+        """시작 게이트를 지났지만 실행이 시작되지 못했다(실행 스레드 시작 실패 등, 검토 10/19 B) — 게이트를 되돌린다.
+
+        되돌리지 않으면 '실행 중'과 제어권(중재자)이 영영 남아 모든 실행이 '바쁨'으로 거절됐다. 한 잠금 안에서 제어권을
+        놓고 '실행 중'을 내린다. 아무것도 누르지 않았으므로 마지막 실행 번호·기록은 바꾸지 않는다(이 번호는 호출자에게
+        돌려준 적이 없다). 이미 다른 실행이 시작됐으면(번호가 다르면) 건드리지 않는다."""
+        with self._lock:
+            if self._current_job_id != job_id:
+                return
+            if self._control_arbiter is not None:
+                self._control_arbiter.release(self._control_arbiter.EXECUTION)
+            self._running = False
+            self._execution_mode = ExecutionMode.UNKNOWN
+            self._current_route = None
+            self._current_job_id = None
+            self._current_appliance_id = None
+            self._current_total_steps = None
+            self._current_started_at = None
+        if self._progress_tracker is not None:
+            self._progress_tracker.clear()
+        log.error("execution %s did not start; start gate rolled back", job_id)
 
     def _end_run(self) -> None:
         with self._lock:
