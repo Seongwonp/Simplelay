@@ -23,6 +23,9 @@ RPi4 side of this same link.
                                        ``abort_with_report()``. 옛 RPi4면 기다리지 않고 ``sent``)
   verify_pass {sequence_id,       ←  verify_result {sequence_id, ok, targets}
                targets}               (확인 주행, 2026-09-30 — progress phase "verify"가 먼저 온다)
+  verify_pass {…, heartbeat_s?} + heartbeat {sequence_id}
+                                      (10/19 — 실행과 같은 생존 신호. 끊기면 RPi4가 스스로 멈추고
+                                       verify_result {ok:false, abort_reason:"motion_link_lost"})
   execute {..., hold?}            ←  progress {phase:"hold", hold_state, stop_outcome, ...}
                                       (정지 버튼 대기·보관 보고 — 결과 뒤에도 온다. ``last_hold``)
   (after an L3-confirmed result)  ←  progress {phase:"power_tail", power_tail:{status, tail_s, ...}}
@@ -699,9 +702,17 @@ class ActClient:
         timeout = self._cfg.timeout_for(len(targets))
         future: asyncio.Future[dict] = asyncio.get_running_loop().create_future()
         self._pending = (seq_id, future)
+        heartbeat_task: asyncio.Task[None] | None = None
         try:
-            await self._send({"type": "verify_pass", "sequence_id": seq_id,
-                              "targets": [dict(t) for t in targets]})
+            message: dict = {"type": "verify_pass", "sequence_id": seq_id, "targets": [dict(t) for t in targets]}
+            # 확인 주행도 실행과 같은 생존 신호(10/19) — 알린 RPi4에만, 이 주행 번호로. 옛 RPi4에는 종전 줄 그대로.
+            period = self._cfg.heartbeat_seconds
+            beat = supports_heartbeat(self.act_info)
+            if beat:
+                message["heartbeat_s"] = period
+            await self._send(message)
+            if beat:
+                heartbeat_task = asyncio.create_task(self._send_heartbeats(seq_id, future, period))
             doc = await asyncio.wait_for(future, timeout)
         except asyncio.TimeoutError as exc:
             self._stale_sequence_ids.append(seq_id)
@@ -711,6 +722,8 @@ class ActClient:
                 log.exception("abort send after verify timeout failed")
             raise ActLinkTimeoutError(f"no verify_result for {seq_id!r} within {timeout}s") from exc
         finally:
+            if heartbeat_task is not None:
+                heartbeat_task.cancel()
             if self._pending is not None and self._pending[0] == seq_id:
                 self._pending = None
         if doc.get("type") == "error":

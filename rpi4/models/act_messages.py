@@ -26,7 +26,7 @@ Inbound (RPi5 → RPi4):
                    답은 ``dev_motion_result {request_id, ok, …}`` 하나. 실제 모션 어댑터가 물린 RPi4만
                    받는다(``act_info.dev_motion_protocol``) — rpi4/services/dev_motion.py
   heartbeat      — 실행 중 생존 신호(2026-10-16, 안전 보고 G5, 링크 생존 신호 규약 1). 답하지 않는다. ``execute``에
-                   ``heartbeat_s``가 실린 실행에서 인증된 줄이 제한 시간 넘게 없으면 RPi4가 스스로 멈춘다
+                   ``heartbeat_s``가 실린 실행·확인 주행(10/19)에서 인증된 줄이 제한 시간 넘게 없으면 RPi4가 스스로 멈춘다
                    (rpi/services/link_heartbeat.py)
 
 Outbound (RPi4 → RPi5): plain dicts serialised by ActExecutor._send().
@@ -140,6 +140,10 @@ class VerifyPassMsg:
 
     sequence_id: str
     targets: tuple[VerifyTarget, ...]
+    #: 선택 — 실행(execute)과 같은 생존 신호 주기(초, 10/19). 있으면 RPi4가 링크 침묵에 스스로 멈춘다. 없으면 None(옛 RPi5).
+    heartbeat_s: float | None = None
+    #: 확인 주행에는 실행 표지가 없다 — 생존 신호 감시가 실행과 같은 모양을 쓰게 둔다.
+    run_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -321,7 +325,8 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
             if not (_is_number(x) and _is_number(y)):
                 return None
             parsed.append(VerifyTarget(button.strip(), float(x), float(y), kind))
-        return VerifyPassMsg(sequence_id=seq_id.strip(), targets=tuple(parsed))
+        return VerifyPassMsg(sequence_id=seq_id.strip(), targets=tuple(parsed),
+                             heartbeat_s=parse_declared_period(doc.get("heartbeat_s")))
 
     if msg_type == "inject_failure":
         button_index = doc.get("button_index")

@@ -30,6 +30,8 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
                                     + 다음 act_info에 last_link_stop 한 번(heartbeat_s 없는 옛 RPi5·쉬는 중은 감시 안 함)
   verify_pass {sequence_id,      →  progress {phase:"verify", ...} + verify_result
                targets}                     {sequence_id, ok, targets:[{button,status,...}]}
+  verify_pass {…, heartbeat_s} + heartbeat (10/19 — 실행과 같은 생존 신호 감시. 끊기면 스스로 정지 →
+                                    verify_result {ok:false, abort_reason:"motion_link_lost"}, last_link_stop은 남기지 않음)
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
                                     (see report_danger_sound)
@@ -831,8 +833,8 @@ class ActExecutor:
 
     # ── 실행 중 생존 신호 감시(2026-10-16, 안전 보고 G5) ──────────────────────────
 
-    def _arm_link_watch(self, msg: ExecuteMsg) -> None:
-        """``heartbeat_s``가 실린 실행만 감시한다(옛 RPi5는 생존 신호를 보내지 않는다). 시작 시각을 마지막 수신으로 둔다.
+    def _arm_link_watch(self, msg: "ExecuteMsg | VerifyPassMsg") -> None:
+        """``heartbeat_s``가 실린 실행·확인 주행(10/19)만 감시한다(옛 RPi5는 생존 신호를 보내지 않는다). 시작 시각을 마지막 수신으로 둔다.
 
         감시는 이 이벤트 루프의 작업이다 — 실행 스레드·공용 스레드 풀(``asyncio.to_thread``)·정지 확인 대기와 무관하게 돈다."""
         self._link_lost_ms = None
@@ -967,6 +969,8 @@ class ActExecutor:
             return
         self._busy = True
         self._verify_stop = False
+        # 확인 주행도 실행과 같은 생존 신호 감시(10/19) — 링크를 잃으면 받은 정지와 같은 길로 멈춘다.
+        self._arm_link_watch(msg)
         self._execute_task = asyncio.create_task(self._verify_and_report(msg))
 
     async def _verify_and_report(self, msg: VerifyPassMsg) -> None:
@@ -983,14 +987,21 @@ class ActExecutor:
             await self._send({"type": "error", "sequence_id": msg.sequence_id, "reason": "actuator_fail"})
             return
         finally:
+            link_lost_ms = self._disarm_link_watch()
             self._busy = False
             self._execute_task = None
+        ok = all(r["status"] == "reached" for r in results)
+        if link_lost_ms is not None:
+            # 링크를 잃고 스스로 멈췄다 — 누르지 않는 주행이라 last_link_stop(누름 수 알림)은 남기지 않는다.
+            log.error("verify pass %r stopped by itself after %d ms of link silence", msg.sequence_id, link_lost_ms)
+            ok = False
         await self._send({
             "type": "verify_result",
             "sequence_id": msg.sequence_id,
-            "ok": all(r["status"] == "reached" for r in results),
+            "ok": ok,
             "targets": results,
             "execution_mode": self._mode_value(),
+            **({"abort_reason": LINK_LOST_ABORT_REASON} if link_lost_ms is not None else {}),
         })
 
     def _stop_after_result(self) -> None:

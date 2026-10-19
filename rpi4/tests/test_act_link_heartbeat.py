@@ -350,3 +350,93 @@ def test_background_watchdog_stops_without_being_polled():
     writer, grbl = asyncio.run(_t())
     assert grbl.stops >= 1 and len(grbl.presses) == 1
     assert writer.of("result")[0]["abort_reason"] == "motion_link_lost"
+
+
+# ── 확인 주행도 같은 감시(10/19 검토 #9) ──────────────────────────────────────
+
+
+class _GateMotion:
+    """확인 주행 이동을 ``gate``가 열릴 때까지 붙잡는다(모션 흉내). 누르지 않는다."""
+
+    execution_mode = ExecutionMode.MOCK
+
+    def __init__(self, gate: threading.Event) -> None:
+        self.gate = gate
+        self.entered = threading.Event()
+        self.moves: list[tuple[float, float]] = []
+
+    def move_to(self, x_mm: float, y_mm: float) -> None:
+        self.moves.append((x_mm, y_mm))
+        self.entered.set()
+        self.gate.wait(5)
+
+
+def _verify_setup():
+    from rpi4.services.stop_hold import HoldHardware
+
+    reader, writer, grbl, clock = asyncio.StreamReader(), _Writer(), _GateGrbl(), _Clock()
+    controller = ClosedLoopController(grbl, MockVerifier([True] * 20), MockAlertSink(), MockSafetyController(),
+                                      retry_waiter=MockRetryWaiter())
+    motion = _GateMotion(grbl.release)  # 정지 요청(request_stop)이 이동을 놓아 준다
+    hw = HoldHardware(motion=motion, probe_factory=lambda plan: None)
+    executor = ActExecutor(reader, writer, controller, clock=clock, hold=hw)
+    return executor, reader, writer, grbl, clock, motion
+
+
+def _verify(seq: str = "v-1", heartbeat_s: float | None = 1.0) -> dict:
+    doc = {"type": "verify_pass", "sequence_id": seq,
+           "targets": [{"button": "b1", "x_mm": 10.0, "y_mm": 20.0},
+                       {"button": "b2", "x_mm": 30.0, "y_mm": 40.0}]}
+    if heartbeat_s is not None:
+        doc["heartbeat_s"] = heartbeat_s
+    return doc
+
+
+def test_verify_pass_period_parses():
+    from rpi4.models.act_messages import VerifyPassMsg
+
+    msg = parse_act_message(json.dumps(_verify(heartbeat_s=0.5)))
+    assert isinstance(msg, VerifyPassMsg) and msg.heartbeat_s == 0.5
+    assert parse_act_message(json.dumps(_verify(heartbeat_s=None))).heartbeat_s is None  # 옛 RPi5
+
+
+def test_verify_pass_stops_by_itself_when_heartbeats_stop():
+    async def _t():
+        executor, reader, writer, grbl, clock, motion = _verify_setup()
+        _feed(reader, _verify())
+        await executor.run_once()
+        assert await asyncio.to_thread(motion.entered.wait, 5)
+        clock.t += 2.9
+        assert executor.check_link_watchdog() is False
+        clock.t += 0.2
+        assert executor.check_link_watchdog() is True  # 이 주행의 생존 신호가 3 s 넘게 없다
+        await executor.wait_idle()
+        return writer, grbl, motion
+
+    writer, grbl, motion = asyncio.run(_t())
+    assert grbl.stops >= 1  # 받은 정지와 같은 길
+    assert motion.moves == [(10.0, 20.0)]  # 남은 자리로 가지 않았다
+    (result,) = writer.of("verify_result")
+    assert result["ok"] is False and result["abort_reason"] == "motion_link_lost"
+    assert [t["status"] for t in result["targets"]] == ["reached", "skipped"]
+
+
+def test_verify_pass_heartbeats_keep_it_alive_and_old_rpi5_has_no_watchdog():
+    async def _t(heartbeat_s):
+        executor, reader, writer, grbl, clock, motion = _verify_setup()
+        _feed(reader, _verify(heartbeat_s=heartbeat_s))
+        await executor.run_once()
+        assert await asyncio.to_thread(motion.entered.wait, 5)
+        for _ in range(6):
+            clock.t += 1.0
+            if heartbeat_s is not None:
+                await _line(executor, reader, {"type": "heartbeat", "sequence_id": "v-1"})
+            assert executor.check_link_watchdog() is False
+        grbl.release.set()
+        await executor.wait_idle()
+        return writer, grbl
+
+    for period in (1.0, None):
+        writer, grbl = asyncio.run(_t(period))
+        (result,) = writer.of("verify_result")
+        assert result["ok"] is True and "abort_reason" not in result and grbl.stops == 0

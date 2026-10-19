@@ -123,6 +123,36 @@ def test_no_heartbeats_to_an_old_rpi4():
     assert writer.of("heartbeat") == []
 
 
+def test_verify_pass_carries_heartbeats_with_its_sequence_id():
+    """확인 주행도 실행과 같이 생존 신호를 보낸다(10/19 검토 #9) — 끊기면 RPi4가 스스로 멈출 수 있게."""
+
+    async def _t(info):
+        client, reader, writer = await _client(info)
+        task = asyncio.create_task(client.verify_pass([{"button": "b1", "x_mm": 1.0, "y_mm": 2.0}],
+                                                      sequence_id="v-1"))
+        if info:
+            await _until(lambda: len(writer.of("heartbeat")) >= 3)
+        else:
+            await asyncio.sleep(0.08)
+        _feed(reader, {"type": "verify_result", "sequence_id": "v-1", "ok": True, "targets": []})
+        doc = await task
+        after = len(writer.of("heartbeat"))
+        await asyncio.sleep(0.08)  # 결과 뒤에는 보내지 않는다
+        await client.stop()
+        return doc, writer, after
+
+    doc, writer, after = asyncio.run(_t({"heartbeat_protocol": 1}))
+    assert doc["ok"] is True
+    (verify,) = writer.of("verify_pass")
+    assert verify["heartbeat_s"] == 0.01
+    assert all(h == {"type": "heartbeat", "sequence_id": "v-1"} for h in writer.of("heartbeat"))
+    assert len(writer.of("heartbeat")) == after
+
+    _doc, writer, _after = asyncio.run(_t({}))  # 옛 RPi4 — 종전 줄 그대로
+    (verify,) = writer.of("verify_pass")
+    assert "heartbeat_s" not in verify and writer.of("heartbeat") == []
+
+
 def test_heartbeats_are_not_starved_by_a_pending_stop_or_a_busy_thread_pool():
     """정지 보고를 기다리는 동안에도, 루프의 기본 스레드 풀이 막혀 있어도 생존 신호는 제 주기로 나간다."""
 
