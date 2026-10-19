@@ -763,6 +763,10 @@ class SerialMotionClient(GrblClient):
         self._stops: dict[int, _StopRecord] = {}
         #: 전송 계층이 포트를 잃은 뒤 연결 확인(connect)을 아직 못 했으면 True(2026-10-14).
         self._link_dropped = False
+        #: 이 프로세스가 아직 스스로 원점을 잡지 않았거나, 포트를 다시 연결한 뒤라 MCU의 ``homed`` 보고를 믿지 않는다
+        #: (2026-10-19). 실행기만 다시 시작했거나(MCU 전원 유지) 포트만 다시 붙었으면 MCU는 homed라고 해도, 그사이 손으로
+        #: 캐리지를 옮겼거나 이동 도중 실행기가 죽었을 수 있다. 성공한 ``home()``만 푼다.
+        self._origin_unverified = True
         # 엔코더 생존 근거(2026-10-15 G11) — ``_state_lock``으로 보호. 이번 실행(``reset_stop`` 뒤)에 이동을 명령한 축
         # (``_enc_need``)과, 기준값(``_enc_ref``)에서 실제로 값이 바뀐 것을 본 축(``_enc_moved``). 축 순서는 (a, b).
         self._enc_ref: tuple[int, int] | None = None
@@ -883,7 +887,8 @@ class SerialMotionClient(GrblClient):
     # ── 명령 ─────────────────────────────────────────────────────────────────
 
     def connect(self) -> MotionStatus:
-        """포트를 연 직후의 상태 조회. MCU가 알람이면 준비 안 됨, 홈 완료를 보고해야만 READY.
+        """포트를 연 직후의 상태 조회. MCU가 알람이면 준비 안 됨. MCU가 홈 완료를 보고해도 READY가 아니라 UNHOMED다
+        (2026-10-19) — 실행기 시작·포트 재연결 뒤에는 이 프로세스가 ``home()``으로 원점을 다시 잡아야 위치를 믿는다.
 
         포트를 열면 ESP32가 리셋될 수 있다(자동 리셋 회로). 부팅 중에 보낸 status는 사라지므로
         ``connect_timeout_s`` 동안 status를 backoff(0.2 s → 두 배 → 1 s 상한)로 재시도한다. 기다리는
@@ -916,6 +921,8 @@ class SerialMotionClient(GrblClient):
                 else:
                     self._connect_error = None
                     self._link_dropped = False
+                    # 연결 확인(실행기 시작·포트 재연결) 뒤에는 MCU의 homed를 그대로 믿지 않는다(2026-10-19).
+                    self._origin_unverified = True
                     return self._apply_status(reply)
                 remaining = deadline - self._clock()
                 if remaining <= 0:
@@ -933,6 +940,7 @@ class SerialMotionClient(GrblClient):
         self._connect_error = f"모션 포트 연결 끊김 — 다시 여는 중({reason})"
         self._reset_mid_run = True
         self._link_dropped = True
+        self._origin_unverified = True
         self._reset_encoder_evidence(keep_reference=False)
         self._emit("link_down", {"detail": reason})
 
@@ -968,6 +976,8 @@ class SerialMotionClient(GrblClient):
         if state is MotionState.STOPPED:
             return "누름 장치가 멈춘 뒤라 위치를 믿을 수 없어요. 원점을 다시 잡아야 해요."
         if state is MotionState.UNHOMED:
+            if self._origin_unverified and self.last_status is not None and self.last_status.homed:
+                return "실행기가 다시 시작했거나 누름 장치와 다시 연결돼 위치를 믿을 수 없어요. 원점을 다시 잡아야 해요."
             return "누름 장치의 위치 기준이 없어요. 원점을 다시 잡아야 해요."
         return None
 
@@ -991,8 +1001,10 @@ class SerialMotionClient(GrblClient):
         if status.alarm or status.state == "alarm":
             self._set_state(MotionState.ALARM)
         elif self.state is not MotionState.STOPPED:
-            # 정지로 끊긴 뒤에는 MCU가 homed라고 해도 재홈 전까지 믿지 않는다.
-            self._set_state(MotionState.READY if status.homed else MotionState.UNHOMED)
+            # 정지로 끊긴 뒤에는 MCU가 homed라고 해도 재홈 전까지 믿지 않는다. 실행기 시작·포트 재연결 뒤 이 프로세스가
+            # 원점을 잡기 전에도 같다(``_origin_unverified``, 2026-10-19).
+            trusted = status.homed and not self._origin_unverified
+            self._set_state(MotionState.READY if trusted else MotionState.UNHOMED)
         return status
 
     def limits(self) -> LimitStatus:
@@ -1017,6 +1029,7 @@ class SerialMotionClient(GrblClient):
             if not self._set_ready_unless_stopped():
                 raise MotionStopped("원점 복귀 직후 정지 요청 — 재홈 필요")
             self._reset_mid_run = False
+            self._origin_unverified = False
         # 원점 복귀가 카운트를 0으로 되돌린 것은 엔코더 생존 근거가 아니다(G11) — 기준부터 다시 잡는다.
         self._reset_encoder_evidence(keep_reference=False)
 

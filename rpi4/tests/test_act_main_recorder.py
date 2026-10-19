@@ -199,6 +199,7 @@ def test_serial_motion_gets_the_mcu_event_hook(monkeypatch, rec_dir):
     monkeypatch.setenv("SIMPLELAY_MOTION_MODE", "serial")
     monkeypatch.setenv("SIMPLELAY_MOTION_PORT", "/dev/test-mcu")
     monkeypatch.setenv("SIMPLELAY_MOTION_BAUD", "57600")
+    monkeypatch.setenv("SIMPLELAY_MOTION_HOME_TIMEOUT_S", "5")  # 누르기 전 원점 잡기용(10/19)
     path = rec_dir / "serial.jsonl"
     monkeypatch.setenv("SIMPLELAY_RECORDER_PATH", str(path))
     live = act_main._build_recorder()
@@ -209,6 +210,7 @@ def test_serial_motion_gets_the_mcu_event_hook(monkeypatch, rec_dir):
         assert isinstance(grbl._inner, SerialMotionClient)
         assert grbl.execution_mode is ExecutionMode.REAL
         assert grbl.requires_coordinates is True
+        grbl._inner.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         grbl.press(PressCommand(button="start", x_mm=10.0, y_mm=5.0))
     finally:
         live.close()

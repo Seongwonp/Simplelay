@@ -92,13 +92,14 @@ def test_solenoid_refuses_depth_press_before_moving():
     mcu, client = _link(REHEARSAL_CONFIG, z_mode="solenoid", homed=True)  # press_mode=depth
     try:
         client.connect()
+        client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         assert client.state is MotionState.READY
         with pytest.raises(MotionRefused, match="솔레노이드"):
             client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100))
         cmds = mcu.cmds()
     finally:
         mcu.close()
-    assert cmds == ["status"]  # move도 press도 보내지 않았다
+    assert cmds == ["status", "home"]  # move도 press도 보내지 않았다
     assert client.state is MotionState.READY  # 위치를 잃지 않았다 — 재홈 불필요
 
 
@@ -106,6 +107,7 @@ def test_solenoid_duration_press_goes_through():
     mcu, client = _link(DURATION, z_mode="solenoid", homed=True)
     try:
         client.connect()
+        client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100))
         press = next(d for d in mcu.received if d["cmd"] == "press")
     finally:
@@ -119,6 +121,7 @@ def test_motor_mode_and_unknown_mode_still_allow_depth():
         mcu, client = _link(REHEARSAL_CONFIG, z_mode=z_mode, homed=True)
         try:
             client.connect()
+            client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
             assert client.z_mode == z_mode
             client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100))
             press = next(d for d in mcu.received if d["cmd"] == "press")
@@ -153,6 +156,7 @@ def test_solenoid_cooldown_is_a_refusal_not_an_alarm():
     command = PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100)
     try:
         client.connect()
+        client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         client.press(command)
         with pytest.raises(MotionRefused, match="z_cooldown"):
             client.press(command)  # 코일 냉각 시간 안 — MCU가 거절
@@ -180,6 +184,7 @@ def test_move_fails_when_encoder_report_disagrees_with_command():
     mcu, client = _link(CHECKED, homed=True, slip_counts=(0, 9))
     try:
         client.connect()
+        client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         with pytest.raises(MotionPositionMismatch, match="b"):
             client.move_to(10.0, 5.0)
         state = client.state
@@ -192,6 +197,7 @@ def test_press_does_not_press_at_the_wrong_place():
     mcu, client = _link(CHECKED, homed=True, slip_counts=(-20, 0))
     try:
         client.connect()
+        client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         with pytest.raises(MotionPositionMismatch):
             client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100))
         cmds = mcu.cmds()
@@ -205,6 +211,7 @@ def test_small_slip_within_tolerance_passes_and_check_off_ignores_slip():
         mcu, client = _link(config, homed=True, slip_counts=slip)
         try:
             client.connect()
+            client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
             client.move_to(10.0, 5.0)
         finally:
             mcu.close()
@@ -215,6 +222,7 @@ def test_check_on_but_no_position_report_is_a_failure():
     mcu, client = _link(CHECKED, homed=True, report_position=False)
     try:
         client.connect()
+        client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         with pytest.raises(MotionPositionMismatch, match="위치 보고"):
             client.move_to(10.0, 5.0)
     finally:
@@ -235,7 +243,8 @@ def test_mismatch_then_retry_rehomes_first_with_auto_home():
         cmds = mcu.cmds()
     finally:
         mcu.close()
-    assert cmds == ["status", "move", "home", "move", "press"]
+    # 실행기 시작 뒤 첫 누름은 원점부터(10/19), 어긋남 뒤 재시도도 재홈부터
+    assert cmds == ["status", "home", "move", "home", "move", "press"]
 
 
 # ── 4. 펌웨어 소스 — 보드 설정 한 파일 · Z 방식 빌드 플래그 ─────────────────
@@ -291,13 +300,14 @@ def test_host_refuses_solenoid_press_over_reported_on_max_before_moving():
     mcu, client = _link(DURATION, z_mode="solenoid", homed=True, solenoid_on_max_ms=150)  # 120 + 100 > 150
     try:
         client.connect()
+        client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         assert client.z_on_max_ms == 150
         with pytest.raises(MotionRefused, match="켜짐"):
             client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100))
         cmds = mcu.cmds()
     finally:
         mcu.close()
-    assert cmds == ["status"]  # 움직이기 전에 거절
+    assert cmds == ["status", "home"]  # 움직이기 전에 거절
     assert client.state is MotionState.READY
 
 
@@ -306,13 +316,14 @@ def test_cooldown_waits_the_reported_remaining_time_and_retries_once():
     command = PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100)
     try:
         client.connect()
+        client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         client.press(command)
         client.press(command)  # 냉각 안 — 남은 시간만큼 기다렸다가 한 번 더
         cmds = mcu.cmds()
         refusal = [d for d in mcu.received if d.get("cmd") == "press"]
     finally:
         mcu.close()
-    assert cmds == ["status", "move", "press", "move", "press", "press"]
+    assert cmds == ["status", "home", "move", "press", "move", "press", "press"]
     assert len(refusal) == 3 and client.state is MotionState.READY and mcu.alarm is None
 
 
@@ -327,6 +338,7 @@ def test_soft_limit_refusal_on_press_is_not_an_alarm():
     mcu.handlers["press"] = lambda d: [{"id": d["id"], "ok": False, "error": "soft_limit"}]
     try:
         client.connect()
+        client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         with pytest.raises(MotionRefused, match="soft_limit"):
             client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100))
         state = client.state

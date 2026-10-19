@@ -68,6 +68,8 @@ class _Rig:
         self.mcu = FakeMcu(self.pipe, homed=homed, z_mode="solenoid", solenoid_on_max_ms=800)
         self.client = SerialMotionClient(self.pipe.host, config, poll_s=0.01)
         self.client.connect()
+        if homed:
+            self.client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         self.client.ready_info = {"event": "ready", "fw": fw, "protocol": "line-json/v0"}
         self.reader = asyncio.StreamReader()
         self.writer = FakeWriter()
@@ -266,7 +268,7 @@ def test_an_execute_is_refused_while_a_dev_op_runs(rig) -> None:
 
 def test_bringup_firmware_is_refused(rig) -> None:
     async def _t():
-        r = rig(homed=True, fw="firmware-motion-corexy-bringup")
+        r = rig(fw="firmware-motion-corexy-bringup")
         reply = await r.op("home")
         assert reply["ok"] is False and reply["reason"] == "bringup_firmware"
         assert "home" not in r.mcu.cmds()

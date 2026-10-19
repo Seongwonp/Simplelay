@@ -201,12 +201,15 @@ def test_status_reports_unhomed_until_home(link):
     assert mcu.cmds() == ["status", "home"]
 
 
-def test_status_trusts_mcu_homed_report():
+def test_connect_does_not_trust_mcu_homed_report_until_home():
+    """실행기 시작·재연결 뒤 MCU의 homed 보고만으로는 READY가 아니다 — 이 프로세스의 home()이 있어야(2026-10-19)."""
     pipe = InMemoryLinePipe()
     mcu = FakeMcu(pipe, homed=True)
     try:
         client = _client(pipe)
-        client.connect()
+        assert client.connect().homed is True
+        assert not client.homed
+        client.home()
         assert client.homed
     finally:
         mcu.close()

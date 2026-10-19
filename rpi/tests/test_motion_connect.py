@@ -109,7 +109,8 @@ def test_stale_ready_banner_during_status_resends_the_query():
         status = client.status()
     finally:
         mcu.close()
-    assert status.homed is True and client.state is MotionState.READY
+    # MCU는 homed라고 하지만 이 프로세스가 원점을 잡기 전에는 믿지 않는다(2026-10-19)
+    assert status.homed is True and client.state is MotionState.UNHOMED
     assert client.ready_info is not None
 
 

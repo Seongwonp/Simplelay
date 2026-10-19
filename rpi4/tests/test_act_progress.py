@@ -237,6 +237,7 @@ def test_act_main_motion_log_and_recorder_share_sequence_id_and_clock(monkeypatc
     recorder = LiveRecorder(tmp_path / "rec.jsonl")
     try:
         grbl, _ = act_main._build_motion(line_log=line_log)
+        act_main._motion_watch._client.home()  # 실행기 시작 뒤에는 MCU의 homed를 믿지 않는다 — 이 프로세스가 원점을 잡는다(10/19)
         observe = act_main._job_observer(recorder, line_log)
         observe("job_start", {"sequence_id": "seq-j", "buttons": ["시작"]})
         grbl.press(PressCommand("시작", x_mm=10.0, y_mm=5.0))

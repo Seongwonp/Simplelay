@@ -399,6 +399,9 @@ def mcu_rig(rig, monkeypatch):
                 SIMPLELAY_MOTION_BAUD="115200", SIMPLELAY_LINK_KEY=LINK_KEY)
         r.start_rpi4()
         r.wait_ready()
+        # 이미 원점을 잡고 쓰던 상태에서 시작한다 — 실행기 시작 뒤에는 MCU의 homed를 믿지 않으므로(10/19)
+        # 사람이(개발자 원점 잡기처럼) 이 실행기에서 원점을 한 번 잡아 둔다.
+        act_main._motion_watch._client.home()
         return r, mcu
 
     yield build
