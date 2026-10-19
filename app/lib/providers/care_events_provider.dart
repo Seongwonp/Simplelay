@@ -112,7 +112,24 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
     _startPolling();
   }
 
-  bool _flushing = false;
+  // 남은 확인의 더하기·저장·보내기를 한 줄로 세운다(검토 10/19). 홈의 '못 한 일 봤다'와 기록 화면의 '실행 봤다'가 거의
+  // 함께 불리면 둘 다 같은 옛 대기열을 읽고 다른 목록을 저장해, 늦게 저장한 쪽이 다른 확인을 지웠다. 보내는 중이면 뒤에 온
+  // 확인은 보내지도 않고 실패로 끝났다. 대기열은 이 줄 안에서만 읽고 고치며, 기기에서 한 번 읽은 뒤에는 메모리 값이 기준이다.
+  Future<void> _ackChain = Future<void>.value();
+  _AckRetry? _retry;
+
+  Future<T> _serialAck<T>(Future<T> Function() op) {
+    final next = _ackChain.then((_) => op());
+    _ackChain = next.then<void>((_) {}, onError: (Object _) {});
+    return next;
+  }
+
+  Future<_AckRetry> _currentRetry() async => _retry ??= await _loadRetry();
+
+  Future<void> _setRetry(_AckRetry retry) async {
+    _retry = retry;
+    await _saveRetry(retry);
+  }
 
   Future<_AckRetry> _loadRetry() async {
     try {
@@ -141,34 +158,28 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
 
   /// [add]를 남은 확인에 더해 기기에 남기고, 남은 것 전부를 한 번에 보낸다. 본체가 받았으면(응답 있음) 확인 표시를 고치고,
   /// 저장까지 했으면(`persisted`가 false가 아님) 보낸 만큼 남은 것에서 뺀다. 응답을 받았으면 그 값을 돌려준다.
-  Future<PersonAcks?> _sendAcks(_AckRetry add) async {
-    await _saveRetry((await _loadRetry()).merge(add, _ackJobCap));
-    return _flushAcks();
-  }
+  Future<PersonAcks?> _sendAcks(_AckRetry add) => _serialAck(() async {
+        await _setRetry((await _currentRetry()).merge(add, _ackJobCap));
+        return _flushNow();
+      });
 
-  Future<PersonAcks?> _flushAcks() async {
-    if (_flushing) return null;
+  Future<PersonAcks?> _flushAcks() => _serialAck(_flushNow);
+
+  /// 남은 것 전부를 보낸다 — [_serialAck] 안에서만 부른다.
+  Future<PersonAcks?> _flushNow() async {
     final api = _ref.read(rpiApiServiceProvider);
     if (api == null) return null;
-    _flushing = true;
-    try {
-      final sending = await _loadRetry();
-      if (sending.isEmpty) return null;
-      final acks = await api.postAcks(
-        careSeenId: sending.careSeenId,
-        failuresSeenId: sending.failuresSeenId,
-        seenJobIds: sending.jobIds.isEmpty ? null : sending.jobIds,
-      );
-      if (acks == null) return null;
-      if (acks.persisted != false) {
-        // 보내는 사이 더해진 것은 남긴다.
-        await _saveRetry((await _loadRetry()).without(sending));
-      }
-      if (mounted) state = state.copyWith(acks: acks);
-      return acks;
-    } finally {
-      _flushing = false;
-    }
+    final sending = await _currentRetry();
+    if (sending.isEmpty) return null;
+    final acks = await api.postAcks(
+      careSeenId: sending.careSeenId,
+      failuresSeenId: sending.failuresSeenId,
+      seenJobIds: sending.jobIds.isEmpty ? null : sending.jobIds,
+    );
+    if (acks == null) return null;
+    if (acks.persisted != false) await _setRetry((await _currentRetry()).without(sending));
+    if (mounted) state = state.copyWith(acks: acks);
+    return acks;
   }
 
   void _startPolling() {
