@@ -32,7 +32,7 @@ class RoutineRehearsal:
         with self._lock:
             s = self._state
             if session != s['session'] or revision != s['revision']:
-                raise StaleRehearsal('다른 화면에서 변경됐어요. 최신 미리보기를 확인하세요.')
+                raise StaleRehearsal('다른 화면에서 바뀌었어요. 최신 미리보기를 확인하세요.')
             if event == 'reset':
                 if s['phase'] in ('running', 'stopping'):
                     raise ValueError('진행 중에는 새 시나리오를 시작할 수 없어요.')

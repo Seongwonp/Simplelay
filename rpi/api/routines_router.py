@@ -356,7 +356,7 @@ def _rule_by_key(engine, rule_key: tuple):
 
 
 #: 이 카드의 실행은 접수했지만 자동 허용 결과를 모를 때(그냥 승인으로 실행했거나 결과를 남기기 전에 실패).
-ALLOW_RESULT_UNKNOWN = "이번 실행은 이미 접수됐어요. 자동 실행은 켜지지 않았을 수 있어요 — 자동 실행 목록에서 확인해 주세요"
+ALLOW_RESULT_UNKNOWN = "이번 실행은 이미 접수되었어요. 자동 실행은 켜지지 않았을 수 있어요 — 자동 실행 목록에서 확인해 주세요"
 
 
 def _approve_and_allow_once(svc, engine, receipts, suggestion_id: str, body: dict, start_generation) -> dict:

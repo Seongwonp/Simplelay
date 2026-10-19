@@ -119,7 +119,7 @@ class DevMotionService:
                     "detail": f"RPi4 모션 설정이 비어 있어 움직이지 않았어요: {exc}", "moved": False}
         except MotionRefused as exc:
             return {"ok": False, "reason": exc.code or "refused",
-                    "detail": f"움직이기 전에 거절됐어요: {exc}", "moved": False}
+                    "detail": f"움직이기 전에 거절되었어요: {exc}", "moved": False}
         except MotionStopped as exc:
             return {"ok": False, "reason": "stopped", "detail": f"정지 요청으로 멈췄어요: {exc}", "moved": None}
         except MotionReset as exc:

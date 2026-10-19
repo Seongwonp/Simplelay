@@ -153,7 +153,7 @@ class HttpVisionClient:
                 message = (
                     "인식 서비스에 문제가 있어요 — 잠시 후 다시 시도해 주세요"
                     if exc.code >= 500
-                    else f"인식 요청이 거절됐어요 (HTTP {exc.code})"
+                    else f"인식 요청이 거절되었어요 (HTTP {exc.code})"
                 )
             raise VisionUnavailable(message, status=exc.code) from None
         except (urllib.error.URLError, TimeoutError, OSError):

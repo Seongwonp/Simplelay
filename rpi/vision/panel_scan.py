@@ -145,7 +145,7 @@ def parse_controls(raw: str) -> tuple[list[DetectedControl], list[str]]:
         raise PanelScanError("사진에서 버튼을 찾지 못했어요 — 조작부가 화면을 채우게 다시 찍어 주세요")
     if len(controls) > MAX_CONTROLS:
         raise PanelScanError(
-            f"버튼이 {len(controls)}개로 인식됐어요(최대 {MAX_CONTROLS}개) "
+            f"버튼이 {len(controls)}개로 인식되었어요(최대 {MAX_CONTROLS}개) "
             "— 조작부만 보이게 다시 찍어 주세요"
         )
     return controls, dropped

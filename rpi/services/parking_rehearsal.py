@@ -35,7 +35,7 @@ class ParkingRehearsal:
     def event(self, session, revision, event, *, action_id=None, mapping=None, sequence_position=None):
         with self._lock:
             if session != self._session or revision != self._revision:
-                raise StaleRehearsal('화면 상태가 변경됐어요. 새 상태를 확인하고 다시 선택해 주세요.')
+                raise StaleRehearsal('화면 상태가 바뀌었어요. 새 상태를 확인하고 다시 선택해 주세요.')
             sim = self._sim
             if event == 'new':
                 if mapping is None:
