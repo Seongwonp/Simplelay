@@ -25,6 +25,9 @@ import '../widgets/demo_badge.dart';
 import '../widgets/route_badge.dart';
 import '../theme/app_tokens.dart';
 
+/// 이 화면에서 방금 맡긴 카드 번호(실물 폰 10/20). 카드 번호는 서버가 매번 새로 주므로 앱 수명 동안 두어도 겹치지 않는다.
+final _approvedHereProvider = StateProvider<Set<String>>((ref) => const {});
+
 /// 제안 하나를 확인하고 맡길지 정하는 화면.
 ///
 /// 읽는 순서가 곧 판단 순서다: **어느 가전을 → 무엇을 하려고 → 어떤 버튼을
@@ -156,6 +159,12 @@ class SuggestionScreen extends ConsumerWidget {
     );
   }
 
+  /// 맡겨서 목록에서 빠질 카드를 적어 둔다 — 빠진 뒤의 화면이 '찾을 수 없어요'가 아니라 빈 화면을 그리게.
+  static void _markApproved(WidgetRef ref, Suggestion suggestion) {
+    final notifier = ref.read(_approvedHereProvider.notifier);
+    notifier.state = {...notifier.state, suggestion.sequenceId};
+  }
+
   /// 맡긴다. HTTP 출처는 서버 승인 → job 추적, BLE 출처는 응답 전송.
   static Future<void> _approve(
     BuildContext context,
@@ -247,10 +256,12 @@ class SuggestionScreen extends ConsumerWidget {
                       suggestion.sequenceId, allow.fingerprint, clientRequestId: requestId))
               .jobId,
         );
+        _markApproved(ref, suggestion);
         if (context.mounted) context.pushReplacement('/status');
         return;
       }
     }
+    _markApproved(ref, suggestion);
     // BLE 출처일 때만 respond()가 실제로 BLE 응답을 보낸다
     // (HTTP 출처는 로컬 목록에서 제거만 함 — 위에서 이미 서버에 전달했으므로).
     await ref.read(suggestionProvider.notifier).respond(suggestion, true);
@@ -280,6 +291,11 @@ class SuggestionScreen extends ConsumerWidget {
         items.where((s) => s.sequenceId == sequenceId).firstOrNull;
 
     if (suggestion == null) {
+      // 이 화면이 방금 맡겨서 목록에서 빠진 카드 — 상태 화면으로 넘어가는 사이(약 0.5초)에 '찾을 수 없어요'를
+      // 잠깐 보이지 않는다(실물 폰 10/20). 빈 화면으로 두고 전환이 덮게 한다.
+      if (ref.watch(_approvedHereProvider).contains(sequenceId)) {
+        return Scaffold(appBar: AppBar(title: const Text('할까요?')));
+      }
       return Scaffold(
         appBar: AppBar(title: const Text('할까요?')),
         body: const Center(child: Text('이 물음을 찾을 수 없어요. 홈으로 돌아가 주세요.')),
