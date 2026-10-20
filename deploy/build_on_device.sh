@@ -21,7 +21,8 @@ docker run --name simplelay-build --security-opt apparmor=unconfined \
       "fastapi>=0.111,<1" "uvicorn[standard]>=0.29,<1" "pydantic>=2,<3" \
       "numpy>=1.26,<3" "httpx>=0.27,<1" "dbus-fast>=2,<3" \
       "pyserial>=3.5,<4" "pyserial-asyncio>=0.6,<1" "qrcode[pil]>=8,<9" \
-      "sounddevice>=0.4,<1" "thinqconnect==1.0.14"
+      "sounddevice>=0.4,<1" "thinqconnect==1.0.14" "lgpio>=0.2,<1"
+    # lgpio: RPi5 온습도 센서(DHT22) 읽기 — rpi/services/dht22.py(2026-10-20). 장치는 run_backend.sh가 넘긴다.
     # thinqconnect: ThinQ 공식 SDK(2026-10-15) — backend.Dockerfile·pyproject [thinq]와 같은 고정 버전. 없으면
     # SIMPLELAY_THINQ_MODE=real·fake_cloud에서 서버가 기동을 거절한다(꺼짐·mock은 불러오지 않음).
     # libportaudio2: 마이크(sounddevice) — backend.Dockerfile과 같다(2026-10-06 평가)

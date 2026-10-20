@@ -92,6 +92,12 @@ fi
 # --network host: 같은 기기의 키오스크 앱이 localhost로 부르면 백엔드에도 루프백(127.0.0.1)으로
 # 보인다. 브리지 네트워크(-p 8000:8000)면 172.17.0.1로 보여 API 키 루프백 면제가 안 되고
 # 키오스크 요청이 전부 401이 된다(2026-09-30 확인).
+GPIO_ARGS=
+# 온습도 센서(DHT22) — 40핀 헤더 gpiochip을 넘긴다(없으면 넘기지 않음, 2026-10-20)
+for chip in /dev/gpiochip0 /dev/gpiochip4; do
+  if [ -e "$chip" ]; then GPIO_ARGS="$GPIO_ARGS --device $chip"; fi
+done
+
 docker run -d --name simplelay-backend \
   --restart always \
   --security-opt apparmor=unconfined \
@@ -102,6 +108,7 @@ docker run -d --name simplelay-backend \
   -e SIMPLELAY_DB_PATH=/data/simplelay.db \
   ${CARRY:+-e SIMPLELAY_PAUSE_CARRYOVER_UNTIL=$CARRY} \
   $THINQ_ARGS \
+  $GPIO_ARGS \
   $TZ_ARGS \
   simplelay-backend
 

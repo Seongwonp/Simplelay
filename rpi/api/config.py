@@ -29,6 +29,13 @@ class HardwareConfig:
     # True → adafruit_dht / gpiozero 실제 호출 (RPi5 실기기)
     gpio_enabled: bool = False
 
+    # ── 온습도 센서만 따로 켜기(2026-10-20) ──────────────────────────────
+    # SIMPLELAY_DHT22_ENABLED가 없으면 gpio_enabled를 따른다. 센서만 켜면 원점 스위치
+    # GPIO(기본 17·27)는 건드리지 않는다 — 센서를 GPIO17에 꽂은 구성에서 서로 잡지 않게.
+    dht22_enabled: bool = False
+    # RPi5 40핀 헤더의 gpiochip 번호(커널 6.6.45+ 에서는 0, 그 전에는 4).
+    gpio_chip: int = 0
+
 
 def _load() -> HardwareConfig:
     def _int(key: str, default: int) -> int:
@@ -39,15 +46,16 @@ def _load() -> HardwareConfig:
         raw = os.environ.get(key, "").strip()
         return int(raw) if raw.isdigit() else None
 
+    gpio_enabled = os.environ.get("SIMPLELAY_GPIO_ENABLED", "false").strip().lower() == "true"
+    dht_raw = os.environ.get("SIMPLELAY_DHT22_ENABLED", "").strip().lower()
     return HardwareConfig(
         dht22_gpio=_int("SIMPLELAY_DHT22_GPIO", 4),
         home_switch_x_gpio=_int("SIMPLELAY_HOME_X_GPIO", 17),
         home_switch_y_gpio=_int("SIMPLELAY_HOME_Y_GPIO", 27),
         home_switch_z_gpio=_int_or_none("SIMPLELAY_HOME_Z_GPIO"),
-        gpio_enabled=(
-            os.environ.get("SIMPLELAY_GPIO_ENABLED", "false").strip().lower()
-            == "true"
-        ),
+        gpio_enabled=gpio_enabled,
+        dht22_enabled=(dht_raw == "true") if dht_raw else gpio_enabled,
+        gpio_chip=_int("SIMPLELAY_GPIO_CHIP", 0),
     )
 
 

@@ -758,7 +758,8 @@ def get_dht22() -> "Dht22Sensor":
 
     return Dht22Sensor(
         gpio_bcm=hardware_config.dht22_gpio,
-        enabled=hardware_config.gpio_enabled,
+        enabled=hardware_config.dht22_enabled,
+        chip=hardware_config.gpio_chip,
     )
 
 
