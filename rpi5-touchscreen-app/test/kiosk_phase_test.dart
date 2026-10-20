@@ -107,8 +107,10 @@ class FakeKioskApi implements KioskApiService {
   @override
   Future<HealthStatus> checkHealth() async => healthResult;
 
+  // 실내 온습도(GET /sensors). null이면 본체가 모른다.
+  SensorData? sensorResult;
   @override
-  Future<SensorData?> sensors() async => null;
+  Future<SensorData?> sensors() async => sensorResult;
 
   @override
   Future<AlertState> alerts() async => alertState;
@@ -615,6 +617,25 @@ void main() {
     expect(find.byType(KioskIdleView), findsOneWidget);
     expect(find.byType(KioskConnectionModal), findsOneWidget);
   });
+
+  // 실내 온습도는 날짜 옆에, 실측일 때만(사용자 요청 10/20) — 모의 값은 보이지 않는다.
+  for (final mocked in [false, true]) {
+    testWidgets('실내 센서 mocked=$mocked — ${mocked ? '날짜 옆에 아무것도 없다' : '날짜 옆에 온도계·물방울과 값'}', (tester) async {
+      useKioskViewport(tester);
+      final api = FakeKioskApi()
+        ..healthResult = const HealthStatus(ok: true, actuatorReady: true)
+        ..applianceList = const [kMicrowaveAppliance]
+        ..sensorResult = SensorData(temperature: 24.4, humidity: 56.6, mocked: mocked);
+      await _pumpKiosk(tester, api);
+      expect(find.byType(KioskIdleView), findsOneWidget);
+      final shown = mocked ? findsNothing : findsOneWidget;
+      expect(find.text('24°'), shown);
+      expect(find.text('57%'), shown);
+      expect(find.byIcon(Icons.thermostat), shown);
+      expect(find.byIcon(Icons.water_drop), shown);
+      expect(find.byKey(const ValueKey('idle-env')), shown);
+    });
+  }
 
   testWidgets('연결돼 있으면 가전 아이콘을 눌러 내 가전으로 간다', (tester) async {
     useKioskViewport(tester);

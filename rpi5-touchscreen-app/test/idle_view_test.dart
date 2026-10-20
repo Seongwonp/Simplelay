@@ -39,6 +39,37 @@ Future<void> _pump(
   ));
 }
 
+Future<void> _pumpScaled(
+  WidgetTester tester, {
+  required double scale,
+  double? temperature,
+  double? humidity,
+  DateTime? dndUntil,
+}) async {
+  tester.view.physicalSize = const Size(800, 480);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(MaterialApp(
+    home: MediaQuery(
+      data: MediaQueryData(size: const Size(800, 480), textScaler: TextScaler.linear(scale)),
+      child: Scaffold(
+        body: KioskIdleView(
+          now: DateTime(2026, 9, 13, 9, 5),
+          connected: true,
+          appliances: const [kMicrowaveAppliance],
+          dndUntil: dndUntil,
+          temperature: temperature,
+          humidity: humidity,
+          onSelectAppliance: (_) {},
+          onOpenConnection: (_) {},
+          onDndGesture: () {},
+        ),
+      ),
+    ),
+  ));
+  await tester.pump();
+}
+
 void main() {
   testWidgets('날짜·큰 시계·실내 온습도를 보인다', (tester) async {
     await _pump(tester, temperature: 23.4, humidity: 58);
@@ -46,9 +77,9 @@ void main() {
     expect(find.text('9월 13일 일요일'), findsOneWidget);
     final clock = tester.widget<Text>(find.text('9:05'));
     expect(clock.style!.fontSize, greaterThan(80));
-    // 온도·습도는 두 조각 — 큰 글씨에서 조각 사이에서만 줄을 바꾸고 '실내'를 빼지 않는다(평가 4차 10/18).
-    expect(find.text('실내 23°'), findsOneWidget);
-    expect(find.text(' · 습도 58%'), findsOneWidget);
+    // 온도·습도는 날짜 옆 두 조각 — 온도계 '23°' · 물방울 '58%'(사용자 요청 10/20).
+    expect(find.text('23°'), findsOneWidget);
+    expect(find.text('58%'), findsOneWidget);
     // 시계는 12시간제 + 오전/오후(평가 4차 10/18).
     expect(find.text('오전'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -70,6 +101,68 @@ void main() {
   testWidgets('실내 센서 값이 없으면 온습도 줄을 지어내지 않는다', (tester) async {
     await _pump(tester);
     expect(find.textContaining('실내'), findsNothing);
+    expect(find.byKey(const ValueKey('idle-env')), findsNothing);
+    expect(find.byIcon(Icons.thermostat), findsNothing);
+    expect(find.byIcon(Icons.water_drop), findsNothing);
+  });
+
+  group('실내 온습도는 날짜 옆에(사용자 요청 10/20)', () {
+    Rect rectOf(WidgetTester tester, Finder f) => tester.getRect(f);
+
+    for (final scale in [1.0, 1.22]) {
+      testWidgets('배율 $scale — 온도계·물방울과 값이 날짜 줄에, 시계 아래에는 두지 않는다', (tester) async {
+        final semantics = tester.ensureSemantics();
+        await _pumpScaled(tester, scale: scale, temperature: 24.2, humidity: 57);
+        expect(tester.takeException(), isNull);
+        final date = rectOf(tester, find.text('9월 13일 일요일'));
+        final temp = rectOf(tester, find.text('24°'));
+        final hum = rectOf(tester, find.text('57%'));
+        final thermo = rectOf(tester, find.byIcon(Icons.thermostat));
+        final drop = rectOf(tester, find.byIcon(Icons.water_drop));
+        // 한 번씩만(시계 아래에 다시 두지 않는다).
+        expect(find.text('24°'), findsOneWidget);
+        expect(find.text('57%'), findsOneWidget);
+        expect(find.textContaining('습도'), findsNothing);
+        // 날짜 오른쪽(같은 줄) 또는 날짜 바로 아래(줄이 모자랄 때) — 어느 쪽이든 시계보다 위.
+        final clock = rectOf(tester, find.text('9:05'));
+        for (final r in [temp, hum, thermo, drop]) {
+          expect(r.bottom, lessThanOrEqualTo(clock.top));
+          expect(r.top, greaterThanOrEqualTo(0));
+        }
+        final sameLine = (temp.center.dy - date.center.dy).abs() < 2;
+        if (sameLine) {
+          expect(thermo.left, greaterThanOrEqualTo(date.right));
+        } else {
+          expect(temp.top, greaterThanOrEqualTo(date.bottom - 1));
+        }
+        expect(thermo.right, lessThanOrEqualTo(temp.left + 0.5));
+        expect(drop.left, greaterThanOrEqualTo(temp.right));
+        expect(drop.right, lessThanOrEqualTo(hum.left + 0.5));
+        // 메뉴 단추를 밀지 않는다 — 화면 안, 온습도와 겹치지 않음.
+        final menu = rectOf(tester, find.byKey(const ValueKey('idle-menu')));
+        expect(menu.right, lessThanOrEqualTo(800));
+        expect(hum.right, lessThanOrEqualTo(menu.left));
+        // 화면 읽기는 한 덩어리로.
+        expect(find.bySemanticsLabel('실내 온도 24도, 습도 57퍼센트'), findsOneWidget);
+        semantics.dispose();
+      });
+    }
+
+    testWidgets('위 줄이 좁으면(방해 금지 칩) 자르지 않고 날짜 아래로 내린다', (tester) async {
+      await _pumpScaled(tester,
+          scale: 1.22, temperature: 24, humidity: 57, dndUntil: DateTime(2026, 9, 13, 10, 30));
+      expect(tester.takeException(), isNull);
+      final date = rectOf(tester, find.text('9월 13일 일요일'));
+      final temp = rectOf(tester, find.text('24°'));
+      final hum = rectOf(tester, find.text('57%'));
+      expect(temp.top, greaterThanOrEqualTo(date.bottom - 1));
+      final dnd = rectOf(tester, find.byKey(const ValueKey('dnd-chip')));
+      expect(hum.right, lessThanOrEqualTo(dnd.left));
+      final menu = rectOf(tester, find.byKey(const ValueKey('idle-menu')));
+      expect(menu.right, lessThanOrEqualTo(800));
+      // 위 줄 안에 있다(잘리지 않는다).
+      expect(hum.bottom, lessThanOrEqualTo(rectOf(tester, find.text('9:05')).top));
+    });
   });
 
   testWidgets('허브에 못 닿으면 인사말만 — 서버와 같은 시간대 규칙', (tester) async {

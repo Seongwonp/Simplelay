@@ -142,15 +142,12 @@ class KioskIdleView extends StatelessWidget {
     return '편안한 밤 보내세요.';
   }
 
-  /// 실내 온습도 두 조각 — '실내 23°' · '습도 58%'. 큰 글씨에서 한 줄에 다 안 들어가면 조각 사이에서 줄을 바꾼다
-  /// ('실내'를 빼지 않는다, 평가 4차 10/18).
-  List<String>? get _envParts {
+  /// 실내 온습도 — 날짜 옆 두 조각(온도계 '24°' · 물방울 '57%', 사용자 요청 10/20). 실측일 때만 값이 온다
+  /// (kiosk_screen이 모의면 null을 넘긴다). 온도가 없으면 아무것도 두지 않는다.
+  _IndoorEnv? get _indoor {
     final t = temperature;
     if (t == null) return null;
-    return [
-      '실내 ${t.toStringAsFixed(0)}°',
-      if (humidity != null) '습도 ${humidity!.toStringAsFixed(0)}%',
-    ];
+    return _IndoorEnv(temperature: t, humidity: humidity);
   }
 
   String _dndRemaining(DateTime until) {
@@ -177,7 +174,7 @@ class KioskIdleView extends StatelessWidget {
     // - 안내가 있으면 예보 칸은 숨긴다(보통 글씨에서는 안내와 예보를 함께 보인다).
     // - 가전은 한 장에 2개(보통 3~4개) — 이름·상태를 줄이지 않는다.
     final large = MediaQuery.textScalerOf(context).scale(10) > 10.5;
-    final env = _envParts;
+    final indoor = _indoor;
     final badAir = airIfBad(air);
     // 공기가 나쁘면 할 일 한 줄(평가 14차 10/18) — 그 공기청정기가 가전 줄에 있을 때만(없으면 지어내지 않는다).
     final airTarget = badAir == null ? null : list?.where((a) => a.id == badAir.applianceId).firstOrNull;
@@ -251,9 +248,20 @@ class KioskIdleView extends StatelessWidget {
         return Row(children: [
         // 쉬는 중 칩이 켜지면 위 줄이 좁아진다 — 날짜는 말줄임 대신 살짝 줄여 다 보인다.
         // 지금 날씨는 날짜 옆이 아니라 오른쪽 예보 줄 첫 칸 '지금'(사용자 요청 10/18).
-        Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-          child: Text(_dateStr, maxLines: 1, softWrap: false,
-              style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)))),
+        // 실내 온습도는 날짜 오른쪽(사용자 요청 10/20) — 한 줄에 안 들어가면 자르지 않고 날짜 아래로 내린다.
+        Expanded(child: LayoutBuilder(builder: (context, box) {
+          final date = Text(_dateStr, maxLines: 1, softWrap: false, style: _IndoorEnv.style);
+          final Widget line;
+          if (indoor == null) {
+            line = date;
+          } else if (_textWidth(context, _dateStr, _IndoorEnv.style) + _IndoorEnv.gap + indoor.widthFor(context) <=
+              box.maxWidth) {
+            line = Row(mainAxisSize: MainAxisSize.min, children: [date, const SizedBox(width: _IndoorEnv.gap), indoor]);
+          } else {
+            line = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [date, indoor]);
+          }
+          return FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: line);
+        })),
         if (dnd != null || quietUntil != null) ...[
           _DndEntry(
               key: const ValueKey('dnd-chip'),
@@ -308,21 +316,16 @@ class KioskIdleView extends StatelessWidget {
           final leftWidth = columns * leftFlex / 11;
           final rightWidth = columns * rightFlex / 11;
           var strip = large ? _Idle.stripLarge : _Idle.strip;
-          // 왼쪽 칸(시계 아래 실내 온습도·나쁜 공기·다음 루틴) — 시계를 뺀 높이. 화면과 같은 글꼴·배율로 잰다.
-          var showEnv = env != null;
+          // 왼쪽 칸(시계 아래 나쁜 공기·다음 루틴) — 시계를 뺀 높이. 화면과 같은 글꼴·배율로 잰다.
           var showAirAction = airAction != null;
           double leftRest() => _leftRest(context, leftWidth,
-              env: showEnv ? env : null, air: badAir, airAction: showAirAction ? airAction : null, next: next, onToggle: onToggleNextRunSkip,
+              air: badAir, airAction: showAirAction ? airAction : null, next: next, onToggle: onToggleNextRunSkip,
               notice: nextRunNotice);
           var rest = leftRest();
-          // 다음 루틴·나쁜 공기가 시계 아래에 다 들어가게(2026-10-18) — 가장 작은 타일 줄에서 시계를 하한까지 줄여도
-          // 모자라면 실내 온습도(가장 덜 급하다)를 접는다. 큰 글씨는 그다음 타일 줄을 조금 낮춘다.
+          // 다음 루틴·나쁜 공기가 시계 아래에 다 들어가게(2026-10-18) — 시계를 하한까지 줄인다. 큰 글씨는 그다음 타일 줄을
+          // 조금 낮춘다. 실내 온습도는 날짜 옆으로 옮겼다(10/20).
           final clockMin = large ? _Idle.clockLargeMin : _Idle.clockMin;
           final minStrip = large ? _Idle.stripLargeMin : _Idle.strip;
-          if (showEnv && clockMin + rest > middleAndStrip - minStrip - _Idle.slack) {
-            showEnv = false;
-            rest = leftRest();
-          }
           // 그래도 시계 아래가 모자라면(공기 할 일·위 '지난 일' 줄 등, 평가 15차 10/18) 시계를 [_Idle.clockTightMin]까지, 가전 줄을
           // [_Idle.stripTightMin]까지 줄인다 — 예전에는 왼쪽 칸이 넘쳐 '오늘은 건너뛰기'가 가전 줄에 붙어 잘렸다.
           // 공기 할 일은 '공기 나빠요' 바로 아래 같은 왼쪽 열에만 둔다(오른쪽 예보 아래 혼자 떠 있었다). 그래도 모자랄 때만
@@ -392,20 +395,6 @@ class KioskIdleView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _Clock(ampm: ampmOf(now.hour), digits: _clock, size: clockSize),
-                  if (showEnv && env != null) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      key: const ValueKey('idle-env'),
-                      children: [
-                        for (var i = 0; i < env.length; i++)
-                          Text(i == 0 ? env[i] : ' · ${env[i]}',
-                              maxLines: 1,
-                              softWrap: false,
-                              style: TextStyle(
-                                  fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted)),
-                      ],
-                    ),
-                  ],
                   // 실내 공기(2026-10-16) — 나쁠 때만(사용자 결정 10/18). 모르면 줄이 없다(지어내지 않는다).
                   if (badAir != null) ...[
                     SizedBox(height: _Idle.airGapFor(showAirAction)),
@@ -523,14 +512,9 @@ class KioskIdleView extends StatelessWidget {
 
   /// 왼쪽 칸에서 시계를 뺀 높이(온습도·나쁜 공기·다음 루틴)가 [width] 폭에서 차지할 높이 — 시계·가전 타일 높이를 정하는 데만 쓴다.
   static double _leftRest(BuildContext context, double width,
-      {List<String>? env, KioskAirReading? air, String? airAction, KioskNextRun? next,
+      {KioskAirReading? air, String? airAction, KioskNextRun? next,
       ValueChanged<KioskNextRun>? onToggle, String? notice}) {
     var h = 0.0;
-    if (env != null) {
-      h += 6 +
-          _textHeight(context, env.join(' · '),
-              const TextStyle(fontSize: _Idle.envText, height: 1.25), width);
-    }
     if (air != null) h += _Idle.airGapFor(airAction != null) + _AirLine.heightFor(context, air, width, action: airAction);
     if (next != null) {
       h += _Idle.nextGap +
@@ -616,7 +600,6 @@ class _Clock extends StatelessWidget {
 abstract final class _Idle {
   static const double side = KioskSpace.xl; // 좌우 여백(전 44 — 간격 5단계로 정리 10/18)
   static const double topRow = 64; // 위 줄(전 80)
-  static const double envText = KioskType.body; // 실내 온습도(전 22 — 글자 4단계로 정리 10/18)
   static const double airIcon = 28; // 실내 공기 아이콘(2026-10-16)
   static const double columnGap = KioskSpace.xl; // 시계 칸과 안내 칸 사이(전 40)
   static const double greeting = KioskType.status; // 인사말(전 28)
@@ -1027,6 +1010,59 @@ class _SkipButton extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// 날짜 옆 실내 온습도(사용자 요청 10/20) — 온도계 '24°' · 물방울 '57%'. 날짜와 같은 글자·색, 아이콘은 글자 크기.
+/// 화면 읽기는 한 덩어리로 '실내 온도 24도, 습도 57퍼센트'.
+class _IndoorEnv extends StatelessWidget {
+  const _IndoorEnv({required this.temperature, this.humidity});
+
+  final double temperature;
+  final double? humidity;
+
+  /// 날짜와 같은 글자.
+  static TextStyle get style => TextStyle(fontSize: KioskType.body, color: KioskColors.muted);
+
+  /// 날짜와 온습도 사이, 두 조각 사이.
+  static const double gap = KioskSpace.sm;
+  static const double _iconGap = 2;
+
+  String get _temp => temperature.toStringAsFixed(0);
+  String? get _hum => humidity?.toStringAsFixed(0);
+
+  String get _label => _hum == null ? '실내 온도 $_temp도' : '실내 온도 $_temp도, 습도 $_hum퍼센트';
+
+  static double _icon(BuildContext context) => MediaQuery.textScalerOf(context).scale(KioskType.body);
+
+  /// 한 줄 폭 — 날짜 옆에 들어가는지 잰다.
+  double widthFor(BuildContext context) {
+    final icon = _icon(context);
+    var w = icon + _iconGap + _textWidth(context, '$_temp°', style);
+    final hum = _hum;
+    if (hum != null) w += gap + icon + _iconGap + _textWidth(context, '$hum%', style);
+    return w;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _icon(context);
+    final hum = _hum;
+    Widget piece(IconData data, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(data, size: icon, color: KioskColors.muted),
+          const SizedBox(width: _iconGap),
+          Text(text, maxLines: 1, softWrap: false, style: style),
+        ]);
+    return Semantics(
+      key: const ValueKey('idle-env'),
+      container: true,
+      label: _label,
+      excludeSemantics: true,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        piece(Icons.thermostat, '$_temp°'),
+        if (hum != null) ...[const SizedBox(width: gap), piece(Icons.water_drop, '$hum%')],
+      ]),
+    );
+  }
 }
 
 /// 한 줄 글의 폭 — [Text]와 같은 기본 글꼴·배율로 잰다.

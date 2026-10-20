@@ -539,9 +539,14 @@ void main() {
       expect(tileTop - contentBottom, lessThan(40));
     });
 
-    testWidgets("큰 글씨에서도 온도 줄에 '실내'", (tester) async {
+    // 날짜 옆 온도계·물방울 아이콘이 '실내'를 대신한다(사용자 요청 10/20) — 화면 읽기는 '실내 온도'로 읽는다.
+    testWidgets("큰 글씨에서도 온습도 아이콘이 보이고 화면 읽기는 '실내 온도'", (tester) async {
+      final semantics = tester.ensureSemantics();
       await _pump(tester, _idle(), scale: 1.22);
-      expect(_allTexts(tester).join('\n'), contains('실내'));
+      expect(find.byIcon(Icons.thermostat), findsOneWidget);
+      expect(find.byIcon(Icons.water_drop), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^실내 온도 ')), findsOneWidget);
+      semantics.dispose();
     });
   });
 
