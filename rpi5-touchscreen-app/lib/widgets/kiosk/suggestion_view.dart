@@ -246,9 +246,11 @@ class KioskSuggestionView extends StatelessWidget {
             ),
             const SizedBox(height: 6),
           ],
-          if (scenario && scenarioName != null) ...[
+          // 시나리오 이름은 서버가 정한 이유 머리말('공기가 나빠요')이고 사용자 루틴이 아니다 — '루틴'을 붙이지 않는다
+          // (실물 10/20 — 공기질 카드에 '루틴 공기가 나빠요'). '루틴'은 routine_id가 있는 카드(위 '내 루틴' 줄)에만.
+          if (scenario && scenarioName != null && scenarioName!.isNotEmpty) ...[
             Text(
-              '루틴 $scenarioName',
+              scenarioName!,
               style: TextStyle(
                   fontSize: KioskType.body, color: KioskColors.muted),
             ),

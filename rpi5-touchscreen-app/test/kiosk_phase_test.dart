@@ -2236,6 +2236,37 @@ void main() {
     ],
   );
 
+  testWidgets('air card header: 공기질 카드(루틴 아님)는 \'공기가 나빠요\' — \'루틴\'을 붙이지 않는다(실물 10/20)',
+      (tester) async {
+    useKioskViewport(tester);
+    const air = KioskSuggestion(
+      id: 'sg-air',
+      purpose: '공기청정기를 켤까요?',
+      occurrences: 0,
+      reason: '공기청정기 센서: 초미세먼지 42 · 나쁨',
+      timeBand: '환경',
+      applianceId: 'air_purifier',
+      scenarioId: 'air_quality_power_on',
+      commands: [
+        KioskSuggestionCommand(
+          targetId: 'air_purifier',
+          route: 'thinq',
+          action: 'set_power',
+          summary: '공기청정기 전원 켜기',
+        ),
+      ],
+    );
+    final api = FakeKioskApi()
+      ..suggestionList = [air]
+      ..scenarioNameMap = {'air_quality_power_on': '공기가 나빠요'};
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+
+    expect(find.text('공기가 나빠요'), findsOneWidget);
+    expect(find.textContaining('루틴'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('시나리오 카드: 이름·근거·고정 명령·ThinQ 배지를 보이고 조작판 없이도 승인할 수 있다',
       (tester) async {
     useKioskViewport(tester);
@@ -2245,7 +2276,7 @@ void main() {
     await _pumpKiosk(tester, api);
     await tester.pump();
 
-    expect(find.text('루틴 조리 확인 → 공기 관리'), findsOneWidget);
+    expect(find.text('조리 확인 → 공기 관리'), findsOneWidget);
     expect(find.text('공기청정기 풍량 강풍'), findsOneWidget);
     expect(find.text('LG 가전'), findsOneWidget);
     expect(find.textContaining('이유: 전자레인지 모의 실행'), findsOneWidget);
@@ -2611,7 +2642,7 @@ void main() {
     await _pumpKiosk(tester, api);
     await tester.pump();
 
-    expect(find.text('루틴 세탁 후 건조'), findsOneWidget);
+    expect(find.text('세탁 후 건조'), findsOneWidget);
     expect(find.textContaining('세탁이 끝났어요'), findsWidgets);
     expect(find.text('제습기 전원 켜기'), findsOneWidget);
     expect(find.text('LG 가전'), findsOneWidget);
