@@ -1,4 +1,4 @@
-# firmware-motion-corexy — 모션 MCU 펌웨어 (ESP32 CoreXY + 솔레노이드)
+# firmware-motion-corexy — 모션 MCU 펌웨어 (ESP32 CoreXY + 선택형 Z 누름)
 
 > 원작: 팀원(서예솔) Touch Bridge CoreXY 펌웨어 v3, SimpleLay용으로 통신·이름 수정 (2026-10-10 수령·이식).
 > 재사용 경계는 [docs/reuse-boundary.md](../docs/reuse-boundary.md), 이식 기록은
@@ -7,18 +7,19 @@
 **실물 확인은 벨트·솔레노이드 없는 시험대의 모터 축까지다(2026-10-12~14).** 캐리지 이동·스톨 원점·실제 버튼 누름은 아직 확인하지 않았다.
 기구·게인·시간 값은 `include/config.h`에 있고 전부 `실측 필요`다. 실물 확인 범위는 아래 [실물 확인](#실물-확인-2026-10-1214-시험대) 절.
 
-ESP32 DevKit + JMOD-MOTOR-1(TB6612FNG) + DFRobot FIT0482 ×2, 엔코더 폐루프 CoreXY. Z 누름은 솔레노이드
-(SparkFun ROB-11015, GPIO23 → N-MOSFET 로우사이드 + 플라이백 다이오드).
+ESP32 DevKit + JMOD-MOTOR-1(TB6612FNG) + DFRobot FIT0482 ×2, 엔코더 폐루프 CoreXY. Z 누름은 기본
+솔레노이드 또는 `esp32dev_switchbot` 빌드의 SwitchBot Bot BLE 클라이언트다. 둘은 빌드 때 하나만 고른다.
 
 ## 위치
 
 ```
 RPi4 (rpi/controller/serial_motion.py) ─USB 시리얼 115200, 줄 단위 JSON─ 이 보드
                                                                  ├─ TB6612 A/B ─ FIT0482 A(왼쪽), B(오른쪽)
-                                                                 └─ GPIO23 ─ MOSFET ─ 솔레노이드
+                                                                 └─ Z: GPIO23 솔레노이드 또는 BLE SwitchBot Bot
 ```
 
-- 무선은 쓰지 않는다. 원작의 BLE(앱 특성·NUS)·앱 JSON v2·인증·G-code는 뺐다(정지 명령은 유선 하나로).
+- 호스트·정지 명령은 유선 하나만 쓴다. 원작의 앱용 BLE 서버(앱 특성·NUS)·앱 JSON v2·인증·G-code는 뺐다.
+  SwitchBot 선택 빌드만 Bot으로 보내는 BLE 클라이언트를 별도 저우선순위 작업에서 쓴다.
 - 규약은 [`firmware-motion/protocol_table.json`](../firmware-motion/protocol_table.json) 그대로다(`rpi/tools/fake_mcu.py`가
   실행 가능한 기준). `rpi/tests/test_motion_corexy_firmware.py`가 이 소스에 표의 이름이 다 있는지, BLE·원작 이름이
   남지 않았는지 본다(이름만 — 동작은 실물로만 확인된다).
@@ -29,15 +30,16 @@ RPi4 (rpi/controller/serial_motion.py) ─USB 시리얼 115200, 줄 단위 JSON�
 
 | 호스트 요청 | 이 펌웨어 | 응답·이벤트 |
 |---|---|---|
-| (부팅) | setup 끝 | `{"event":"ready","fw":"firmware-motion-corexy","protocol":"line-json/v0","reset":..,"z_mode":"solenoid","z_on_max_ms":800}` |
+| (부팅) | setup 끝 | `z_mode`는 `solenoid` 또는 `switchbot`; SwitchBot이면 `z_on_max_ms:null` |
 | `status` | 원작 `motion.status()` + 규약 상태 | `state`(idle·homing·moving·pressing·stopped·alarm), `homed`, `a`·`b`(엔코더 카운트), `z`(솔레노이드 1/0), `alarm` |
 | `ping` | 워치독 갱신만 | 즉시 `ok` |
 | `limits` | 리밋 핀 판독 | `USE_LIMIT_SWITCHES=false`(기본)면 x·y·z 모두 `false` |
 | `home` | 큐에 HOME → 원작 `motion.home()`(스톨 감지 원점, X → Y → 3 mm 후퇴) | `HOME_DONE` → `ok` |
 | `move` `a,b,x_mm,y_mm` | X=(a+b)/2/CPM, Y=(a−b)/2/CPM → 원작 `motion.moveTo(x, y)` | (`position`) → `MOVE_DONE` → `ok` |
 | `press` `duration` | 큐에 TAP(켜짐 = drive_ms + dwell_ms) → 원작 솔레노이드 100% 당김 → 유지 듀티 → 끔 → 60 ms | `press_start` → `press_end` → `position` → `ok` |
+| `press` `switchbot` | BLE 작업에 Bot press 요청(제어 loop는 기다리지 않음) | notify `0x01`만 `ok`; 그 밖은 `error` + `press_outcome` |
 | `press` `depth` | — | `z_unsupported` |
-| `stop` | 원작 `emergencyStop`(브레이크·솔레노이드 끔·큐 비움) + 100 ms 뒤 STBY LOW | 진행 중 명령 `stopped`, 그다음 `ok` |
+| `stop` | 원작 `emergencyStop`(브레이크·큐 비움) + 100 ms 뒤 STBY LOW | SwitchBot press를 이미 보냈으면 `switchbot_press_sent_cannot_recall` + `unknown`; 그다음 stop `ok` |
 
 거절(움직이기 전): `busy`(동작 중), `alarm`(알람 뒤 home 전), `not_homed`, `soft_limit`(0~X_MAX/Y_MAX 밖, 켜짐 > 800 ms),
 `bad_args`(필드 오류, a·b와 x_mm·y_mm 불일치 > 0.5 mm), `z_cooldown`+`retry_ms`, `hw_init`(제어 태스크 생성 실패).
@@ -56,6 +58,7 @@ RPi4 (rpi/controller/serial_motion.py) ─USB 시리얼 115200, 줄 단위 JSON�
 | 엔코더 부호는 펌웨어 `ENC_*_INVERT`로 맞춘다 | `SIMPLELAY_MOTION_A_SIGN=1`, `B_SIGN=1` |
 | 원점(0,0) = 스톨 지점, 원점 뒤 (3,3) mm | `X_MIN_MM`·`Y_MIN_MM` ≥ 3 권장(0이면 벽을 민다), `X_MAX_MM` ≤ `X_MAX_MM`(200) |
 | 솔레노이드만 | `SIMPLELAY_MOTION_PRESS_MODE=duration`, `PRESS_DRIVE_MS` + 유지 ≤ 800 |
+| SwitchBot만 | 누름 시간 env 불필요; MCU reply의 성공·실패·`press_outcome`을 사용 |
 | `HOME_MAX_MS` 70 s | `SIMPLELAY_MOTION_HOME_TIMEOUT_S` > 70 |
 | `HOST_SERIAL_BAUD` 115200 | `SIMPLELAY_MOTION_BAUD=115200` |
 
@@ -89,12 +92,58 @@ PowerShell에서. 짧은 코어 경로가 필요하다(사용자 폴더 코어�
 [outlet devlog](../docs/devlog/devlog_2026-10-05-outlet-module.md)).
 
 ```powershell
-$env:PLATFORMIO_CORE_DIR = 'C:\pio'
-$env:PLATFORMIO_BUILD_DIR = 'C:\pio-build\firmware-motion-corexy'
-C:\pio-venv\Scripts\python.exe -m platformio run -d firmware-motion-corexy                    # 시연용(esp32dev)
-C:\pio-venv\Scripts\python.exe -m platformio run -d firmware-motion-corexy -e esp32dev_bringup # 첫 시험용
-C:\pio-venv\Scripts\python.exe -m platformio run -d firmware-motion-corexy -e esp32dev_bringup -t upload --upload-port COM<n>
+$env:PLATFORMIO_CORE_DIR = '<짧은 ASCII 코어 경로>'
+& '<PlatformIO 가상환경>\Scripts\pio.exe' run -d firmware-motion-corexy
+& '<PlatformIO 가상환경>\Scripts\pio.exe' run -d firmware-motion-corexy -e esp32dev_switchbot
+& '<PlatformIO 가상환경>\Scripts\pio.exe' run -d firmware-motion-corexy -e esp32dev_bringup
 ```
+
+`esp32dev_switchbot`을 RPi4에서 올릴 때는 다음 네 파일을 한 폴더에 모은다.
+
+- `.pio/build/esp32dev_switchbot/bootloader.bin`
+- `.pio/build/esp32dev_switchbot/partitions.bin`
+- `${PLATFORMIO_CORE_DIR}/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin`
+- `.pio/build/esp32dev_switchbot/firmware.bin`
+
+실행기를 멈추고 같은 폴더에서 다음 주소로 전부 쓴다. `huge_app.csv`를 쓰므로 다른 env의 `partitions.bin`과 섞지 않는다.
+
+```sh
+python3 -m esptool --chip esp32 --port /dev/serial/by-id/<장치> --baud 115200 \
+  write_flash -z \
+  0x1000 bootloader.bin \
+  0x8000 partitions.bin \
+  0xe000 boot_app0.bin \
+  0x10000 firmware.bin
+```
+
+SwitchBot 선택 빌드의 RPi4 env 예시는 아래와 같다. 실제 이동 범위와 기구 값은 실측값으로 바꾸며,
+`SIMPLELAY_MOTION_PRESS_MODE`·`PRESS_DRIVE_MS`·`PRESS_DWELL_MS`는 설정하지 않는다.
+
+```dotenv
+SIMPLELAY_MOTION_MODE=serial
+SIMPLELAY_MOTION_PORT=/dev/serial/by-id/<모션-보드>
+SIMPLELAY_MOTION_BAUD=115200
+SIMPLELAY_MOTION_R_OUT=1400
+SIMPLELAY_MOTION_DECODING_MULTIPLIER=4
+SIMPLELAY_MOTION_PULLEY_TEETH=20
+SIMPLELAY_MOTION_BELT_PITCH_MM=2
+SIMPLELAY_MOTION_A_SIGN=1
+SIMPLELAY_MOTION_B_SIGN=1
+SIMPLELAY_MOTION_X_MIN_MM=3
+SIMPLELAY_MOTION_X_MAX_MM=200
+SIMPLELAY_MOTION_Y_MIN_MM=3
+SIMPLELAY_MOTION_Y_MAX_MM=200
+SIMPLELAY_MOTION_STATUS_TIMEOUT_S=2
+SIMPLELAY_MOTION_CONNECT_TIMEOUT_S=5
+SIMPLELAY_MOTION_HOME_TIMEOUT_S=75
+SIMPLELAY_MOTION_MOVE_TIMEOUT_S=20
+SIMPLELAY_MOTION_PRESS_TIMEOUT_S=12
+SIMPLELAY_MOTION_HEARTBEAT_MS=500
+```
+
+2026-10-21 같은 고정 버전 전체 빌드: `esp32dev` RAM 28,320 B / flash 298,295 B,
+`esp32dev_switchbot` RAM 47,188 B / flash 1,117,742 B(huge_app 3,145,728 B),
+`esp32dev_bringup` RAM 28,320 B / flash 307,399 B, `esp32dev_benchhome` RAM 28,320 B / flash 298,207 B.
 
 2026-10-10 빌드(pioarduino 55.03.312-1 / Arduino-ESP32 3.3.12, ArduinoJson 7.x): `esp32dev` SUCCESS — RAM 27,936 B(8.5%),
 Flash 296,747 B(22.6%). `esp32dev_bringup` SUCCESS — Flash 305,679 B(23.3%), 경고는 의도한 bring-up `#warning` 하나.
