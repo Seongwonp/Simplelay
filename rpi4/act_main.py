@@ -401,9 +401,6 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
 
     reopening.set_link_listener(link_down)
     _motion_watch = watch.start()
-    missing = config.missing_for_press()
-    if missing:
-        log.warning("motion config incomplete — every press will be refused: %s", ", ".join(missing))
     warning = heartbeat_off_warning(config)
     if warning:
         log.warning("%s", warning)
@@ -421,6 +418,9 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
         # 연결 확인 실패 = 준비 안 됨. 배경에서 다시 연결하고, 그동안 execute는 motion_not_ready로 거절한다.
         log.error("motion MCU status check failed on %s: %s — retrying in background", port, exc)
         _motion_retry = MotionConnectRetry(client).start()
+    missing = config.missing_for_press(client.z_mode)
+    if missing:
+        log.warning("motion config incomplete — every press will be refused: %s", ", ".join(missing))
     return client, MotionSafetyController(client)
 
 

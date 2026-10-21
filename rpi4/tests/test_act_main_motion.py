@@ -98,6 +98,25 @@ def test_serial_mode_wires_the_adapter_and_checks_status(monkeypatch):
     assert grbl.state is MotionState.UNHOMED  # 홈 전 — 누름은 거절된다
 
 
+def test_serial_switchbot_does_not_require_press_duration_env(monkeypatch, caplog):
+    from rpi.tools.fake_mcu import FakeMcu
+
+    pipe = InMemoryLinePipe()
+    mcu = FakeMcu(pipe, z_mode="switchbot")
+    monkeypatch.setattr(act_main, "_open_motion_transport", lambda port, baud: pipe.host)
+    _serial_env(monkeypatch, SIMPLELAY_MOTION_CONNECT_TIMEOUT_S="2")
+    try:
+        with caplog.at_level(logging.WARNING, logger=act_main.log.name):
+            grbl, _ = act_main._build_motion()
+    finally:
+        mcu.close()
+    assert grbl.z_mode == "switchbot"
+    incomplete = " ".join(
+        record.getMessage() for record in caplog.records if "motion config incomplete" in record.getMessage()
+    )
+    assert "press_mode" not in incomplete and "press_dwell_ms" not in incomplete
+
+
 def test_serial_mode_starts_even_when_status_is_unconfigured(monkeypatch):
     """상태 조회 기한이 없으면 조회를 못 하지만 시작은 한다 — 준비 안 됨으로 남는다."""
     monkeypatch.setattr(act_main, "_open_motion_transport", lambda port, baud: InMemoryLinePipe().host)

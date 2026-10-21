@@ -62,7 +62,8 @@ RPi4 ActExecutor가 이 값을 progress 프레임의 ``position``으로 RPi5에 
 ``connect_timeout_s``(기본 5 s)까지 재시도한다. 동작 중에 ``ready``가 오면 MCU가 재시작한 것 — 진행 중 명령을
 실패(`MotionReset`)로 끝내고 재홈 전까지 준비 안 됨으로 둔다. 조회 중이면 같은 요청을 새 id로 다시 보낸다.
 
-Z 누름 방식(2026-10-05): Z가 엔코더 모터(``motor``)인지 솔레노이드(``solenoid``)인지 MCU가 ``ready``
+Z 누름 방식(2026-10-05): Z가 엔코더 모터(``motor``), 솔레노이드(``solenoid``), 또는 BLE Bot
+(``switchbot``)인지 MCU가 ``ready``
 배너와 ``status`` 응답의 ``z_mode``로 알린다(`SerialMotionClient.z_mode`, 안 보내는 MCU면 None).
 솔레노이드는 깊이를 모르므로 ``press_mode=depth``를 **움직이기 전에** 거절한다. MCU의 ``z_unsupported``·
 ``z_cooldown``(코일 냉각 시간 안) 거절은 위치를 잃지 않은 거절이라 `MotionRefused`로 올리고 재홈을 요구하지 않는다.
@@ -182,6 +183,20 @@ class MotionAlarm(MotionError):
     def motion_abort_reason(self) -> str:  # type: ignore[override]
         code = self.reason if isinstance(self.reason, str) and _ABORT_CODE.fullmatch(self.reason) else None
         return f"motion_alarm: {code}" if code else "motion_alarm"
+
+
+class MotionPressFailed(MotionError):
+    """누름 장치가 결과를 실패로 보고했다. XY 원점은 잃지 않지만 같은 실행에서 자동 재누름하지 않는다."""
+
+    def __init__(self, message: str, *, reason: str, press_outcome: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.press_outcome = press_outcome
+
+    @property
+    def motion_abort_reason(self) -> str:  # type: ignore[override]
+        code = self.reason if _ABORT_CODE.fullmatch(self.reason) else None
+        return f"motion_press_failed: {code}" if code else "motion_press_failed"
 
 
 #: 결과에 싣는 MCU 알람 코드 모양(그 밖의 값은 코드 없이 ``motion_alarm``).
@@ -459,7 +474,7 @@ MOTION_ENV_NAMES: dict[str, str] = {
 }
 
 #: MCU가 알리는 Z 누름 방식(firmware-motion/protocol_table.json z_modes).
-Z_MODES = ("motor", "solenoid")
+Z_MODES = ("motor", "solenoid", "switchbot")
 #: 위치를 잃지 않은 MCU 거절 — 알람·재홈으로 번지지 않게 `MotionRefused`로 올린다.
 #: soft_limit: 알람 이벤트 없이 온 거절 응답은 움직이기 전 범위 검사다(움직이다 넘으면 alarm 이벤트가 먼저 온다).
 MCU_REFUSAL_ERRORS = frozenset({"z_unsupported", "z_cooldown", "soft_limit"})
@@ -586,14 +601,17 @@ class MotionConfig:
                 raise ValueError(f"{env_name} 값을 읽을 수 없습니다: {raw!r} ({exc})") from exc
         return cls(**values)
 
-    def missing_for_press(self) -> tuple[str, ...]:
+    def missing_for_press(self, z_mode: str | None = None) -> tuple[str, ...]:
         """첫 누름(보정 없음)에 필요한데 비어 있는 모든 설정 — 시작 로그용."""
         missing = list(self.kinematics.missing_for_motion())
-        base = ["press_mode", "press_dwell_ms", "move_timeout_s", "press_timeout_s"]
-        if self.press_mode == "depth":
-            base.append("press_depth_counts")
-        elif self.press_mode == "duration":
-            base.append("press_drive_ms")
+        if z_mode == "switchbot":
+            base = ["move_timeout_s", "press_timeout_s"]
+        else:
+            base = ["press_mode", "press_dwell_ms", "move_timeout_s", "press_timeout_s"]
+            if self.press_mode == "depth":
+                base.append("press_depth_counts")
+            elif self.press_mode == "duration":
+                base.append("press_drive_ms")
         missing.extend(name for name in base if getattr(self, name) is None)
         return tuple(missing)
 
@@ -832,7 +850,7 @@ class SerialMotionClient(GrblClient):
 
     @property
     def z_mode(self) -> str | None:
-        """MCU가 알린 Z 누름 방식(``motor``|``solenoid``). 알리지 않았으면 None."""
+        """MCU가 알린 Z 누름 방식(``motor``|``solenoid``|``switchbot``). 알리지 않았으면 None."""
         with self._state_lock:
             return self._z_mode
 
@@ -1352,6 +1370,8 @@ class SerialMotionClient(GrblClient):
 
     def _press_request(self, command: PressCommand) -> dict:
         cfg = self._config
+        if self.z_mode == "switchbot":
+            return {"cmd": "press", "mode": "switchbot"}
         cfg.require("누름", ("press_mode",))
         if cfg.press_mode == "depth" and self.z_mode == "solenoid":
             raise MotionRefused(
@@ -1421,6 +1441,11 @@ class SerialMotionClient(GrblClient):
             reply = self._request(request, timeout_s)
         except MotionRefused:
             # 움직이기 전 MCU 거절(z_unsupported·z_cooldown) — 위치를 잃지 않았다.
+            if self.state is MotionState.BUSY:
+                self._set_state(previous)
+            raise
+        except MotionPressFailed:
+            # Bot 실패·응답 불명은 같은 실행에서 재누름하지 않지만 CoreXY 위치 자체는 그대로다.
             if self.state is MotionState.BUSY:
                 self._set_state(previous)
             raise
@@ -1531,6 +1556,13 @@ class SerialMotionClient(GrblClient):
                     raise MotionStopped(f"'{body['cmd']}' 응답 전에 정지 요청이 와 성공으로 받지 않음")
                 return doc
             error = doc.get("error") if isinstance(doc.get("error"), str) else "unknown"
+            press_outcome = doc.get("press_outcome")
+            if body.get("cmd") == "press" and press_outcome in {"not_pressed", "unknown"}:
+                raise MotionPressFailed(
+                    f"MCU가 누름 실패를 보고: {error} ({press_outcome})",
+                    reason=error,
+                    press_outcome=press_outcome,
+                )
             if error in MCU_REFUSAL_ERRORS:
                 raise MotionRefused(f"MCU가 '{body['cmd']}'를 거절: {error}", code=error,
                                     retry_ms=_opt_int(doc.get("retry_ms")))

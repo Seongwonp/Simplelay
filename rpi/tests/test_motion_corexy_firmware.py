@@ -3,7 +3,7 @@
 C 코드를 돌리지 않는다(컴파일은 PlatformIO로 따로, 동작은 실물로만 확인된다). 이 시험이 잡는 것:
 
 1. 규약 표(`firmware-motion/protocol_table.json`)의 명령·필드·오류 코드·상태·이벤트 이름이 소스에 문자열로 있다.
-2. 원작의 무선·앱 경로(BLE 서버·NUS·앱 JSON v2·인증·키 저장)가 코드에 남지 않았고, 원작 이름은 출처 표기 줄에만 있다.
+2. 원작의 BLE 서버·앱 경로(NUS·앱 JSON v2·인증·키 저장)가 코드에 남지 않았고, 원작 이름은 출처 표기 줄에만 있다.
 3. 원작에서 온 파일마다 출처 표기가 있다.
 4. 원작의 잘못된 리밋 핀(30·100)이 돌아오지 않았다.
 5. 호스트(RPi4 kinematics)가 만든 카운트를 펌웨어 식으로 되돌리면 같은 mm가 된다(같은 기구 값일 때).
@@ -70,7 +70,7 @@ def test_source_mentions_every_protocol_table_name():
 
 @pytest.mark.parametrize(
     "identifier",
-    ["BLEDevice", "BLEServer", "BLECharacteristic", "BLE2902", "NUS_SERVICE_UUID", "mbedtls", "Preferences",
+    ["BLEServer", "BLE2902", "NUS_SERVICE_UUID", "mbedtls", "Preferences",
      "pairKey", "bleConnected", "hmacHex", "\"provision\"", "\"challenge\"", "KEYRESET\")", "handleGcode",
      "BLE_DEVICE_NAME"],
 )

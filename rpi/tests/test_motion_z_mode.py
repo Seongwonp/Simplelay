@@ -35,6 +35,13 @@ FW = ROOT / "firmware-motion"
 TABLE = json.loads((FW / "protocol_table.json").read_text(encoding="utf-8"))
 
 DURATION = dataclasses.replace(REHEARSAL_CONFIG, press_mode="duration", press_drive_ms=120)
+SWITCHBOT = MotionConfig(
+    kinematics=REHEARSAL_CONFIG.kinematics,
+    status_timeout_s=1.0,
+    home_timeout_s=1.0,
+    move_timeout_s=1.0,
+    press_timeout_s=1.0,
+)
 
 
 def _link(config=REHEARSAL_CONFIG, **mcu_kwargs):
@@ -48,13 +55,77 @@ def _link(config=REHEARSAL_CONFIG, **mcu_kwargs):
 
 
 def test_table_declares_z_mode_capability():
-    assert TABLE["z_modes"] == ["motor", "solenoid"]
+    assert TABLE["z_modes"] == ["motor", "solenoid", "switchbot"]
     assert "z_mode" in TABLE["events"]["ready"]
     assert "z_mode" in TABLE["commands"]["status"]["reply"]
     assert {"z_unsupported", "z_cooldown"} <= set(TABLE["errors"])
 
 
-@pytest.mark.parametrize("z_mode", ["motor", "solenoid"])
+def test_switchbot_press_needs_no_duration_environment_and_uses_reply_result():
+    mcu, client = _link(SWITCHBOT, z_mode="switchbot", homed=True)
+    try:
+        client.connect()
+        client.home()
+        client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0))
+        press = next(d for d in mcu.received if d["cmd"] == "press")
+    finally:
+        mcu.close()
+    assert press == {"id": press["id"], "cmd": "press", "mode": "switchbot"}
+    assert SWITCHBOT.missing_for_press("switchbot") == ()
+    assert client.state is MotionState.READY
+
+
+@pytest.mark.parametrize(
+    ("bot_result", "reason", "outcome"),
+    [
+        ("connect_failed", "switchbot_connect_failed", "not_pressed"),
+        ("ack_timeout", "switchbot_ack_timeout", "unknown"),
+        (0x06, "switchbot_low_battery", "not_pressed"),
+    ],
+)
+def test_switchbot_failures_preserve_honest_press_outcome(bot_result, reason, outcome):
+    from rpi.controller.serial_motion import MotionPressFailed
+
+    mcu, client = _link(SWITCHBOT, z_mode="switchbot", homed=True, switchbot_result=bot_result)
+    try:
+        client.connect()
+        client.home()
+        with pytest.raises(MotionPressFailed) as caught:
+            client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0))
+    finally:
+        mcu.close()
+    assert caught.value.reason == reason
+    assert caught.value.press_outcome == outcome
+    assert client.state is MotionState.READY  # Bot 실패가 CoreXY 원점을 거짓으로 지우지 않는다.
+
+
+def test_fake_switchbot_stop_reports_that_a_sent_press_cannot_be_recalled():
+    pipe = InMemoryLinePipe()
+    mcu = FakeMcu(pipe, z_mode="switchbot", homed=True)
+    mcu.delays["press"] = 1.0
+    try:
+        pipe.host.write_line(json.dumps({"id": 1, "cmd": "press", "mode": "switchbot"}))
+        for _ in range(100):
+            if any(d.get("cmd") == "press" for d in mcu.received):
+                break
+            import time
+
+            time.sleep(0.01)
+        pipe.host.write_line(json.dumps({"id": 2, "cmd": "stop"}))
+        stopped = json.loads(pipe.host.read_line(1.0) or "{}")
+        stop_ack = json.loads(pipe.host.read_line(1.0) or "{}")
+    finally:
+        mcu.close()
+    assert stopped == {
+        "id": 1,
+        "ok": False,
+        "error": "switchbot_press_sent_cannot_recall",
+        "press_outcome": "unknown",
+    }
+    assert stop_ack == {"id": 2, "ok": True}
+
+
+@pytest.mark.parametrize("z_mode", ["motor", "solenoid", "switchbot"])
 def test_fake_mcu_reports_z_mode_in_ready_and_status(z_mode):
     pipe = InMemoryLinePipe()
     mcu = FakeMcu(pipe, ready_banner=True, z_mode=z_mode)
@@ -263,7 +334,7 @@ def test_all_pins_live_in_board_config():
                  "Z_MODE_MOTOR", "Z_MODE_SOLENOID", "SOLENOID_ON_MAX_MS", "SOLENOID_MIN_OFF_MS"):
         assert name in _defines(board), name
     assert "팀원 확인 필요" in board
-    for z_mode in TABLE["z_modes"]:
+    for z_mode in ("motor", "solenoid"):  # SwitchBot 선택 빌드는 firmware-motion-corexy 쪽이다.
         assert f'#define Z_MODE_NAME            "{z_mode}"' in board  # ready·status의 z_mode 값
     for src in (FW / "src").glob("*"):
         text = src.read_text(encoding="utf-8")

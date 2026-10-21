@@ -15,7 +15,8 @@
   ``boot_delay_s``를 주면 그동안은 받은 줄을 버린다(부팅 중 — 첫 status가 사라지는 경우).
   ``reboot()``는 대기 명령·원점을 버리고 같은 순서로 다시 부팅한다.
 
-- ``z_mode``(2026-10-05): ``"motor"``(기본)·``"solenoid"``를 ``ready``·``status``에 ``z_mode``로 싣는다.
+- ``z_mode``(2026-10-05): ``"motor"``(기본)·``"solenoid"``·``"switchbot"``을 ``ready``·``status``에
+  ``z_mode``로 싣는다.
   None이면 필드를 빼서 z_mode를 모르는 MCU(팀원 펌웨어 원본)를 흉내 낸다. 솔레노이드는 펌웨어
   Z_MODE_SOLENOID처럼 ``depth`` 누름을 ``z_unsupported``로, 켜짐 시간(drive_ms + dwell_ms)이
   ``solenoid_on_max_ms``를 넘으면 ``soft_limit``으로, 직전 누름 뒤 ``solenoid_min_off_s``가 안 지났으면
@@ -69,6 +70,14 @@ Handler = Callable[[dict], "list[dict | str] | None"]
 
 MOTION_CMDS = frozenset({"home", "move", "press"})
 _BUSY_STATE = {"home": "homing", "move": "moving", "press": "pressing"}
+_SWITCHBOT_STATUS = {
+    0x02: "switchbot_exec_error",
+    0x03: "switchbot_busy",
+    0x05: "switchbot_unsupported",
+    0x06: "switchbot_low_battery",
+    0x07: "switchbot_encrypted",
+    0x09: "switchbot_password_error",
+}
 
 
 class FakeMcu:
@@ -92,6 +101,7 @@ class FakeMcu:
         z_mode: str | None = "motor",
         solenoid_on_max_ms: int = 1000,
         solenoid_min_off_s: float = 0.0,
+        switchbot_result: int | str = 0x01,
         slip_counts: tuple[int, int] = (0, 0),
         report_position: bool = True,
     ) -> None:
@@ -101,6 +111,8 @@ class FakeMcu:
         self.solenoid_on_max_ms = solenoid_on_max_ms
         self.solenoid_min_off_s = solenoid_min_off_s
         self._solenoid_off_at: float | None = None
+        #: SwitchBot Bot notify 상태 또는 ESP32 쪽 실패 주입. 0x01만 성공이다.
+        self.switchbot_result = switchbot_result
         #: 이동 뒤 보고 위치의 어긋남(카운트) — 미끄럼 주입.
         self.slip_counts = slip_counts
         self.report_position = report_position
@@ -188,6 +200,12 @@ class FakeMcu:
         return [*self._positions(), self._ok(doc)]
 
     def _press(self, doc: dict) -> list[dict]:
+        if self.z_mode == "switchbot":
+            if doc.get("mode") != "switchbot":
+                return [{"id": doc.get("id"), "ok": False, "error": "z_unsupported"}]
+            result = self._switchbot_failure(doc)
+            if result is not None:
+                return [{"event": "press_start"}, {"event": "press_end"}, *self._positions(), result]
         if self.z_mode == "solenoid":
             refusal = self._solenoid_refusal(doc)
             if refusal == "z_cooldown":
@@ -198,6 +216,24 @@ class FakeMcu:
             if refusal is not None:
                 return [{"id": doc.get("id"), "ok": False, "error": refusal}]
         return [{"event": "press_start"}, {"event": "press_end"}, *self._positions(), self._ok(doc)]
+
+    def _switchbot_failure(self, doc: dict) -> dict | None:
+        result = self.switchbot_result
+        if result == 0x01:
+            return None
+        if result == "connect_failed":
+            error, outcome = "switchbot_connect_failed", "not_pressed"
+        elif result == "service_missing":
+            error, outcome = "switchbot_service_missing", "not_pressed"
+        elif result == "notify_unavailable":
+            error, outcome = "switchbot_notify_unavailable", "not_pressed"
+        elif result == "ack_timeout":
+            error, outcome = "switchbot_ack_timeout", "unknown"
+        elif isinstance(result, int) and result in _SWITCHBOT_STATUS:
+            error, outcome = _SWITCHBOT_STATUS[result], "not_pressed"
+        else:
+            error, outcome = "switchbot_status_unknown", "unknown"
+        return {"id": doc.get("id"), "ok": False, "error": error, "press_outcome": outcome}
 
     def _solenoid_refusal(self, doc: dict) -> str | None:
         # 펌웨어 motion_cmd_press(Z_MODE_SOLENOID)와 같은 순서: 방식 → 켜짐 상한 → 냉각.
@@ -264,7 +300,11 @@ class FakeMcu:
             held = self._pending[0]
             self._pending = None
             self.homed = False
-            self._send([{"id": held.get("id"), "ok": False, "error": "stopped"}])
+            if self.z_mode == "switchbot" and held.get("cmd") == "press":
+                self._send([{"id": held.get("id"), "ok": False,
+                             "error": "switchbot_press_sent_cannot_recall", "press_outcome": "unknown"}])
+            else:
+                self._send([{"id": held.get("id"), "ok": False, "error": "stopped"}])
         elif cmd in MOTION_CMDS and self._pending is not None:
             self._send([{"id": doc.get("id"), "ok": False, "error": "busy"}])
             return

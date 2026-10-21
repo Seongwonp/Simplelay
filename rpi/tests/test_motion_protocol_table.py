@@ -144,6 +144,11 @@ def test_firmware_source_mentions_every_table_name():
     for fields in TABLE["events"].values():
         names.update(fields)  # 이벤트 필드(ready의 fw·protocol·reset, alarm의 z_retract 등)
     names.update(TABLE["z_retract_values"])
+    # SwitchBot은 CoreXY 선택 빌드 전용이다. 구형 firmware-motion에는 이 확장을 강제하지 않는다.
+    names.difference_update(TABLE.get("switchbot_errors", []))
+    names.difference_update(TABLE.get("press_outcomes", []))
+    names.discard("switchbot")
+    names.discard("press_outcome")
     names.discard("cmd")  # 펌웨어는 cmd 키를 읽기만 한다(아래에서 따로 확인)
     missing = sorted(n for n in names if not _in_firmware(n))
     assert missing == []
