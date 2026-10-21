@@ -127,6 +127,7 @@ constexpr float FOLLOW_ERR_TIME_S = 0.20f;  // 이 시간 이상 지속되면 FA
 #define HOME_MAX_MS            70000
 #define MOVE_MAX_MS            15000
 #define PRESS_TIMEOUT_MARGIN_MS 1000
+#define SWITCHBOT_REQUEST_MAX_MS 10000  // BLE 연결 전체 백스톱. notify ACK_TIMEOUT_MS는 SwitchBotBLE.h에서 더 짧게 끝난다.
 
 // 정지·알람 뒤 short brake를 이 시간 유지한 다음 STBY LOW(출력 High-Z).
 #define STOP_BRAKE_MS          100
@@ -146,10 +147,23 @@ constexpr float FOLLOW_ERR_TIME_S = 0.20f;  // 이 시간 이상 지속되면 FA
 // 리밋 디바운스(loop 한 바퀴 ≈ 1 ms 단위 연속 샘플 수). USE_LIMIT_SWITCHES일 때만.
 #define LIMIT_DEBOUNCE_SAMPLES 5
 
+// ---------------- Z 누름 장치 선택 ----------------
+#ifndef Z_ACTUATOR_SWITCHBOT
+#define Z_ACTUATOR_SWITCHBOT 0
+#endif
+
+#if Z_ACTUATOR_SWITCHBOT
+#ifndef SWITCHBOT_MAC
+#error "Z_ACTUATOR_SWITCHBOT=1에는 SWITCHBOT_MAC이 필요하다"
+#endif
+#define Z_MODE_NAME            "switchbot"
+#else
+#define Z_MODE_NAME            "solenoid"
+#endif
+
 // ---------------- 솔레노이드(Z 누름) — 실측 필요 ----------------
 // 원작의 구동(SOL_HIT_MS 100% → SOL_HOLD_DUTY 유지, SOL_SETTLE_MS)은 main.cpp에 그대로 있다.
 // 아래는 SimpleLay 규약 쪽 상한·발열 보호(firmware-motion과 같은 이름·의미).
-#define Z_MODE_NAME            "solenoid"
 #define SOLENOID_ON_MAX_MS     800      // 한 번 누름 켜짐(drive_ms + dwell_ms) 상한 → 넘으면 soft_limit. ready·status z_on_max_ms
 #define PRESS_DRIVE_MAX_MS     500      // drive_ms 상한(호스트 press_drive_max_ms 이하)
 #define PRESS_DWELL_MAX_MS     800

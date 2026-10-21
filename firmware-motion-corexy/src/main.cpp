@@ -1,13 +1,13 @@
 // 원작: 팀원(서예솔) Touch Bridge CoreXY 펌웨어 v3, SimpleLay용으로 통신·이름 수정
 // =====================================================================
-//  SimpleLay 모션 MCU 펌웨어 — CoreXY XY + 솔레노이드 누름 (ESP32). **컴파일만 확인, 실물 미검증.**
+//  SimpleLay 모션 MCU 펌웨어 — CoreXY XY + 선택형 Z 누름 (ESP32). **컴파일만 확인, 실물 미검증.**
 //  모터: DFRobot FIT0482 (6V, 50:1, 홀 엔코더) x2
 //  드라이버: JMOD-MOTOR-1 (TB6612FNG)
-//  누름: SparkFun ROB-11015 솔레노이드 5V (N-MOSFET 로우사이드 + 플라이백 다이오드)
+//  누름: 기본 솔레노이드, esp32dev_switchbot 빌드는 SwitchBot Bot BLE 클라이언트
 //
 //  ── 연결 ────────────────────────────────────────────────────────────
 //  RPi4(rpi/controller/serial_motion.py) ─USB 시리얼 115200, 줄 단위 JSON(line-json/v0)─ 이 보드.
-//  무선(BLE)은 쓰지 않는다 — 시연 링크는 유선 하나다(정지 명령 신뢰성).
+//  호스트·정지 링크는 유선 하나다. 선택 빌드의 BLE는 Bot 누름에만 쓰며 별도 작업에서 기다린다.
 //  규약 기준: rpi/tools/fake_mcu.py, 명령 표: firmware-motion/protocol_table.json.
 //
 //  ── 원작에서 그대로 둔 것 ───────────────────────────────────────────
@@ -40,6 +40,9 @@
 #include "CoreXYMotion.h"
 #include "config.h"
 #include "host_protocol.h"
+#if Z_ACTUATOR_SWITCHBOT
+#include "SwitchBotBLE.h"
+#endif
 
 #ifndef BRINGUP_TEXT_COMMANDS
 #define BRINGUP_TEXT_COMMANDS 0
@@ -78,7 +81,7 @@ struct Step {
   ReqId id;       // 호스트 요청 id
 };
 
-enum class Phase : uint8_t { WAIT_RELEASE, WAIT_MOTION, TAP_HOLD, TAP_RELEASE };
+enum class Phase : uint8_t { WAIT_RELEASE, WAIT_MOTION, TAP_HOLD, TAP_RELEASE, WAIT_SWITCHBOT };
 
 CoreXYMotion motion;
 QueueHandle_t motionEvents;
@@ -86,8 +89,18 @@ QueueHandle_t motionEvents;
 void raiseAlarm(const char* reason, bool stopMotion);
 
 // =====================================================================
-//  솔레노이드 (원작)
+//  솔레노이드 (원작) / SwitchBot 빌드의 무동작 대체
 // =====================================================================
+#if Z_ACTUATOR_SWITCHBOT
+constexpr uint32_t SOL_SETTLE_MS = 0;  // 솔레노이드 전용 phase의 컴파일용 값(이 빌드에서는 진입하지 않음)
+volatile bool solOn = false;
+bool g_solPwmOk = true;
+void solBegin() {}
+void solenoidOn() {}
+void solenoidOff() {}
+bool solCooling() { return false; }
+uint32_t solCooldownLeftMs() { return 0; }
+#else
 // config.h에서 이미 쓰는 핀: 4(STBY) 25/26/27(모터A) 32/33/13(모터B)
 //   16/17(엔코더A) 18/19(엔코더B), 21/22(리밋, 선택). 남는 출력 핀 중 부팅 영향 없는 23을 사용.
 //   피해야 할 핀: 6~11(플래시), 34~39(입력 전용), 0/2/5/12/15(부팅 스트래핑)
@@ -164,6 +177,7 @@ bool solCooling() {
   return solCooldownMs > 0 && static_cast<int32_t>(millis() - solOffAt) < static_cast<int32_t>(solCooldownMs);
 }
 uint32_t solCooldownLeftMs() { return solCooling() ? solCooldownMs - (millis() - solOffAt) : 0; }
+#endif
 
 // ---------------- 1kHz 제어 태스크 (원작 + 태스크 워치독) ----------------
 void controlTask(void*) {
@@ -298,11 +312,70 @@ const char* mapCoreRefusal(const char* err) {
 
 void endActive() { active = false; }
 
+#if Z_ACTUATOR_SWITCHBOT
+const char* switchbotError(int code) {
+  switch (code) {
+    case 0x02: return "switchbot_exec_error";
+    case 0x03: return "switchbot_busy";
+    case 0x05: return "switchbot_unsupported";
+    case 0x06: return "switchbot_low_battery";
+    case 0x07: return "switchbot_encrypted";
+    case 0x09: return "switchbot_password_error";
+    case sbble::SB_ERR_CONNECT: return "switchbot_connect_failed";
+    case sbble::SB_ERR_SERVICE: return "switchbot_service_missing";
+    case sbble::SB_ERR_NOTIFY: return "switchbot_notify_unavailable";
+    case sbble::SB_ERR_ACK_TIMEOUT: return "switchbot_ack_timeout";
+    case sbble::SB_ERR_CANCELLED_BEFORE_WRITE: return "switchbot_stopped_before_send";
+    case sbble::SB_ERR_CANCELLED_AFTER_WRITE: return "switchbot_press_sent_cannot_recall";
+    default: return "switchbot_status_unknown";
+  }
+}
+
+const char* switchbotOutcome(const sbble::Result& result) {
+  switch (result.code) {
+    case 0x02:
+    case 0x03:
+    case 0x05:
+    case 0x06:
+    case 0x07:
+    case 0x09:
+    case sbble::SB_ERR_CONNECT:
+    case sbble::SB_ERR_SERVICE:
+    case sbble::SB_ERR_NOTIFY:
+    case sbble::SB_ERR_CANCELLED_BEFORE_WRITE:
+      return "not_pressed";
+    default:
+      return "unknown";
+  }
+}
+
+void finishSwitchbot(const sbble::Result& result) {
+  if (!active || cur.type != StepType::TAP || phase != Phase::WAIT_SWITCHBOT) return;
+  proto_event("press_end");
+  emitPosition();
+  if (result.code == sbble::SB_OK) {
+    replyCurOk("PRESSED");
+  } else {
+    proto_reply_press_error(cur.id, switchbotError(result.code), switchbotOutcome(result));
+  }
+  endActive();
+}
+
+void switchbotService() {
+  sbble::Result result{};
+  if (sbble::poll(result)) finishSwitchbot(result);  // 정지 뒤 남은 결과면 조용히 버린다.
+}
+#endif
+
 // 알람: 출력을 멈추고, 알람 이벤트를 **먼저**, 대기 중 명령의 실패 응답을 **나중에** 보낸다
 // (호스트 serial_motion.py는 이벤트를 받는 즉시 그 요청을 실패로 끝낸다 — 순서가 반대면 늦은 이벤트가
 // 다음 요청, 예컨대 복구용 home을 실패시킨다). 원작의 failActive(남은 큐 전부 버림·솔레노이드 끔)를 이었다.
 void raiseAlarm(const char* reason, bool stopMotion) {
   const bool wasOn = solOn;
+#if Z_ACTUATOR_SWITCHBOT
+  const bool botPress = active && cur.type == StepType::TAP && phase == Phase::WAIT_SWITCHBOT;
+  const bool botSent = botPress && sbble::cancel();
+#endif
   solenoidOff();                 // 솔레노이드는 끄는 것이 후퇴다(스프링 복귀)
   if (stopMotion) motion.stop();  // 원작 코어가 낸 FAULT는 코어가 이미 브레이크했다
   qClear();
@@ -312,7 +385,13 @@ void raiseAlarm(const char* reason, bool stopMotion) {
   g_stopped = false;
   proto_event_alarm(reason, wasOn ? "done" : "not_needed");
   if (active) {
-    if (cur.org == ORG_HOST) proto_reply_error(cur.id, reason);
+    if (cur.org == ORG_HOST) {
+#if Z_ACTUATOR_SWITCHBOT
+      if (botPress) proto_reply_press_error(cur.id, reason, botSent ? "unknown" : "not_pressed");
+      else
+#endif
+      proto_reply_error(cur.id, reason);
+    }
 #if BRINGUP_TEXT_COMMANDS
     else Serial.printf("FAULT %s\n", reason);
 #endif
@@ -367,12 +446,22 @@ void startStep() {
       break;
     case StepType::TAP:
       motion.hold();  // 워치독이 출력을 내렸다면 현재 위치를 다시 잡고 누른다
+#if Z_ACTUATOR_SWITCHBOT
+      if (!sbble::request(sbble::PRESS)) {
+        refuseCur("busy");
+        return;
+      }
+      proto_event("press_start");
+      phase = Phase::WAIT_SWITCHBOT;
+      beginDeadline(SWITCHBOT_REQUEST_MAX_MS);
+#else
       proto_event("press_start");
       solenoidOn();
       phase = Phase::TAP_HOLD;
       phaseAt = millis();
       phaseMs = cur.ms;
       beginDeadline(cur.ms + SOL_SETTLE_MS + PRESS_TIMEOUT_MARGIN_MS);
+#endif
       break;
   }
 }
@@ -405,10 +494,15 @@ void pump() {
       break;
     case Phase::WAIT_MOTION:
       break;  // 모션 이벤트에서 처리
+    case Phase::WAIT_SWITCHBOT:
+      break;  // BLE 작업 결과는 switchbotService가 확인한다.
   }
 }
 
 void solService() {
+#if Z_ACTUATOR_SWITCHBOT
+  return;
+#else
   if (!solOn) return;
   uint32_t t = millis() - solOnAt;
   if (!solHolding && t >= SOL_HIT_MS) {
@@ -422,6 +516,7 @@ void solService() {
       solenoidOff();
     }
   }
+#endif
 }
 
 // ---------------- 모션 이벤트 (원작 handleEvent → 규약 응답) ----------------
@@ -484,6 +579,16 @@ void safetyService() {
     if (cur.org == ORG_HOST && hostSilent) {
       raiseAlarm("host_timeout", true);
     } else if (static_cast<int32_t>(now - g_cmdStart) >= static_cast<int32_t>(g_cmdMaxMs)) {
+#if Z_ACTUATOR_SWITCHBOT
+      if (cur.type == StepType::TAP && phase == Phase::WAIT_SWITCHBOT) {
+        const bool sent = sbble::cancel();
+        proto_event("press_end");
+        proto_reply_press_error(cur.id, sent ? "switchbot_ack_timeout" : "switchbot_connect_failed",
+                                sent ? "unknown" : "not_pressed");
+        endActive();
+        return;
+      }
+#endif
       raiseAlarm("timeout", true);
     } else if ((cur.type == StepType::MOVE || cur.type == StepType::TAP) && (g_limitDeb[0] || g_limitDeb[1])) {
       raiseAlarm("limit", true);  // 원점 복귀 밖에서 리밋이 눌렸다
@@ -581,8 +686,15 @@ void cmd_move(const ReqId& id, int32_t a, int32_t b, bool has_xy, float x_mm, fl
   g_releasePending = false;
 }
 
-void cmd_press(const ReqId& id, bool depth, int32_t amount, int32_t dwell_ms) {
+void cmd_press(const ReqId& id, bool depth, bool switchbot, int32_t amount, int32_t dwell_ms) {
+#if Z_ACTUATOR_SWITCHBOT
+  if (sbble::busy()) { proto_reply_error(id, "busy"); return; }
+#endif
   if (const char* r = refusal()) { proto_reply_error(id, r); return; }
+#if Z_ACTUATOR_SWITCHBOT
+  if (!switchbot) { proto_reply_error(id, "z_unsupported"); return; }
+#else
+  if (switchbot) { proto_reply_error(id, "z_unsupported"); return; }
   if (depth) { proto_reply_error(id, "z_unsupported"); return; }  // 솔레노이드는 깊이를 모른다
   const int32_t onMs = amount + dwell_ms;
   if (amount > PRESS_DRIVE_MAX_MS || onMs > static_cast<int32_t>(SOLENOID_ON_MAX_MS)) {
@@ -594,6 +706,7 @@ void cmd_press(const ReqId& id, bool depth, int32_t amount, int32_t dwell_ms) {
     proto_reply_error_retry(id, "z_cooldown", solCooldownLeftMs());
     return;
   }
+#endif
   // 원작 positionToken 검사를 옮긴 것: 확인된 이동 목표가 없거나 그 뒤 위치가 밀렸으면 누르지 않는다.
   if (!g_posRefValid) { proto_reply_error(id, "not_homed"); return; }
   auto st = motion.status();
@@ -604,7 +717,11 @@ void cmd_press(const ReqId& id, bool depth, int32_t amount, int32_t dwell_ms) {
     return;
   }
   Step s = makeStep(StepType::TAP, ORG_HOST);
+#if Z_ACTUATOR_SWITCHBOT
+  s.ms = 0;
+#else
   s.ms = static_cast<uint32_t>(onMs);
+#endif
   s.id = id;
   if (!qPush(s)) { proto_reply_error(id, "busy"); return; }
   g_stopped = false;
@@ -615,11 +732,24 @@ void cmd_press(const ReqId& id, bool depth, int32_t amount, int32_t dwell_ms) {
 void cmd_stop(const ReqId& id) {
   drainMotionEvents();  // 정지 전에 이미 난 완료·알람을 먼저 보고한다
   const bool wasBusy = busy();
+#if Z_ACTUATOR_SWITCHBOT
+  const bool botPress = active && cur.type == StepType::TAP && phase == Phase::WAIT_SWITCHBOT;
+  const bool botSent = botPress && sbble::cancel();
+#endif
   motion.stop();
   solenoidOff();
   qClear();
   if (active) {
-    if (cur.org == ORG_HOST) proto_reply_error(cur.id, "stopped");
+    if (cur.org == ORG_HOST) {
+#if Z_ACTUATOR_SWITCHBOT
+      if (botPress) {
+        proto_reply_press_error(cur.id,
+                                botSent ? "switchbot_press_sent_cannot_recall" : "switchbot_stopped_before_send",
+                                botSent ? "unknown" : "not_pressed");
+      } else
+#endif
+      proto_reply_error(cur.id, "stopped");
+    }
 #if BRINGUP_TEXT_COMMANDS
     else Serial.println("STOPPED");
 #endif
@@ -795,6 +925,13 @@ void setup() {
 
   motionEvents = xQueueCreate(16, sizeof(MotionEvent));
   motion.begin(motionEvents);  // STBY LOW(출력 꺼짐)로 시작
+#if Z_ACTUATOR_SWITCHBOT
+  BLEDevice::init("");
+  if (!sbble::begin(SWITCHBOT_MAC)) {
+    g_hwOk = false;
+    g_alarm = "hw_init";
+  }
+#endif
   setupTaskWatchdog();
   const BaseType_t ok = xTaskCreatePinnedToCore(controlTask, "corexy", 4096, nullptr,
                                                 configMAX_PRIORITIES - 2, nullptr, 1);
@@ -803,8 +940,10 @@ void setup() {
     g_alarm = "hw_init";
   }
   // 재부팅 직전에 코일이 켜져 있었을 수 있다(워치독·패닉) — 부팅 뒤 최소 꺼짐 시간 동안은 켜지 않는다.
+#if !Z_ACTUATOR_SWITCHBOT
   solOffAt = millis();
   solCooldownMs = SOLENOID_MIN_OFF_MS;
+#endif
   g_lastHostMs = millis();
   proto_event_ready(FW_NAME, resetReasonName());
 #if BRINGUP_TEXT_COMMANDS
@@ -815,6 +954,9 @@ void setup() {
 void loop() {
   esp_task_wdt_reset();
   drainMotionEvents();
+#if Z_ACTUATOR_SWITCHBOT
+  switchbotService();
+#endif
   pollSerial();
   pump();
   solService();

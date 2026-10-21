@@ -30,12 +30,13 @@ void cmd_status(const ReqId& id);
 void cmd_limits(const ReqId& id);
 void cmd_home(const ReqId& id);
 void cmd_move(const ReqId& id, int32_t a, int32_t b, bool has_xy, float x_mm, float y_mm);
-void cmd_press(const ReqId& id, bool depth, int32_t amount, int32_t dwell_ms);
+void cmd_press(const ReqId& id, bool depth, bool switchbot, int32_t amount, int32_t dwell_ms);
 void cmd_stop(const ReqId& id);
 
 void proto_reply_ok(const ReqId& id);
 void proto_reply_error(const ReqId& id, const char* code);
 void proto_reply_error_retry(const ReqId& id, const char* code, uint32_t retry_ms);
+void proto_reply_press_error(const ReqId& id, const char* code, const char* outcome);
 void proto_reply_status(const ReqId& id, const MotionSnapshot& snap);
 void proto_reply_limits(const ReqId& id, const bool raw[3], const bool deb[3]);
 void proto_event(const char* name);

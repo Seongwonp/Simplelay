@@ -20,7 +20,8 @@
     "press": {
       "request_by_mode": {
         "depth": ["id", "cmd", "mode", "z_counts", "dwell_ms"],
-        "duration": ["id", "cmd", "mode", "drive_ms", "dwell_ms"]
+        "duration": ["id", "cmd", "mode", "drive_ms", "dwell_ms"],
+        "switchbot": ["id", "cmd", "mode"]
       },
       "reply": ["id", "ok"],
       "events": ["press_start", "press_end", "position"]
@@ -45,6 +46,8 @@
   "limits_note": "limits 응답의 raw·debounced는 각각 {x,y,z: bool} 객체. true = 활성(눌림·단선, config.h LIMIT_ACTIVE_LEVEL 기준). raw는 즉시 판독, debounced는 LIMIT_DEBOUNCE_TICKS 적용 값(동작 판정에 쓰는 값). 움직이지 않으며 동작 중에도 바로 답한다.",
   "heartbeat_note": "호스트는 home·move·press 응답을 기다리는 동안 heartbeat_ms(기본 500ms, SIMPLELAY_MOTION_HEARTBEAT_MS)마다 자기 id를 단 ping을 보낸다. MCU는 진행 중 동작을 건드리지 않고 즉시 ok로 답하며, 받은 줄이면 무엇이든 워치독(HOST_WATCHDOG_MS)을 갱신한다. ping 응답은 id가 달라 명령 응답으로 오인되지 않는다.",
   "error_reply": ["id", "ok", "error"],
+  "press_error_reply": ["id", "ok", "error", "press_outcome"],
+  "press_outcomes": ["not_pressed", "unknown"],
   "z_cooldown_reply": ["id", "ok", "error", "retry_ms"],
   "z_cooldown_note": "솔레노이드 z_cooldown 거절은 남은 냉각 시간 retry_ms(ms)를 함께 싣는다(2026-10-05). 호스트는 그만큼(상한 2 s) 기다렸다가 누름을 한 번 다시 보낸다. ready·status의 z_on_max_ms는 솔레노이드 한 번 켜짐 상한(SOLENOID_ON_MAX_MS, 모터 방식이면 null) — 호스트는 drive_ms + dwell_ms가 이것을 넘는 누름을 보내기 전에 거절한다. 알람 이벤트 없이 온 soft_limit 거절은 움직이기 전 범위 검사라 호스트가 재홈을 요구하지 않는다.",
   "errors": [
@@ -62,7 +65,35 @@
     "host_timeout",
     "hw_init",
     "z_unsupported",
-    "z_cooldown"
+    "z_cooldown",
+    "switchbot_exec_error",
+    "switchbot_busy",
+    "switchbot_unsupported",
+    "switchbot_low_battery",
+    "switchbot_encrypted",
+    "switchbot_password_error",
+    "switchbot_connect_failed",
+    "switchbot_service_missing",
+    "switchbot_notify_unavailable",
+    "switchbot_ack_timeout",
+    "switchbot_stopped_before_send",
+    "switchbot_press_sent_cannot_recall",
+    "switchbot_status_unknown"
+  ],
+  "switchbot_errors": [
+    "switchbot_exec_error",
+    "switchbot_busy",
+    "switchbot_unsupported",
+    "switchbot_low_battery",
+    "switchbot_encrypted",
+    "switchbot_password_error",
+    "switchbot_connect_failed",
+    "switchbot_service_missing",
+    "switchbot_notify_unavailable",
+    "switchbot_ack_timeout",
+    "switchbot_stopped_before_send",
+    "switchbot_press_sent_cannot_recall",
+    "switchbot_status_unknown"
   ],
   "events": {
     "ready": ["event", "fw", "protocol", "reset", "z_mode", "z_on_max_ms"],
@@ -76,7 +107,7 @@
   "z_retract_values": ["not_needed", "done", "timeout", "stalled", "skipped", "stopped"],
   "z_retract_note": "alarm 이벤트의 z_retract(2026-09-29): 알람 때 Z가 눌린 쪽이면 XY는 제동하고 Z만 위로 개루프 후퇴(Z_RETRACT_MS 한도)한 뒤 차단한다. host_timeout(워치독 부류)·원점 모름은 skipped(즉시 차단). 후퇴가 필요한 알람의 이벤트·실패 응답은 후퇴가 끝난 뒤 온다.",
   "alarm_reasons": ["stall", "limit", "home_not_found", "timeout", "host_timeout", "soft_limit", "hw_init"],
-  "z_modes": ["motor", "solenoid"],
-  "z_mode_note": "Z 누름 방식(2026-10-05). 빌드 플래그 Z_MODE(board_config.h)로 정하고 ready 배너·status 응답의 z_mode로 알린다. motor = 엔코더 DC 모터(depth·duration 둘 다), solenoid = GPIO 하나로 MOSFET 구동(duration만 — 켜짐 시간 = drive_ms + dwell_ms, 상한 SOLENOID_ON_MAX_MS 넘으면 soft_limit, 직전 꺼짐 뒤 최소 꺼짐 시간 안이면 z_cooldown, depth는 z_unsupported). 솔레노이드의 status·position z는 켜짐 1 / 꺼짐 0, limits z는 항상 false, 알람 때는 즉시 끈다(z_retract done|not_needed). z_mode를 보내지 않는 MCU면 호스트는 제한하지 않는다. z_unsupported·z_cooldown은 움직이기 전 거절이라 호스트가 재홈을 요구하지 않는다.",
+  "z_modes": ["motor", "solenoid", "switchbot"],
+  "z_mode_note": "Z 누름 방식(2026-10-05, SwitchBot 2026-10-21). ready 배너·status 응답의 z_mode로 알린다. motor = 엔코더 DC 모터(depth·duration), solenoid = GPIO MOSFET(duration만), switchbot = BLE Bot(mode=switchbot, 시간 필드 없음). SwitchBot press는 notify 0x01만 ok다. 실패 reply의 press_outcome은 연결·서비스·알려진 Bot 거절이면 not_pressed, write 뒤 ACK 시간 초과·알 수 없는 상태·보낸 뒤 stop이면 unknown이다. 이미 보낸 BLE press는 stop으로 회수할 수 없다. z_mode를 보내지 않는 MCU면 호스트는 제한하지 않는다.",
   "states": ["idle", "homing", "moving", "pressing", "stopped", "alarm"]
 }

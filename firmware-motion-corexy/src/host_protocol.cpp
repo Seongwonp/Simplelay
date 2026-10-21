@@ -95,6 +95,10 @@ void handle_move(const ReqId& id, JsonDocument& doc) {
 
 void handle_press(const ReqId& id, JsonDocument& doc) {
   const char* mode = doc["mode"].is<const char*>() ? doc["mode"].as<const char*>() : nullptr;
+  if (mode != nullptr && strcmp(mode, "switchbot") == 0) {
+    cmd_press(id, false, true, 0, 0);
+    return;
+  }
   int32_t dwell_ms = 0;
   if (mode == nullptr || !read_int(doc["dwell_ms"], &dwell_ms) || dwell_ms < 0) {
     proto_reply_error(id, "bad_args");
@@ -106,13 +110,13 @@ void handle_press(const ReqId& id, JsonDocument& doc) {
       proto_reply_error(id, "bad_args");
       return;
     }
-    cmd_press(id, true, amount, dwell_ms);
+    cmd_press(id, true, false, amount, dwell_ms);
   } else if (strcmp(mode, "duration") == 0) {
     if (!read_int(doc["drive_ms"], &amount) || amount <= 0) {
       proto_reply_error(id, "bad_args");
       return;
     }
-    cmd_press(id, false, amount, dwell_ms);
+    cmd_press(id, false, false, amount, dwell_ms);
   } else {
     proto_reply_error(id, "bad_args");
   }
@@ -200,6 +204,15 @@ void proto_reply_error_retry(const ReqId& id, const char* code, uint32_t retry_m
   write_line(g_out);
 }
 
+void proto_reply_press_error(const ReqId& id, const char* code, const char* outcome) {
+  char idb[16];
+  format_id(idb, sizeof idb, id);
+  snprintf(g_out, sizeof g_out,
+           "{\"id\":%s,\"ok\":false,\"error\":\"%s\",\"press_outcome\":\"%s\"}",
+           idb, code, outcome);
+  write_line(g_out);
+}
+
 void proto_reply_status(const ReqId& id, const MotionSnapshot& s) {
   char idb[16];
   format_id(idb, sizeof idb, id);
@@ -209,11 +222,17 @@ void proto_reply_status(const ReqId& id, const MotionSnapshot& s) {
   } else {
     snprintf(alarm, sizeof alarm, "null");
   }
+  char z_on_max[16];
+#if Z_ACTUATOR_SWITCHBOT
+  snprintf(z_on_max, sizeof z_on_max, "null");
+#else
+  snprintf(z_on_max, sizeof z_on_max, "%lu", static_cast<unsigned long>(SOLENOID_ON_MAX_MS));
+#endif
   snprintf(g_out, sizeof g_out,
            "{\"id\":%s,\"ok\":true,\"state\":\"%s\",\"homed\":%s,\"a\":%ld,\"b\":%ld,\"z\":%ld,\"alarm\":%s,"
-           "\"z_mode\":\"%s\",\"z_on_max_ms\":%lu}",
+           "\"z_mode\":\"%s\",\"z_on_max_ms\":%s}",
            idb, s.state, s.homed ? "true" : "false", static_cast<long>(s.a), static_cast<long>(s.b),
-           static_cast<long>(s.z), alarm, Z_MODE_NAME, static_cast<unsigned long>(SOLENOID_ON_MAX_MS));
+           static_cast<long>(s.z), alarm, Z_MODE_NAME, z_on_max);
   write_line(g_out);
 }
 
@@ -245,9 +264,15 @@ void proto_event_alarm(const char* reason, const char* z_retract) {
 }
 
 void proto_event_ready(const char* fw, const char* reset_reason) {
+  char z_on_max[16];
+#if Z_ACTUATOR_SWITCHBOT
+  snprintf(z_on_max, sizeof z_on_max, "null");
+#else
+  snprintf(z_on_max, sizeof z_on_max, "%lu", static_cast<unsigned long>(SOLENOID_ON_MAX_MS));
+#endif
   snprintf(g_out, sizeof g_out,
            "{\"event\":\"ready\",\"fw\":\"%s\",\"protocol\":\"line-json/v0\",\"reset\":\"%s\",\"z_mode\":\"%s\","
-           "\"z_on_max_ms\":%lu}",
-           fw, reset_reason, Z_MODE_NAME, static_cast<unsigned long>(SOLENOID_ON_MAX_MS));
+           "\"z_on_max_ms\":%s}",
+           fw, reset_reason, Z_MODE_NAME, z_on_max);
   write_line(g_out);
 }
