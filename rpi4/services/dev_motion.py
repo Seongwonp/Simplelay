@@ -168,8 +168,9 @@ class DevMotionService:
         self._client.reset_stop()
         x0, y0 = self._current_xy("조그")
         x, y = (x0 + delta, y0) if msg.axis == "x" else (x0, y0 + delta)
-        self._client.move_to(x, y)
-        return self._position(query=False, fallback=(x, y))
+        jog_to = getattr(self._client, "jog_to", None)
+        reached = jog_to(x, y) if callable(jog_to) else self._client.move_to(x, y)
+        return {**self._position(query=False, fallback=(x, y)), "reached": reached is not False}
 
     def _press(self, msg: DevMotionMsg) -> dict:
         config = self._client.config

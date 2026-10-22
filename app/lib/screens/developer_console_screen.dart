@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/appliance.dart';
-import '../models/command_result.dart' show stopLevelConfirmed, stopLevelSentence;
+import '../models/command_result.dart'
+    show stopLevelConfirmed, stopLevelSentence;
 import '../providers/appliance_provider.dart';
 import '../providers/dev_api_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -63,11 +64,13 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
 
   /// 정리가 끝나 유휴가 된 뒤의 문장 — 실물이면 마지막 정지 단계까지만 말한다.
   String _settledSentence(DevState state) {
-    final sentence = stopLevelSentence(_lastStopLevel, ackMs: _lastStopAckMs, detail: true);
+    final sentence =
+        stopLevelSentence(_lastStopLevel, ackMs: _lastStopAckMs, detail: true);
     if (sentence != null) return sentence;
     // 모의는 종전 문장, 실물인데 단계를 모르면 '보냄'까지만.
     return state.isReal ? stopLevelSentence('sent')! : '정지를 확인했어요';
   }
+
   Timer? _heartbeat;
   bool _beatInFlight = false;
   int _epoch = 0;
@@ -339,12 +342,21 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
       setState(() => _state = result.state);
       final sensor = result.sensor;
       final where = result.state.isReal ? '실제 장치' : '모의';
+      final partialJog = result.state.isReal && sensor?['reached'] == 0;
+      final position = sensor == null
+          ? ''
+          : sensor.entries
+              .where((e) => e.key != 'reached')
+              .map((e) => '${e.key} ${e.value.toStringAsFixed(1)}')
+              .join(' · ');
       _say(
-        sensor == null
-            ? (result.state.isReal
-                ? "'${result.normalized ?? text}' 동작을 실제 장치가 마쳤어요"
-                : "'${result.normalized ?? text}' 명령을 모의 어댑터가 받았어요")
-            : '${result.state.isReal ? '위치' : '센서'}($where): ${sensor.entries.map((e) => '${e.key} ${e.value.toStringAsFixed(1)}').join(' · ')}',
+        partialJog
+            ? '목표까지 가지 못하고 멈췄어요. 현재 위치: $position'
+            : sensor == null
+                ? (result.state.isReal
+                    ? "'${result.normalized ?? text}' 동작을 실제 장치가 마쳤어요"
+                    : "'${result.normalized ?? text}' 명령을 모의 어댑터가 받았어요")
+                : '${result.state.isReal ? '위치' : '센서'}($where): $position',
       );
     } on DevApiException catch (e) {
       if (!_current(epoch, api) || _sessionId != id) return;
@@ -399,10 +411,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
       _say('정지 요청을 확인했어요. 남은 동작을 정리하고 있어요.');
       _scheduleSettlePoll();
     } else if (stopSentence != null && result.state.phase == 'idle') {
-      _say(
-          backgrounded
-              ? '앱이 화면에서 사라져 세션을 끝냈어요 — $stopSentence'
-              : stopSentence,
+      _say(backgrounded ? '앱이 화면에서 사라져 세션을 끝냈어요 — $stopSentence' : stopSentence,
           problem: !stopLevelConfirmed(result.stopLevel));
     } else if (result.confirmed && result.state.phase == 'idle') {
       _say(backgrounded ? '앱이 화면에서 사라져 세션을 끝냈어요' : '정지를 확인했어요');
@@ -680,7 +689,8 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                       width: 32,
                       child: Text('Z',
                           style: TextStyle(
-                              fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+                              fontSize: AppFont.body,
+                              fontWeight: FontWeight.w700)),
                     ),
                     Expanded(
                       child: _CommandButton(
@@ -747,7 +757,8 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
             ),
             if (_log.isEmpty)
               Text('기록을 불러오지 않았어요',
-                  style: TextStyle(color: context.appMuted, fontSize: AppFont.caption))
+                  style: TextStyle(
+                      color: context.appMuted, fontSize: AppFont.caption))
             else
               for (final line in _log)
                 Padding(
@@ -841,8 +852,8 @@ class _MotionBadge extends StatelessWidget {
                 children: [
                   Container(
                     key: const ValueKey('dev-motion-badge'),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.xs),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.md, vertical: AppSpace.xs),
                     decoration: BoxDecoration(
                       color: color,
                       borderRadius: BorderRadius.circular(999),
@@ -938,8 +949,9 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: AppSpace.sm),
-        child:
-            Text(text, style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
+        child: Text(text,
+            style:
+                TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
       );
 }
 
@@ -1030,7 +1042,8 @@ class _StopButton extends StatelessWidget {
           icon: const Icon(Icons.stop, size: 28),
           label: const Text(
             '정지',
-            style: TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700),
+            style: TextStyle(
+                fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700),
           ),
         ),
       );
@@ -1057,7 +1070,8 @@ class _TokenSetup extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text('개발자 토큰',
-            style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600)),
+            style: TextStyle(
+                fontSize: AppFont.caption, fontWeight: FontWeight.w600)),
         const SizedBox(height: AppSpace.xs),
         Text(
           '서버의 SIMPLELAY_DEV_TOKEN과 같은 값입니다. 일반 API 키와 다릅니다.',

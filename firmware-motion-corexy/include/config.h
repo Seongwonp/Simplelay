@@ -61,7 +61,15 @@ constexpr float BELT_PITCH_MM   = 2.0f;                                  // → 
 constexpr float MM_PER_REV      = PULLEY_TEETH * BELT_PITCH_MM;          // 40mm
 constexpr float COUNTS_PER_MM   = COUNTS_PER_REV / MM_PER_REV;           // 35
 
-// 작업 영역 (원점 = 좌하단, 리밋/벽 위치). 실측 필요 — RPi4 SIMPLELAY_MOTION_X/Y_MAX_MM 이상이어야 한다
+// 작업 영역. 시연 빌드는 좌하단 원점, 시험대 빌드는 현재 위치를 임시 원점으로
+// 잡으므로 네 모서리 탐색을 위해 음수 방향도 허용한다. 실제 기구 한계는 미측정.
+#if defined(BENCH_HOME_AT_CURRENT) && BENCH_HOME_AT_CURRENT
+constexpr float X_MIN_MM = -200.0f;
+constexpr float Y_MIN_MM = -200.0f;
+#else
+constexpr float X_MIN_MM = 0.0f;
+constexpr float Y_MIN_MM = 0.0f;
+#endif
 constexpr float X_MAX_MM = 200.0f;
 constexpr float Y_MAX_MM = 200.0f;
 
@@ -90,12 +98,28 @@ constexpr float I_LIMIT     = 0.30f;      // 적분항 상한
 constexpr float PWM_MIN     = 0.08f;      // 정지 마찰 보상 (데드밴드)
 constexpr float D_FILTER_ALPHA = 0.10f;   // 측정 속도 저역통과
 
+// 시험대 빌드에서만 넓힌다. 자유 공간의 Y -5 명령은
+// (-175,175) 목표에 (-166,167)까지 간 뒤 정지 마찰로 더 좁혀지지 않았다.
+// 대략 0.46mm 허용은 좌표 탐색 전용이며 정밀 누름의 성공 근거가 아니다.
+// 시연 빌드의 엄격한 3카운트 기준은 변경하지 않는다.
+#if defined(BENCH_HOME_AT_CURRENT) && BENCH_HOME_AT_CURRENT
+constexpr int32_t POS_TOL_COUNTS  = 16;
+#else
 constexpr int32_t POS_TOL_COUNTS  = 3;    // 도착 허용 오차 (~0.09mm)
+#endif
 constexpr float   SETTLE_S        = 0.05f;
+#if defined(BENCH_HOME_AT_CURRENT) && BENCH_HOME_AT_CURRENT
+constexpr float   SETTLE_TIMEOUT_S = 0.4f;  // 좌표 탐색: 벽에서 1초 밀어붙이지 않는다
+#else
 constexpr float   SETTLE_TIMEOUT_S = 1.0f;
+#endif
 
 // ---------------- 안전 (실측 필요) ----------------
+#if defined(BENCH_HOME_AT_CURRENT) && BENCH_HOME_AT_CURRENT
+constexpr float FOLLOW_ERR_MAX_MM = 10.0f;  // 조그 최대 5mm의 벽 접촉은 MOVE_PARTIAL로 처리
+#else
 constexpr float FOLLOW_ERR_MAX_MM = 4.0f;   // 추종 오차 한계 (걸림·탈조 감지)
+#endif
 constexpr float FOLLOW_ERR_TIME_S = 0.20f;  // 이 시간 이상 지속되면 FAULT
 
 // =====================================================================

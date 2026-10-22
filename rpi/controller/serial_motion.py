@@ -1060,6 +1060,19 @@ class SerialMotionClient(GrblClient):
         with self._op_lock:
             self._run_busy(request, self._config.move_timeout_s)
 
+    def jog_to(self, x_mm: float, y_mm: float) -> bool:
+        """개발자 위치 탐색용 이동. 시험대 MCU의 부분 이동은 실제 좌표를 유지한다.
+
+        일반 실행의 move_to/press는 부분 이동을 성공으로 취급하지 않는다.
+        """
+        request = self._move_request(x_mm, y_mm)
+        self._config.require("개발자 XY 조그", ("move_timeout_s",))
+        self._refuse_if_stopped("개발자 XY 조그")
+        self._require_homed("개발자 XY 조그")
+        with self._op_lock:
+            reply = self._run_busy(request, self._config.move_timeout_s, allow_partial=True)
+        return reply.get("reached") is not False
+
     def press_with_observation(self, command: PressCommand, before_press: Callable[[], None]) -> None:
         """자동 원점·XY 이동 뒤, Z 명령 직전에 관측을 시작한다."""
         self.press(command, before_press=before_press)
@@ -1432,7 +1445,7 @@ class SerialMotionClient(GrblClient):
                 f"{operation}: 원점 복귀가 확인되지 않았습니다(상태 {self.state.value}) — 홈 먼저"
             )
 
-    def _run_busy(self, request: dict, timeout_s: float | None) -> dict:
+    def _run_busy(self, request: dict, timeout_s: float | None, *, allow_partial: bool = False) -> dict:
         previous = self.state
         with self._state_lock:
             seq_before = self._position_seq
@@ -1465,7 +1478,10 @@ class SerialMotionClient(GrblClient):
             if self.state is MotionState.BUSY:
                 self._set_state(MotionState.UNHOMED)
             raise
-        if request.get("cmd") == "move":
+        if request.get("cmd") == "move" and reply.get("reached") is False and not allow_partial:
+            self._set_state(MotionState.UNHOMED)
+            raise MotionPositionMismatch("목표에 도착하지 못했습니다 — 누름을 차단하고 위치 재확인이 필요합니다")
+        if request.get("cmd") == "move" and reply.get("reached") is not False:
             mismatch = self._position_mismatch(request, seq_before)
             if mismatch is not None:
                 self._set_state(MotionState.UNHOMED)

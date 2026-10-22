@@ -20,13 +20,14 @@ from rpi.controller import (
     MissingButtonCoordinates,
     PressCommand,
 )
-from rpi.controller.kinematics import CoreXYConfig, KinematicsNotConfigured, SoftLimitExceeded
+from rpi.controller.kinematics import CoreXYConfig, KinematicsNotConfigured, SoftLimitExceeded, xy_to_motor_counts
 from rpi.controller.mock import MockAlertSink
 from rpi.controller.serial_motion import (
     InMemoryLinePipe,
     MotionAlarm,
     MotionConfig,
     MotionConfigError,
+    MotionPositionMismatch,
     MotionRefused,
     MotionSafetyController,
     MotionState,
@@ -80,6 +81,23 @@ def _homed_client(pipe, config=TEST_CONFIG, **kwargs) -> SerialMotionClient:
     client = _client(pipe, config, **kwargs)
     client.home()
     return client
+
+
+def test_dev_jog_partial_keeps_origin_but_normal_move_cannot_claim_success(link):
+    pipe, mcu = link
+    client = _homed_client(pipe)
+
+    def partial(doc):
+        mcu.a, mcu.b = doc["a"] - 20, doc["b"] - 20
+        return [*mcu._positions(), {"id": doc["id"], "ok": True, "reached": False}]
+
+    mcu.handlers["move"] = partial
+    assert client.jog_to(5, 0) is False
+    assert client.homed is True
+    assert client.last_position["a_counts"] == int(round(xy_to_motor_counts(5, 0, TEST_KIN).a)) - 20
+    assert client.jog_to(6, 0) is False  # 다음 조그도 재홈 없이 받는다
+    with pytest.raises(MotionPositionMismatch):
+        client.move_to(7, 0)  # 일반 실행에서는 부분 이동을 성공으로 보지 않는다
 
 
 @pytest.mark.parametrize("failure", ["timeout", "write"])

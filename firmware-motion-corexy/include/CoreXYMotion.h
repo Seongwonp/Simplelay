@@ -28,6 +28,7 @@ enum class MotionState : uint8_t {
 
 enum class MotionEvent : uint8_t {
   MOVE_DONE,      // 목표 도착 (장치 ACK -> CONFIRMED)
+  MOVE_PARTIAL,   // 시험대 조그: 목표 미도착, 측정 위치에서 정지 (원점 기준 유지)
   HOME_DONE,      // 원점 복귀 완료
   STOPPED,        // 비상 정지 완료 (STOPPED ACK)
   FAULT_FOLLOW,   // 추종 오차 초과: 걸림/충돌
@@ -120,7 +121,7 @@ public:
     Guard g(lock_);
     if (!homed_) return "NOT_HOMED";
     if (isHoming() || state_ == MotionState::RAW) return "BUSY";
-    if (x < 0 || x > X_MAX_MM || y < 0 || y > Y_MAX_MM) return "OUT_OF_RANGE";
+    if (x < X_MIN_MM || x > X_MAX_MM || y < Y_MIN_MM || y > Y_MAX_MM) return "OUT_OF_RANGE";
     if (!isActive()) syncToMeasured();
     homingBackoff_ = false;
     driverOn();   // SimpleLay 추가
@@ -319,8 +320,19 @@ public:
       } else {
         settleTime_ = 0;
       }
-      if (state_ == MotionState::MOVING && settleTimeout_ >= SETTLE_TIMEOUT_S)
+      if (state_ == MotionState::MOVING && settleTimeout_ >= SETTLE_TIMEOUT_S) {
+#if defined(BENCH_HOME_AT_CURRENT) && BENCH_HOME_AT_CURRENT
+        // 위치 탐색에서는 기계 끝에 닿아도 엔코더 원점을 지우지 않는다.
+        // 목표에 도착했다고 거짓 보고하지 않고, 실제 위치에서 브레이크한다.
+        motA_.brake();
+        motB_.brake();
+        syncToMeasured();
+        state_ = MotionState::IDLE;
+        emit(MotionEvent::MOVE_PARTIAL);
+#else
         fault(MotionEvent::FAULT_SETTLE);
+#endif
+      }
     }
   }
 

@@ -188,6 +188,26 @@ def test_home_then_one_small_jog_is_one_relative_move(rig) -> None:
     run(_t())
 
 
+def test_partial_dev_jog_reports_measured_position_and_next_jog_needs_no_home(rig) -> None:
+    async def _t():
+        r = rig(homed=False)
+
+        def partial(doc):
+            r.mcu.a, r.mcu.b = doc["a"] - 20, doc["b"] - 20
+            return [*r.mcu._positions(), {"id": doc["id"], "ok": True, "reached": False}]
+
+        r.mcu.handlers["move"] = partial
+        assert (await r.op("home", request_id="h"))["ok"] is True
+        first = await r.op("jog", request_id="j1", axis="x", delta_mm=5.0)
+        assert first["ok"] is True and first["reached"] is False
+        assert first["x_mm"] < 5.0 and first["homed"] is True
+        second = await r.op("jog", request_id="j2", axis="x", delta_mm=-1.0)
+        assert second["ok"] is True and second["homed"] is True
+        assert r.mcu.cmds().count("home") == 1
+
+    run(_t())
+
+
 def test_jog_step_over_the_ceiling_is_refused(rig) -> None:
     async def _t():
         r = rig(homed=False)

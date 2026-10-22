@@ -34,6 +34,7 @@ void cmd_press(const ReqId& id, bool depth, bool switchbot, int32_t amount, int3
 void cmd_stop(const ReqId& id);
 
 void proto_reply_ok(const ReqId& id);
+void proto_reply_move_partial(const ReqId& id);
 void proto_reply_error(const ReqId& id, const char* code);
 void proto_reply_error_retry(const ReqId& id, const char* code, uint32_t retry_ms);
 void proto_reply_press_error(const ReqId& id, const char* code, const char* outcome);

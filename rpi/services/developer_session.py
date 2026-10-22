@@ -187,20 +187,18 @@ class DevAdapterRefused(RuntimeError):
 class MotionAdapter(Protocol):
     """개발자 도구가 기계에 말하는 유일한 통로.
 
-    jog에는 **TTL이 반드시** 붙는다. 어댑터는 TTL이 지나면 새 명령이 없어도
-    스스로 멈춰야 한다(누르고 있는 동안만 갱신). 실제 어댑터는 하드웨어 수령
-    뒤에 만든다 -- 그 전까지는 이 계약과 아래 mock만 있다.
+    jog에는 TTL을 넘긴다. 모의 어댑터는 눌림 갱신에 쓰고, 실물 어댑터는
+    한 번의 유한한 상대 이동으로 끝내며 실제 좌표·목표 도착 여부를 돌려줄 수 있다.
 
     ``stop()``은 **다른 호출이 진행 중이어도 병행 호출될 수 있어야 한다** --
-    매니저는 정지를 명령 처리 뒤에 줄 세우지 않는다. 실물 어댑터(GRBL)의
-    realtime stop 바이트가 정확히 이 성질을 갖는다.
+    매니저는 정지를 명령 처리 뒤에 줄 세우지 않는다.
     """
 
     is_mock: bool
 
     def jog(
         self, axis: DevAxis, direction: int, amount_mm: float, ttl_s: float
-    ) -> None: ...
+    ) -> dict[str, float] | None: ...
 
     def home(self) -> None: ...
 
@@ -1007,12 +1005,14 @@ class DeveloperSessionManager:
     def _dispatch(self, command: DevCommand) -> dict[str, float] | None:
         match command.kind:
             case DevCommandKind.JOG:
-                self._adapter.jog(
+                result = self._adapter.jog(
                     command.axis,
                     command.direction,
                     command.amount_mm,
                     self._jog_ttl_s,
                 )
+                if isinstance(result, dict):
+                    return result
             case DevCommandKind.HOME:
                 self._adapter.home()
             case DevCommandKind.PRESS:

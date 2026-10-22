@@ -180,13 +180,20 @@ class ActDevMotionAdapter:
             raise DevAdapterRefused(reason, detail)
         raise DevAdapterFailed(f"{reason}: {detail}")
 
-    def jog(self, axis: DevAxis, direction: int, amount_mm: float, ttl_s: float) -> None:
+    def jog(self, axis: DevAxis, direction: int, amount_mm: float, ttl_s: float) -> dict[str, float]:
         # ttl_s는 쓰지 않는다 — 실물 조그는 상한으로 묶인 절대 목표 한 번이다(머리말).
         if not (0 < amount_mm <= self._max_step_mm):
             raise DevAdapterRefused("step_too_large", f"한 번에 {self._max_step_mm:g}mm까지만 움직여요")
         link = self._require_ready()
         delta = amount_mm if direction > 0 else -amount_mm
-        self._call(link, "jog", MOVE_TIMEOUT_S, axis=axis.value, delta_mm=delta)
+        reply = self._call(link, "jog", MOVE_TIMEOUT_S, axis=axis.value, delta_mm=delta)
+        position = {}
+        for key in ("x_mm", "y_mm"):
+            value = reply.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+                position[key] = float(value)
+        position["reached"] = 0.0 if reply.get("reached") is False else 1.0
+        return position
 
     def home(self) -> None:
         link = self._require_ready()

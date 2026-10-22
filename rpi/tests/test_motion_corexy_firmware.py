@@ -41,6 +41,16 @@ def test_sources_exist():
     assert {"main.cpp", "host_protocol.cpp", "CoreXYMotion.h", "QuadEncoder.h", "Tb6612Motor.h", "config.h"} <= names
 
 
+def test_partial_jog_is_bench_only_and_cannot_be_used_as_a_press_target():
+    core = (FW / "include" / "CoreXYMotion.h").read_text(encoding="utf-8")
+    main = (FW / "src" / "main.cpp").read_text(encoding="utf-8")
+    assert "#if defined(BENCH_HOME_AT_CURRENT) && BENCH_HOME_AT_CURRENT" in core
+    assert "emit(MotionEvent::MOVE_PARTIAL)" in core
+    assert "fault(MotionEvent::FAULT_SETTLE)" in core  # 시연 빌드에는 기존 안전 실패를 유지
+    assert "g_posRefValid = false;  // 미도착 지점에서 누름은 금지" in main
+    assert 'proto_reply_error(id, "z_unsupported");' in main
+
+
 def test_source_mentions_every_protocol_table_name():
     names: set[str] = set(TABLE["commands"])
     for spec in TABLE["commands"].values():

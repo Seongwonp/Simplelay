@@ -542,6 +542,15 @@ void handleEvent(MotionEvent e) {
       endActive();
       return;
     }
+    case MotionEvent::MOVE_PARTIAL: {
+      if (!waiting || cur.type != StepType::MOVE) return;
+      g_posRefValid = false;  // 미도착 지점에서 누름은 금지
+      emitPosition();         // 목표가 아니라 실제 엔코더 좌표를 먼저 보낸다
+      if (cur.org == ORG_HOST) proto_reply_move_partial(cur.id);
+      endActive();
+      scheduleRelease(STOP_BRAKE_MS);
+      return;
+    }
     case MotionEvent::HOME_DONE: {
       if (!waiting || cur.type != StepType::HOME) return;
       auto st = motion.status();
@@ -672,7 +681,7 @@ void cmd_move(const ReqId& id, int32_t a, int32_t b, bool has_xy, float x_mm, fl
     proto_reply_error(id, "bad_args");  // 호스트·펌웨어 기구 값 불일치 — 움직이지 않는다
     return;
   }
-  if (!(x >= 0.0f && x <= X_MAX_MM && y >= 0.0f && y <= Y_MAX_MM)) {
+  if (!(x >= X_MIN_MM && x <= X_MAX_MM && y >= Y_MIN_MM && y <= Y_MAX_MM)) {
     proto_reply_error(id, "soft_limit");
     return;
   }
@@ -687,6 +696,12 @@ void cmd_move(const ReqId& id, int32_t a, int32_t b, bool has_xy, float x_mm, fl
 }
 
 void cmd_press(const ReqId& id, bool depth, bool switchbot, int32_t amount, int32_t dwell_ms) {
+#if defined(BENCH_HOME_AT_CURRENT) && BENCH_HOME_AT_CURRENT
+  // 현재 위치를 임시 원점으로 쓰는 시험 펌웨어는 좌표 탐색만 허용한다.
+  // 실제 버튼 누름은 기구 보정·전용 Z 빌드 뒤에만 한다.
+  proto_reply_error(id, "z_unsupported");
+  return;
+#endif
 #if Z_ACTUATOR_SWITCHBOT
   if (sbble::busy()) { proto_reply_error(id, "busy"); return; }
 #endif

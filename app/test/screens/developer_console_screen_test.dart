@@ -36,6 +36,7 @@ class _FakeDevServer {
   bool expired = false;
   String? stopPhase;
   bool commandExpires = false;
+  Map<String, dynamic>? commandSensor;
   String sessionId = 's1';
   int sessionCount = 0;
   final gates = <String, Completer<void>>{};
@@ -110,7 +111,7 @@ class _FakeDevServer {
           'accepted': true,
           'request_id': 'r',
           'normalized': 'home',
-          'sensor': null,
+          'sensor': commandSensor,
           'state': _state('active', session: true),
         });
       case '/dev/sessions/s1/end':
@@ -123,7 +124,8 @@ class _FakeDevServer {
           if (stopLevel != null) 'stop_ack_ms': stopAckMs,
         });
       case '/dev/stop':
-        phase = stopPhase ?? (stopConfirmed || stopLevel == 'sent' ? 'idle' : 'fault');
+        phase = stopPhase ??
+            (stopConfirmed || stopLevel == 'sent' ? 'idle' : 'fault');
         return _json({
           'confirmed': stopConfirmed,
           'message': '',
@@ -192,7 +194,6 @@ _FakeDevServer _realServer() => _FakeDevServer()
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
-
 
   testWidgets('stopping 조회는 유한하며 수동 조회로 다시 확인할 수 있다', (tester) async {
     final server = _FakeDevServer()..stopPhase = 'stopping';
@@ -636,6 +637,24 @@ void main() {
     await tester.pump();
     expect(find.textContaining('실제 장치가 마쳤어요'), findsOneWidget);
     expect(find.textContaining('모의 어댑터가 받았어요'), findsNothing);
+    await _close(tester);
+  });
+
+  testWidgets('부분 조그는 미도착과 실제 좌표를 보여 준다', (tester) async {
+    final server = _FakeDevServer()
+      ..mock = false
+      ..motionTarget = 'real'
+      ..realReady = true
+      ..commandSensor = {'x_mm': 4.4, 'y_mm': -1.0, 'reached': 0.0};
+    await _open(tester, server);
+    await _startSession(tester);
+    await tester.ensureVisible(find.widgetWithText(OutlinedButton, 'y −'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'y −'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('목표까지 가지 못하고 멈췄어요'), findsOneWidget);
+    expect(find.textContaining('x_mm 4.4'), findsOneWidget);
+    expect(find.textContaining('reached'), findsNothing);
     await _close(tester);
   });
 

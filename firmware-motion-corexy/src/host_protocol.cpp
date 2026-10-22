@@ -189,6 +189,13 @@ void proto_reply_ok(const ReqId& id) {
   write_line(g_out);
 }
 
+void proto_reply_move_partial(const ReqId& id) {
+  char idb[16];
+  format_id(idb, sizeof idb, id);
+  snprintf(g_out, sizeof g_out, "{\"id\":%s,\"ok\":true,\"reached\":false}", idb);
+  write_line(g_out);
+}
+
 void proto_reply_error(const ReqId& id, const char* code) {
   char idb[16];
   format_id(idb, sizeof idb, id);

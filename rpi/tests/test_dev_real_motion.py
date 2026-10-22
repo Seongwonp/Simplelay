@@ -476,6 +476,18 @@ def test_each_jog_is_one_request_with_one_result(rig) -> None:
     assert r.link.ops() == ["jog"]
 
 
+def test_partial_jog_returns_actual_position_without_emergency_stop(rig) -> None:
+    r = rig()
+    sid, secret = r.open_session()
+    r.link.replies["jog"] = {"ok": True, "reached": False, "homed": True,
+                             "x_mm": 4.4, "y_mm": -1.0}
+    res = r.command(sid, secret, "jog x + 1")
+    assert res.status_code == 200
+    assert res.json()["sensor"] == {"x_mm": 4.4, "y_mm": -1.0, "reached": 0.0}
+    assert r.link.ops() == ["jog"]
+    assert r.command(sid, secret, "jog x - 1").status_code == 200
+
+
 def test_press_and_sensor_read_go_to_rpi4(rig) -> None:
     r = rig()
     sid, secret = r.open_session()
