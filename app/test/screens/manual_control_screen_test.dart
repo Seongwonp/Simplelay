@@ -11,6 +11,7 @@ import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/providers/server_appliance_provider.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
 import '../helpers/test_helpers.dart';
@@ -102,6 +103,47 @@ void main() {
       // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.
       await tester.pump(Duration.zero);
     });
+  });
+
+  // 첫 사용 평가(10/24): 이 폰에 저장한 가전 정의는 준비 판정을 들고 있지 않아(canExecute 기본값) 누름 장치가
+  // 끊겨도 버튼판이 눌리는 판으로 보였고, 누른 뒤에야 '누름 장치와 연결되지 않았어요' 알림이 떴다. 홈 타일 '!'와
+  // 같은 근거(본체 목록의 같은 id 판정)로 미리 막는다.
+  testWidgets('본체 목록이 누름 장치 끊김을 말하면 저장된 가전이어도 버튼판을 막고 이유를 적는다', (tester) async {
+    const reason = '누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.';
+    var executed = 0;
+    final api = RpiApiService(
+      'http://rpi5.local:8000',
+      client: MockClient((request) async {
+        if (request.url.path == '/execute-buttons') executed++;
+        return http.Response('{"job_id":"J1"}', 200);
+      }),
+    );
+    final server = ApplianceMap.fromJson({
+      'id': 'custom_test',
+      'name': '테스트가전',
+      'rows': 1,
+      'cols': 2,
+      'buttons': const [],
+      'is_custom': true,
+      'can_execute': false,
+      'readiness': 'disconnected',
+      'readiness_reasons': const [reason],
+    });
+    final container = await _makeContainerWithAppliance(tester, extra: [
+      rpiApiServiceProvider.overrideWithValue(api),
+      serverApplianceCatalogProvider.overrideWith((ref) => ServerApplianceNotifier.seeded(
+          ref,
+          ServerApplianceCatalog(status: ServerCatalogStatus.loaded, customAppliances: [server]))),
+    ]);
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+
+    expect(find.text(reason), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^켜기.*지금은 쓸 수 없어요')), findsOneWidget);
+    await tester.tap(find.text('켜기'));
+    await tester.pump();
+    expect(executed, 0);
+    await tester.pump(Duration.zero);
   });
 
   testWidgets('RPi 서버가 연결 안 되어 있으면 설정 안내 화면을 보여준다', (tester) async {

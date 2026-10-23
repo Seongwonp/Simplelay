@@ -74,6 +74,7 @@ class PanelPhotoView extends StatelessWidget {
     this.onTapPhoto,
     this.onTapMark,
     required this.semanticsLabel,
+    this.markSemanticSuffix,
   });
 
   final double photoWidth;
@@ -92,6 +93,9 @@ class PanelPhotoView extends StatelessWidget {
   /// 표시를 눌렀을 때. null이면 표시는 읽기 전용이다.
   final void Function(PanelMark mark)? onTapMark;
   final String semanticsLabel;
+
+  /// 누를 수 있는 자리의 낭독 뒤에 붙일 말(예: '지금은 쓸 수 없어요'). null이면 붙이지 않는다.
+  final String? markSemanticSuffix;
 
   ImageProvider? get _provider {
     if (image != null) return image;
@@ -173,7 +177,7 @@ class PanelPhotoView extends StatelessWidget {
       height: small,
       child: Semantics(
         button: tappable,
-        label: _semantic(m),
+        label: tappable && markSemanticSuffix != null ? '${_semantic(m)}, $markSemanticSuffix' : _semantic(m),
         excludeSemantics: true,
         child: tappable
             ? GestureDetector(

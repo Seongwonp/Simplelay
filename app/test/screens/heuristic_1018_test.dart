@@ -383,6 +383,27 @@ void main() {
       expect(find.text('승인 화면 card-r-mw'), findsOneWidget);
     });
 
+    // 첫 사용 평가(10/24): 누름 장치(RPi4)가 끊겨 본체가 거절할 루틴인데 시트는 '다음 화면에서 한 번 더 보고 허락하면
+    // 시작해요'와 '지금 하기'를 주 단추로 내걸었다. 승인 화면과 같은 판정·같은 이유로 미리 말하고 닫기만 둔다.
+    testWidgets('본체가 지금은 실행할 수 없다는 가전의 루틴 — 이유를 말하고 지금 하기를 내걸지 않는다', (tester) async {
+      const reason = '누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.';
+      _raw = [
+        _custom('mw', '전자레인지', 'microwave', readiness: 'disconnected', canExecute: false, reasons: const [reason]),
+        _air, _pwash, _ind,
+      ];
+      await _pump(tester, const RoutinesScreen());
+      await tester.tap(find.byKey(const Key('routine-run-r-mw')));
+      await _settle(tester);
+      final sheet = find.byKey(const Key('routine-confirm-sheet'));
+      expect(_in(sheet, findPlainText(reason, contains: true)), findsOneWidget);
+      expect(_in(sheet, findPlainText('다음 화면에서 한 번 더', contains: true)), findsNothing);
+      expect(find.byKey(const Key('routine-confirm-run')), findsNothing);
+      await tester.tap(find.byKey(const Key('routine-confirm-close')));
+      await _settle(tester);
+      expect(_triggers(), 0);
+      expect(sheet, findsNothing);
+    });
+
     testWidgets('LG 가전만 있는 루틴 — 가전 이름·할 일', (tester) async {
       await _pump(tester, const RoutinesScreen());
       await tester.tap(find.byKey(const Key('routine-run-r-air')));

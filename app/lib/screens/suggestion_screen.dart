@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../models/auto_rule.dart';
 import '../models/command_result.dart';
+import '../models/display_status.dart' show applianceBlockedReason;
 import '../models/line_break.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
@@ -370,13 +371,8 @@ class SuggestionScreen extends ConsumerWidget {
     // 누를 수 있는 버튼을 두고 눌러 봐야 안 된다고 하면 사용자는 원인을
     // 가전 쪽에서 찾는다. 모르는 것(readinessKnown=false)은 막지 않는다 --
     // 서버가 죽었을 때 조작 수단이 통째로 사라지면 안 된다.
-    final blocked = appliance.readinessKnown && !appliance.canExecute;
-    final blockedWhy = !blocked
-        ? null
-        : appliance.readinessReasons.firstOrNull ??
-            (appliance.readiness == 'disconnected'
-                ? '아직 연결되지 않았어요'
-                : '아직 준비되지 않았어요');
+    final blockedWhy = applianceBlockedReason(appliance);
+    final blocked = blockedWhy != null;
 
     final more = _moreActions(
       canMute: suggestion.canMute,

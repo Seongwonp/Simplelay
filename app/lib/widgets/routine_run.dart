@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/rpi_api_provider.dart';
+import '../providers/server_appliance_provider.dart';
 import 'routine_confirm_sheet.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/rpi_api_service.dart';
@@ -57,6 +58,8 @@ Future<String?> confirmAndRunRoutine(
     context,
     routine: routine,
     appliances: ref.read(installedAppliancesProvider),
+    // 홈 타일 '!'와 같은 근거(본체 목록의 같은 id 판정) — 이 폰에 저장한 정의는 판정을 들고 있지 않다.
+    readinessOf: ref.read(serverApplianceCatalogProvider).readinessFor,
   );
   if (!ok || !context.mounted) return null;
   // 고른 뒤부터 '요청 중'(부르는 쪽이 단추를 잠그고 진행 표시) — 묻는 동안에는 돌지 않는다.

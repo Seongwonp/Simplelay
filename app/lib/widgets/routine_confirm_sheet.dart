@@ -12,14 +12,18 @@ import '../theme/app_tokens.dart';
 /// 루틴 '지금 하기'를 누르면 먼저 묻는 말(휴리스틱 평가 10/18 — 한 번 탭으로 실물 누름이 바로 시작되는 것처럼 보였다).
 ///
 /// 이 시트는 **묻기만** 한다. '지금 하기'를 고르면 예전과 같은 경로(승인 카드 → 승인 화면)를 탄다 — 서버 계약은 그대로다.
-typedef RoutineRunPlan = ({String title, List<String> lines, String? note, bool practice});
+typedef RoutineRunPlan = ({String title, List<String> lines, String? note, bool practice, String? blocked});
 
 /// 루틴이 무엇을 하는지 — 제목·할 일 줄·덧말. [appliances]는 이 폰의 가전(이름·연습 여부).
 ///
 /// - 누름 장치 단계: '전자레인지 버튼 2개를 눌러요'(가전마다 한 줄).
 /// - LG 가전 단계: '공기청정기 켜기'처럼 할 일 이름.
 /// - 단계의 가전이 모두 연습 가전이면 제목은 '연습으로 해 볼까요?'.
-RoutineRunPlan routineRunPlan(Routine r, List<ApplianceMap> appliances) {
+/// - 본체가 지금은 실행할 수 없다고 한 가전이 있으면 [RoutineRunPlan.blocked]에 '가전: 이유'(승인 화면과 같은 판정
+///   [applianceBlockedReason], 첫 사용 평가 10/24). [readinessOf]는 같은 id의 본체 판정(홈 타일과 같은 근거) — 없으면
+///   이 폰의 정의 그대로.
+RoutineRunPlan routineRunPlan(Routine r, List<ApplianceMap> appliances,
+    {ApplianceMap? Function(ApplianceMap a)? readinessOf}) {
   ApplianceMap? find(String? id) => appliances.where((a) => a.id == id).firstOrNull;
   String nameOf(String? id) {
     final a = find(id);
@@ -52,7 +56,17 @@ RoutineRunPlan routineRunPlan(Routine r, List<ApplianceMap> appliances) {
       : lg.isNotEmpty && presses.isEmpty
           ? 'LG 가전에 바로 보내요'
           : null;
-  return (title: title, lines: lines, note: note, practice: practice);
+  String? blocked;
+  for (final id in ids) {
+    final a = find(id);
+    if (a == null) continue;
+    final why = applianceBlockedReason(readinessOf?.call(a) ?? a);
+    if (why != null) {
+      blocked = '${applianceTileName(a)}: $why';
+      break;
+    }
+  }
+  return (title: title, lines: lines, note: note, practice: practice, blocked: blocked);
 }
 
 /// '지금 하기' 확인 시트. 고르면 true, 취소·닫기는 false.
@@ -60,8 +74,9 @@ Future<bool> showRoutineRunConfirm(
   BuildContext context, {
   required Routine routine,
   required List<ApplianceMap> appliances,
+  ApplianceMap? Function(ApplianceMap a)? readinessOf,
 }) async {
-  final plan = routineRunPlan(routine, appliances);
+  final plan = routineRunPlan(routine, appliances, readinessOf: readinessOf);
   final ok = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
@@ -77,7 +92,20 @@ class _RoutineConfirmSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buttons = [
+    final blocked = plan.blocked;
+    // 본체가 지금은 할 수 없다고 한 루틴 — '지금 하기'를 내걸지 않고 닫기 하나(눌러 봐야 거절된다).
+    final buttons = blocked != null
+        ? [
+            Expanded(
+              child: FilledButton(
+                key: const Key('routine-confirm-close'),
+                style: FilledButton.styleFrom(minimumSize: const Size(48, 56)),
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('닫기'),
+              ),
+            ),
+          ]
+        : [
       // 취소·지금 하기는 같은 크기(대등) — 어느 쪽도 실수로 누르기 쉽게 크지 않다.
       Expanded(
         child: OutlinedButton(
@@ -129,10 +157,25 @@ class _RoutineConfirmSheet extends StatelessWidget {
                     fontSize: AppFont.caption, color: plan.practice ? context.appPractice : context.appMuted)),
           ],
           const SizedBox(height: AppSpace.xs),
-          // 확인 뒤에도 승인 화면에서 누를 순서를 한 번 더 보고 허락한다(경로 그대로) — 그 사실을 숨기지 않는다.
-          Text(keepWordsTogether('다음 화면에서 한 번 더 보고 허락하면 시작해요'),
-              semanticsLabel: '다음 화면에서 한 번 더 보고 허락하면 시작해요',
-              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+          if (blocked != null)
+            Row(
+              key: const Key('routine-confirm-blocked'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.error_outline, size: 18, color: context.appDanger),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: Text(keepWordsTogether('지금은 할 수 없어요. $blocked'),
+                      semanticsLabel: '지금은 할 수 없어요. $blocked',
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
+                ),
+              ],
+            )
+          else
+            // 확인 뒤에도 승인 화면에서 누를 순서를 한 번 더 보고 허락한다(경로 그대로) — 그 사실을 숨기지 않는다.
+            Text(keepWordsTogether('다음 화면에서 한 번 더 보고 허락하면 시작해요'),
+                semanticsLabel: '다음 화면에서 한 번 더 보고 허락하면 시작해요',
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           const SizedBox(height: AppSpace.xl),
           Row(children: buttons),
         ],

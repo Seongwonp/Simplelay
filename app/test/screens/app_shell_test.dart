@@ -6,13 +6,20 @@
 //    화면은 이 신호에 기댄다.
 // 2. '상태' 탭이 없어졌으므로, **실행 중에는 어느 탭에서든 정지 줄이 뜬다.**
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/demo_provider.dart';
+import 'package:simplelay/providers/estop_provider.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/services/rpi_api_service.dart';
 import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/providers/navigation_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
@@ -157,6 +164,47 @@ void main() {
     await tester.tap(find.text('가전'));
     await tester.pump();
     expect(find.byKey(const Key('shell-stop')), findsOneWidget);
+  });
+
+  // 첫 사용 평가(10/24): 키오스크·자동 실행이 시작한 실행은 폰이 추적하지 않아 정지 줄이 뜨지 않았다 — 본체 상태
+  // (`/status.running`)가 실행 중이면 폰이 시작하지 않은 실행에도 정지 줄을 띄우고, 같은 POST /stop을 보낸다.
+  testWidgets('폰이 시작하지 않은 실행도 본체가 실행 중이라 하면 정지 줄이 뜨고 정지를 보낸다', (tester) async {
+    final stops = <String>[];
+    final api = RpiApiService(
+      'http://rpi5.local:8000',
+      client: MockClient((req) async {
+        if (req.method == 'POST' && req.url.path == '/stop') {
+          stops.add(req.url.path);
+          return http.Response(
+              jsonEncode({'stop_level': 'sent', 'stop_job_id': 'kiosk-1', 'was_running': true}), 200,
+              headers: {'content-type': 'application/json'});
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    final container = ProviderContainer(overrides: [
+      developerModeProvider.overrideWithValue(false),
+      rpiApiServiceProvider.overrideWithValue(api),
+      estopProvider.overrideWith((ref) {
+        final n = EstopNotifier(null);
+        // Test-only seed: 본체 /status가 키오스크가 시작한 실행을 알린 상태.
+        // ignore: invalid_use_of_protected_member
+        n.state = const EstopState(hubRunning: true, hubJobId: 'kiosk-1');
+        return n;
+      }),
+    ]);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(routerConfig: _shellRouter()),
+    ));
+    await tester.pump();
+    expect(container.read(executionStatusProvider).phase, ExecutionPhase.idle, reason: '폰이 시작한 실행이 아니다');
+    expect(find.byKey(const Key('shell-stop')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shell-stop')));
+    await tester.pump();
+    await tester.pump();
+    expect(stops, ['/stop']);
   });
 
   testWidgets('동작을 확인할 수 없는 상태에서도 정지 수단을 남긴다', (tester) async {

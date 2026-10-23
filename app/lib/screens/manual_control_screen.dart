@@ -16,6 +16,7 @@ import '../providers/appliance_provider.dart';
 import '../models/execution_status.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
+import '../providers/server_appliance_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -351,6 +352,11 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       );
     }
 
+    // 준비 판정은 본체 목록의 같은 id 항목에서 읽는다 — 이 폰이 저장한 가전 정의는 판정을 들고 있지 않아(canExecute
+    // 기본값) 누름 장치가 끊겨도 눌리는 판으로 보였다(첫 사용 평가 10/24). 홈 타일 '!'·가전 상세와 같은 근거다.
+    final source = ref.watch(serverApplianceCatalogProvider).readinessFor(appliance) ?? appliance;
+    final canRun = source.canExecute;
+
     final photoPath = appliance.photoPath;
     final hasPhoto = photoPath != null && File(photoPath).existsSync();
     // 보내는 중인 누름은 공용 상태에서도 본다 — 다시 들어온 화면은 앞 화면이 보낸 것을 모른다(검토 10/19 core7 3).
@@ -372,8 +378,8 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
           // 이 가전이 아직 준비 안 됐으면 **여기서 먼저 말한다.** 눌러 보고
           // 나서 실패로 알게 되면, 실제로는 서버가 막았는데 사용자는 가전이
           // 고장 난 줄 안다.
-          if (!appliance.canExecute)
-            _NotReadyNotice(appliance: appliance)
+          if (!canRun)
+            _NotReadyNotice(appliance: source)
           else
             _FeedbackLine(
               pendingLabel: _pendingLabel,
@@ -392,7 +398,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
           // 준비 안 된 가전의 버튼판은 흐리게 -- 위 안내와 같은 말을 모양으로도
           // 한다. 눌리는 판과 똑같이 보이면 안내를 못 본 사람이 눌러 본다.
           Opacity(
-            opacity: appliance.canExecute ? 1 : 0.45,
+            opacity: canRun ? 1 : 0.45,
             child: _PhotoBackedGrid(
               appliance: appliance,
               hasPhoto: hasPhoto,
@@ -407,7 +413,8 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                 // 준비 안 된 가전은 탭 자체를 막는다. 서버도 412로
                 // 거절하지만(이중 방어), 누를 수 있는데 안 되는 버튼을
                 // 두면 사용자가 원인을 가전 쪽에서 찾게 된다.
-                onTap: appliance.canExecute && !busy
+                unavailable: !canRun,
+                onTap: canRun && !busy
                     ? (button) => _press(api, button, appliance)
                     : null,
               ),
@@ -731,7 +738,11 @@ class _ButtonGrid extends StatelessWidget {
     required this.onTap,
     this.onPhoto = false,
     this.cellHeight = 72,
+    this.unavailable = false,
   });
+
+  /// 본체가 지금은 실행할 수 없다고 한 가전 — 칸 낭독에 '지금은 쓸 수 없어요'(실행 중 잠금과 구분한다).
+  final bool unavailable;
 
   final ApplianceMap appliance;
 
@@ -785,6 +796,7 @@ class _ButtonGrid extends StatelessWidget {
                                 : _CellState.idle,
                         onPhoto: onPhoto,
                         minHeight: fill ? 72 : cellHeight,
+                        unavailable: unavailable,
                         onTap: onTap == null ? null : () => onTap!(btn),
                       ),
               ),
@@ -819,7 +831,10 @@ class _ButtonCell extends StatelessWidget {
     required this.onTap,
     this.onPhoto = false,
     this.minHeight = 72,
+    this.unavailable = false,
   });
+
+  final bool unavailable;
 
   final ApplianceButton button;
   final double minHeight;
@@ -866,6 +881,7 @@ class _ButtonCell extends StatelessWidget {
       // 셀 상태(대기·실행 중·성공·실패)가 색으로만 구분돼 스크린리더에는
       // 라벨만 전달됐다 — 무엇이 눌리는 중인지 알 수 없었다.
       label: switch (state) {
+        _CellState.idle when unavailable => '${button.label} 버튼, 지금은 쓸 수 없어요',
         _CellState.idle => '${button.label} 버튼 누르기',
         _CellState.pending => '${button.label} 누르는 중',
         _CellState.success => '${button.label} 끝났어요',

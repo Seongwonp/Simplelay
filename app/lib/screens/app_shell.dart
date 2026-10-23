@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/execution_status.dart';
+import '../providers/estop_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/navigation_provider.dart';
+import '../providers/rpi_api_provider.dart';
+import '../providers/voice_stop_provider.dart' show voiceStopNotice, voiceStopNoticeProvider;
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import '../widgets/estop_banner.dart';
@@ -97,12 +102,19 @@ class RunningStopStrip extends ConsumerWidget {
         status.phase == ExecutionPhase.retrying ||
         status.phase == ExecutionPhase.waiting;
     final unknown = status.phase == ExecutionPhase.unknown;
-    if (!active && !unknown) return const SizedBox.shrink();
+    // 폰이 시작하지 않은 실행(키오스크·자동 실행·루틴) — 본체 /status가 실행 중이라 하면 같은 정지 줄을 띄운다(첫 사용
+    // 평가 10/24: 폰은 자기가 시작한 실행에만 정지 줄을 띄워, 다른 곳에서 시작한 실행을 멈출 길이 보이지 않았다).
+    // 방금 끝난 폰의 실행을 지난 조회가 아직 실행 중이라 하는 것은 거른다(HTTP 실행은 sequenceId가 job_id와 같다).
+    final hub = ref.watch(estopProvider.select((s) => (running: s.hubRunning, jobId: s.hubJobId)));
+    final external = !active && !unknown && hub.running && (hub.jobId == null || hub.jobId != status.sequenceId);
+    if (!active && !unknown && !external) return const SizedBox.shrink();
 
     final label = status.label;
     final line = unknown
         ? '지금 상태를 확인하지 못했어요'
-        : (label == null || label.isEmpty ? '하고 있어요' : '$label 하고 있어요');
+        : external
+            ? '다른 곳에서 시작한 일을 하고 있어요'
+            : (label == null || label.isEmpty ? '하고 있어요' : '$label 하고 있어요');
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerHigh,
       child: SafeArea(
@@ -114,10 +126,11 @@ class RunningStopStrip extends ConsumerWidget {
             children: [
               Expanded(
                 child: Semantics(
-                  button: true,
-                  label: '실행 상태 보기',
+                  // 폰이 추적하지 않는 실행은 상태 화면이 그 실행을 모른다 — 줄만 보이고 정지만 둔다.
+                  button: !external,
+                  label: external ? null : '실행 상태 보기',
                   child: InkWell(
-                    onTap: () => context.push('/status'),
+                    onTap: external ? null : () => context.push('/status'),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
                       child: Row(
@@ -146,8 +159,9 @@ class RunningStopStrip extends ConsumerWidget {
               const SizedBox(width: AppSpace.sm),
               FilledButton.icon(
                 key: const Key('shell-stop'),
-                onPressed: () =>
-                    ref.read(executionStatusProvider.notifier).emergencyStop(),
+                onPressed: () => external
+                    ? stopUntrackedRun(ref)
+                    : ref.read(executionStatusProvider.notifier).emergencyStop(),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.stop,
                   foregroundColor: Colors.white,
@@ -162,6 +176,28 @@ class RunningStopStrip extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 폰이 추적하지 않는 실행을 멈춘다 — 음성 '멈춰'의 같은 경로(POST /stop, 대기면 본체가 정지 버튼 누름으로 넘긴다).
+/// 결과 한 줄은 서버가 알린 정지 단계까지만([voiceStopNotice]) 정지 줄 위 알림 자리([voiceStopNoticeProvider])에 둔다.
+/// 보내지 못했거나 답이 없으면 그렇게 말하고, 정지는 다시 눌러도 안전하다.
+Future<void> stopUntrackedRun(WidgetRef ref) async {
+  final api = ref.read(rpiApiServiceProvider);
+  final notice = ref.read(voiceStopNoticeProvider.notifier);
+  if (api == null) {
+    notice.state = '멈추라고 보내지 못했어요. 본체 연결을 보고 정지를 다시 눌러 주세요.';
+    return;
+  }
+  try {
+    final outcome = await api.stop();
+    notice.state = voiceStopNotice(outcome);
+  } on TimeoutException {
+    notice.state = '멈추라고 보냈는데 답이 없어요. 멈추지 않으면 정지를 다시 눌러 주세요.';
+  } catch (_) {
+    notice.state = '멈추라고 보내지 못했어요. 정지를 다시 눌러 주세요.';
+  }
+  // 본체 상태를 다시 읽어 정지 줄을 거둘지 정한다(주기 조회를 기다리지 않는다).
+  unawaited(ref.read(estopProvider.notifier).refresh());
 }
 
 class _BottomBar extends StatelessWidget {

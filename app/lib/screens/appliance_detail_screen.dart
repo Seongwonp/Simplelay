@@ -7,7 +7,7 @@ import '../models/appliance.dart';
 import '../models/command_result.dart';
 import '../models/execution_status.dart';
 import '../models/display_status.dart'
-    show applianceDisplayLine, isPracticeAppliance, objectParticle, pressDeviceHosts, pressUnavailableNotice;
+    show applianceDisplayLine, isPracticeAppliance, objectParticle, pressDeviceHosts, pressUnavailableNotice, purposeActionName;
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/appliance_sync_provider.dart';
@@ -121,6 +121,8 @@ class ApplianceDetailScreen extends ConsumerWidget {
             AppliancePanel(
               appliance: a,
               imageOverride: applianceImageOverride,
+              // 위 이유 줄([_ReadinessLine])과 같은 조건 — 본체가 지금은 실행할 수 없다고 하면 판도 흐리게(평가 10/24).
+              unavailable: source.readinessKnown && !source.canExecute,
               onButton: (b) => _confirmPress(context, ref, a, b, source: source, notice: pressNotice),
             ),
           ],
@@ -463,7 +465,8 @@ class _TodayUse extends ConsumerWidget {
   /// 결과 문장('강풍으로 바꿨어요' 같은 것)을, 그것도 없으면 'ThinQ 직접 조작'.
   String _what(RpiHistoryEntry e) {
     final purpose = e.purpose;
-    if (purpose != null && purpose.isNotEmpty) return purpose;
+    // 제안의 질문('…할까요?')을 그대로 적지 않는다 — 한 일의 이름(홈 알림 줄과 같은 [purposeActionName], 평가 10/24).
+    if (purpose != null && purpose.trim().isNotEmpty) return purposeActionName(purpose);
     if (thinq || e.route == 'thinq') {
       final detail = e.detail.trim();
       if (detail.isEmpty) return '직접 바꿈';

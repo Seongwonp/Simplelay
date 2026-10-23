@@ -195,6 +195,14 @@ String? pressUnavailableNotice(ApplianceMap a, ApplianceMap? source, {List<Appli
           '설치하는 분께 이 가전의 누름 장치 연결을 부탁해 주세요.';
 }
 
+/// 본체가 이 가전을 지금은 실행할 수 없다고 했을 때의 이유 한 줄. 막히지 않았거나 판정을 모르면 null —
+/// 모르는 것은 막지 않는다(서버가 죽었을 때 조작 수단이 통째로 사라지면 안 된다). 승인 화면의 '지금 하기'와
+/// 루틴 '지금 하기' 확인 시트가 같이 쓴다(첫 사용 평가 10/24 — 시트가 묻기만 하고 막힌 것을 말하지 않았다).
+String? applianceBlockedReason(ApplianceMap a) {
+  if (!(a.readinessKnown && !a.canExecute)) return null;
+  return a.readinessReasons.firstOrNull ?? (a.readiness == 'disconnected' ? '아직 연결되지 않았어요' : '아직 준비되지 않았어요');
+}
+
 /// 연습 가전인가 — 데모 표본이거나, 서버가 이름에 '(연습)'을 붙인 연습 기기(실제 모드 안의 'LG 세탁기(연습)',
 /// 2026-10-18). 키오스크 `isPractice`와 같은 판정.
 bool isPracticeAppliance(ApplianceMap a) => a.isDemo || a.name.contains('(연습)');

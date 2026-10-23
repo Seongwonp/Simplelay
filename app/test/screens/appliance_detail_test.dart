@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/display_status.dart' show purposeActionName;
 import 'package:simplelay/models/hub.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/providers/server_appliance_provider.dart';
@@ -52,6 +53,7 @@ class _Server {
   final requests = <String>[];
   Map<String, dynamic>? executeBody;
   int historyStatus = 200;
+  List<Object> history = const [];
   Completer<http.Response>? pendingHistory;
 
   http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
@@ -71,7 +73,7 @@ class _Server {
           if (req.url.path == '/routines') return _json(<dynamic>[]);
           if (req.url.path == '/history') {
             if (pendingHistory != null) return pendingHistory!.future;
-            return _json(historyStatus == 200 ? <dynamic>[] : {'detail': 'unavailable'}, historyStatus);
+            return _json(historyStatus == 200 ? history : {'detail': 'unavailable'}, historyStatus);
           }
           return _json({'detail': 'not found'}, 404);
         }),
@@ -173,6 +175,37 @@ void main() {
     });
   });
 
+  // 첫 사용 평가(10/24): 오늘 사용 줄이 제안의 질문을 그대로 적었다 — '공기청정기 바람을 세게 할까요?, 완료'.
+  // 기록은 한 일의 이름으로 적는다(홈 알림 줄·기록 탭과 같은 [purposeActionName]).
+  testWidgets('오늘 사용 줄은 제안의 질문이 아니라 한 일의 이름으로 적는다', (tester) async {
+    const at = '2026-09-09T08:30:00'; // 테스트 시계(2026-09-09 09:00)의 오늘
+    final server = _Server()
+      ..history = [
+        {
+          'job_id': 'j-air',
+          'finished_at': at,
+          'status': 'succeeded',
+          'outcome': 'success',
+          'retry_count': 0,
+          'buttons': const [],
+          'execution_mode': 'real',
+          'route': 'thinq',
+          'receipt': 'accepted',
+          'confirmation': 'state_confirmed',
+          'termination': 'unknown',
+          'purpose': '공기청정기 바람을 세게 할까요?',
+          'detail': '',
+          'abort_reason': null,
+          'appliance_id': 'custom_1',
+        },
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    expect(find.textContaining('할까요?'), findsNothing);
+    expect(find.textContaining('${purposeActionName('공기청정기 바람을 세게 할까요?')}, 완료'), findsOneWidget);
+  });
+
   testWidgets('사진 위에 버튼·정지(빨강)·쉬는 자리를 그리고, 누르기는 확인 뒤에만 보낸다',
       (tester) async {
     final server = _Server();
@@ -251,6 +284,33 @@ void main() {
     await _settle(tester);
     expect(find.text("'시작' 버튼을 누를까요?"), findsNothing);
     expect(find.text(notice), findsNWidgets(2), reason: '누르면 같은 말을 한 번 더(알림 줄)');
+    expect(server.executeBody, isNull);
+  });
+
+  // 첫 사용 평가(10/24): 누름 장치(RPi4)가 끊겨 본체가 실행을 거절하는데 버튼판은 눌리는 판과 똑같이 보였다 —
+  // 눌러 본 뒤에야 알림 줄로 알았다. 화면 자체에 이유 한 줄을 두고, 판은 흐리게·낭독은 '지금은 쓸 수 없어요'.
+  testWidgets('누름 장치 연결이 끊기면 버튼판을 흐리게 하고 이유를 화면에 적는다', (tester) async {
+    const reason = '누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.';
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server,
+        catalog: ServerApplianceCatalog(
+          status: ServerCatalogStatus.loaded,
+          customAppliances: [
+            _hubItem('custom_1', '전자레인지', custom: true, readiness: 'disconnected', reasons: const [reason]),
+          ],
+        )));
+    await _settle(tester);
+
+    expect(find.text(reason), findsOneWidget, reason: '누르기 전에 화면에서 이유를 본다');
+    final dim = tester.widget<Opacity>(
+        find.ancestor(of: find.byKey(const Key('mark-B02')), matching: find.byType(Opacity)).first);
+    expect(dim.opacity, lessThan(1), reason: '눌리는 판처럼 보이지 않게');
+    expect(find.bySemanticsLabel(RegExp(r'^시작.*지금은 쓸 수 없어요')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('mark-B02')), warnIfMissed: false);
+    await _settle(tester);
+    expect(find.text("'시작' 버튼을 누를까요?"), findsNothing);
     expect(server.executeBody, isNull);
   });
 

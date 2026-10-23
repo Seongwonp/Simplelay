@@ -18,7 +18,16 @@ class AppliancePanel extends StatelessWidget {
     required this.onButton,
     this.pinned = const [],
     this.imageOverride,
+    this.unavailable = false,
   });
+
+  /// 본체가 지금은 실행할 수 없다고 한 가전(누름 장치 끊김 등) — 판을 흐리게 그리고 낭독에 '지금은 쓸 수 없어요'를
+  /// 붙인다(첫 사용 평가 10/24: 눌리는 판과 똑같이 보여 눌러 본 뒤에야 알았다). 이유 한 줄은 부르는 화면이 판 위에 적는다.
+  /// 누르면 [onButton]은 그대로 불린다 — 부르는 화면이 실행하지 않고 이유를 다시 말한다.
+  final bool unavailable;
+
+  /// 쓸 수 없을 때 버튼 낭독 뒤에 붙는 말 — 홈 타일 '!'의 '지금은 쓸 수 없어요'와 같은 말.
+  static const unavailableSuffix = '지금은 쓸 수 없어요';
 
   final ApplianceMap appliance;
   final void Function(ApplianceButton button) onButton;
@@ -33,9 +42,16 @@ class AppliancePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final panel = _panel(context);
+    if (!unavailable) return panel;
+    return Opacity(opacity: 0.45, child: panel);
+  }
+
+  Widget _panel(BuildContext context) {
     final mapping = appliance.panelMapping;
     if (mapping == null) return _grid(context);
     return PanelPhotoView(
+      markSemanticSuffix: unavailable ? unavailableSuffix : null,
       photoWidth: mapping.photoWidth,
       photoHeight: mapping.photoHeight,
       photoPath: appliance.photoPath,
@@ -77,6 +93,7 @@ class AppliancePanel extends StatelessWidget {
                             button: b,
                             isStop: b.id == appliance.stopButton,
                             order: orders[b.id],
+                            unavailable: unavailable,
                             onTap: () => onButton(b),
                           ),
                   ),
@@ -96,15 +113,28 @@ class _GridButton extends StatelessWidget {
     required this.isStop,
     required this.order,
     required this.onTap,
+    this.unavailable = false,
   });
 
   final ApplianceButton button;
   final bool isStop;
   final List<int>? order;
   final VoidCallback onTap;
+  final bool unavailable;
 
   @override
   Widget build(BuildContext context) {
+    final body = _button(context);
+    if (!unavailable) return body;
+    return Semantics(
+      label: '${button.label}, ${AppliancePanel.unavailableSuffix}',
+      button: true,
+      excludeSemantics: true,
+      child: body,
+    );
+  }
+
+  Widget _button(BuildContext context) {
     final o = order;
     return OutlinedButton(
       key: Key('mark-${button.id}'),
