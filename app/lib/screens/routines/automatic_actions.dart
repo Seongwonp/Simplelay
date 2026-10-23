@@ -8,7 +8,7 @@ extension _AutomaticActions on _RoutinesScreenState {
     final next = ref.watch(nextRoutineProvider).valueOrNull;
     final installed = ref.watch(installedAppliancesProvider);
     final names = {for (final a in installed) a.id: a.name};
-    final icons = {for (final a in installed) a.id: a.icon};
+    final icons = {for (final a in installed) a.id: a.category};
     final allRules = rules.valueOrNull ?? const <AutoRule>[];
     return Scaffold(
       appBar: AppBar(title: Text('자동 실행', style: AppText.heading),

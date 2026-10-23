@@ -20,6 +20,7 @@ import '../services/voice_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../models/appliance.dart';
+import '../widgets/appliance_artwork.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/no_appliance_notice.dart';
 import '../theme/app_tokens.dart';
@@ -658,7 +659,7 @@ class _TargetLine extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(appliance.icon, size: 18, color: context.appMuted),
+          ApplianceArtwork(category: appliance.category, size: 24),
           const SizedBox(width: AppSpace.sm),
           Flexible(
             child: Text(

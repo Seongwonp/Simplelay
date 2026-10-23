@@ -9,6 +9,7 @@ import '../models/display_status.dart';
 import '../models/line_break.dart';
 import 'home_screen.dart' show careNeedsLook;
 import '../models/appliance.dart';
+import '../widgets/appliance_artwork.dart';
 import '../providers/appliance_provider.dart';
 import '../models/execution_status.dart';
 import '../models/quiet_hours.dart';

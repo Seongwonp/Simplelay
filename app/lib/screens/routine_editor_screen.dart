@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../widgets/appliance_artwork.dart';
 import '../models/clock_text.dart';
 import '../models/line_break.dart';
 import '../models/routine.dart';
@@ -486,7 +487,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           children: [
             for (final a in options)
               ListTile(
-                leading: Icon(a.icon),
+                leading: ApplianceArtwork(category: a.category, size: 32),
                 title: Text(a.displayName),
                 onTap: () => Navigator.pop(sheet, a),
               ),

@@ -14,7 +14,7 @@ class _FeaturedAction extends StatelessWidget {
   final bool running;
   final bool busy;
   final VoidCallback onTap;
-  final Map<String, IconData> iconOf;
+  final Map<String, ApplianceCategory> iconOf;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -47,7 +47,7 @@ class _FeaturedActionIdentity extends ConsumerWidget {
       {required this.routine, required this.subtitle, required this.iconOf});
   final Routine routine;
   final String subtitle;
-  final Map<String, IconData> iconOf;
+  final Map<String, ApplianceCategory> iconOf;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appliances = ref.watch(installedAppliancesProvider);

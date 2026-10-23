@@ -14,7 +14,7 @@ class _NewRoutineSheet extends ConsumerWidget {
     final templates = ref.watch(routineTemplatesProvider);
     final installed = ref.watch(installedAppliancesProvider);
     final names = {for (final a in installed) a.id: a.name};
-    final icons = {for (final a in installed) a.id: a.icon};
+    final icons = {for (final a in installed) a.id: a.category};
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
       child: ListView(

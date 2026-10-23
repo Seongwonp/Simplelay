@@ -552,9 +552,11 @@ void main() {
     await _settle(tester);
     FilledButton next() => tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
 
-    // 종류 칩 '세탁기'를 고르면 이름도 '세탁기'가 된다 — 이미 있는 이름.
-    await tester.tap(find.widgetWithText(ChoiceChip, '세탁기'));
+    // 종류 '세탁기'를 고르면 이름도 '세탁기'가 된다 — 이미 있는 이름.
+    // 가전 그림 통일(10/24): 종류는 ChoiceChip 대신 그림 카드('kind-<value>')로 고른다.
+    await tester.tap(find.byKey(Key('kind-${ApplianceCategory.washingMachine.value}')));
     await tester.pump();
+    expect(find.byKey(Key('kind-selected-${ApplianceCategory.washingMachine.value}')), findsOneWidget);
     expect(find.text(nameTakenMessage('세탁기')), findsOneWidget);
     expect(next().onPressed, isNull);
 
@@ -755,12 +757,16 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
-    await tester.tap(find.widgetWithText(ChoiceChip, '기타'));
+    // 가전 그림 통일(10/24): 종류는 ChoiceChip 대신 그림 카드('kind-<value>')로 고른다.
+    await tester.tap(find.byKey(Key('kind-${ApplianceCategory.other.value}')));
     await tester.pump();
+    expect(find.byKey(Key('kind-selected-${ApplianceCategory.other.value}')), findsOneWidget);
     String name() => tester.widget<TextField>(find.byKey(const Key('wizard-name'))).controller!.text;
     expect(name(), isEmpty);
-    await tester.tap(find.widgetWithText(ChoiceChip, '밥솥'));
+    await tester.tap(find.byKey(Key('kind-${ApplianceCategory.riceCooker.value}')));
     await tester.pump();
+    expect(find.byKey(Key('kind-selected-${ApplianceCategory.riceCooker.value}')), findsOneWidget);
+    expect(find.byKey(Key('kind-selected-${ApplianceCategory.other.value}')), findsNothing);
     expect(name(), '밥솥');
 
     await tester.tap(find.byKey(const Key('wizard-take-photo')));

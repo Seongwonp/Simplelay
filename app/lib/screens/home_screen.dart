@@ -209,7 +209,7 @@ class HomeScreen extends ConsumerWidget {
               hubConnected: rpiState == RpiConnectionState.connected,
               hasAppliances: appliances.isNotEmpty,
               applianceNames: {for (final a in appliances) a.id: a.name},
-              applianceIcons: {for (final a in appliances) a.id: a.icon},
+              applianceIcons: {for (final a in appliances) a.id: a.category},
               needsSetupIds: {
                 for (final a in appliances)
                   if (needsPanelMapping(a)) a.id,

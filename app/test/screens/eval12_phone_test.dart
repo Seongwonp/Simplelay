@@ -27,6 +27,7 @@ import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
 import 'package:simplelay/theme/app_icons.dart';
+import 'package:simplelay/widgets/appliance_artwork.dart';
 import 'package:simplelay/widgets/status_badge.dart';
 
 import '../helpers/test_helpers.dart';
@@ -197,8 +198,11 @@ void main() {
       // 출시 검토(10/18): 'LG 가전' 글자 꼬리표 대신 아이콘 옆 작은 구름 표식 하나.
       expect(_in(row, findPlainText('오전 10:51')), findsOneWidget);
       expect(find.byKey(const Key('history-lg-mark-j-lg')), findsOneWidget);
-      final icon = tester.widget<Icon>(find.byKey(const Key('history-icon-j-lg')));
-      expect(icon.icon, ApplianceCategory.airPurifier.icon);
+      // 가전 그림 통일(10/24): LG 가전 기록 아이콘은 홈과 같은 ApplianceArtwork 그림.
+      final art = find.descendant(
+          of: find.byKey(const Key('history-icon-j-lg')), matching: find.byType(ApplianceArtwork));
+      expect(art, findsOneWidget);
+      expect(tester.widget<ApplianceArtwork>(art).category, ApplianceCategory.airPurifier);
       expect(_in(row, find.byIcon(AppIcons.manual)), findsNothing);
       // 자동 실행 기록은 출처 그대로.
       expect(tester.widget<Icon>(find.byKey(const Key('history-icon-j-auto'))).icon, AppIcons.auto);

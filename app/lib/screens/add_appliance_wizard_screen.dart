@@ -15,6 +15,7 @@ import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/appliance_kind_picker.dart';
 import '../widgets/panel_photo_view.dart';
 import '../widgets/input_guard.dart';
 import '../widgets/appliance_setup_card.dart';
@@ -874,24 +875,15 @@ class _AddApplianceWizardScreenState
             decoration: const InputDecoration(labelText: '방 (안 적어도 돼요, 예: 주방)'),
           ),
           const SizedBox(height: AppSpace.xs),
-          Wrap(
-            spacing: AppSpace.sm,
-            runSpacing: AppSpace.sm,
-            children: [
-              for (final c in ApplianceCategory.values)
-                ChoiceChip(
-                  avatar: Icon(c.icon, size: 18),
-                  label: Text(c.label),
-                  selected: _category == c,
-                  onSelected: (_) => setState(() {
-                    // '기타'는 이름이 아니다 — 비워 두고 적게 한다(실화면 10/19: 이름이 '기타'인 가전이 생겼다).
-                    if (_name.text.isEmpty || _name.text == _category.label) {
-                      _name.text = c == ApplianceCategory.other ? '' : c.label;
-                    }
-                    _category = c;
-                  }),
-                ),
-            ],
+          ApplianceKindPicker(
+            selected: _category,
+            onSelected: (c) => setState(() {
+              // '기타'는 이름이 아니다 — 비워 두고 적게 한다(실화면 10/19: 이름이 '기타'인 가전이 생겼다).
+              if (_name.text.isEmpty || _name.text == _category.label) {
+                _name.text = c == ApplianceCategory.other ? '' : c.label;
+              }
+              _category = c;
+            }),
           ),
           const SizedBox(height: AppSpace.sm),
           Align(

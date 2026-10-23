@@ -11,7 +11,7 @@ class _HomeRoutines extends ConsumerStatefulWidget {
   });
 
   /// 가전 id → 아이콘. 루틴 타일 아이콘을 대상 가전 아이콘으로(평가 3차 10/18).
-  final Map<String, IconData> applianceIcons;
+  final Map<String, ApplianceCategory> applianceIcons;
   final bool featureFirst;
 
   /// 위치(버튼 자리)를 아직 맞추지 않은 가전 — 이 가전을 쓰는 루틴 타일은 설정으로 보낸다.
@@ -198,7 +198,7 @@ class _RoutineTile extends StatelessWidget {
 
   final Routine routine;
   final String subtitle;
-  final Map<String, IconData> iconOf;
+  final Map<String, ApplianceCategory> iconOf;
   final bool running;
   final bool busy;
   final bool needsSetup;
@@ -278,7 +278,7 @@ class _RoutineTile extends StatelessWidget {
 class _RoutineDot extends StatelessWidget {
   const _RoutineDot({required this.routine, required this.iconOf, required this.muted});
   final Routine routine;
-  final Map<String, IconData> iconOf;
+  final Map<String, ApplianceCategory> iconOf;
   final bool muted;
 
   @override

@@ -46,7 +46,7 @@ class _RoutineRow extends StatelessWidget {
   final RoutineNextRun? next;
 
   /// 가전 id → 아이콘. 줄 아이콘을 대상 가전 아이콘으로(평가 3차 10/18).
-  final Map<String, IconData> applianceIcons;
+  final Map<String, ApplianceCategory> applianceIcons;
 
   /// 설정이 필요한 가전의 상세로 — 있으면 '실행' 대신 '설정하기' 단추(홈과 같다).
   final VoidCallback? onSetup;

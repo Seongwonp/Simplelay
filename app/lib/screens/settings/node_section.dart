@@ -61,9 +61,10 @@ class _NodeSection extends ConsumerWidget {
             return _SettingCard(
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(appliance.icon,
-                    color: url != null ? context.appSuccess : context.appMuted,
-                    size: 20),
+                leading: ApplianceArtwork(
+                    category: appliance.category,
+                    size: 32,
+                    color: url != null ? context.appSuccess : context.appMuted),
                 title: Text(appliance.displayName),
                 // 주소는 편집 시트에서만. 목록에서는 이어졌는지만 말한다.
                 subtitle: Text(
@@ -236,8 +237,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Row(
                   children: [
-                    Icon(widget.appliance.icon,
-                        color: context.appMuted, size: 20),
+                    ApplianceArtwork(category: widget.appliance.category, size: 28),
                     const SizedBox(width: AppSpace.md),
                     Text(
                       '${widget.appliance.name} 누름 장치 연결',

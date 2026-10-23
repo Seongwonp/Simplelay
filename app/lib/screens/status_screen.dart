@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/line_break.dart';
 import '../models/appliance.dart';
+import '../widgets/appliance_artwork.dart';
 import '../models/command_result.dart';
 import '../models/display_status.dart' show actionName;
 import '../models/execution_status.dart';
@@ -977,7 +978,7 @@ class _TargetLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: [
-          Icon(appliance.icon, size: 18, color: context.appMuted),
+          ApplianceArtwork(category: appliance.category, size: 24),
           const SizedBox(width: AppSpace.sm),
           Flexible(
             child: Text(

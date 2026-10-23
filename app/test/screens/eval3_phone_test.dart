@@ -237,7 +237,6 @@ void main() {
       _tall(tester);
       await tester.pumpWidget(_app(_hub(), const HomeScreen(), installed: _installed));
       await _settle(tester);
-      final mwIcon = ApplianceMap.fromJson(_mw).icon;
       final single = find.byKey(const Key('home-routine-hero'));
       expect(tester.widget<ApplianceArtwork>(find.descendant(of: single, matching: find.byType(ApplianceArtwork))).category,
           ApplianceCategory.microwave);
@@ -248,8 +247,18 @@ void main() {
       await tester.pumpWidget(_app(multiHub, const HomeScreen(), installed: _installed));
       await _settle(tester);
       final multi = find.byKey(const Key('home-routine-hero'));
-      expect(_iconIn(multi, mwIcon), findsOneWidget);
-      expect(find.descendant(of: multi, matching: find.byKey(const Key('routine-icon-more'))), findsOneWidget);
+      // 가전 그림 통일(10/24): 첫 가전(전자레인지) 그림이 크게 하나, 둘째 가전(공기청정기) 그림이 겹침 칸에 작게.
+      final more = find.descendant(of: multi, matching: find.byKey(const Key('routine-icon-more')));
+      expect(more, findsOneWidget);
+      final mainArt = find.descendant(
+          of: multi, matching: find.byKey(Key('appliance-artwork-${ApplianceCategory.microwave.value}')));
+      expect(mainArt, findsOneWidget);
+      final moreArt = find.descendant(of: more, matching: find.byType(ApplianceArtwork));
+      expect(moreArt, findsOneWidget);
+      expect(tester.widget<ApplianceArtwork>(moreArt).category, ApplianceCategory.airPurifier);
+      expect(tester.getSize(moreArt).width, lessThan(tester.getSize(mainArt).width));
+      // 겹침: 작은 그림이 큰 그림 영역에 걸친다.
+      expect(tester.getRect(mainArt).overlaps(tester.getRect(moreArt)), isTrue);
       expect(find.descendant(of: multi, matching: findPlainText('전자레인지 · 누를 버튼 2개 · 공기청정기 켜기')),
           findsOneWidget);
     });
@@ -280,7 +289,10 @@ void main() {
       await tester.pumpWidget(_app(_hub(), const RoutinesScreen(), installed: _installed));
       await _settle(tester);
       final row = find.byKey(const Key('routine-row-r-b'));
-      expect(_iconIn(row, ApplianceMap.fromJson(_mw).icon), findsOneWidget);
+      // 가전 그림 통일(10/24): 루틴 줄 왼쪽은 대상 가전의 ApplianceArtwork 그림.
+      final art = find.descendant(of: row, matching: find.byType(ApplianceArtwork));
+      expect(art, findsOneWidget);
+      expect(tester.widget<ApplianceArtwork>(art).category, ApplianceMap.fromJson(_mw).category);
       expect(_iconIn(row, AppIcons.routine), findsNothing);
     });
   });

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../models/appliance.dart';
 import '../models/routine.dart';
 import '../theme/app_icons.dart';
+import 'appliance_artwork.dart';
 
 /// 루틴 아이콘 = 대상 가전 아이콘(평가 3차 10/18 — 모든 루틴이 같은 목록 아이콘이라 줄을 가를 수 없었다).
 ///
@@ -18,8 +20,8 @@ class RoutineIcon extends StatelessWidget {
 
   final Routine routine;
 
-  /// 가전 id → 아이콘. 모르는 가전은 빠진다.
-  final Map<String, IconData> iconOf;
+  /// 가전 id → 가전 종류(그림은 홈과 같은 [ApplianceArtwork]). 모르는 가전은 빠진다.
+  final Map<String, ApplianceCategory> iconOf;
   final Color color;
   final double size;
 
@@ -36,7 +38,7 @@ class RoutineIcon extends StatelessWidget {
     if (icons.isEmpty) {
       return ExcludeSemantics(child: Icon(AppIcons.routine, size: size, color: color));
     }
-    final main = Icon(icons.first, size: size, color: color);
+    final main = ApplianceArtwork(category: icons.first, size: size, color: color);
     if (icons.length == 1) return ExcludeSemantics(child: main);
     final small = size * 0.6;
     final surface = Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface;
@@ -59,7 +61,7 @@ class RoutineIcon extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: surface, width: 1.5),
                 ),
-                child: Icon(icons[1], size: small, color: color),
+                child: ApplianceArtwork(category: icons[1], size: small, color: color),
               ),
             ),
           ],

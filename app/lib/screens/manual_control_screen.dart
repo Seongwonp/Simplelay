@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../widgets/appliance_artwork.dart';
 import '../models/display_status.dart' show isPracticeAppliance;
 import '../models/command_result.dart'
     show ResultKind, manualPressSentence, manualPressUnknownSentence, resultKindOf;
@@ -437,7 +438,7 @@ class _TargetHeader extends StatelessWidget {
               key: const Key('manual-target-icon'),
               width: 64,
               height: 64,
-              child: Center(child: Icon(appliance.icon, size: 40, color: context.appInk)),
+              child: Center(child: ApplianceArtwork(category: appliance.category, size: 48)),
             ),
           const SizedBox(width: AppSpace.lg),
           Expanded(

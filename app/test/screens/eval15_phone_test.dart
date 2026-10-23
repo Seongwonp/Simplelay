@@ -28,6 +28,7 @@ import 'package:simplelay/services/rpi_api_service.dart';
 import 'package:simplelay/theme/app_colors.dart';
 import 'package:simplelay/theme/app_icons.dart';
 import 'package:simplelay/theme/app_tokens.dart';
+import 'package:simplelay/widgets/appliance_artwork.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -325,7 +326,10 @@ void main() {
         '잠시 쉬기': tester.getTopLeft(find.byIcon(AppIcons.pause)).dx,
         '어두운 화면': tester.getTopLeft(find.byIcon(Icons.contrast)).dx,
         '음성 안내': tester.getTopLeft(find.byIcon(Icons.record_voice_over)).dx,
-        '전자레인지': tester.getTopLeft(find.byIcon(ApplianceMap.fromJson(_mw).icon).first).dx,
+        // 가전 그림 통일(10/24): 가전 줄 왼쪽은 아이콘 대신 홈과 같은 ApplianceArtwork 그림.
+        '전자레인지': tester
+            .getTopLeft(find.byKey(Key('appliance-artwork-${ApplianceMap.fromJson(_mw).category.value}')).first)
+            .dx,
       };
       for (final e in lefts.entries) {
         expect(e.value, closeTo(lefts['본체']!, 0.5), reason: '${e.key} $lefts');
@@ -487,9 +491,14 @@ void main() {
       expect(box.width, lessThanOrEqualTo((AppSpace.xxxl + AppSpace.sm) * 1.6 + 0.01));
 
       await _pump(tester, const HistoryScreen(), scale: 2.0);
-      final icon = tester.widget<Icon>(find.byKey(const Key('history-icon-on-c')));
-      expect(icon.size, greaterThan(22));
-      expect(icon.size, lessThanOrEqualTo(22 * 1.6 + 0.01));
+      // 가전 그림 통일(10/24): LG 가전 기록 아이콘은 ApplianceArtwork(기본 24) — 배율을 따르되 상한 1.6배.
+      final art = find.descendant(
+          of: find.byKey(const Key('history-icon-on-c')), matching: find.byType(ApplianceArtwork));
+      expect(art, findsOneWidget);
+      final artSize = tester.widget<ApplianceArtwork>(art).size;
+      expect(artSize, greaterThan(24));
+      expect(artSize, lessThanOrEqualTo(24 * 1.6 + 0.01));
+      expect(tester.getSize(art).width, closeTo(artSize, 0.01));
     });
   });
 

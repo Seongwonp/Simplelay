@@ -22,8 +22,11 @@ void main() {
     await tester.pumpWidget(buildWithProviderState(child: MaterialApp.router(routerConfig: router)));
     router.push('/add');
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, '세탁기'));
+    // 가전 그림 통일(10/24): 종류는 ChoiceChip 대신 그림 카드('kind-<value>')로 고른다.
+    final washer = ApplianceCategory.washingMachine.value;
+    await tester.tap(find.byKey(Key('kind-$washer')));
     await tester.pump();
+    expect(find.byKey(Key('kind-selected-$washer')), findsOneWidget);
     expect(tester.widget<TextField>(find.byKey(const Key('wizard-name'))).controller!.text, '세탁기');
     await tester.enterText(find.byKey(const Key('wizard-name')), '내 세탁기');
     await tester.tap(find.byTooltip('닫기'));

@@ -16,6 +16,7 @@ import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../theme/app_text.dart';
+import '../widgets/appliance_kind_picker.dart';
 import '../widgets/input_guard.dart';
 
 const _minGridSize = 1;
@@ -391,58 +392,9 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
           const SizedBox(height: AppSpace.md),
-          Wrap(
-            spacing: AppSpace.sm,
-            runSpacing: AppSpace.sm,
-            children: [
-              for (final c in ApplianceCategory.values)
-                Semantics(
-                  button: true,
-                  selected: c == _category,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => setState(() => _category = c),
-                    child: Container(
-                      // 고령 사용자 기준 최소 터치 대상.
-                      constraints: const BoxConstraints(minHeight: 48),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpace.lg, vertical: AppSpace.md),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: c == _category
-                              ? context.appPrimary
-                              : context.appBorderSubtle,
-                          width: c == _category ? 2 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(c.icon,
-                              size: 18,
-                              color: c == _category
-                                  ? context.appPrimary
-                                  : context.appMuted),
-                          const SizedBox(width: AppSpace.sm),
-                          Text(
-                            c.label,
-                            style: TextStyle(
-                              fontSize: AppFont.caption,
-                              fontWeight: c == _category
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: c == _category
-                                  ? context.appPrimary
-                                  : context.appOnSurfaceSoft,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+          ApplianceKindPicker(
+            selected: _category,
+            onSelected: (c) => setState(() => _category = c),
           ),
           divider,
 

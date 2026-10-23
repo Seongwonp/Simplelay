@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/appliance.dart';
 import '../models/auto_rule.dart';
 import '../models/clock_text.dart';
 import '../models/execution_status.dart';
@@ -91,7 +92,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     final standalone = standaloneAutoRules(rules, list.valueOrNull ?? const <Routine>[]);
     final installed = ref.watch(installedAppliancesProvider);
     final names = {for (final a in installed) a.id: a.name};
-    final icons = {for (final a in installed) a.id: a.icon};
+    final icons = {for (final a in installed) a.id: a.category};
     final executing = switch (ref.watch(executionStatusProvider).phase) {
       ExecutionPhase.waiting || ExecutionPhase.running || ExecutionPhase.retrying => true,
       _ => false,

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../widgets/appliance_artwork.dart';
 import '../models/command_result.dart';
 import '../models/display_status.dart';
 import '../models/line_break.dart';
@@ -213,10 +214,10 @@ class HistoryScreen extends ConsumerWidget {
   }
 
   /// 기록이 가리키는 가전의 아이콘(종류에서). 모르면 null.
-  static IconData? _applianceIcon(List installed, String? id) {
+  static ApplianceCategory? _applianceIcon(List installed, String? id) {
     if (id == null) return null;
     for (final a in installed) {
-      if (a.id == id) return a.icon as IconData;
+      if (a.id == id) return a.category as ApplianceCategory;
     }
     return null;
   }
@@ -546,7 +547,7 @@ class _HistoryRow extends ConsumerStatefulWidget {
   final List<RpiHistoryEntry> entries;
 
   /// 가전 종류 아이콘. LG 가전 기록의 왼쪽 아이콘에 쓴다. 모르면 null.
-  final IconData? applianceIcon;
+  final ApplianceCategory? applianceIcon;
 
   /// 어느 가전이었는지. 모르면 null이고 말하지 않는다.
   final String? applianceName;
@@ -638,13 +639,19 @@ class _HistoryRowState extends ConsumerState<_HistoryRow> {
           child: Align(
             alignment: Alignment.centerLeft,
             child: Stack(clipBehavior: Clip.none, children: [
-              Icon(
-                  historyIsLgAppliance(entry)
-                      ? (widget.applianceIcon ?? ApplianceCategory.other.icon)
-                      : AppIcons.source(source),
+              if (historyIsLgAppliance(entry))
+                KeyedSubtree(
                   key: Key('history-icon-${entry.jobId}'),
-                  size: textScaledIcon(context, 22),
-                  color: context.appMuted),
+                  child: ApplianceArtwork(
+                      category: widget.applianceIcon ?? ApplianceCategory.other,
+                      size: textScaledIcon(context, 24),
+                      color: context.appMuted),
+                )
+              else
+                Icon(AppIcons.source(source),
+                    key: Key('history-icon-${entry.jobId}'),
+                    size: textScaledIcon(context, 22),
+                    color: context.appMuted),
               // LG 가전 표식 — 작은 구름 하나(연습 기록에는 두지 않는다). 낭독은 줄 이름이 아니라 여기서 한 번.
               if (historyIsLgAppliance(entry) && entry.executionMode != 'mock')
                 Positioned(

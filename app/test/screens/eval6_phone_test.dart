@@ -289,11 +289,14 @@ void main() {
 
     testWidgets('정해진 시각 줄에도 가전 아이콘 — 왼쪽 열이 맞는다', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      final morn = find.descendant(of: find.byKey(const Key('routine-row-r-morn')), matching: find.byIcon(Icons.air));
+      // 가전 그림 통일(10/24): 아이콘 대신 대상 가전의 ApplianceArtwork 그림.
+      final morn = find.descendant(
+          of: find.byKey(const Key('routine-row-r-morn')),
+          matching: find.byKey(Key('appliance-artwork-${ApplianceCategory.airPurifier.value}')));
       expect(morn, findsOneWidget);
       final heat = find.descendant(
           of: find.byKey(const Key('routine-row-r-heat')),
-          matching: find.byIcon(ApplianceCategory.parse('microwave').icon));
+          matching: find.byKey(Key('appliance-artwork-${ApplianceCategory.parse('microwave').value}')));
       expect(heat, findsOneWidget);
       expect(tester.getCenter(morn).dx, moreOrLessEquals(tester.getCenter(heat).dx, epsilon: 0.5));
       // 시각은 이름 아래 한 줄(평가 10차 10/18).
