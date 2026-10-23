@@ -5,6 +5,7 @@ import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'appliance_art.dart';
+import 'appliance_strip.dart' show KioskTileIssue, KioskTileMark;
 import 'kiosk_text.dart';
 
 /// 처음 화면 '무엇을 할까요?' 카드(시안 B 10/24, 폰 홈의 첫 저장 동작 카드와 같은 자리) — 저장된 동작(루틴) 하나.
@@ -18,12 +19,17 @@ class KioskFeaturedAction extends StatelessWidget {
     required this.appliance,
     required this.sizeLabel,
     required this.onRun,
+    this.blockedReason,
   });
 
   final KioskRoutine routine;
   final ApplianceMap appliance;
   final String sizeLabel;
   final VoidCallback onRun;
+
+  /// 지금은 할 수 없는 동작의 이유 한 줄(가전 줄 '!'와 같은 말, [pick]의 셋째 값). 있으면 '실행하기'를 흐리게 그리고, 눌러도
+  /// [onRun]을 부르지 않는다(첫 사용 평가 10/24).
+  final String? blockedReason;
 
   /// 머리말 + 카드 높이(처음 화면 오른쪽 칸 높이 재기에 쓴다). 글자 배율이 큰 화면에서는 처음 화면이 이 카드를 두지 않는다.
   static const double cardHeight = 96;
@@ -35,23 +41,40 @@ class KioskFeaturedAction extends StatelessWidget {
   }
 
   /// 처음 화면에 세울 저장된 동작 — 폰 홈과 같은 후보(켜져 있고, 승인해서 실행하고, 시각 예약이 아닌 루틴) 중
-  /// 가전이 목록에 있는 첫 루틴. 없으면 null.
-  static (KioskRoutine, ApplianceMap)? pick(List<KioskRoutine>? routines, List<ApplianceMap>? appliances) {
+  /// 가전이 목록에 있는 루틴. 없으면 null.
+  ///
+  /// [issueOf]는 가전 줄 '!'와 같은 판정([kioskTileIssue]). 가전이 모두 지금 쓸 수 있는 루틴을 먼저 고른다. 그런 루틴이
+  /// 없으면 첫 후보를 돌려주고 셋째 값에 그 '!' 문장(이유)을 싣는다 — 화면은 '실행하기'를 흐리게 그린다(첫 사용 평가 10/24).
+  static (KioskRoutine, ApplianceMap, String?)? pick(List<KioskRoutine>? routines, List<ApplianceMap>? appliances,
+      {KioskTileIssue? Function(ApplianceMap a)? issueOf}) {
     if (routines == null || appliances == null) return null;
+    (KioskRoutine, ApplianceMap, String?)? firstBlocked;
     for (final r in routines) {
       if (!r.enabled || r.mode != 'approve' || r.timeTriggered) continue;
-      for (final id in r.applianceIds) {
-        final a = appliances.where((x) => x.id == id).firstOrNull;
-        if (a != null) return (r, a);
+      final present = [
+        for (final id in r.applianceIds) ...appliances.where((x) => x.id == id).take(1),
+      ];
+      if (present.isEmpty) continue;
+      String? why;
+      for (final a in present) {
+        final issue = issueOf?.call(a);
+        if (issue != null && issue.mark == KioskTileMark.unusable) {
+          why = issue.text;
+          break;
+        }
       }
+      if (why == null) return (r, present.first, null);
+      firstBlocked ??= (r, present.first, why);
     }
-    return null;
+    return firstBlocked;
   }
 
   @override
   Widget build(BuildContext context) {
     // 가전은 왼쪽 그림이 말한다 — 부제는 무엇을 하는지 한 줄(실패널 10/24: 이름이 길면 부제가 잘렸다). 읽을 때는 가전 이름까지.
-    final sub = sizeLabel.isNotEmpty ? sizeLabel : appliance.tileName;
+    // 지금 할 수 없으면 부제 자리에 이유(가전 줄 '!'와 같은 말) — '실행하기'는 흐리게, 눌러도 부르지 않는다.
+    final blocked = blockedReason;
+    final sub = blocked ?? (sizeLabel.isNotEmpty ? sizeLabel : appliance.tileName);
     final spoken = [appliance.tileName, if (sizeLabel.isNotEmpty) sizeLabel].join(' · ');
     return Column(
       key: const ValueKey('idle-featured'),
@@ -66,7 +89,8 @@ class KioskFeaturedAction extends StatelessWidget {
         const SizedBox(height: headGap),
         Semantics(
           button: true,
-          label: '${routine.name}, $spoken, 실행하기',
+          enabled: blocked == null,
+          label: blocked == null ? '${routine.name}, $spoken, 실행하기' : '${routine.name}, $spoken, 실행하기, $blocked',
           excludeSemantics: true,
           child: Material(
             color: KioskColors.surface,
@@ -77,7 +101,7 @@ class KioskFeaturedAction extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               key: const ValueKey('idle-featured-run'),
-              onTap: onRun,
+              onTap: blocked == null ? onRun : null,
               child: SizedBox(
                 height: cardHeight,
                 child: Padding(
@@ -91,14 +115,17 @@ class KioskFeaturedAction extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(routine.name,
-                              maxLines: 2,
+                              maxLines: blocked == null ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: KioskType.body, height: 1.2, fontWeight: FontWeight.w700, color: KioskColors.ink)),
                           KioskText(sub,
-                              maxLines: 1,
+                              maxLines: blocked == null ? 1 : 2,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: KioskType.caption, height: 1.2, color: KioskColors.muted)),
+                              style: TextStyle(
+                                  fontSize: KioskType.caption,
+                                  height: 1.2,
+                                  color: blocked == null ? KioskColors.muted : KioskColors.warning)),
                         ],
                       ),
                     ),
@@ -106,13 +133,18 @@ class KioskFeaturedAction extends StatelessWidget {
                     // 주 행동 모양(청록 면) — 누르면 확인 카드가 먼저 뜬다.
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md, vertical: KioskSpace.sm),
+                      // 할 수 없으면 채운 면 대신 옅은 테두리·흐린 글자(눌리는 모양이 아니다).
                       decoration: BoxDecoration(
-                          color: KioskColors.primary, borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
+                          color: blocked == null ? KioskColors.primary : Colors.transparent,
+                          border: blocked == null ? null : Border.all(color: KioskColors.border),
+                          borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
                       child: Text('실행하기',
                           maxLines: 1,
                           softWrap: false,
                           style: TextStyle(
-                              fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.onAccent)),
+                              fontSize: KioskType.body,
+                              fontWeight: FontWeight.w700,
+                              color: blocked == null ? KioskColors.onAccent : KioskColors.muted)),
                     ),
                   ]),
                 ),

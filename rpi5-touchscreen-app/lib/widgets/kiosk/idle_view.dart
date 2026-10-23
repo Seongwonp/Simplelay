@@ -207,9 +207,6 @@ class KioskIdleView extends StatelessWidget {
     final rainy = showHours && slots.any((s) => s.hour.precip || (s.hour.pop ?? 0) >= 60);
     // '무엇을 할까요?' 카드(시안 B 10/24) — 큰 글씨에서는 두지 않는다(자리가 모자라 시계·다음 루틴이 밀린다). 카드가 있으면
     // 인사말은 접는다(인사말이 이 칸에서 가장 덜 중요하다).
-    final onRoutine = this.onRoutine;
-    final featured = large || quietDim || onRoutine == null ? null : KioskFeaturedAction.pick(routines, list);
-    final showGreeting = rawTip == null && !rainy && featured == null;
     final dnd = dndUntil != null && dndUntil!.isAfter(now) ? dndUntil : null;
     // 본체에 닿지 않으면 지난 연결 목록을 믿지 않는다(평가 7차 10/18 — 끊겼는데 칩이 '모두 정상').
     final connections = connectionsForDisplay(this.connections, connected: connected);
@@ -219,6 +216,20 @@ class KioskIdleView extends StatelessWidget {
     // 비상 버튼이 눌려 있나(평가 4차 10/18) — 위 빨간 띠와 같은 사실을 칩·타일도 말한다. 걸려 있는 동안은 실행이
     // 거절되므로 누름 장치로 누르는 가전은 누름 장치 끊김과 같이 '지금은 쓸 수 없어요' 표시.
     final estop = KioskEstopScope.shownOf(context);
+    // 지금 쓸 수 없는 가전(누름 장치 끊김·비상 버튼) — 가전 줄 '!'와 '무엇을 할까요?' 카드가 같이 쓴다.
+    final unavailable = <String>{
+      if ((pressDown || estop) && list != null)
+        for (final a in list)
+          if (a.usesPressDevice) a.id,
+    };
+    final onRoutine = this.onRoutine;
+    // 지금 할 수 있는 동작을 먼저 고른다(첫 사용 평가 10/24 — 누름 장치가 끊겼는데 전자레인지 동작을 '실행하기'로 내걸었다).
+    // 가늠은 가전 줄 '!'와 같은 판정([kioskTileIssue])이다.
+    final featured = large || quietDim || onRoutine == null
+        ? null
+        : KioskFeaturedAction.pick(routines, list,
+            issueOf: (a) => kioskTileIssue(a, unavailable: unavailable.contains(a.id), unavailableByEstop: estop));
+    final showGreeting = rawTip == null && !rainy && featured == null;
     var hourly = showHours ? slots : const <ForecastSlot>[];
     // 가전 4개까지는 장 넘김 없이 한 줄에 다(평가 4차 10/18). 더 많아도 한 장에 4개 + 좁은 장 넘김(평가 5차 10/18 —
     // 넓은 장 넘김 칸 때문에 3개만 들어가 오른쪽이 비었다). 큰 글씨는 2개씩, 넓은 장 넘김.
@@ -459,6 +470,7 @@ class KioskIdleView extends StatelessWidget {
                         routine: featured.$1,
                         appliance: featured.$2,
                         sizeLabel: featured.$1.sizeLabelWith({for (final a in list!) a.id: a.displayName}),
+                        blockedReason: featured.$3,
                         onRun: () => onRoutine!(featured.$1),
                       ),
                       if (tip != null) const SizedBox(height: _Idle.hoursGap),
@@ -486,11 +498,6 @@ class KioskIdleView extends StatelessWidget {
             SizedBox(height: strip, child: LayoutBuilder(builder: (context, box) {
               final itemWidth =
                   (box.maxWidth - (pager ? pagerWidth : 0)) / perPage;
-              final unavailable = <String>{
-                if ((pressDown || estop) && list != null)
-                  for (final a in list)
-                    if (a.usesPressDevice) a.id,
-              };
               return Align(alignment: list == null || list.isEmpty ? Alignment.center : Alignment.topLeft,
                 child: SingleChildScrollView(child: list == null
                   ? const _StripNotice('본체와 연결되면 가전이 보여요')

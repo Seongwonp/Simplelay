@@ -11,6 +11,7 @@ import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/services/kiosk_settings_store.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_art.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart' show kTileUnusablePress;
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
@@ -143,6 +144,32 @@ void main() {
           tester,
           _idle(routines: const [KioskRoutine(id: 'w', name: '빨래', applianceIds: ['washer'])], onRoutine: (_) {}));
       expect(find.byKey(const ValueKey('idle-featured')), findsNothing);
+    });
+
+    // 첫 사용 평가(10/24): 누름 장치가 끊겼는데 '실행하기'가 눌리는 모양이었다 — 흐리게, 이유 한 줄, 눌러도 부르지 않는다.
+    testWidgets('누름 장치가 끊겨 할 수 있는 동작이 없으면 실행하기를 흐리게 하고 이유를 적고, 눌러도 부르지 않는다', (tester) async {
+      final tapped = <String>[];
+      await _pumpView(
+          tester,
+          KioskIdleView(
+            now: DateTime(2026, 10, 24, 15, 12),
+            connected: true,
+            appliances: const [kMicrowaveAppliance],
+            connections: const [ConnectionItem(id: 'press', state: 'error', title: '누름 장치', message: '연결되지 않았어요')],
+            onSelectAppliance: (_) {},
+            onOpenConnection: (_) {},
+            onDndGesture: () {},
+            routines: const [_morning],
+            onRoutine: (r) => tapped.add(r.id),
+          ));
+      expect(tester.takeException(), isNull);
+      final card = find.byKey(const ValueKey('idle-featured'));
+      expect(card, findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text(kTileUnusablePress)), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('실행하기.*$kTileUnusablePress')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('idle-featured-run')), warnIfMissed: false);
+      await tester.pump();
+      expect(tapped, isEmpty);
     });
 
     testWidgets('큰 글씨에서는 카드를 두지 않는다(시계·다음 루틴 자리)', (tester) async {
