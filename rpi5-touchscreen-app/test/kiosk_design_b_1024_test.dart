@@ -165,7 +165,8 @@ void main() {
       expect(tester.takeException(), isNull);
       final card = find.byKey(const ValueKey('idle-featured'));
       expect(card, findsOneWidget);
-      expect(find.descendant(of: card, matching: find.text(kTileUnusablePress)), findsOneWidget);
+      // 화면에는 짧게(이유는 위 안내 띠), 읽을 때는 이유까지.
+      expect(find.descendant(of: card, matching: find.text('지금은 쓸 수 없어요')), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('실행하기.*$kTileUnusablePress')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('idle-featured-run')), warnIfMissed: false);
       await tester.pump();

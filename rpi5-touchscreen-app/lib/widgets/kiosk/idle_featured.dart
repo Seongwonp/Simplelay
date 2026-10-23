@@ -74,7 +74,8 @@ class KioskFeaturedAction extends StatelessWidget {
     // 가전은 왼쪽 그림이 말한다 — 부제는 무엇을 하는지 한 줄(실패널 10/24: 이름이 길면 부제가 잘렸다). 읽을 때는 가전 이름까지.
     // 지금 할 수 없으면 부제 자리에 이유(가전 줄 '!'와 같은 말) — '실행하기'는 흐리게, 눌러도 부르지 않는다.
     final blocked = blockedReason;
-    final sub = blocked ?? (sizeLabel.isNotEmpty ? sizeLabel : appliance.tileName);
+    // 화면에는 짧게 — 왜 못 쓰는지는 위 안내 띠가 말한다(실패널 10/24: 긴 이유가 카드에서 잘렸다). 읽을 때는 이유까지.
+    final sub = blocked != null ? '지금은 쓸 수 없어요' : (sizeLabel.isNotEmpty ? sizeLabel : appliance.tileName);
     final spoken = [appliance.tileName, if (sizeLabel.isNotEmpty) sizeLabel].join(' · ');
     return Column(
       key: const ValueKey('idle-featured'),
@@ -115,12 +116,12 @@ class KioskFeaturedAction extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(routine.name,
-                              maxLines: blocked == null ? 2 : 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: KioskType.body, height: 1.2, fontWeight: FontWeight.w700, color: KioskColors.ink)),
                           KioskText(sub,
-                              maxLines: blocked == null ? 1 : 2,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: KioskType.caption,
