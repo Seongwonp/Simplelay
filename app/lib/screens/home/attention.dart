@@ -80,7 +80,6 @@ class _FailureAlert extends ConsumerWidget {
 }
 
 /// 안 본 알림 가운데 가장 무거운 볼 것이 '못 한 일'(실행 실패)인가 — 실패 경고의 색·할 일 단추가 갈린다.
-bool careLookIsFailure(List<RpiCareEvent> unread) => _careLookGroup(unread)?.$1 == '못 한 일';
 
 /// '해야 할 일'(설정이 남은 가전)과 안 본 알림 한 줄 — 실패 경고 아래, 가전 위.
 ///

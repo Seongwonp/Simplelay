@@ -55,6 +55,7 @@ import 'package:simplelay/theme/app_theme.dart';
 
 import 'helpers/test_helpers.dart';
 import 'support/golden_fonts.dart';
+import 'support/review_goldens.dart';
 
 const _phoneSize = Size(390, 844);
 
@@ -154,7 +155,12 @@ Future<void> _shoot(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  setUpAll(loadGoldenFonts);
+  final previousComparator = goldenFileComparator;
+  setUpAll(() async {
+    await loadGoldenFonts();
+    goldenFileComparator = ReviewGoldenComparator(previousComparator);
+  });
+  tearDownAll(() => goldenFileComparator = previousComparator);
 
   // 서버에서 온 패턴 제안 — 실기기에서 실제로 오는 모양이다. 근거 문장과
   // '다시 받지 않기'가 이 경로에서만 나오므로, 골든도 이 경로를 찍어야
@@ -201,6 +207,19 @@ void main() {
   }
 
   // 2026-10-18 루틴 탭 — 본체가 준 루틴·자동으로 하기.
+  for (final (page, screen) in <(String, Widget)>[
+    ('task_home', const HomeScreen()),
+    ('task_appliances', const AppliancesScreen()),
+    ('task_automation', const RoutinesScreen(automatic: true)),
+  ]) {
+    for (final (suffix, light, scale) in [('light', true, 1.0), ('dark', false, 1.0), ('large', true, 2.0)]) {
+      testWidgets('새 과업 화면 $page $suffix', (t) async {
+        await _shoot(t, '${page}_$suffix', screen, light: light, textScale: scale,
+          installed: _homeInstalled, hub: _demoHub());
+      });
+    }
+  }
+
   for (final (name, light, scale) in [
     ('routines_light', true, 1.0),
     ('routines_large', true, 2.0),
@@ -896,26 +915,22 @@ Future<void> _shootShell(
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (_, __, shell) => AppShell(navigationShell: shell),
-        // main.dart와 같은 다섯 브랜치(홈·루틴·기록·설정·개발자). 개발자 탭은
-        // 서버 개발자 모드일 때만 보이므로 이 골든에는 네 탭이 찍힌다.
+        // main.dart와 같은 과업 브랜치 네 개. 설정은 shell 밖이다.
         branches: [
           StatefulShellBranch(routes: [
             GoRoute(path: '/', builder: (_, __) => const SizedBox.shrink()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
-                path: '/routines', builder: (_, __) => const SizedBox.shrink()),
+                path: '/appliances', builder: (_, __) => const SizedBox.shrink()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/automation', builder: (_, __) => const SizedBox.shrink()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
                 path: '/history', builder: (_, __) => const SizedBox.shrink()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(
-                path: '/settings', builder: (_, __) => const SizedBox.shrink()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/dev', builder: (_, __) => const SizedBox.shrink()),
           ]),
         ],
       ),

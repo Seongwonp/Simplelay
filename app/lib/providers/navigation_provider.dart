@@ -11,11 +11,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 화면으로 이동 등), 이벤트가 아니라 shell의 현재 인덱스를 동기화한다.
 final currentTabIndexProvider = StateProvider<int>((ref) => 0);
 
-/// 하단 탭 순서(main.dart의 StatefulShellBranch 순서와 일치, UI 확정 §2).
+/// 과업 탭 순서(main.dart의 StatefulShellBranch 순서와 일치, 10/23 승인안).
 const int homeTabIndex = 0;
-const int routinesTabIndex = 1;
-const int historyTabIndex = 2;
-const int settingsTabIndex = 3;
+const int appliancesTabIndex = 1;
+const int automationTabIndex = 2;
+const int historyTabIndex = 3;
 
 // 개발자 도구는 탭이 아니다(2026-10-18) — 설정 맨 아래 항목에서 '/dev'로 연다.
 

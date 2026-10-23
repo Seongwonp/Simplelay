@@ -37,6 +37,13 @@ final autoRulesProvider = FutureProvider.autoDispose<List<AutoRule>>((ref) async
   }
 });
 
+/// 새 자동 실행 화면에서는 조회 실패를 '허용한 조건 없음'으로 숨기지 않는다.
+final automationRulesProvider = FutureProvider.autoDispose<List<AutoRule>>((ref) async {
+  final api = ref.watch(rpiApiServiceProvider);
+  if (api == null) throw const RoutinesUnavailable();
+  return api.autoRules();
+});
+
 /// "다음 실행" — 켜진 시각 루틴의 가장 가까운 한 건. 없거나 실패면 null.
 final nextRoutineProvider =
     FutureProvider.autoDispose<RoutineNextRun?>((ref) async {

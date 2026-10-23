@@ -108,7 +108,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, '홈에서 가전 추가하기'));
       await tester.pumpAndSettle();
 
-      expect(find.text('우리 집'), findsOneWidget);
+      expect(find.text('SimpleLay'), findsOneWidget);
       expect(find.widgetWithText(FilledButton, '가전 추가'), findsOneWidget);
     });
   });

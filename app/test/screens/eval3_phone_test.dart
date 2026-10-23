@@ -235,7 +235,7 @@ void main() {
       await tester.pumpWidget(_app(_hub(), const HomeScreen(), installed: _installed));
       await _settle(tester);
       final mwIcon = ApplianceMap.fromJson(_mw).icon;
-      final single = find.byKey(const Key('home-routine-tile-r-b'));
+      final single = find.byKey(const Key('home-routine-hero'));
       expect(_iconIn(single, mwIcon), findsOneWidget);
       expect(_iconIn(single, AppIcons.routine), findsNothing);
       final multi = find.byKey(const Key('home-routine-tile-r-m'));

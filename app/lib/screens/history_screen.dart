@@ -1,4 +1,5 @@
 import '../models/clock_text.dart';
+import '../widgets/settings_action.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -106,7 +107,7 @@ class HistoryScreen extends ConsumerWidget {
 
     return Scaffold(
       // 탭 제목은 홈('우리 집')과 같은 굵은 큰 제목(UI 평가 10/17).
-      appBar: AppBar(title: Text('기록', style: AppText.heading)),
+      appBar: AppBar(title: Text('기록', style: AppText.heading), actions: const [SettingsAction()]),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(historyProvider.future),
         child: historyAsync.when(

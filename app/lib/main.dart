@@ -11,6 +11,7 @@ import 'screens/app_info_screen.dart';
 import 'screens/appliance_detail_screen.dart';
 import 'screens/appliance_editor_screen.dart';
 import 'screens/app_shell.dart';
+import 'screens/standalone_task_frame.dart';
 import 'screens/care_events_screen.dart';
 import 'screens/developer_console_screen.dart';
 import 'screens/history_screen.dart';
@@ -64,9 +65,7 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
       path: '/splash',
       builder: (_, __) => const SplashScreen(),
     ),
-    // 탭 순서: 홈 · 루틴 · 기록 · 설정(네 개 고정).
-    // 2026-09-30 UI 확정 §2. 실행 상태·음성은 탭이 아니라 홈 위에 얹는
-    // 화면이다 -- `context.go('/status')`는 그대로 쓰이고, 탭바는 남는다.
+    // 10/23 과업 중심 구조. 설정과 저장 동작 관리는 탭 밖에서 push로 연다.
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppShell(navigationShell: navigationShell),
@@ -88,8 +87,16 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/routines',
-              builder: (_, __) => const RoutinesScreen(),
+              path: '/appliances',
+              builder: (_, __) => const AppliancesScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/automation',
+              builder: (_, __) => const RoutinesScreen(automatic: true),
             ),
           ],
         ),
@@ -101,16 +108,10 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
             ),
           ],
         ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/settings',
-              builder: (_, __) => const SettingsScreen(),
-            ),
-          ],
-        ),
       ],
     ),
+    GoRoute(path: '/settings', builder: (_, __) => const StandaloneTaskFrame(child: SettingsScreen())),
+    GoRoute(path: '/routines', builder: (_, __) => const StandaloneTaskFrame(child: RoutinesScreen())),
     // 개발자 도구 — 탭이 아니라 설정 맨 아래 항목(개발 모드일 때만 보인다, 2026-10-18).
     GoRoute(path: '/dev', builder: (_, __) => const DeveloperTabScreen()),
     GoRoute(path: '/status', builder: (_, __) => const StatusScreen()),

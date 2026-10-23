@@ -311,6 +311,8 @@ void main() {
     final tileB = find.byKey(const Key('appliance-card-b'));
     final add = find.byKey(const Key('appliance-add-card'));
     final run = find.byKey(const Key('home-routine-tile-r-b'));
+    await tester.scrollUntilVisible(tileA, 200);
+    await tester.pump();
     expect(_inTile('a', '연습으로만 자리 확인했어요'), findsOneWidget);
     expect(_inTile('b', '자리 확인을 마치지 못했어요'), findsOneWidget);
 
@@ -323,7 +325,7 @@ void main() {
       }
     }
     // 각 버튼을 화면에 올려 가운데를 누르면 그 버튼에 닿는다.
-    await tester.scrollUntilVisible(run, 200);
+    await tester.scrollUntilVisible(run, -200);
     await tester.pump();
     for (final target in [run, tileA, tileB, add]) {
       await tester.ensureVisible(target);

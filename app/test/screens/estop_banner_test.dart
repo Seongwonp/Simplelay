@@ -49,7 +49,7 @@ GoRouter _router() => GoRouter(
         StatefulShellRoute.indexedStack(
           builder: (_, __, shell) => AppShell(navigationShell: shell),
           branches: [
-            for (final p in ['/', '/routines', '/history', '/settings', '/dev'])
+            for (final p in ['/', '/appliances', '/automation', '/history'])
               StatefulShellBranch(routes: [
                 GoRoute(path: p, builder: (_, __) => Text('body$p')),
               ]),
@@ -110,7 +110,7 @@ void main() {
     expect(find.text('콘센트 모듈 버튼이 눌렸어요'), findsOneWidget);
     expect(find.byKey(_ackButton), findsOneWidget);
 
-    for (final tab in ['루틴', '기록', '설정', '홈']) {
+    for (final tab in ['가전', '자동 실행', '기록', '홈']) {
       await tester.tap(find.text(tab));
       await tester.pumpAndSettle();
       expect(find.byKey(_banner), findsOneWidget, reason: tab);

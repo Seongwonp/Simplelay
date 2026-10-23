@@ -263,7 +263,8 @@ void main() {
     });
 
     test('폰 화면 문자열에 콘센트·작업·단추·자동 실행이 없다(서버 문장 해석용 머리 제외)', () {
-      final literal = RegExp(r"'[^'\n]*(콘센트|작업|단추|자동 실행)[^'\n]*'");
+      // 10/23 승인안은 과업 탭 이름 '자동 실행'을 사용한다.
+      final literal = RegExp(r"'[^'\n]*(콘센트|작업|단추)[^'\n]*'");
       final hits = <String>[];
       for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
         if (!f.path.endsWith('.dart')) continue;

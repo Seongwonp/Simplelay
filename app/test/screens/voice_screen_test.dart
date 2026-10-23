@@ -252,7 +252,7 @@ void main() {
 
     // 탭 브랜치는 화면을 떠나도 살아 있다 -- 숨겨진 화면이 계속 듣거나
     // 나중에 옛 문장을 실행하면 안 된다.
-    container.read(currentTabIndexProvider.notifier).state = routinesTabIndex;
+    container.read(currentTabIndexProvider.notifier).state = appliancesTabIndex;
     await tester.pump();
     await tester.pump();
     // 파형 막대의 예약 타이머(최대 150ms)를 소진시킨다.

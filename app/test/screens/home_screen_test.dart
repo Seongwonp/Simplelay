@@ -59,7 +59,7 @@ void main() {
           _buildHome(connected: true, server: RpiConnectionState.connected));
       await tester.pump();
 
-      expect(find.text('우리 집'), findsOneWidget);
+      expect(find.text('SimpleLay'), findsOneWidget);
       expect(findPlainText('본체와 연결됨'), findsOneWidget);
       // 연결됨 점은 초록 — 주행동 갈색과 섞이면 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
       final dot = tester.widget<Container>(find.byKey(const Key('hub-status-dot')));

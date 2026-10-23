@@ -197,7 +197,7 @@ const _suggestionJson = {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('읽는 순서: 지금 우리 집 → 지금 할 일 → 확인이 필요해요 → 가전 → 자주 쓰는 루틴', (tester) async {
+  testWidgets('읽는 순서: 제안 → 저장 동작 → 확인할 일 → 가전 → 환경·예약', (tester) async {
     final hub = _Hub(appliances: [
       _appliance('mw', '주방 전자레인지'),
       _appliance('w1', '세탁기', mapped: false),
@@ -228,11 +228,11 @@ void main() {
     for (final f in [now, todo, attention, appliances, routines]) {
       expect(f, findsOneWidget);
     }
-    expect(y(now), lessThan(y(todo)));
-    expect(y(todo), lessThan(y(attention)));
+    expect(y(todo), lessThan(y(routines)));
+    expect(y(routines), lessThan(y(attention)));
     expect(y(attention), lessThan(y(appliances)));
-    expect(y(appliances), lessThan(y(routines)));
-    // 큰 '바로 실행할 수 있는 루틴' 카드는 없다.
+    expect(y(appliances), lessThan(y(now)));
+    // 제안이 주 행동이면 저장 동작은 보조 목록이다.
     expect(find.byKey(const Key('home-routine-hero')), findsNothing);
     expect(find.text('바로 실행할 수 있는 루틴'), findsNothing);
   });
@@ -274,7 +274,7 @@ void main() {
     }
     expect(_tile('r-4'), findsNothing);
     // 줄 목록(평가 5차 10/18: 가전 타일과 다른 모양) — 위아래로 선다.
-    expect(tester.getTopLeft(_tile('r-0')).dx, tester.getTopLeft(_tile('r-1')).dx);
+    expect(find.byKey(const Key('home-routine-hero')), findsOneWidget);
     expect(tester.getTopLeft(_tile('r-0')).dy, lessThan(tester.getTopLeft(_tile('r-1')).dy));
     // 시각 루틴은 정해진 때 저절로 돈다 — 타일로 겹쳐 두지 않는다(같은 루틴 여러 번 노출 금지).
     expect(_tile('r-t'), findsNothing);

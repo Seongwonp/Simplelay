@@ -37,18 +37,18 @@ GoRouter _shellRouter() => GoRouter(
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
-                  path: '/routines',
-                  builder: (_, __) => const Text('routines-body')),
+                  path: '/appliances',
+                  builder: (_, __) => const Text('appliances-body')),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/automation',
+                  builder: (_, __) => const Text('automation-body')),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
                   path: '/history',
                   builder: (_, __) => const Text('history-body')),
-            ]),
-            StatefulShellBranch(routes: [
-              GoRoute(
-                  path: '/settings',
-                  builder: (_, __) => const Text('settings-body')),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(path: '/dev', builder: (_, __) => const Text('dev-body')),
@@ -97,7 +97,7 @@ void main() {
   testWidgets('탭은 홈·루틴·기록·설정 네 개이고 개발자 탭은 숨는다', (tester) async {
     await _pump(tester);
 
-    for (final label in ['홈', '루틴', '기록', '설정']) {
+    for (final label in ['홈', '가전', '자동 실행', '기록']) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('개발자'), findsNothing);
@@ -109,7 +109,7 @@ void main() {
   testWidgets('서버 개발자 모드여도 탭은 네 개 — 개발자는 설정 안 맨 아래 항목', (tester) async {
     await _pump(tester, developerMode: true);
 
-    for (final label in ['홈', '루틴', '기록', '설정']) {
+    for (final label in ['홈', '가전', '자동 실행', '기록']) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('개발자'), findsNothing);
@@ -119,18 +119,18 @@ void main() {
     final container = await _pump(tester);
     expect(container.read(currentTabIndexProvider), homeTabIndex);
 
-    await tester.tap(find.text('루틴'));
+    await tester.tap(find.text('가전'));
     await tester.pumpAndSettle();
-    expect(find.text('routines-body'), findsOneWidget);
-    expect(container.read(currentTabIndexProvider), routinesTabIndex);
+    expect(find.text('appliances-body'), findsOneWidget);
+    expect(container.read(currentTabIndexProvider), appliancesTabIndex);
 
     await tester.tap(find.text('기록'));
     await tester.pumpAndSettle();
     expect(container.read(currentTabIndexProvider), historyTabIndex);
 
-    await tester.tap(find.text('설정'));
+    await tester.tap(find.text('자동 실행'));
     await tester.pumpAndSettle();
-    expect(container.read(currentTabIndexProvider), settingsTabIndex);
+    expect(container.read(currentTabIndexProvider), automationTabIndex);
 
     // 홈으로 돌아오는 전이 -- 음성 화면(홈 위)의 마이크 정리가 여기에 걸린다.
     await tester.tap(find.text('홈'));
@@ -154,7 +154,7 @@ void main() {
     expect(find.text('아침 데우기 하고 있어요'), findsOneWidget);
     expect(find.byKey(const Key('shell-stop')), findsOneWidget);
 
-    await tester.tap(find.text('루틴'));
+    await tester.tap(find.text('가전'));
     await tester.pump();
     expect(find.byKey(const Key('shell-stop')), findsOneWidget);
   });

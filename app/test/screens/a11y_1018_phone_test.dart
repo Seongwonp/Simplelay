@@ -20,6 +20,7 @@ import 'package:simplelay/providers/care_events_provider.dart';
 import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
+import 'package:simplelay/widgets/settings_action.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/routines_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -263,9 +264,9 @@ void main() {
             StatefulShellRoute.indexedStack(
               builder: (_, __, shell) => AppShell(navigationShell: shell),
               branches: [
-                for (final p in ['/', '/routines', '/history', '/settings'])
+                for (final p in ['/', '/appliances', '/automation', '/history'])
                   StatefulShellBranch(routes: [
-                    GoRoute(path: p, builder: (_, __) => Text('body $p')),
+                    GoRoute(path: p, builder: (_, __) => Scaffold(appBar: AppBar(actions: const [SettingsAction()]), body: Text('body $p'))),
                   ]),
               ],
             ),

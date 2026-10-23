@@ -7,10 +7,12 @@ class _HomeRoutines extends ConsumerStatefulWidget {
     required this.applianceNames,
     this.applianceIcons = const {},
     this.needsSetupIds = const {},
+    this.featureFirst = true,
   });
 
   /// 가전 id → 아이콘. 루틴 타일 아이콘을 대상 가전 아이콘으로(평가 3차 10/18).
   final Map<String, IconData> applianceIcons;
+  final bool featureFirst;
 
   /// 위치(버튼 자리)를 아직 맞추지 않은 가전 — 이 가전을 쓰는 루틴 타일은 설정으로 보낸다.
   final Set<String> needsSetupIds;
@@ -100,7 +102,6 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
           ...manual.where(needsSetup),
         ];
         final shown = ordered.take(_maxTiles).toList();
-        final more = routines.length > shown.length;
         final busy = _runningId != null;
         final tiles = [
           for (final r in shown)
@@ -111,6 +112,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
               running: _runningId == r.id,
               busy: busy,
               needsSetup: needsSetup(r),
+              featured: widget.featureFirst && r == shown.first && !needsSetup(r),
               onTap: needsSetup(r)
                   // 설정이 필요한 가전으로 바로 간다(UI 평가 10/17).
                   ? () => context.push('/appliance/detail/'
@@ -131,16 +133,15 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
                   alignment: WrapAlignment.spaceBetween,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                const _SectionTitle('내 루틴'),
-                if (more)
+                const _SectionTitle('무엇을 할까요?'),
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpace.md),
                     child: TextButton(
                       key: const Key('home-routines-more'),
-                      onPressed: () => context.go('/routines'),
+                      onPressed: () => context.push('/routines'),
                       style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text('루틴 더 보기', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+                        Flexible(child: Text('저장한 동작 전체', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))),
                         Icon(Icons.chevron_right, size: 20, color: context.appMuted),
                       ]),
                     ),
@@ -186,6 +187,7 @@ class _RoutineTile extends StatelessWidget {
     required this.needsSetup,
     required this.onTap,
     this.iconOf = const {},
+    this.featured = false,
   });
 
   final Routine routine;
@@ -194,6 +196,7 @@ class _RoutineTile extends StatelessWidget {
   final bool running;
   final bool busy;
   final bool needsSetup;
+  final bool featured;
   final VoidCallback onTap;
 
   @override
@@ -220,6 +223,11 @@ class _RoutineTile extends StatelessWidget {
             maxLines: 2, overflow: TextOverflow.ellipsis, style: context.appCaption),
       ],
     );
+    if (featured) {
+      return _FeaturedAction(
+        routine: r, subtitle: subtitle, running: running, busy: busy, onTap: onTap, iconOf: iconOf,
+      );
+    }
     return Semantics(
       // 화면 글자는 이름뿐이어도 읽을 때는 무엇을 하는지 말한다.
       label: needsSetup ? '${r.name} 가전 설정하기' : '${r.name} 실행하기',

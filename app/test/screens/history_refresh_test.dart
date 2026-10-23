@@ -60,17 +60,17 @@ GoRouter _router(String initial) => GoRouter(
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
-                  path: '/routines',
+                  path: '/appliances',
                   builder: (_, __) => const Text('routines-body')),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
-                  path: '/history', builder: (_, __) => const HistoryScreen()),
+                  path: '/automation', builder: (_, __) => const Text('automation-body')),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
-                  path: '/settings',
-                  builder: (_, __) => const Text('settings-body')),
+                  path: '/history',
+                  builder: (_, __) => const HistoryScreen()),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(path: '/dev', builder: (_, __) => const Text('dev-body')),

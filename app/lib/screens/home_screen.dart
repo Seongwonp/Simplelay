@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../models/care_attention.dart';
+export '../models/care_attention.dart';
 import '../models/display_status.dart';
 import '../models/hub.dart' show VerifyPassLookup;
 import '../models/line_break.dart';
@@ -34,6 +36,7 @@ import '../theme/app_text.dart';
 import '../theme/app_icons.dart';
 import '../widgets/skip_next_control.dart';
 import '../widgets/status_badge.dart';
+import '../widgets/settings_action.dart';
 import '../models/execution_status.dart';
 import '../theme/app_tokens.dart';
 
@@ -52,18 +55,17 @@ part 'home/appliance_grid.dart';
 part 'home/appliance_tiles.dart';
 part 'home/connectivity.dart';
 part 'home/environment.dart';
+part 'home/appliances_screen.dart';
+part 'home/featured_action.dart';
 
-/// 홈 — "우리 집"(UI 개편안 §4 폰 홈, 2026-10-18).
-///
-/// 읽는 순서: **실패 경고(있을 때만) → 지금 우리 집(공기·다음 예정) → 지금 할 일(제안, 있을 때) →
-/// 해야 할 일·안 본 알림(있을 때만) → 가전(상태 한 줄) → 내 루틴 타일.**
-/// 채운 주 버튼은 제안의 '지금 하기' 하나다. 큰 '바로 실행할 수 있는 루틴' 카드는 없다
-/// — 같은 루틴이 큰 카드·줄·다음 실행으로 세 번 나왔다(2차 평가 10/18).
+/// 과업 우선 홈(10/23). 중요한 차단·제안 → 저장한 동작 → 가전 → 환경·예약.
+/// 제안이 있으면 제안만 강조하고, 없으면 첫 실행 가능 저장 동작을 강조한다.
 ///
 /// 가전 카드를 눌러도 **실행하지 않는다.** 상세만 열리고, 누르는 일은 늘
 /// 확인을 한 번 더 거친다. 루틴 타일도 승인 카드만 만든다.
 class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.appliancesOnly = false});
+  final bool appliancesOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -130,12 +132,13 @@ class HomeScreen extends ConsumerWidget {
     ];
 
     return Scaffold(
+      appBar: appliancesOnly ? AppBar(title: Text('가전', style: AppText.heading), actions: const [SettingsAction()]) : null,
       body: SafeArea(
         bottom: false,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxxl),
           children: [
-            _Header(
+            if (!appliancesOnly) _Header(
               rpiState: rpiState,
               backupOnly: connected,
               onVoice: () => context.go('/voice'),
@@ -175,11 +178,10 @@ class HomeScreen extends ConsumerWidget {
             _FailureAlert(execution: execution),
 
             // ── 지금 우리 집 ─────────────────────────────────────────────
-            const _HomeNow(),
 
             // ── ① 지금 할 일 ──────────────────────────────────────────────
             // 빈 제안 문장("지금 확인할 제안이 없어요")은 두지 않는다(2026-10-13).
-            if (suggestion != null) ...[
+            if (!appliancesOnly && suggestion != null) ...[
               _SuggestionCard(
                 key: ValueKey(suggestion.sequenceId),
                 suggestion: suggestion,
@@ -192,11 +194,24 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpace.xxl),
             ],
 
+            // ── ④ 내 루틴 타일 ─────────────────────────────────────────────
+            if (!appliancesOnly) _HomeRoutines(
+              featureFirst: suggestion == null,
+              hubConnected: rpiState == RpiConnectionState.connected,
+              hasAppliances: appliances.isNotEmpty,
+              applianceNames: {for (final a in appliances) a.id: a.name},
+              applianceIcons: {for (final a in appliances) a.id: a.icon},
+              needsSetupIds: {
+                for (final a in appliances)
+                  if (needsPanelMapping(a)) a.id,
+              },
+            ),
+
             // ── ② 해야 할 일(설정 남음)·안 본 알림(설정과 같은 수) ─────────────────────
             _TodoAndUnread(setupCandidates: setupCandidates),
 
             // ── ③ 가전 ────────────────────────────────────────────────────
-            _SectionTitle('가전', key: const Key('home-appliances')),
+            if (!appliancesOnly) _SectionTitle('가전', key: const Key('home-appliances')),
             if (appliances.isEmpty)
               _NoApplianceStage(
                 onAdd: () => context.push('/appliance/add'),
@@ -223,17 +238,7 @@ class HomeScreen extends ConsumerWidget {
                 onAdd: () => context.push('/appliance/add'),
               ),
 
-            // ── ④ 내 루틴 타일 ─────────────────────────────────────────────
-            _HomeRoutines(
-              hubConnected: rpiState == RpiConnectionState.connected,
-              hasAppliances: appliances.isNotEmpty,
-              applianceNames: {for (final a in appliances) a.id: a.name},
-              applianceIcons: {for (final a in appliances) a.id: a.icon},
-              needsSetupIds: {
-                for (final a in appliances)
-                  if (needsPanelMapping(a)) a.id,
-              },
-            ),
+            if (!appliancesOnly) const _HomeNow(),
 
             // ── 온습도 ─────────────────────────────────────────────────────
             const SizedBox(height: AppSpace.lg),

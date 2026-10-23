@@ -411,7 +411,8 @@ void main() {
         for (final id in ['washer', 'door'])
           tester.getBottomLeft(find.byKey(Key('appliance-card-$id'))).dy,
       ];
-      expect(second.reduce(math.max), lessThanOrEqualTo(811.0));
+      // 10/23: 과업 우선. 가전 4개를 첫 화면에 우겨넣지 않고 환경 요약보다 앞에 둔다.
+      expect(second.reduce(math.max), lessThan(tester.getTopLeft(find.byKey(const Key('home-now'))).dy));
     }, skip: _noKoreanFont != null);
   });
 }

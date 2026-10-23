@@ -298,11 +298,11 @@ void main() {
       expect(_visited, ['/appliance/detail/washer']);
     });
 
-    testWidgets('홈 내 루틴은 카드 타일이 아니라 줄 목록', (tester) async {
+    testWidgets('홈 저장 동작: 첫 동작 카드와 나머지 줄 목록', (tester) async {
       await _pump(tester, const HomeScreen());
       final list = find.byKey(const Key('home-routines'));
       expect(list, findsOneWidget);
-      expect(find.descendant(of: list, matching: find.byType(Card)), findsNothing);
+      expect(find.descendant(of: list, matching: find.byType(Card)), findsOneWidget);
       expect(find.descendant(of: list, matching: findPlainText('누를 버튼 2개', contains: true)), findsOneWidget);
     });
   });

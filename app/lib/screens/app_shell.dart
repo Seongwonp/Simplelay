@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/execution_status.dart';
-import '../providers/care_events_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../theme/app_colors.dart';
@@ -11,10 +10,9 @@ import '../theme/app_icons.dart';
 import '../widgets/estop_banner.dart';
 import '../widgets/voice_stop_indicator.dart';
 import 'history_screen.dart' show historyProvider;
-import 'home_screen.dart' show careNeedsLook;
 import '../theme/app_tokens.dart';
 
-/// 하단 탭 shell — **홈 · 루틴 · 기록 · 설정**(UI 확정 §2).
+/// 과업 탭 shell — **홈 · 가전 · 자동 실행 · 기록**(10/23 승인안).
 ///
 /// 탭은 늘 네 개다(UI 개편안 §4, 2026-10-18). 개발자 도구는 탭이 아니라 설정
 /// 맨 아래 항목이고, 서버 `/status.developer_mode`가 참일 때만 보인다 -- 시연 날
@@ -166,172 +164,40 @@ class RunningStopStrip extends ConsumerWidget {
   }
 }
 
-class _BottomBar extends ConsumerWidget {
-  const _BottomBar({
-    required this.index,
-    required this.onTab,
-  });
-
+class _BottomBar extends StatelessWidget {
+  const _BottomBar({required this.index, required this.onTab});
   final int index;
-  final void Function(int) onTab;
+  final ValueChanged<int> onTab;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // 보호자 알림함은 설정 안으로 옮겼다. 읽지 않은 알림 수는 설정 탭에
-    // 배지로 남긴다 -- 실패·긴급 정지 알림이 눈에 띄지 않으면 안 된다.
-    // 2026-10-13: 숫자 대신 점 하나였다("13"은 무엇이 13개인지 말하지 않는다). 접근성 감사(10/18): 점은 색으로만 말해
-    // 무엇이 있는지·얼마나 있는지 몰랐다 — 안 본 알림 수를 숫자 배지로(99건 넘으면 99+). 무엇의 수인지는 접근성 이름이 말한다.
-    // 조회 실패는 0건과 다르게 읽힌다.
-    final care = ref.watch(careEventsProvider);
-    final unread = care.unreadCount;
-    final settingsLabel = unread > 0
-        ? '설정, 안 본 알림 $unread건'
-        : care.status == CareInboxStatus.failed
-            ? '설정, 알림을 불러오지 못했어요'
-            : '설정';
-    // 글씨를 키우면 라벨이 커진다. 바 높이를 같이 늘려 잘리지 않게 한다.
-    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
-    final barHeight = 62.0 + (scale - 1) * 26;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        border: Border(top: BorderSide(color: context.appBorderSubtle)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: barHeight,
-          child: Row(
-            children: [
-              _Tab(
-                icon: Icons.home_outlined,
-                selectedIcon: Icons.home,
-                label: '홈',
-                selected: index == homeTabIndex,
-                onTap: () => onTab(homeTabIndex),
-              ),
-              _Tab(
-                icon: AppIcons.routine,
-                selectedIcon: AppIcons.routineSelected,
-                label: '루틴',
-                selected: index == routinesTabIndex,
-                onTap: () => onTab(routinesTabIndex),
-              ),
-              _Tab(
-                icon: Icons.history,
-                selectedIcon: Icons.history,
-                label: '기록',
-                selected: index == historyTabIndex,
-                onTap: () => onTab(historyTabIndex),
-              ),
-              _Tab(
-                icon: Icons.settings_outlined,
-                selectedIcon: Icons.settings,
-                label: '설정',
-                selected: index == settingsTabIndex,
-                // 탭 배지는 볼 것(실패·정지 등)이 있을 때만(출시 검토 10/18) — 안 본 알림 수는 홈 '확인이 필요해요'가 말한다.
-                badgeCount: careNeedsLook(care.unreadEvents) ? unread : 0,
-                // 볼 것(실패·정지 등)이 섞였을 때만 빨간 배지, 자동으로 한 일·루틴 안내뿐이면 중립 배지(평가 13차 10/18).
-                dotAlert: careNeedsLook(care.unreadEvents),
-                semanticsLabel: settingsLabel,
-                onTap: () => onTab(settingsTabIndex),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Tab extends StatelessWidget {
-  const _Tab({
-    required this.icon,
-    required this.selectedIcon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.badgeCount = 0,
-    this.dotAlert = true,
-    this.semanticsLabel,
-  });
-
-  final IconData icon;
-  final IconData selectedIcon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  /// 안 본 알림 수 — 0이면 배지가 없다. 무엇의 수인지는 [semanticsLabel]이 말한다.
-  final int badgeCount;
-
-  /// 배지를 경고(빨강)로 칠하는가.
-  final bool dotAlert;
-
-  /// 읽을 이름. 없으면 [label].
-  final String? semanticsLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? context.appPrimary : context.appMuted;
-    return Expanded(
-      child: Semantics(
-        button: true,
-        selected: selected,
-        label: semanticsLabel ?? label,
-        excludeSemantics: true,
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(selected ? selectedIcon : icon, size: 25, color: color),
-                  if (badgeCount > 0)
-                    Positioned(
-                      right: -12,
-                      top: -8,
-                      child: Container(
-                        key: const Key('settings-unread-badge'),
-                        constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: dotAlert ? AppColors.danger : context.appPrimary,
-                          borderRadius: BorderRadius.circular(11),
-                        ),
-                        child: Text(badgeCount > 99 ? '99+' : '$badgeCount',
-                            textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3),
-                            style: const TextStyle(
-                                fontSize: AppFont.caption, height: 1.2, fontWeight: FontWeight.w800, color: Colors.white)),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpace.xs),
-              // 라벨이 길어져도 자르지 않고 줄여 맞춘다 -- 잘라내면 어떤
-              // 탭인지 알 수 없게 된다.
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: AppFont.caption,
-                      height: 1.1,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                      color: color,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.surfaceContainerLow,
+    child: SafeArea(top: false, child: Row(
+      key: const Key('task-navigation'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (i, label, icon) in const [
+          (homeTabIndex, '홈', Icons.home_outlined),
+          (appliancesTabIndex, '가전', Icons.devices_outlined),
+          (automationTabIndex, '자동 실행', Icons.bolt_outlined),
+          (historyTabIndex, '기록', Icons.history),
+        ])
+          Expanded(child: Semantics(
+            button: true, selected: index == i, label: label, excludeSemantics: true,
+            child: InkWell(onTap: () => onTab(i), child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.md, horizontal: AppSpace.xs),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon, color: index == i ? context.appPrimary : context.appMuted),
+                const SizedBox(height: AppSpace.xs),
+                Text(label, textAlign: TextAlign.center, style: TextStyle(
+                  fontSize: AppFont.caption, height: 1.2,
+                  fontWeight: index == i ? FontWeight.w700 : FontWeight.w500,
+                  color: index == i ? context.appPrimary : context.appMuted,
+                )),
+              ]),
+            )),
+          )),
+      ],
+    )),
+  );
 }

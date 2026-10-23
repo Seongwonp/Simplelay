@@ -73,47 +73,18 @@ class _Header extends StatelessWidget {
         ),
       ),
     );
-    // 글씨를 키웠거나(120% 넘음) 칩 문구가 한 줄에 다 들어가지 않으면 칩을 제목 아래 줄로 내린다 — 한 줄에 두면 제목과
-    // 칩이 서로 폭을 뺏어 "우리 / 집"·"본체와 / 연결됐어요"처럼 꺾인다('말로 하기' 글자가 붙은 뒤, 휴리스틱 평가 10/18).
-    Widget stacked() => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Expanded(child: Text('우리 집', style: AppText.heading)),
-              voice,
-            ]),
-            const SizedBox(height: AppSpace.sm),
-            chip,
-          ],
-        );
-    final scaler = MediaQuery.textScalerOf(context);
-    if (scaler.scale(1) > 1.2) return stacked();
-    return LayoutBuilder(builder: (context, c) {
-      double widthOf(String t, TextStyle s) =>
-          (TextPainter(text: TextSpan(text: t, style: s), textDirection: TextDirection.ltr, textScaler: scaler)..layout())
-              .width;
-      // 제목 + 간격 + 칩(점 8 · 사이 8 · 좌우 여백 8×2 · 테두리) + 간격 + 말로 하기(글자 + 좌우 여백).
-      final need = widthOf('우리 집', AppText.heading) +
-          AppSpace.sm +
-          widthOf(text, const TextStyle(fontSize: AppFont.caption)) +
-          AppSpace.sm * 2 + AppSpace.sm * 2 + 2 +
-          AppSpace.xs +
-          widthOf('말로 하기', const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)) +
-          AppSpace.sm;
-      if (need > c.maxWidth) return stacked();
-      // 제목은 제 폭만 쓰고 남는 자리를 칩에 준다.
-      return Row(
-        children: [
-          Text('우리 집', style: AppText.heading),
-          const SizedBox(width: AppSpace.sm),
-          Expanded(
-            child: Align(alignment: Alignment.centerRight, child: chip),
-          ),
-          const SizedBox(width: AppSpace.xs),
-          voice,
-        ],
-      );
-    });
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Expanded(child: Text('SimpleLay', style: AppText.title)),
+          const SettingsAction(),
+        ]),
+        const SizedBox(height: AppSpace.sm),
+        Wrap(spacing: AppSpace.md, runSpacing: AppSpace.sm,
+          crossAxisAlignment: WrapCrossAlignment.center, children: [chip, voice]),
+      ],
+    );
   }
 }
 

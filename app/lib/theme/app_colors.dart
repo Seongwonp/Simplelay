@@ -15,15 +15,10 @@ class AppColors {
   static const surfaceHighLight = Color(0xFFEAEDF5); // 눌린 면(입력칸 등)
 
   // ── 주요 강조 ───────────────────────────────────────────────────────────
-  // 2026-10-01 사용자 결정: 강조색을 **골드**로 되돌린다(UI 확정 문서·로고와 통일).
-  // 골드는 주의(앰버)와 색조가 가깝다 -- 그래서 주의는 색만으로 말하지 않는다
-  // (아이콘·문구를 함께 쓰고, 강조색은 주 행동·진행 중·선택에만 쓴다).
-  //
-  // 대비 기준 7:1을 지킨다. 다크 #D9A356 위 검정 글자 9.32:1(바탕 대비 8.38:1).
-  // 라이트는 디자인 시스템 문서의 #8B6010이 흰 글자 5.56:1이라 기준 미달이어서
-  // 명도를 내려 #6E4B0A로 둔다(흰 글자 7.85:1, 라이트 바탕 대비 7.26:1).
-  static const primary      = Color(0xFFD9A356); // 다크 — 검정 글자 9.32:1
-  static const primaryLight = Color(0xFF6E4B0A); // 라이트 — 흰 글자 7.85:1
+  // 10/23 '할 일 먼저' 승인안. 모든 폰 화면이 이 공통 강조색을 사용한다.
+  // 라이트는 흰 글자, 다크는 검정 글자. 경고·정지·연습과 역할을 구별한다.
+  static const primary      = Color(0xFFA0DED2);
+  static const primaryLight = Color(0xFF175C55);
 
   // ── 상태 색상 ───────────────────────────────────────────────────────────
   // 성공은 색을 쓰지 않는다 -- 색을 아껴야 위험·주의가 눈에 띈다.
@@ -54,10 +49,11 @@ class AppColors {
   static const confirmed      = Color(0xFF7FD1A0); // 다크 바탕 위
   static const confirmedLight = Color(0xFF1E6B3C); // 라이트 바탕 7.0:1 언저리
 
-  // '연습' 전용 청록(2026-10-18 휴리스틱 평가 — 연습 가전 띠가 실제 가전과 같은 회색이었다). 키오스크 연습 색과 같은 계열.
+  // '연습' 전용 표지. 주 행동색이 바뀌어도 실제 가전과 혼동하지 않는다.
   // 확인(초록)·주의(앰버)·위험(빨강)·중립(회색)과 겹치지 않는다. 글자·아이콘으로 쓸 때 대비 7:1 이상.
-  static const practice      = Color(0xFF4FD1C5); // 다크 카드 위 9:1 언저리
-  static const practiceLight = Color(0xFF0B5F58); // 라이트 흰 카드 위 7.5:1 언저리
+  // 연습은 주 행동과 다른 파랑 + 항상 글자 표지로 구분한다.
+  static const practice      = Color(0xFF9BCBFA);
+  static const practiceLight = Color(0xFF164D7B);
 
   // 채도 있는 색을 **면으로** 쓸 때 얹는 글자색.
   //
