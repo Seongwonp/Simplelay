@@ -59,7 +59,20 @@ class KioskDoneView extends StatelessWidget {
     this.stopAgain,
     this.onChecked,
     this.onRetryAfterCheck,
+    this.onContinue,
+    this.onPickOther,
+    this.continueName,
   });
+
+  /// 직접 고른 가전에서 시작한 실행의 '이 가전 계속 조작'(R7 연속 조작, 2026-10-24) — 같은 조작판으로 돌아가기만 한다.
+  /// 있으면 확인한 성공의 주 단추가 되고 자동 복귀 말은 그리지 않는다(화면이 처음 화면으로 보내지 않는다). null이면 종전.
+  final VoidCallback? onContinue;
+
+  /// '다른 가전 고르기'(보조) — [onContinue]와 함께 온다.
+  final VoidCallback? onPickOther;
+
+  /// 계속 조작할 가전 이름. 비면 '이 가전'.
+  final String? continueName;
 
   /// '가전을 보고 알려 주세요'에 사람이 답했다(휴리스틱 평가 10/18) — true '바뀌었어요·켜졌어요', false '안 …' 뒤
   /// '손으로 할게요'. 화면(kiosk_screen)이 키오스크 안에 사람 확인으로 기억하고 처음 화면으로 간다('지난 일' 줄은 남기지
@@ -308,6 +321,9 @@ class KioskDoneView extends StatelessWidget {
           check: personCheck,
           onChecked: onChecked,
           onRetryAfterCheck: onRetryAfterCheck,
+          onContinue: onContinue,
+          onPickOther: onPickOther,
+          continueName: continueName,
           mock: executionMode == 'mock');
     }
     // 큰 글자(§1-8): 결과 원을 줄이고, 보조 단추(다시 시도·화면으로 조작하기)는 할 일 문장 아래 같은 세로 흐름으로
@@ -734,6 +750,8 @@ class KioskDoneView extends StatelessWidget {
     // 확실히 못 한 결과에서 다시 하는 것이 안전할 때만 '한 번 더 하기'가 주 단추(휴리스틱 평가 10/18) — 연습, 또는 LG 가전이
     // 거절해 아무것도 바뀌지 않은 것(notExecuted). 눌렸는지 모르는 결과는 위 사람 확인 흐름으로 간다(R1).
     final retryFirst = !success && retry != null && check == null && (mock || r == KioskFailureReason.notExecuted);
+    // 직접 고른 가전의 성공(R7) — '이 가전 계속 조작'이 주 단추, '다른 가전 고르기'가 보조, 처음 화면은 보조 모양.
+    final continueFirst = success && onContinue != null;
     final Widget actions = check != null
         ? KioskCheckActions(
             words: check,
@@ -763,12 +781,14 @@ class KioskDoneView extends StatelessWidget {
             stacked: stacked,
             primary: retryFirst
                 ? KioskRetryPrimary(onTap: () => _confirmRetry(context, mock))
-                : null,
-            note: success
+                : continueFirst
+                    ? KioskContinuePrimary(name: continueName, onTap: onContinue!)
+                    : null,
+            note: success && !continueFirst
                 ? (autoReturnHeld ? const _AutoReturnHeld() : _AutoReturn(seconds: autoReturnSeconds))
                 : null,
             secondaries: success
-                ? const []
+                ? [if (continueFirst && onPickOther != null) kioskPickOtherAction(onPickOther!)]
                 : [
                     if (manual != null)
                       KioskSecondaryAction(
@@ -1109,8 +1129,15 @@ class _ThinqResult extends StatelessWidget {
     this.check,
     this.onChecked,
     this.onRetryAfterCheck,
+    this.onContinue,
+    this.onPickOther,
+    this.continueName,
     this.mock = false,
   });
+
+  final VoidCallback? onContinue;
+  final VoidCallback? onPickOther;
+  final String? continueName;
 
   /// '확인 못 함'이면 순서 안내(사용자 결정 10/18). 없으면 null.
   final List<String>? steps;
@@ -1222,7 +1249,15 @@ class _ThinqResult extends StatelessWidget {
                   : KioskResultActions(
                 onHome: onClose,
                 homeKey: const ValueKey('thinq-result-close'),
-                note: success ? (held ? const _AutoReturnHeld() : _AutoReturn(seconds: autoReturnSeconds)) : null,
+                primary: success && onContinue != null
+                    ? KioskContinuePrimary(name: continueName, onTap: onContinue!)
+                    : null,
+                secondaries: [
+                  if (success && onContinue != null && onPickOther != null) kioskPickOtherAction(onPickOther!),
+                ],
+                note: success && onContinue == null
+                    ? (held ? const _AutoReturnHeld() : _AutoReturn(seconds: autoReturnSeconds))
+                    : null,
               ),
             ),
           ],
@@ -1682,6 +1717,35 @@ Future<void> confirmKioskRetry(BuildContext context,
 }
 
 /// 다시 하는 것이 안전한 실패의 주 단추 '한 번 더 하기'(휴리스틱 평가 10/18) — 흰 채움, 누르면 확인 창.
+/// 결과 화면 주 단추 '‹가전› 계속 조작'(R7 연속 조작, 2026-10-24) — 같은 조작판으로 돌아간다. 명령을 다시 보내지 않는다.
+class KioskContinuePrimary extends StatelessWidget {
+  const KioskContinuePrimary({super.key, this.name, required this.onTap});
+
+  final String? name;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final who = (name == null || name!.isEmpty) ? '이 가전' : name!;
+    return ElevatedButton.icon(
+      key: const ValueKey('done-continue'),
+      onPressed: onTap,
+      icon: const Icon(Icons.touch_app_outlined, size: KioskType.status),
+      label: Text('$who 계속 조작',
+          maxLines: 1, softWrap: false, style: const TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
+      style: KioskButtons.primary(background: KioskColors.neutralFill, foreground: KioskColors.onAccent),
+    );
+  }
+}
+
+/// 결과 화면 보조 단추 '다른 가전 고르기'(R7).
+KioskSecondaryAction kioskPickOtherAction(VoidCallback onTap) => KioskSecondaryAction(
+      buttonKey: const ValueKey('done-pick-other'),
+      icon: Icons.grid_view_outlined,
+      label: '다른 가전 고르기',
+      onTap: onTap,
+    );
+
 class KioskRetryPrimary extends StatelessWidget {
   const KioskRetryPrimary({super.key, required this.onTap});
 

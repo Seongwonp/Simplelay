@@ -760,7 +760,8 @@ class _KioskScreenState extends State<KioskScreen> {
         applianceId: _manualAppliance?.id,
         jobId: jobId,
         thinqOnly: _manualAppliance?.isThinq ?? false,
-        thinqActionText: label);
+        thinqActionText: label,
+        continueApplianceId: _manualAppliance?.id);
     _poll();
   }
 
@@ -1445,8 +1446,46 @@ class _KioskScreenState extends State<KioskScreen> {
     _persistSettings();
   }
 
+  /// 지금 결과의 복귀 문맥(R7) — 사람이 직접 고른 가전. [_toExecuting]이 실행마다 새로 정한다.
+  String? _continueApplianceId;
+
+  /// 조작판 루틴에서 만든 카드(카드 id, 그 조작판의 가전 id) — 승인하면 결과 뒤 그 조작판으로 돌아간다.
+  (String, String)? _routineCard;
+
+  /// 결과 화면의 '이 가전 계속 조작' — 같은 가전 조작판으로 **돌아가기만** 한다(직전 명령을 다시 보내지 않는다).
+  /// 최신 설치 목록에서 다시 찾고, 없으면(그사이 삭제) 가전 고르기로 — 다른 가전으로 메우지 않는다.
+  void _continueSameAppliance() => _toManualAfterResult(pickOther: false);
+
+  /// 결과 화면의 '다른 가전 고르기'.
+  void _pickOtherAppliance() => _toManualAfterResult(pickOther: true);
+
+  void _toManualAfterResult({required bool pickOther}) {
+    if (_phase != KioskPhase.done) return;
+    // 본체에 닿지 않으면 조작판을 열지 않는다(처음 화면 가전 줄과 같은 규칙) — 무엇이 안 되는지 말하는 연결 창.
+    if (!_health.ok) {
+      setState(() => _openConnectionId = 'network');
+      return;
+    }
+    final id = _continueApplianceId;
+    final target = pickOther || id == null ? null : _findIn(_appliances, id);
+    _rememberPastResult();
+    _doneReturnTimer?.cancel();
+    _doneReturnTimer = null;
+    _countdownTimer?.cancel();
+    setState(() {
+      _phase = KioskPhase.manual;
+      _manualAppliance = target;
+      if (target != null) _currentAppliance = target;
+      _currentSuggestion = null;
+      _showDnd = false;
+    });
+    _persistSettings();
+    _fetchRoutines();
+  }
+
   void _toIdle() {
     _rememberPastResult();
+    _continueApplianceId = null;
     _holdReturnTimer?.cancel();
     _holdReturnTimer = null;
     _doneReturnTimer?.cancel();
@@ -1533,6 +1572,8 @@ class _KioskScreenState extends State<KioskScreen> {
       if (!mounted || _phase != KioskPhase.manual) return;
       final card = result.suggestion;
       if (card != null) {
+        final from = _manualAppliance;
+        _routineCard = from == null ? null : (card.id, from.id);
         _toSuggestion(card);
         return;
       }
@@ -1585,8 +1626,9 @@ class _KioskScreenState extends State<KioskScreen> {
     _countdownTimer?.cancel();
     setState(() {
       _phase = KioskPhase.manual;
-      _manualAppliance =
-          _appliances.length == 1 ? _appliances.single : null;
+      // 직접 고른 가전에서 실패했으면 그 가전(R7) — 예전에는 가전이 여럿이면 선택을 비웠다.
+      final ctx = _continueApplianceId == null ? null : _findIn(_appliances, _continueApplianceId!);
+      _manualAppliance = ctx ?? (_appliances.length == 1 ? _appliances.single : null);
       _currentSuggestion = null;
       _showDnd = false;
     });
@@ -1664,9 +1706,17 @@ class _KioskScreenState extends State<KioskScreen> {
     });
   }
 
+  /// [continueApplianceId] — 키오스크에서 사람이 직접 고른 가전에서 시작한 실행이면 그 가전(R7 연속 조작, 2026-10-24).
+  /// 결과 화면이 '이 가전 계속 조작'으로 같은 조작판에 돌아가고 처음 화면으로 저절로 가지 않는다. 이어받은 실행·스스로 뜬
+  /// 제안은 null — 직접 조작하던 화면이 없다. 실행 job의 대상([applianceId])과 섞지 않는다.
   void _toExecuting(String title,
-      {String? applianceId, String? jobId, bool thinqOnly = false, String? thinqActionText}) {
+      {String? applianceId,
+      String? jobId,
+      bool thinqOnly = false,
+      String? thinqActionText,
+      String? continueApplianceId}) {
     _rememberPastResult();
+    _continueApplianceId = continueApplianceId;
     _execThinqOnly = thinqOnly;
     _execThinqActionText = thinqOnly ? thinqActionText : null;
     _executionMode = 'unknown';
@@ -1802,6 +1852,8 @@ class _KioskScreenState extends State<KioskScreen> {
     if (!success) return;
     // 버튼 누름 보고만(가전은 사람이 본다) — 사람이 답할 때까지 닫지 않는다(2차 독립 평가 C, 10/18).
     if (_doneView().personCheck != null) return;
+    // 직접 고른 가전에서 시작한 실행(R7, 2026-10-24) — 사용 중인 사람을 처음 화면으로 튕기지 않는다. 다음 행동은 사람이 고른다.
+    if (_continueApplianceId != null) return;
     // 취소할 수 있는 타이머 — 화면을 만지면 멈춘다(UI 평가 10/17). 예전 Future.delayed는 다음 결과 화면까지 닫을 수 있었다.
     // 큰 글씨는 두 배 — 스크롤해서 읽는 동안 닫히지 않게(UI 평가 4차 10/17).
     // 1초씩 세어 남은 초를 화면에 숫자로 말한다(접근성 감사 10/18 — '잠시 뒤'는 얼마나 남았는지 몰랐다). 전체 길이는 종전과 같다.
@@ -1855,10 +1907,13 @@ class _KioskScreenState extends State<KioskScreen> {
     // LG 가전 명령 하나뿐인 카드면 버튼판 없는 기다림·결과 창(사용자 요청 10/18). 판정은 승인에 묶인 명령의 경로로.
     final thinqOnly = isSingleThinqCommand([for (final c in suggestion.commands) c.route]);
     _beginAdmission();
+    final fromRoutine = _routineCard;
     _toExecuting(label,
         applianceId: suggestion.applianceId,
         thinqOnly: thinqOnly,
-        thinqActionText: thinqOnly ? suggestion.commands.single.summary : null);
+        thinqActionText: thinqOnly ? suggestion.commands.single.summary : null,
+        // 조작판의 루틴에서 만든 카드면 그 조작판으로 돌아간다. 스스로 뜬 제안은 돌아갈 조작판이 없다.
+        continueApplianceId: fromRoutine != null && fromRoutine.$1 == suggestion.id ? fromRoutine.$2 : null);
     final gen = _admitGen;
     _accepting = true;
     _retryAction = () => _onApprove(suggestion: suggestion);
@@ -2037,7 +2092,8 @@ class _KioskScreenState extends State<KioskScreen> {
     // 두 번 누름은 요청 하나만(검토 10/19) — 둘째의 409가 첫 실행을 실패 화면 뒤에 숨기던 것.
     if (_admitting) return;
     _beginAdmission();
-    _toExecuting(button.label, applianceId: _currentAppliance.id);
+    _toExecuting(button.label,
+        applianceId: _currentAppliance.id, continueApplianceId: _manualAppliance?.id ?? _currentAppliance.id);
     final gen = _admitGen;
     _accepting = true;
     _retryAction = () => _onManualExecute(button);
@@ -2399,6 +2455,9 @@ class _KioskScreenState extends State<KioskScreen> {
         onStopAgain: _executionMode == 'mock' ? null : _onDoneStopAgain,
         stopAgain: _doneStopAgain,
         onDismiss: _toIdle,
+        onContinue: _continueApplianceId == null ? null : _continueSameAppliance,
+        onPickOther: _continueApplianceId == null ? null : _pickOtherAppliance,
+        continueName: _continueApplianceId == null ? null : _nameOf(_continueApplianceId),
         // 사람 확인 흐름(휴리스틱 평가 10/18) — 답하면 키오스크 안에 기억하고 처음 화면으로('지난 일' 줄은 남기지 않는다).
         onChecked: _onDoneChecked,
         // '안 바뀌었어요·안 켜졌어요'라고 답한 뒤의 '한 번 더 하기' — 다시 보낼 요청이 있고, 본체 끊김·누름 장치 걸림이 아닐 때.
@@ -2430,6 +2489,11 @@ class _KioskScreenState extends State<KioskScreen> {
     if (_personChecks.length > kPersonCheckKeep) _personChecks.removeAt(0);
     if (_activeJobId != null) _ack(_activeJobId, worked ? 'moved' : 'not_moved');
     _doneAnswered = true;
+    // 직접 고른 가전이면 답한 뒤 그 조작판으로(R7) — 처음 화면을 강제하지 않는다.
+    if (_continueApplianceId != null) {
+      _continueSameAppliance();
+      return;
+    }
     _toIdle();
   }
 

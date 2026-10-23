@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SimpleLay 키오스크 시안 B</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<style>
+:root{--bg:#F4F6FA;--card:#FFFFFF;--well:#ECEFF4;--ink:#16181D;--muted:#5A5F69;--line:#DADFE7;
+--primary:#175C55;--mint:#DDF4EE;--deep:#183B36;--stop:#A8201A;--glass:#10201E;--lcd:#A0DED2;--onp:#FFFFFF;--art:#3D4047}
+body.dark .frame{--bg:#0F1117;--card:#1A1D26;--well:#252935;--ink:#ECEEF3;--muted:#A4A9B4;--line:#2E3340;
+--primary:#A0DED2;--mint:#1F3C37;--deep:#CDEFE8;--glass:#0A1614;--onp:#0F2B27;--art:#C9CDD6}
+.toggle{display:flex;gap:8px}.toggle button{font:inherit;font-size:14px;padding:8px 16px;border-radius:10px;border:1px solid #888;background:#fff;cursor:pointer}
+body.dark .toggle .d,body:not(.dark) .toggle .l{background:#183B36;color:#fff;border-color:#183B36}
+*{box-sizing:border-box}
+body{margin:0;background:#C9CFD6;font-family:"Noto Sans KR",system-ui,sans-serif;color:var(--ink);padding:28px 16px}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+h1{font-size:20px;margin:0}
+.cap{font-size:14px;color:#2b2f36;margin-top:18px}
+.cap b{color:#000}
+.frame{width:960px;height:540px;background:var(--bg);color:var(--ink);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);position:relative;overflow:hidden;display:flex;flex-direction:column}
+.bar{height:62px;display:flex;align-items:center;padding:0 26px;gap:22px;flex:none}
+.clock{font-size:30px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.date{font-size:14px;color:var(--muted);line-height:1.25}
+.date b{color:var(--ink);font-weight:500}
+.sp{flex:1}
+.ib{display:flex;align-items:center;gap:6px;color:var(--primary);font-size:15px;font-weight:500;position:relative}
+.ib svg{width:24px;height:24px}
+.badge{position:absolute;top:-6px;left:14px;background:var(--stop);color:#fff;font-size:11px;font-weight:700;border-radius:9px;padding:0 5px;line-height:17px}
+.tabs{height:64px;flex:none;display:flex;border-top:1px solid var(--line);background:var(--card)}
+.tabs div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;color:var(--muted);gap:2px}
+.tabs svg{width:24px;height:24px}
+.tabs .on{color:var(--primary);font-weight:700}
+.tabs .on svg{background:var(--mint);border-radius:14px;padding:2px 14px;width:52px}
+.body{flex:1;display:flex;gap:26px;padding:6px 26px 18px;min-height:0}
+.h2{font-size:22px;font-weight:700;margin:0 0 12px}
+.feature{background:var(--card);border-radius:18px;padding:18px 20px;display:flex;align-items:center;gap:18px;border:1px solid var(--line)}
+.tile{width:84px;height:84px;border-radius:16px;background:var(--well);display:flex;align-items:center;justify-content:center;flex:none;color:var(--art)}
+.tile svg{width:62px;height:62px}
+.ft{font-size:26px;font-weight:700}.fs{font-size:15px;color:var(--muted);margin-top:2px}
+.run{margin-left:auto;background:var(--primary);color:var(--onp);font-size:19px;font-weight:700;border-radius:14px;padding:16px 30px}
+.apps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}
+.app{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 14px 12px;height:132px;display:flex;flex-direction:column;justify-content:space-between;color:var(--art)}
+.app svg{width:54px;height:54px}
+.an{font-size:18px;font-weight:700;color:var(--ink)}.as{font-size:13px;color:var(--muted)}
+.app.add{border-style:dashed;background:transparent;align-items:center;justify-content:center;color:var(--muted);font-size:15px;gap:4px}
+.side{width:250px;flex:none;display:flex;flex-direction:column}
+.row{padding:14px 0;border-bottom:1px solid var(--line)}
+.row:first-of-type{padding-top:4px}
+.k{font-size:13px;color:var(--muted)}.v{font-size:17px;font-weight:700;margin-top:3px}.v small{font-weight:400;font-size:14px;color:var(--muted)}
+.left{width:300px;flex:none;display:flex;flex-direction:column;gap:14px}
+.who{display:flex;align-items:center;gap:14px}
+.who .tile{width:96px;height:96px}.who .tile svg{width:72px;height:72px}
+.wn{font-size:28px;font-weight:900;letter-spacing:-.5px}.ws{font-size:14px;color:var(--muted)}
+.lcd{background:var(--glass);border-radius:14px;padding:14px 16px;color:var(--lcd);flex:1;display:flex;flex-direction:column}
+.lcd .k{color:#7FA39C}
+.seq{font-size:30px;font-weight:700;letter-spacing:-.5px;margin-top:6px}
+.seq i{font-style:normal;color:#5E8A82;margin:0 6px}
+.lcd .hint{margin-top:auto;font-size:13px;color:#8FB3AC}
+.pad{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:1fr;gap:10px}
+.key{background:var(--card);border:1px solid var(--line);border-bottom-width:3px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:500;position:relative}
+.key.sel{background:var(--mint);border-color:var(--primary);color:var(--deep);font-weight:700}
+.key.sel::after{content:attr(data-n);position:absolute;top:6px;left:8px;font-size:12px;font-weight:700;color:var(--primary)}
+.key.dim{opacity:.35}
+.actions{display:flex;gap:10px}
+.pri{flex:1;background:var(--primary);color:var(--onp);font-size:19px;font-weight:700;border-radius:14px;padding:15px 0;text-align:center}
+.sec{background:var(--card);border:1.5px solid var(--primary);color:var(--primary);font-size:17px;font-weight:700;border-radius:14px;padding:14px 18px;text-align:center}
+.back{display:flex;align-items:center;gap:4px;font-size:15px;color:var(--primary);font-weight:500}
+.done{color:var(--lcd);font-size:34px;font-weight:900;display:flex;align-items:center;gap:10px;margin-top:4px}
+.done svg{width:34px;height:34px}
+.stop{position:absolute;right:26px;bottom:18px;background:var(--stop);color:#fff;border-radius:16px;width:200px;height:74px;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:12px}
+.stop span{width:20px;height:20px;background:#fff;border-radius:3px}
+.acts{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;gap:14px;align-content:start}
+.act::before{content:"▶";width:44px;height:44px;border-radius:22px;background:var(--mint);color:var(--primary);font-size:16px;display:flex;align-items:center;justify-content:center;padding-left:3px;box-sizing:border-box;margin-bottom:auto}
+.act{background:var(--card);border:1px solid var(--line);border-bottom-width:3px;border-radius:18px;padding:20px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px}
+.act .at{font-size:24px;font-weight:700;letter-spacing:-.3px}.act .ab{font-size:14px;color:var(--muted)}
+.act.manual::before{background:transparent;content:"+";font-size:30px;color:var(--primary);width:auto;height:auto}
+.act.manual{background:transparent;border-style:dashed;border-bottom-width:1px}
+.act.manual .at{font-size:18px;color:var(--primary)}
+.scrim{position:absolute;inset:0;background:rgba(16,32,30,.35);display:flex;align-items:center;justify-content:center}
+.dlg{width:440px;background:var(--card);border-radius:22px;padding:24px;display:flex;flex-direction:column;gap:16px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.note{font-size:13px;color:#2b2f36;line-height:1.6;background:#fff;border-radius:8px;padding:12px 16px}
+</style></head><body><div class="wrap">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="mw" viewBox="0 0 64 64"><rect x="5" y="13" width="54" height="38" rx="5" fill="none" stroke="currentColor" stroke-width="2.6"/><rect x="10" y="18" width="33" height="28" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M17 27c2-2 4 2 6 0s4 2 6 0 4 2 6 0M17 35c2-2 4 2 6 0s4 2 6 0 4 2 6 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><g fill="currentColor"><circle cx="49" cy="23" r="1.6"/><circle cx="54" cy="23" r="1.6"/><circle cx="49" cy="29" r="1.6"/><circle cx="54" cy="29" r="1.6"/><circle cx="49" cy="35" r="1.6"/><circle cx="54" cy="35" r="1.6"/></g><path d="M49 42h5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+<symbol id="air" viewBox="0 0 64 64"><rect x="20" y="6" width="24" height="52" rx="9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M22 16h20" stroke="currentColor" stroke-width="2.4"/><g fill="currentColor"><circle cx="27" cy="25" r="1.5"/><circle cx="32" cy="25" r="1.5"/><circle cx="37" cy="25" r="1.5"/><circle cx="27" cy="31" r="1.5"/><circle cx="32" cy="31" r="1.5"/><circle cx="37" cy="31" r="1.5"/><circle cx="27" cy="37" r="1.5"/><circle cx="32" cy="37" r="1.5"/><circle cx="37" cy="37" r="1.5"/><circle cx="27" cy="43" r="1.5"/><circle cx="32" cy="43" r="1.5"/><circle cx="37" cy="43" r="1.5"/></g></symbol>
+<symbol id="wash" viewBox="0 0 64 64"><rect x="12" y="6" width="40" height="52" rx="5" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M12 16h40" stroke="currentColor" stroke-width="2.4"/><circle cx="32" cy="36" r="13" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M24 38c3-3 6 3 9 0s5 2 7 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="19" cy="11" r="1.6" fill="currentColor"/></symbol>
+<symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="home" viewBox="0 0 24 24"><path d="M4 11l8-6.5 8 6.5V20h-5v-5H9v5H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="4" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+<symbol id="chev" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M7.5 12.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</defs></svg>
+
+<h1>키오스크 시안 B — 폰 홈을 그대로 키운 모양</h1>
+<div class="toggle"><button class="l" onclick="document.body.classList.remove('dark')">밝은 화면</button><button class="d" onclick="document.body.classList.add('dark')">어두운 화면</button></div>
+<div class="note">A안에서 뺀 것: 이모지, 말로 하기(키오스크엔 음성 입력 없음), 상단 '연결됨' 칩(끊겼을 때만 표시), 화면 안 설명 문장, 왼쪽 메뉴, 카드 남발.
+대신 폰과 같은 <b>아래 탭 4개·흰 가전 칸·청록 실행 버튼</b>을 쓰고, 가전 조작은 실제 가전 패널처럼 <b>어두운 표시창 + 버튼 판</b>으로 그렸습니다. 15.8형 화면의 절반 크기입니다.</div>
+
+<div class="cap"><b>① 홈</b> — 폰 홈과 같은 순서(무엇을 할까요 → 가전). 오른쪽은 칸 없이 줄로만.</div>
+<div class="frame">
+ <div class="bar"><div class="clock">오후 3:12</div><div class="date"><b>10월 24일 토요일</b><br>실내 24.2° · 습도 50%</div><div class="sp"></div>
+<div class="ib"><svg><use href="#bell"/></svg><span class="badge">2</span></div><div class="ib"><svg><use href="#gear"/></svg></div></div>
+ <div class="body">
+  <div style="flex:1;min-width:0">
+   <div class="h2">무엇을 할까요?</div>
+   <div class="feature"><div class="tile"><svg><use href="#mw"/></svg></div><div><div class="ft">30초 데우기</div><div class="fs">전자레인지 · 누를 버튼 2개</div></div><div class="run">실행하기</div></div>
+   <div class="apps">
+    <div class="app"><svg><use href="#mw"/></svg><div><div class="an">전자레인지</div><div class="as">주방</div></div></div>
+    <div class="app" style="color:var(--ink)"><svg><use href="#air"/></svg><div><div class="an">공기청정기</div><div class="as">켜짐 · 약풍</div></div></div>
+    <div class="app"><svg><use href="#wash"/></svg><div><div class="an">세탁기</div><div class="as">설정 필요</div></div></div>
+    <div class="app add"><span style="font-size:30px;line-height:1">+</span>가전 추가</div>
+   </div>
+  </div>
+  <div class="side">
+   <div class="row"><div class="k">다음 자동 실행</div><div class="v">오후 10:00 <small>공기청정기 켜기</small></div></div>
+   <div class="row"><div class="k">바깥 날씨</div><div class="v">17° 흐림 <small>내일 아침 비</small></div></div>
+   <div class="row"><div class="k">공기질</div><div class="v">좋음 <small>미세먼지 12</small></div></div>
+  </div>
+ </div>
+ <div class="tabs"><div class="on"><svg><use href="#home"/></svg>홈</div><div><svg><use href="#grid"/></svg>가전</div><div><svg><use href="#auto"/></svg>자동 실행</div><div><svg><use href="#list"/></svg>기록</div></div>
+</div>
+
+<div class="cap"><b>② 전자레인지 — 저장된 동작이 먼저</b> — 폰에서 저장한 동작을 큰 칸으로. 칸 하나 누르면 확인 뒤 바로 누름. 직접 고르기는 맨 끝 보조 칸.</div>
+<div class="frame">
+ <div class="bar"><div class="back"><svg width="22" height="22"><use href="#chev"/></svg>가전 목록</div><div class="sp"></div>
+<div class="ib"><svg><use href="#bell"/></svg><span class="badge">2</span></div><div class="ib"><svg><use href="#gear"/></svg></div></div>
+ <div class="body" style="flex-direction:column;gap:16px">
+  <div class="who"><div class="tile" style="width:72px;height:72px"><svg style="width:54px;height:54px"><use href="#mw"/></svg></div><div><div class="wn">전자레인지</div><div class="ws">주방 · 저장된 동작 3개</div></div></div>
+  <div class="acts">
+   <div class="act"><div class="at">30초 데우기</div><div class="ab">30초 › 시작</div></div>
+   <div class="act"><div class="at">즉석밥</div><div class="ab">즉석밥 › 시작</div></div>
+   <div class="act"><div class="at">냉동 해동</div><div class="ab">해동 › 1분 › 시작</div></div>
+   <div class="act manual"><div class="at">버튼 직접 고르기</div><div class="ab">저장 안 한 조합</div></div>
+  </div>
+ </div>
+ <div class="tabs"><div><svg><use href="#home"/></svg>홈</div><div class="on"><svg><use href="#grid"/></svg>가전</div><div><svg><use href="#auto"/></svg>자동 실행</div><div><svg><use href="#list"/></svg>기록</div></div>
+</div>
+
+<div class="cap"><b>②-1 한 번 확인</b> — 승인 단계는 그대로. 누를 버튼 순서를 크게 보여 주고 '누르기'.</div>
+<div class="frame">
+ <div class="bar"><div class="back"><svg width="22" height="22"><use href="#chev"/></svg>가전 목록</div><div class="sp"></div></div>
+ <div class="body" style="flex-direction:column;gap:16px;opacity:.35">
+  <div class="who"><div class="tile" style="width:72px;height:72px"><svg style="width:54px;height:54px"><use href="#mw"/></svg></div><div><div class="wn">전자레인지</div><div class="ws">주방 · 저장된 동작 3개</div></div></div>
+  <div class="acts"><div class="act"><div class="at">30초 데우기</div></div><div class="act"><div class="at">즉석밥</div></div><div class="act"><div class="at">냉동 해동</div></div><div class="act manual"><div class="at">버튼 직접 고르기</div></div></div>
+ </div>
+ <div class="scrim"><div class="dlg">
+  <div style="display:flex;align-items:center;gap:14px"><div class="tile" style="width:64px;height:64px"><svg style="width:48px;height:48px"><use href="#mw"/></svg></div><div><div style="font-size:24px;font-weight:900">30초 데우기</div><div class="ws">전자레인지</div></div></div>
+  <div class="lcd" style="flex:none"><div class="k">누를 순서</div><div class="seq">30초<i>›</i>시작</div></div>
+  <div class="actions"><div class="pri">누르기</div><div class="sec">취소</div></div>
+ </div></div>
+</div>
+
+<div class="cap"><b>②-2 버튼 직접 고르기</b> — 보조 경로. 누른 순서가 버튼에 번호로 붙고, 왼쪽 표시창에 그대로 보임.</div>
+<div class="frame">
+ <div class="bar"><div class="back"><svg width="22" height="22"><use href="#chev"/></svg>가전 목록</div><div class="sp"></div>
+<div class="ib"><svg><use href="#bell"/></svg><span class="badge">2</span></div><div class="ib"><svg><use href="#gear"/></svg></div></div>
+ <div class="body">
+  <div class="left">
+   <div class="who"><div class="tile"><svg><use href="#mw"/></svg></div><div><div class="wn">전자레인지</div><div class="ws">주방 · 누름 장치</div></div></div>
+   <div class="lcd"><div class="k">누를 순서</div><div class="seq">30초<i>›</i>시작</div><div class="hint">누르기 전에 한 번 더 확인합니다</div></div>
+   <div class="actions"><div class="pri">이대로 누르기</div><div class="sec">지우기</div></div>
+  </div>
+  <div class="pad">
+   <div class="key">10초</div><div class="key sel" data-n="1">30초</div><div class="key">1분</div><div class="key">5분</div>
+   <div class="key">라면</div><div class="key">해동</div><div class="key">즉석밥</div><div class="key">냉동식품</div>
+   <div class="key">데우기</div><div class="key">세기</div><div class="key">취소</div><div class="key sel" data-n="2">시작</div>
+  </div>
+ </div>
+ <div class="tabs"><div><svg><use href="#home"/></svg>홈</div><div class="on"><svg><use href="#grid"/></svg>가전</div><div><svg><use href="#auto"/></svg>자동 실행</div><div><svg><use href="#list"/></svg>기록</div></div>
+</div>
+
+<div class="cap"><b>③ 누르는 중</b> — 버튼 판 자리에 진행, 정지는 오른쪽 아래 고정.</div>
+<div class="frame">
+ <div class="bar"><div class="clock" style="font-size:22px">전자레인지 누르는 중</div><div class="sp"></div></div>
+ <div class="body">
+  <div class="left">
+   <div class="who"><div class="tile"><svg><use href="#mw"/></svg></div><div><div class="wn">전자레인지</div><div class="ws">주방 · 누름 장치</div></div></div>
+   <div class="lcd"><div class="k">30초 데우기 누르는 중</div><div class="seq"><span style="color:#fff">30초</span><i>›</i>시작</div><div class="hint">1 / 2</div></div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px;padding-right:220px">
+   <div style="font-size:15px;color:var(--muted)">진행</div>
+   <div style="height:14px;background:var(--well);border-radius:7px;overflow:hidden"><div style="width:50%;height:100%;background:var(--primary)"></div></div>
+   <div style="font-size:20px;font-weight:700">30초 버튼 누름 · 다음은 시작</div>
+  </div>
+ </div>
+ <div class="stop"><span></span>정지</div>
+</div>
+
+<div class="cap"><b>④ 누른 뒤</b> — 같은 화면에 머무름. 표시창이 결과로 바뀌고 '계속 조작'이 주 버튼. 처음 화면으로 저절로 가지 않음.</div>
+<div class="frame">
+ <div class="bar"><div class="back"><svg width="22" height="22"><use href="#chev"/></svg>가전 목록</div><div class="sp"></div>
+<div class="ib"><svg><use href="#bell"/></svg><span class="badge">2</span></div><div class="ib"><svg><use href="#gear"/></svg></div></div>
+ <div class="body">
+  <div class="left">
+   <div class="who"><div class="tile"><svg><use href="#mw"/></svg></div><div><div class="wn">전자레인지</div><div class="ws">주방 · 누름 장치</div></div></div>
+   <div class="lcd"><div class="k">30초 데우기 · 30초 › 시작</div><div class="done"><svg><use href="#check"/></svg>완료</div><div class="hint">버튼 2개 누름 · 오후 3:12</div></div>
+   <div class="actions"><div class="pri">계속 조작</div><div class="sec">홈으로</div></div>
+  </div>
+  <div class="acts" style="grid-template-columns:repeat(2,1fr);opacity:.45">
+   <div class="act" style="background:var(--card);border-color:var(--line)"><div class="at">30초 데우기</div></div><div class="act"><div class="at">즉석밥</div></div>
+   <div class="act"><div class="at">냉동 해동</div></div><div class="act manual"><div class="at">버튼 직접 고르기</div></div>
+  </div>
+ </div>
+ <div class="tabs"><div><svg><use href="#home"/></svg>홈</div><div class="on"><svg><use href="#grid"/></svg>가전</div><div><svg><use href="#auto"/></svg>자동 실행</div><div><svg><use href="#list"/></svg>기록</div></div>
+</div>
+
+</div></body></html>
