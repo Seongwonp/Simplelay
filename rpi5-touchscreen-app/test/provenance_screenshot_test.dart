@@ -2,6 +2,7 @@
 library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/practice_band.dart';
@@ -21,7 +22,7 @@ void main() {
               currentButton: '시작', currentAttempt: 1, completedSteps: 1, totalSteps: 2,
               // 연습 실행은 근거 숫자를 싣지 않는다 — 실제 화면에 나올 값만(2026-10-15 §3-2, 예전 '모의 검증'은 시험이 넣은 값).
               verificationConfidence: null, verificationDetail: null, onStop: () {});
-        await tester.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: ThemeData(brightness: Brightness.dark, fontFamily: 'Malgun'),
+        await tester.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: ThemeData(brightness: KioskColors.brightness, fontFamily: 'Malgun'),
           home: MediaQuery(data: MediaQueryData(textScaler: TextScaler.linear(scale)), child: Scaffold(body: view))));
         await tester.pump(const Duration(milliseconds: 300));
         expect(tester.takeException(), isNull);

@@ -34,8 +34,8 @@ class KioskAutoRunNotice extends StatelessWidget {
                     text,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: KioskType.body, fontWeight: FontWeight.w600, color: Colors.white),
+                    style: TextStyle(
+                        fontSize: KioskType.body, fontWeight: FontWeight.w600, color: KioskColors.ink),
                   ),
                 ),
                 if (onClose != null)

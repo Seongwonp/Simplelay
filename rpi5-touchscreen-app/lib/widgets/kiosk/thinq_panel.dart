@@ -17,7 +17,7 @@ Color airGradeColor(String? grade) => switch (grade) {
       'GOOD' => KioskColors.confirmed,
       'BAD' => KioskColors.warning,
       'VERY_BAD' => KioskColors.danger,
-      _ => Colors.white,
+      _ => KioskColors.ink,
     };
 
 /// 비상 멈춤이 걸려 있을 때 조작 칸 아래 문장.
@@ -240,8 +240,8 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
             padding: const EdgeInsets.only(bottom: KioskSpace.sm),
             child: KioskText(headlineText,
                 textKey: const ValueKey('thinq-state-headline'),
-                style: const TextStyle(
-                    fontSize: KioskType.status, fontWeight: FontWeight.w800, color: Colors.white, height: 1.25)),
+                style: TextStyle(
+                    fontSize: KioskType.status, fontWeight: FontWeight.w800, color: KioskColors.ink, height: 1.25)),
           );
     final right = _Controls(
       status: state,
@@ -275,7 +275,7 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
                           padding: const EdgeInsets.only(bottom: KioskSpace.sm),
                           child: KioskText(brief,
                               textKey: const ValueKey('thinq-state-brief'),
-                              style: const TextStyle(fontSize: KioskType.body, color: Colors.white, height: 1.25)),
+                              style: TextStyle(fontSize: KioskType.body, color: KioskColors.ink, height: 1.25)),
                         ),
                       right,
                       const SizedBox(height: 16),
@@ -370,7 +370,7 @@ class _StateCardState extends State<_StateCard> {
                   '지금 상태를 못 봤어요. ${s.failure!.replaceFirst(RegExp(r'\.$'), '')}'
                   "${onReread != null ? ". '새로 보기'로 다시 볼 수 있어요." : ''}",
                   textKey: const ValueKey('thinq-read-failed'),
-                  style: const TextStyle(fontSize: KioskType.body, color: Colors.white, height: 1.3)),
+                  style: TextStyle(fontSize: KioskType.body, color: KioskColors.ink, height: 1.3)),
             ),
           ],
         ),
@@ -416,14 +416,14 @@ class _StateCardState extends State<_StateCard> {
               style: TextStyle(
                   fontSize: KioskType.body,
                   fontWeight: FontWeight.w800,
-                  color: grade == null ? Colors.white : airGradeColor(grade))),
+                  color: grade == null ? KioskColors.ink : airGradeColor(grade))),
           // 공기가 나쁠 때만 할 일 한 줄(평가 12차 10/18).
           if (thinqAirHint(grade, map) case final hint?)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: KioskText(hint,
                   textKey: const ValueKey('thinq-air-hint'),
-                  style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
+                  style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.ink)),
             ),
           // 무엇을 보는지 말하는 단추(평가 11차 10/18 — '자세히'는 무엇을 보여 주는지 몰랐다). 이름이 길어져 공기 한 줄
           // 옆이 아니라 그 아래에 둔다(한 줄 옆에 두면 '공기 나빠요'가 낱말 가운데서 꺾였다).
@@ -433,7 +433,7 @@ class _StateCardState extends State<_StateCard> {
             child: OutlinedButton(
               key: const ValueKey('thinq-air-more'),
               onPressed: () => setState(() => _airOpen = !_airOpen),
-              style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border)
+              style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border)
                   .copyWith(
                 minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
                 padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.sm)),
@@ -491,14 +491,14 @@ class _StateCardState extends State<_StateCard> {
                 child: Text('지금 상태',
                     maxLines: 1,
                     softWrap: false,
-                    style: const TextStyle(
-                        fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
+                    style: TextStyle(
+                        fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.ink)),
               ),
               const SizedBox(width: 12),
               OutlinedButton.icon(
                 key: const ValueKey('thinq-reread'),
                 onPressed: onReread,
-                style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border)
+                style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border)
                     .copyWith(padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 14))),
                 icon: const Icon(Icons.refresh, size: 22),
                 label: const Text('새로 보기',
@@ -540,7 +540,7 @@ class _StateRowView extends StatelessWidget {
                   style: TextStyle(
                       fontSize: KioskType.body,
                       fontWeight: FontWeight.w700,
-                      color: grade != null ? airGradeColor(grade) : Colors.white)),
+                      color: grade != null ? airGradeColor(grade) : KioskColors.ink)),
             ],
           ),
         ],
@@ -561,7 +561,7 @@ class _PracticeChip extends StatelessWidget {
           SizedBox(width: 8),
           Flexible(
             child: KioskText(kThinqPracticeText,
-                style: TextStyle(fontSize: KioskType.caption, color: Colors.white, height: 1.3)),
+                style: TextStyle(fontSize: KioskType.caption, color: KioskColors.ink, height: 1.3)),
           ),
         ],
       );
@@ -618,8 +618,8 @@ class _Controls extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               KioskText(control.label,
-                  style: const TextStyle(
-                      fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
+                  style: TextStyle(
+                      fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.ink)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -659,7 +659,7 @@ class _Controls extends StatelessWidget {
             Expanded(
               child: KioskText(kThinqEstopNote,
                   textKey: ValueKey('thinq-estop-note'),
-                  style: TextStyle(fontSize: KioskType.body, color: Colors.white, height: 1.3)),
+                  style: TextStyle(fontSize: KioskType.body, color: KioskColors.ink, height: 1.3)),
             ),
           ],
         ));
@@ -685,7 +685,7 @@ class _Controls extends StatelessWidget {
             Expanded(
               child: KioskText(msg,
                   textKey: const ValueKey('thinq-message'),
-                  style: const TextStyle(fontSize: KioskType.body, color: Colors.white, height: 1.3)),
+                  style: TextStyle(fontSize: KioskType.body, color: KioskColors.ink, height: 1.3)),
             ),
           ],
         ),
@@ -715,7 +715,7 @@ class _ChoiceButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = enabled || current ? Colors.white : Colors.white.withValues(alpha: 0.35);
+    final fg = enabled || current ? KioskColors.ink : KioskColors.ink.withValues(alpha: 0.35);
     return Semantics(
       button: true,
       enabled: onTap != null,
@@ -727,7 +727,7 @@ class _ChoiceButton extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(KioskSizes.buttonRadius),
           side: BorderSide(
-              color: current ? Colors.white : (enabled ? KioskColors.border : KioskColors.border.withValues(alpha: 0.1)),
+              color: current ? KioskColors.ink : (enabled ? KioskColors.border : KioskColors.border.withValues(alpha: 0.1)),
               width: current ? 3 : 2),
         ),
         child: InkWell(
@@ -793,8 +793,8 @@ class _ChangeConfirm extends StatelessWidget {
                 children: [
                   KioskText(question,
                       textKey: const ValueKey('thinq-confirm-question'),
-                      style: const TextStyle(
-                          fontSize: KioskType.status, fontWeight: FontWeight.w700, color: Colors.white, height: 1.25)),
+                      style: TextStyle(
+                          fontSize: KioskType.status, fontWeight: FontWeight.w700, color: KioskColors.ink, height: 1.25)),
                   const SizedBox(height: 10),
                   KioskText('LG 가전으로 보내요. 바뀌었는지는 보낸 뒤 다시 봐요.',
                       style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted, height: 1.3)),
@@ -806,7 +806,7 @@ class _ChangeConfirm extends StatelessWidget {
                         child: OutlinedButton(
                           key: const ValueKey('thinq-confirm-cancel'),
                           onPressed: onCancel,
-                          style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border)
+                          style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border)
                               .copyWith(minimumSize: const WidgetStatePropertyAll(Size(0, KioskSizes.primaryButton))),
                           child: const Text('닫기', style: TextStyle(fontSize: KioskType.body)),
                         ),

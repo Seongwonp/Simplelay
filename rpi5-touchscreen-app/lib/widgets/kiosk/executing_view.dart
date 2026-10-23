@@ -6,6 +6,7 @@ import '../../models/thinq_run.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
+import 'appliance_art.dart';
 import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 import 'run_frame.dart';
@@ -183,7 +184,7 @@ class KioskExecutingView extends StatelessWidget {
         KioskColors.warning
       );
     }
-    if (_mock) return ('연습으로 누르고 있어요', Icons.touch_app_outlined, Colors.white);
+    if (_mock) return ('연습으로 누르고 있어요', Icons.touch_app_outlined, KioskColors.ink);
     // 실제 단계대로(결선 모의 평가 10/18 — '제대로 눌렸는지 보는 중'과 '2번째 시작 버튼'이 함께 있어 누르는 중인지 확인 중인지
     // 헷갈렸다). 서버 진행 보고(`ExecutionProgress`)는 누르고 난 **뒤** 확인 결과를 실어 온다 — 그때는 '눌렀어요, 확인
     // 중이에요'(눌렸다고 단정하지 않는다). 확인 결과 없이 버튼만 오면(누르기가 끝나지 않아 그 버튼을 다시 누르러 간다)
@@ -192,8 +193,8 @@ class KioskExecutingView extends StatelessWidget {
     // 확인 머리말은 마지막 버튼의 결과일 때(버튼을 다 누른 뒤)만.
     return _hasVerification && _lastButtonReported
         // 확인 단계는 눈 아이콘 하나(평가 3차 10/18 — 목록+돋보기 모양은 뜻이 둘로 읽혔다).
-        ? (kExecPressedChecking, Icons.visibility_outlined, Colors.white)
-        : (kExecPressing, Icons.touch_app_outlined, Colors.white);
+        ? (kExecPressedChecking, Icons.visibility_outlined, KioskColors.ink)
+        : (kExecPressing, Icons.touch_app_outlined, KioskColors.ink);
   }
 
   /// 무엇을 보고 있는지 숫자 없이 한 줄(2026-10-15 — 'mA·dB·센서 %'는 뜻을 몰랐다). 몇 번째 시도인지는 남긴다.
@@ -244,7 +245,7 @@ class KioskExecutingView extends StatelessWidget {
       picture: _mock
           ? null
           // 한 문장, 왼쪽 선에서 시작해 낱말 단위로 줄을 바꾼다(평가 12차 10/18 — 오른쪽 정렬 두 줄은 읽기 어려웠다).
-          : const Align(
+          : Align(
               alignment: Alignment.centerLeft,
               child: KioskText(
                 kThinqStopNote,
@@ -252,7 +253,7 @@ class KioskExecutingView extends StatelessWidget {
                 textAlign: TextAlign.start,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
+                style: TextStyle(fontSize: KioskType.body, height: 1.3, color: KioskColors.ink),
               ),
             ),
       body: Semantics(
@@ -275,8 +276,8 @@ class KioskExecutingView extends StatelessWidget {
                 line,
                 textKey: const ValueKey('thinq-sending-line'),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: KioskType.key, fontWeight: FontWeight.w800, height: 1.2, color: Colors.white),
+                style: TextStyle(
+                    fontSize: KioskType.key, fontWeight: FontWeight.w800, height: 1.2, color: KioskColors.ink),
               ),
               const SizedBox(height: KioskSpace.xs),
               KioskText(
@@ -328,12 +329,16 @@ class KioskExecutingView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 머리말은 결과 화면('누른 순서')과 같은 모양(평가 8차 10/18).
-              KioskStepTrail(
-                  key: const ValueKey('exec-step-trail'),
-                  title: _mock ? '연습으로 누를 순서' : '누를 순서',
-                  steps: trail,
-                  big: true,
-                  caution: _retrying),
+              // 어두운 표시창 안에 누를 순서(시안 B ③ 10/24) — 실제 가전 표시창처럼.
+              KioskGlassPanel(
+                child: KioskStepTrail(
+                    key: const ValueKey('exec-step-trail'),
+                    title: _mock ? '연습으로 누를 순서' : '누를 순서',
+                    steps: trail,
+                    big: true,
+                    caution: _retrying,
+                    onGlass: true),
+              ),
               const SizedBox(height: KioskSpace.md),
               Expanded(child: scroll),
             ],
@@ -484,10 +489,10 @@ class _NowBlock extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: KioskColors.muted)),
               ]),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: KioskType.key,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: KioskColors.ink,
                 height: 1.15,
               ),
             ),
@@ -532,8 +537,8 @@ class _StepRow extends StatelessWidget {
           Expanded(
             child: KioskText(
               label,
-              style: const TextStyle(
-                  fontSize: KioskType.body, color: Colors.white),
+              style: TextStyle(
+                  fontSize: KioskType.body, color: KioskColors.ink),
             ),
           ),
         ],

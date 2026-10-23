@@ -122,7 +122,7 @@ void _expectHomeButton(WidgetTester tester, String why) {
   if (b is ElevatedButton) {
     expect(b.style!.backgroundColor!.resolve({}), KioskColors.neutralFill, reason: '$why — 한 색');
   } else {
-    expect(b.style!.foregroundColor!.resolve({}), Colors.white, reason: '$why — 보조 모양은 흰 글자');
+    expect(b.style!.foregroundColor!.resolve({}), KioskColors.ink, reason: '$why — 보조 모양은 글자색');
   }
 }
 

@@ -154,10 +154,10 @@ void main() {
 
     test('등급 색 — 좋음 초록 · 보통 중립 · 나쁨 앰버 · 매우 나쁨 빨강', () {
       expect(airGradeColor('GOOD'), KioskColors.confirmed);
-      expect(airGradeColor('NORMAL'), Colors.white);
+      expect(airGradeColor('NORMAL'), KioskColors.ink);
       expect(airGradeColor('BAD'), KioskColors.warning);
       expect(airGradeColor('VERY_BAD'), KioskColors.danger);
-      expect(airGradeColor(null), Colors.white);
+      expect(airGradeColor(null), KioskColors.ink);
     });
 
     test('API: GET /thinq/air를 읽고 모의면 연습 값, 실패는 null', () async {

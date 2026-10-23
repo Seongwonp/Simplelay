@@ -132,27 +132,27 @@ class KioskHoldView extends StatelessWidget {
       'stopping' => (
           _mock ? '정지 버튼을 누르는 연습 중이에요' : '누름 장치가 정지 버튼을 누르고 있어요',
           Icons.touch_app_outlined,
-          Colors.white
+          KioskColors.ink
         ),
-      'parking' => ('누름 장치가 제자리로 돌아가고 있어요', Icons.keyboard_return, Colors.white),
-      'parked' => ('누름 장치가 제자리로 돌아갔어요', Icons.home_outlined, Colors.white),
+      'parking' => ('누름 장치가 제자리로 돌아가고 있어요', Icons.keyboard_return, KioskColors.ink),
+      'parked' => ('누름 장치가 제자리로 돌아갔어요', Icons.home_outlined, KioskColors.ink),
       // 연습은 누르기를 다 마친 뒤 정지를 기다린다 — 제목이 그 상태를 말한다(평가 6차 10/18: '…연습 중' 제목 아래
       // '…연습을 마쳤어요'가 서로 다른 말이었다). 무엇을 했는지는 제목, 할 일은 아래 한 줄.
       // 정지를 보낸 뒤에는 상태가 바뀌었다 — '마쳤어요' 아래 '멈추는 중이에요'를 함께 두지 않고 지금 상태 한 문장(평가 11차 10/18).
       _ => _mock
           ? (_practiceStopping
-              ? ('연습을 끝내는 중이에요', Icons.pan_tool_outlined, Colors.white)
-              : ('연습이 끝났어요', Icons.check_circle_outline, Colors.white))
+              ? ('연습을 끝내는 중이에요', Icons.pan_tool_outlined, KioskColors.ink)
+              : ('연습이 끝났어요', Icons.check_circle_outline, KioskColors.ink))
           : _operationReal
               ? (
                   '${withSubject(_name)} 돌아가고 있어요',
                   appliance?.icon ?? Icons.power_outlined,
-                  Colors.white
+                  KioskColors.ink
                 )
               : (
                   '누름 장치가 $_name 옆에서 기다리고 있어요',
                   Icons.hourglass_top,
-                  Colors.white
+                  KioskColors.ink
                 ),
     };
   }
@@ -236,9 +236,9 @@ class KioskHoldView extends StatelessWidget {
                     : cancel == null
                     ? '가전 정지 버튼을 손으로 눌러 주세요'
                     : '$_name $cancel 버튼을 손으로 눌러 주세요',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: KioskType.status,
-                    color: Colors.white,
+                    color: KioskColors.ink,
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
             // 회색 정지 단추가 왜 안 눌리는지(UI 평가 4차 10/17).
@@ -271,12 +271,12 @@ class KioskHoldView extends StatelessWidget {
         ),
       // 가전이 멈췄다는 말은 RPi4가 전력 하강으로 확인한 때만(hold_stop_outcome == stopped).
       if (stopOutcome == 'stopped')
-        (Icons.check, '${withSubject(_name)} 멈췄어요', Colors.white),
+        (Icons.check, '${withSubject(_name)} 멈췄어요', KioskColors.ink),
       // 마지막 시도가 실패했으면 앞선 "멈추는 중"은 지운다 — 지금 할 일은 다시 누르기다.
       // 보내기 화살표·'보냈어요'는 기계가 한 일이었다(평가 4차 10/18) — 사람이 볼 상태와 할 일로. 멈췄다고 단정하지 않는다.
       // 연습은 위 제목('연습으로 멈추는 중이에요')이 말한다 — 같은 말을 또 두지 않는다(평가 11차 10/18).
       if (stopRequested && !stopFailed && holdState == 'hovering_stop' && !_mock)
-        (Icons.pan_tool_outlined, '멈추는 중이에요. 가전을 봐 주세요', Colors.white),
+        (Icons.pan_tool_outlined, '멈추는 중이에요. 가전을 봐 주세요', KioskColors.ink),
       if (stopFailed)
         (
           Icons.error_outline,
@@ -480,7 +480,7 @@ class _Lines extends StatelessWidget {
                         // 글자는 흰색 — 주의·실패는 아이콘 색이 말한다(앰버 지시문이 정지 단추와 다투지 않게, §0-3).
                         color: color == KioskColors.danger
                             ? KioskColors.danger
-                            : Colors.white,
+                            : KioskColors.ink,
                       ),
                     ),
                   ),

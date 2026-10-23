@@ -15,6 +15,7 @@
 // B. LG 가전 타일 — 꺼진 것을 서버가 봤으면 '꺼져 있어요'(손 아이콘 '준비됐어요'가 아니라).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_art.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
@@ -314,7 +315,7 @@ void main() {
       await tester.pump();
       final tile = find.byKey(const ValueKey('strip-air_purifier'));
       expect(tile, findsOneWidget);
-      Color? icon() => tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-air_purifier'))).color;
+      Color? icon() => tester.widget<KioskApplianceArt>(find.byKey(const ValueKey('tile-icon-air_purifier'))).color;
       expect(icon(), KioskColors.tileDim);
       expect(find.byKey(const ValueKey('tile-mark-air_purifier')), findsNothing);
       expect(find.descendant(of: tile, matching: find.text('준비됐어요')), findsNothing);
@@ -322,7 +323,7 @@ void main() {
       api.powerOn = {'air_purifier'};
       await tester.pump(const Duration(seconds: 11));
       await tester.pump();
-      expect(icon(), Colors.white);
+      expect(icon(), KioskColors.ink);
       await tester.pumpWidget(const SizedBox.shrink());
     });
   });

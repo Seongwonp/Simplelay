@@ -86,7 +86,7 @@ void main() {
       expect(_plain('전기를 쓰기 시작한 걸 확인했어요'), findsOneWidget);
       final style = _styleOf(tester, evidence);
       expect(style.fontSize, greaterThanOrEqualTo(KioskType.body));
-      expect(style.color, Colors.white);
+      expect(style.color, KioskColors.ink);
       // 제목(전자레인지가 켜졌어요) 바로 아래, 할 일('원하는 대로 됐는지 봐 주세요')보다 위.
       final title = _plain('전자레인지가 켜졌어요');
       expect(title, findsOneWidget);
@@ -171,7 +171,7 @@ void main() {
       expect(note, findsOneWidget);
       final style = _styleOf(tester, note);
       expect(style.fontSize, greaterThanOrEqualTo(KioskType.body));
-      expect(style.color, Colors.white);
+      expect(style.color, KioskColors.ink);
       final secs = find.byKey(const ValueKey('suggestion-countdown-seconds'));
       expect(secs, findsOneWidget);
       expect(_plain('37초', contains: true), findsWidgets);

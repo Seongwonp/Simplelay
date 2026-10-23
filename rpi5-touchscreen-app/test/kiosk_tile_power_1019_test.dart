@@ -9,6 +9,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_art.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
@@ -68,9 +69,9 @@ Future<void> _pump(
 
 Finder _tile(String id) => find.byKey(ValueKey('strip-$id'));
 
-Color? _icon(WidgetTester tester, ApplianceMap a) => tester
-    .widget<Icon>(find.descendant(of: _tile(a.id), matching: find.byIcon(a.icon)).first)
-    .color;
+// 가전 그림(시안 B 10/24, 폰과 같은 그림)의 선 색 — 예전 아이콘 색과 같은 밝기 규칙.
+Color? _icon(WidgetTester tester, ApplianceMap a) =>
+    tester.widget<KioskApplianceArt>(find.byKey(ValueKey('tile-icon-${a.id}'))).color;
 
 Color? _name(WidgetTester tester, ApplianceMap a) =>
     tester.widget<Text>(find.descendant(of: _tile(a.id), matching: find.text(a.tileName))).style?.color;
@@ -100,15 +101,15 @@ double _ratio(Color a, Color b) {
 }
 
 void _expectLit(WidgetTester tester, ApplianceMap a) {
-  expect(_icon(tester, a), Colors.white, reason: '${a.id} 아이콘 밝게(흰색)');
-  expect(_name(tester, a), Colors.white, reason: '${a.id} 이름 밝게(흰색)');
+  expect(_icon(tester, a), KioskColors.ink, reason: '${a.id} 아이콘 밝게(글자색)');
+  expect(_name(tester, a), KioskColors.ink, reason: '${a.id} 이름 밝게(글자색)');
 }
 
 void _expectDim(WidgetTester tester, ApplianceMap a) {
   final icon = _icon(tester, a);
   final name = _name(tester, a);
-  expect(icon, isNot(Colors.white), reason: '${a.id} 아이콘 흐리게');
-  expect(name, isNot(Colors.white), reason: '${a.id} 이름 흐리게');
+  expect(icon, isNot(KioskColors.ink), reason: '${a.id} 아이콘 흐리게');
+  expect(name, isNot(KioskColors.ink), reason: '${a.id} 이름 흐리게');
   expect(icon, name, reason: '아이콘·이름 같은 회색');
   expect(_ratio(name!, _face(tester, a.id)), greaterThanOrEqualTo(4.5), reason: '${a.id} 흐린 이름도 4.5:1 이상');
 }

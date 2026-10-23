@@ -8,7 +8,9 @@ import '../../models/thinq.dart';
 import '../../services/kiosk_api_service.dart';
 import 'kiosk_text.dart';
 import '../../theme/kiosk_colors.dart';
+import 'appliance_art.dart';
 import 'kiosk_back_button.dart';
+import 'manual_actions.dart';
 import 'route_badge.dart';
 import 'thinq_panel.dart';
 
@@ -66,6 +68,9 @@ class _KioskManualViewState extends State<KioskManualView> {
   // 누르기 전에 한 번 묻는 버튼. null이면 묻지 않는 중.
   ApplianceButton? _pending;
 
+  // '버튼 직접 고르기'로 버튼판을 열었나(시안 B ② 10/24). 저장된 동작이 있으면 그것이 먼저다.
+  bool _showBoard = false;
+
   @override
   void didUpdateWidget(KioskManualView old) {
     super.didUpdateWidget(old);
@@ -81,6 +86,11 @@ class _KioskManualViewState extends State<KioskManualView> {
     final appliance = widget.appliance;
     final routines = widget.routines;
     final pending = _pending;
+    // 저장된 동작 먼저(시안 B ② 10/24) — 이 가전의 루틴이 있으면 큰 칸으로 먼저, 버튼판은 '버튼 직접 고르기' 뒤에.
+    // LG 가전은 상태·조작 칸 그대로. 루틴이 없으면 버튼판을 바로 보인다.
+    final hasActions = routines != null && routines.isNotEmpty && !appliance.isThinq;
+    final showActions = hasActions && !_showBoard;
+    final names = {...widget.applianceNames, appliance.id: appliance.displayName};
     return ColoredBox(
       color: KioskColors.bg,
       child: Stack(
@@ -97,10 +107,17 @@ class _KioskManualViewState extends State<KioskManualView> {
                     // 어렵다 — 패딩 포함 52px + 눌림 잉크 피드백
                     // 뒤로 가기 단추는 한 가지(←, 가전 선택 화면과 같게 — 2026-10-16 디자인 규격 §1-5),
                     // 흰 화살표 + '뒤로' 글자(UI 평가 4차 10/17 — 회색 화살표만으로는 1~2 m에서 잘 안 보였다).
-                    KioskBackButton(onTap: widget.onCancel),
+                    // 버튼판을 '버튼 직접 고르기'로 열었으면 뒤로는 저장된 동작으로 한 단계만.
+                    KioskBackButton(
+                        onTap: hasActions && _showBoard ? () => setState(() => _showBoard = false) : widget.onCancel),
                     const SizedBox(width: 14),
-                    Icon(appliance.icon, color: KioskColors.muted, size: 30),
-                    const SizedBox(width: 10),
+                    // 폰과 같은 가전 그림(시안 B 10/24).
+                    KioskArtTile(
+                        key: const ValueKey('manual-art'),
+                        category: appliance.category,
+                        fallbackIcon: appliance.icon,
+                        size: 56),
+                    const SizedBox(width: 12),
                     // 이름과 설명은 위아래 두 줄로(2026-10-15 B10) — 한 줄에 같이 두면 둘 다 말줄임으로 잘렸다.
                     Expanded(
                       child: Column(
@@ -116,9 +133,9 @@ class _KioskManualViewState extends State<KioskManualView> {
                                   appliance.tileName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: KioskType.status,
-                                    color: Colors.white,
+                                    color: KioskColors.ink,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -132,7 +149,13 @@ class _KioskManualViewState extends State<KioskManualView> {
                               ],
                             ],
                           ),
-                          if (!appliance.isThinq && appliance.canExecute)
+                          if (showActions)
+                            Text('저장된 동작 ${routines.length}개',
+                                key: const ValueKey('manual-actions-count'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted))
+                          else if (!appliance.isThinq && appliance.canExecute)
                             KioskText(
                               '화면 버튼을 누르면 누름 장치가 ${appliance.displayName} 버튼을 대신 눌러요',
                               textKey: const ValueKey('manual-explain'),
@@ -151,18 +174,26 @@ class _KioskManualViewState extends State<KioskManualView> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: _board(appliance)),
-                    // ThinQ 가전은 상태·조작 두 칸이 자리를 쓴다 — 루틴 칸은 두지 않는다(2026-10-16).
-                    if (routines != null && !appliance.isThinq)
+                    Expanded(
+                        child: showActions
+                            ? Padding(
+                                padding: const EdgeInsets.fromLTRB(_manualLeft, 8, 24, 16),
+                                child: KioskManualActions(
+                                  routines: routines,
+                                  names: names,
+                                  onRoutine: widget.onRoutine,
+                                  onPickButtons: appliance.buttons.isEmpty ? null : () => setState(() => _showBoard = true),
+                                ),
+                              )
+                            : _board(appliance)),
+                    // ThinQ 가전은 상태·조작 두 칸이 자리를 쓴다 — 루틴 칸은 두지 않는다(2026-10-16). 저장된 동작이 있으면
+                    // 그 칸이 먼저 보였으니 버튼판 옆에 다시 두지 않는다(시안 B 10/24) — 루틴이 없을 때의 안내만 남긴다.
+                    if (routines != null && !appliance.isThinq && !showActions)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 4, 20, 16),
                         child: SizedBox(
                           width: 220,
-                          child: _RoutinePanel(
-                            routines: routines,
-                            names: {...widget.applianceNames, appliance.id: appliance.displayName},
-                            onRoutine: widget.onRoutine,
-                          ),
+                          child: _RoutinePanel(hasRoutines: hasActions),
                         ),
                       ),
                   ],
@@ -250,13 +281,13 @@ class _KioskManualViewState extends State<KioskManualView> {
   }
 }
 
-/// 내 루틴 칸 — 이 가전을 다루는 루틴. 누르면 카드(승인)로 간다.
+/// 내 루틴 칸 — 이 가전에 저장된 동작(루틴)이 **없을 때**만 버튼판 옆에 선다(시안 B 10/24 — 있으면 저장된 동작 칸이
+/// 먼저 보인다, [KioskManualActions]). 새 루틴은 폰에서 만든다.
 class _RoutinePanel extends StatelessWidget {
-  const _RoutinePanel({required this.routines, required this.names, required this.onRoutine});
+  const _RoutinePanel({required this.hasRoutines});
 
-  final List<KioskRoutine> routines;
-  final Map<String, String> names;
-  final ValueChanged<KioskRoutine>? onRoutine;
+  /// 저장된 동작이 있는데 '버튼 직접 고르기'로 판을 열었나 — 그때는 '아직 없어요' 대신 안내만.
+  final bool hasRoutines;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -268,71 +299,11 @@ class _RoutinePanel extends StatelessWidget {
               style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
           const SizedBox(height: 8),
           Expanded(
-            child: routines.isEmpty
-                ? KioskText(
+            child: hasRoutines
+                ? const SizedBox.shrink()
+                : KioskText(
                     '이 가전에는 아직 루틴이 없어요',
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
-                  )
-                : ListView.separated(
-                    padding: EdgeInsets.zero,
-                    itemCount: routines.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, i) {
-                      final r = routines[i];
-                      final size = r.sizeLabelWith(names);
-                      return Material(
-                        color: KioskColors.surface2,
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          key: ValueKey('routine-${r.id}'),
-                          onTap: onRoutine == null ? null : () => onRoutine!(r),
-                          borderRadius: BorderRadius.circular(12),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 56),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              // 이름 위, 크기('누를 버튼 3개') 아래 — 옆에 붙이면 좁은 칸에서 '버튼 3|번'처럼 숫자와 단위가
-                              // 갈라졌다(평가 4차 10/18). 둘 다 어절 단위로 줄을 바꾼다.
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  KioskText(
-                                    r.name,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: KioskType.body,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  if (size.isNotEmpty)
-                                    KioskText(
-                                      size,
-                                      style: TextStyle(
-                                          fontSize: KioskType.caption, color: KioskColors.muted),
-                                    ),
-                                  // 누르면 한다는 표시(평가 8차 10/18) — 폰 루틴 줄과 같은 말. 누르면 바로 하지 않고 확인 카드가 먼저 뜬다.
-                                  if (onRoutine != null)
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: Text('지금 하기 ›',
-                                          maxLines: 1,
-                                          softWrap: false,
-                                          style: TextStyle(
-                                              fontSize: KioskType.caption,
-                                              fontWeight: FontWeight.w700,
-                                              color: KioskColors.primary)),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
                   ),
           ),
           const SizedBox(height: 8),
@@ -391,10 +362,10 @@ class _PressConfirm extends StatelessWidget {
               children: [
                 KioskText(
                   "'${button.label}' 버튼을 눌러 드릴까요?",
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: KioskType.status,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: KioskColors.ink,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -414,7 +385,7 @@ class _PressConfirm extends StatelessWidget {
                         onPressed: onCancel,
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 60),
-                          foregroundColor: Colors.white,
+                          foregroundColor: KioskColors.ink,
                           side: BorderSide(color: KioskColors.border),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
@@ -486,10 +457,10 @@ class _NotReadyNotice extends StatelessWidget {
               children: [
                 KioskText(
                   disconnected ? '아직 연결되지 않았어요' : '아직 준비가 끝나지 않았어요',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: KioskType.body,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: KioskColors.ink,
                   ),
                 ),
                 if (appliance.readinessReasons.isNotEmpty) ...[
@@ -508,7 +479,7 @@ class _NotReadyNotice extends StatelessWidget {
                   KioskText(
                     todo,
                     textKey: const ValueKey('readiness-todo'),
-                    style: const TextStyle(fontSize: KioskType.body, color: Colors.white),
+                    style: TextStyle(fontSize: KioskType.body, color: KioskColors.ink),
                   ),
                 ],
               ],
@@ -681,8 +652,8 @@ class _ButtonCell extends StatelessWidget {
                     // 못 누르는 버튼은 그렇게 보여야 한다 — 색만 같으면
                     // 눌리지 않는 이유를 가전 쪽에서 찾게 된다.
                     color: onTap == null
-                        ? const Color(0xFFFAF7F2).withValues(alpha: 0.35)
-                        : const Color(0xFFFAF7F2),
+                        ? KioskColors.ink.withValues(alpha: 0.35)
+                        : KioskColors.ink,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

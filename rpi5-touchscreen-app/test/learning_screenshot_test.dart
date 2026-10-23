@@ -18,10 +18,10 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-            brightness: Brightness.dark,
+            brightness: KioskColors.brightness,
             fontFamily: 'Malgun',
             colorScheme: ColorScheme.fromSeed(
-                seedColor: KioskColors.primary, brightness: Brightness.dark)),
+                seedColor: KioskColors.primary, brightness: KioskColors.brightness)),
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)
               .copyWith(textScaler: TextScaler.linear(scale)),

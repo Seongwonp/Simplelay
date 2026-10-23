@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_art.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
@@ -73,9 +74,9 @@ List<String> _texts(WidgetTester tester) => [
 
 Finder _mark(String id) => find.byKey(ValueKey('tile-mark-$id'));
 
-Color? _iconColor(WidgetTester tester, String id, IconData icon) => tester
-    .widget<Icon>(find.descendant(of: find.byKey(ValueKey('strip-$id')), matching: find.byIcon(icon)).first)
-    .color;
+// 가전 그림(시안 B 10/24)의 선 색.
+Color? _iconColor(WidgetTester tester, String id, IconData icon) =>
+    tester.widget<KioskApplianceArt>(find.byKey(ValueKey('tile-icon-$id'))).color;
 
 void main() {
   testWidgets('1. 평소 타일은 아이콘 + 이름만 — 상태 글자 띠 없음, 표시 없음', (tester) async {
@@ -92,7 +93,7 @@ void main() {
   // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐은 흰 아이콘(밝게), 꺼짐·모름·쉬는 중은 tileDim(흐리게). 강조색은 쓰지 않는다.
   testWidgets('1. LG 가전 전원은 아이콘 밝기 — 켜짐 밝게, 꺼짐 흐리게', (tester) async {
     await _pump(tester, _strip([_air], on: {'air'}));
-    expect(_iconColor(tester, 'air', _air.icon), Colors.white);
+    expect(_iconColor(tester, 'air', _air.icon), KioskColors.ink);
     await _pump(tester, _strip([_air], off: {'air'}));
     expect(_iconColor(tester, 'air', _air.icon), KioskColors.tileDim);
   });

@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_art.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
@@ -105,7 +106,7 @@ KioskTileIssue? _issue(WidgetTester tester, String id) {
 }
 
 Color? _icon(WidgetTester tester, String id) =>
-    tester.widget<Icon>(find.byKey(ValueKey('tile-icon-$id'))).color;
+    tester.widget<KioskApplianceArt>(find.byKey(ValueKey('tile-icon-$id'))).color;
 
 void main() {
   // 평가 6차의 상태 띠는 사용자 결정(10/19)으로 아이콘 + 이름 + 문제 표시로 바뀌었다. 판정(무엇이 준비됨·설정·쓸 수 없음인지)은 그대로.
@@ -140,10 +141,10 @@ void main() {
     // 누름 장치 가전은 켜짐을 읽을 수 없어 실행 중일 때만 밝다 — 준비된 전자레인지는 흐리다.
     testWidgets('켜짐은 아이콘 밝게 — 쉬는 누름 장치 가전과 갈린다', (tester) async {
       await _pump(tester, _idle([_microwave, _air, _mapped], running: {'rice'}, on: {'air_purifier'}));
-      expect(_icon(tester, 'air_purifier'), Colors.white);
+      expect(_icon(tester, 'air_purifier'), KioskColors.ink);
       expect(_issue(tester, 'air_purifier'), isNull);
       expect(_icon(tester, 'microwave'), KioskColors.tileDim);
-      expect(_icon(tester, 'rice'), Colors.white, reason: '지금 실행 중인 누름 장치 가전은 밝다');
+      expect(_icon(tester, 'rice'), KioskColors.ink, reason: '지금 실행 중인 누름 장치 가전은 밝다');
     });
 
     // 출시 검토(10/18): 쓸 수 없음은 이유와 상관없이 한 모양 — 이제 '!' 표시(10/19), 이유는 문장.
@@ -177,7 +178,8 @@ void main() {
     testWidgets('평소 화면 타일에 앱 모음 격자 아이콘이 없다', (tester) async {
       await _pump(tester, _idle([_air, _microwave, _server('x', '기타', 'other', custom: false)]));
       expect(find.byIcon(Icons.widgets_outlined), findsNothing);
-      expect(find.byIcon(Icons.air), findsWidgets);
+      // 타일은 폰과 같은 가전 그림(시안 B 10/24).
+      expect(find.byType(KioskApplianceArt), findsWidgets);
     });
   });
 

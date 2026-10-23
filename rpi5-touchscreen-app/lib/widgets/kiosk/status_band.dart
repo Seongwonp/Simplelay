@@ -79,18 +79,18 @@ class KioskStatusBand extends StatelessWidget {
         KioskBandTone.danger => KioskColors.danger,
       };
 
-  static const _text = TextStyle(
+  static TextStyle get _text => TextStyle(
     fontSize: KioskType.body,
     fontWeight: FontWeight.w700,
-    color: Colors.white,
+    color: KioskColors.ink,
     height: 1.25,
   );
 
   /// 비상 버튼 띠 아래의 얇은 띠 글자(보조 크기).
-  static const _slimText = TextStyle(
+  static TextStyle get _slimText => TextStyle(
     fontSize: KioskType.caption,
     fontWeight: FontWeight.w700,
-    color: Colors.white,
+    color: KioskColors.ink,
     height: 1.2,
   );
 
@@ -139,7 +139,7 @@ class KioskStatusBand extends StatelessWidget {
                     Container(
                         width: 2,
                         height: iconSize,
-                        color: Colors.white.withValues(alpha: 0.25)),
+                        color: KioskColors.ink.withValues(alpha: 0.25)),
                     const SizedBox(width: KioskSpace.md),
                     // 무엇을 하는지(가전·할 일)까지 함께 있으면 짧게 '연습'(결선 모의 평가 10/18 — 상태 · 연습 문장 · 가전이
                     // 띠를 두 줄로 꺾었다). 실제 가전이 그대로라는 말은 그 화면 본문이 한다(결과 화면 [kPracticeRealUnchanged]).
@@ -167,7 +167,7 @@ class KioskStatusBand extends StatelessWidget {
                   Container(
                       width: 2,
                       height: iconSize,
-                      color: Colors.white.withValues(alpha: 0.25)),
+                      color: KioskColors.ink.withValues(alpha: 0.25)),
                   const SizedBox(width: KioskSpace.md),
                   if (detailIcon != null) ...[
                     Icon(detailIcon, size: iconSize, color: KioskColors.muted),
@@ -177,7 +177,7 @@ class KioskStatusBand extends StatelessWidget {
                     child: KioskText(detail,
                         style: text.copyWith(
                             fontWeight: FontWeight.w500,
-                            color: Colors.white.withValues(alpha: 0.85))),
+                            color: KioskColors.ink.withValues(alpha: 0.85))),
                   ),
                 ],
               ),
@@ -209,13 +209,13 @@ class KioskStatusBand extends StatelessWidget {
 class _PracticeMark extends StatelessWidget {
   const _PracticeMark({
     this.iconKey,
-    this.style = KioskStatusBand._text,
+    this.style,
     this.iconSize = KioskSizes.bandIcon,
     this.short = false,
   });
 
   final Key? iconKey;
-  final TextStyle style;
+  final TextStyle? style;
   final double iconSize;
 
   /// 다른 띠(확인 필요·실패) 안의 짧은 표시 — [kPracticeShort].
@@ -230,7 +230,7 @@ class _PracticeMark extends StatelessWidget {
               key: iconKey, size: iconSize, color: KioskColors.practice),
           const SizedBox(width: 10),
           Flexible(
-            child: KioskText(short ? kPracticeShort : kPracticeBandText, style: style),
+            child: KioskText(short ? kPracticeShort : kPracticeBandText, style: style ?? KioskStatusBand._text),
           ),
         ],
       );

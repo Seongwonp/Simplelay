@@ -20,7 +20,7 @@ void _expectLabeledBack(WidgetTester tester) {
   expect(back, findsOneWidget);
   expect(find.descendant(of: back, matching: find.text('뒤로')), findsOneWidget);
   final icon = tester.widget<Icon>(find.descendant(of: back, matching: find.byIcon(Icons.arrow_back)));
-  expect(icon.color, Colors.white);
+  expect(icon.color, KioskColors.ink); // 글자색 화살표(밝은 화면 10/24부터 짙은 색)
   final size = tester.getSize(back);
   expect(size.height, greaterThanOrEqualTo(52));
   expect(size.width, greaterThanOrEqualTo(88));
@@ -41,7 +41,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('kiosk-back')));
     expect(cancelled, 1);
     expect(find.bySemanticsLabel('대기 화면으로 돌아가기'), findsOneWidget);
-    expect(KioskColors.muted, isNot(Colors.white));
+    expect(KioskColors.muted, isNot(KioskColors.ink));
   });
 
   testWidgets('내 가전(수동 조작) 화면 — 뒤로 단추에 글자와 흰 화살표', (tester) async {

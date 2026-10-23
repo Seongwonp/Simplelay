@@ -212,10 +212,10 @@ class KioskConnectionModal extends StatelessWidget {
                   Expanded(
                     child: Text(
                       item.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: KioskType.status,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: KioskColors.ink,
                       ),
                     ),
                   ),
@@ -250,8 +250,8 @@ class KioskConnectionModal extends StatelessWidget {
                                 height: 28,
                                 margin: const EdgeInsets.only(top: 2, right: KioskSpace.sm),
                                 alignment: Alignment.center,
-                                decoration: const BoxDecoration(
-                                    color: Colors.white, shape: BoxShape.circle),
+                                decoration: BoxDecoration(
+                                    color: KioskColors.ink, shape: BoxShape.circle),
                                 child: Text('${i + 1}',
                                     textScaler: TextScaler.noScaling,
                                     style: TextStyle(
@@ -266,7 +266,7 @@ class KioskConnectionModal extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: KioskType.body,
                                     height: bodyHeight,
-                                    color: Colors.white,
+                                    color: KioskColors.ink,
                                   ),
                                 ),
                               ),
@@ -309,7 +309,7 @@ class KioskConnectionModal extends StatelessWidget {
                       onPressed: onClose,
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(0, 56),
-                        foregroundColor: Colors.white,
+                        foregroundColor: KioskColors.ink,
                         side: BorderSide(color: KioskColors.border),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),

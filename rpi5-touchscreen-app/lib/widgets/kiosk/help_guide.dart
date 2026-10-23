@@ -109,7 +109,7 @@ class _KioskHelpGuideState extends State<KioskHelpGuide> {
                   ExcludeSemantics(
                     child: Text('사용 방법 ${widget.pages.length}장 중 ${_i + 1}장',
                         key: const ValueKey('help-page-number'),
-                        style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
+                        style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.ink)),
                   ),
                   const SizedBox(height: KioskSpace.xs),
                   ExcludeSemantics(
@@ -118,16 +118,16 @@ class _KioskHelpGuideState extends State<KioskHelpGuide> {
                       children: [
                         Icon(page.icon,
                             size: KioskType.status + 6,
-                            color: page.icon == Icons.stop ? KioskColors.danger : Colors.white),
+                            color: page.icon == Icons.stop ? KioskColors.danger : KioskColors.ink),
                         const SizedBox(width: KioskSpace.sm),
                         Expanded(
                           child: KioskText(page.title,
                               textKey: const ValueKey('help-title'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: KioskType.status,
                                   fontWeight: FontWeight.w800,
                                   height: 1.2,
-                                  color: Colors.white)),
+                                  color: KioskColors.ink)),
                         ),
                       ],
                     ),
@@ -136,7 +136,7 @@ class _KioskHelpGuideState extends State<KioskHelpGuide> {
                   ExcludeSemantics(
                     child: KioskText(page.body,
                         textKey: const ValueKey('help-body'),
-                        style: const TextStyle(fontSize: KioskType.status, height: 1.3, color: Colors.white)),
+                        style: TextStyle(fontSize: KioskType.status, height: 1.3, color: KioskColors.ink)),
                   ),
                   const SizedBox(height: KioskSpace.md),
                   Row(
@@ -146,7 +146,7 @@ class _KioskHelpGuideState extends State<KioskHelpGuide> {
                           key: const ValueKey('help-prev'),
                           onPressed: () => setState(() => _i--),
                           style: button.copyWith(
-                            foregroundColor: const WidgetStatePropertyAll(Colors.white),
+                            foregroundColor: WidgetStatePropertyAll(KioskColors.ink),
                             side: WidgetStatePropertyAll(BorderSide(color: KioskColors.muted, width: 2)),
                           ),
                           child: const Text('이전', style: TextStyle(fontSize: KioskType.body)),
@@ -157,7 +157,7 @@ class _KioskHelpGuideState extends State<KioskHelpGuide> {
                           key: const ValueKey('help-close'),
                           onPressed: widget.onClose,
                           style: button.copyWith(
-                            foregroundColor: const WidgetStatePropertyAll(Colors.white),
+                            foregroundColor: WidgetStatePropertyAll(KioskColors.ink),
                             side: WidgetStatePropertyAll(BorderSide(color: KioskColors.muted, width: 2)),
                           ),
                           child: const Text('닫기', style: TextStyle(fontSize: KioskType.body)),

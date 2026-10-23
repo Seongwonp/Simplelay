@@ -117,11 +117,11 @@ class KioskSuggestionView extends StatelessWidget {
           textKey: const ValueKey('suggestion-question'),
           // '같이 / 먹을 준비,'처럼 어구 가운데에서 끊지 않는다(평가 5차 10/18).
           phrases: true,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: KioskType.key,
             fontWeight: FontWeight.w700,
             height: 1.25,
-            color: Colors.white,
+            color: KioskColors.ink,
           ),
         ),
         // 근거를 줄여도 잘리면 안 되는 제한(예: '조리 완료가 아닐 수 있어요')은 근거 밖
@@ -202,7 +202,7 @@ class KioskSuggestionView extends StatelessWidget {
                 ],
               )),
       style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 48), foregroundColor: Colors.white),
+          minimumSize: const Size(0, 48), foregroundColor: KioskColors.ink),
       child: const Text('자세히 보기', style: TextStyle(fontSize: KioskType.body)),
     );
     // 누를 버튼이 모두 버튼판에서 자리를 찾으면 그림으로(화면 구조 개편 10/18) — 실행·결과와 같은 자리(오른쪽)·같은 폭.
@@ -370,7 +370,7 @@ class KioskSuggestionView extends StatelessWidget {
                   onPressed: onReject,
                   // 보조 단추 모양(테두리) — 둘 중 하나를 고르는 자리라 높이만 주 단추와 같다(§1-5).
                   style: KioskButtons.secondary(
-                          foreground: Colors.white, border: KioskColors.muted)
+                          foreground: KioskColors.ink, border: KioskColors.muted)
                       .copyWith(
                     minimumSize: const WidgetStatePropertyAll(
                         Size(0, KioskSizes.primaryButton)),
@@ -437,7 +437,7 @@ class KioskSuggestionView extends StatelessWidget {
                       fontSize: KioskType.body,
                       height: 1.25,
                       color: canExecute || !scenario
-                          ? Colors.white
+                          ? KioskColors.ink
                           : KioskColors.danger),
                 ),
               ),
@@ -455,8 +455,8 @@ class KioskSuggestionView extends StatelessWidget {
                 ]),
                 maxLines: 1,
                 softWrap: false,
-                style: const TextStyle(
-                    fontSize: KioskType.body, height: 1.1, color: Colors.white),
+                style: TextStyle(
+                    fontSize: KioskType.body, height: 1.1, color: KioskColors.ink),
               ),
               // 시간이 더 필요하면 60초 더(접근성 감사 10/18 — 시간 제한 늘리기). 작은 보조 단추(테두리), 누르는 자리 48 이상.
               if (onExtend != null) ...[
@@ -471,7 +471,7 @@ class KioskSuggestionView extends StatelessWidget {
                     icon: const Icon(Icons.more_time, size: KioskType.body),
                     label: const Text('시간 더 주기',
                         maxLines: 1, softWrap: false, style: TextStyle(fontSize: KioskType.caption)),
-                    style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border).copyWith(
+                    style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border).copyWith(
                       minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
                       padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.sm)),
                     ),
@@ -547,7 +547,7 @@ class _WhyTextState extends State<_WhyText> {
                 key: const ValueKey('suggestion-why-more'),
                 onPressed: () => setState(() => _expanded = !_expanded),
                 style: KioskButtons.secondary(
-                        foreground: Colors.white, border: KioskColors.border)
+                        foreground: KioskColors.ink, border: KioskColors.border)
                     .copyWith(
                   minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
                   padding: const WidgetStatePropertyAll(
@@ -610,10 +610,10 @@ class _StepList extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   steps[i],
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: KioskType.body,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white,
+                    color: KioskColors.ink,
                   ),
                 ),
               ],
@@ -633,10 +633,10 @@ class _StepList extends StatelessWidget {
           Expanded(
             child: Text(
               steps[i],
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: KioskType.body,
                 fontWeight: FontWeight.w500,
-                color: Colors.white,
+                color: KioskColors.ink,
               ),
             ),
           ),
@@ -688,10 +688,10 @@ class _CommandList extends StatelessWidget {
                   children: [
                     Text(
                       summary,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: KioskType.body,
                         fontWeight: FontWeight.w500,
-                        color: Colors.white,
+                        color: KioskColors.ink,
                       ),
                     ),
                     if (path != null) ...[

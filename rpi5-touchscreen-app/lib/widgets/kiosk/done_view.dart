@@ -9,6 +9,7 @@ import '../../models/thinq_run.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
 import '../../services/kiosk_api_service.dart' show KioskButtonResult;
+import 'appliance_art.dart';
 import 'kiosk_scroll_area.dart';
 import 'panel_picture.dart';
 import 'kiosk_text.dart';
@@ -381,9 +382,9 @@ class KioskDoneView extends StatelessWidget {
             // 흰 제목·노란 제목 둘이었다). 진행색(파랑)·초록은 쓰지 않는다(확인처럼 읽혔다, 평가 3차 10/18).
             ? KioskColors.warning
             : success
-                ? (mock ? Colors.white : KioskColors.warning)
+                ? (mock ? KioskColors.ink : KioskColors.warning)
                 : userStop
-                    ? (stopVerified || pending || practiceStop ? Colors.white : KioskColors.warning)
+                    ? (stopVerified || pending || practiceStop ? KioskColors.ink : KioskColors.warning)
                     // 눌렸는지 모르는 것(execution)도 실패가 아니다 — 확인 필요(외부 평가 10/16 4차).
                     : r.isUnconfirmed || r == KioskFailureReason.execution
                         ? KioskColors.warning
@@ -585,11 +586,11 @@ class KioskDoneView extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(
+                SizedBox(
                   key: ValueKey('done-pending-spinner'),
                   width: 40,
                   height: 40,
-                  child: CircularProgressIndicator(strokeWidth: 5, color: Colors.white),
+                  child: CircularProgressIndicator(strokeWidth: 5, color: KioskColors.ink),
                 ),
                 const SizedBox(width: KioskSpace.md),
                 Flexible(
@@ -621,10 +622,10 @@ class KioskDoneView extends StatelessWidget {
               failureDetail,
               textKey: const ValueKey('done-next-step'),
               textAlign: ta,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: KioskType.status,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: KioskColors.ink,
                   height: 1.3),
             ),
           ],
@@ -636,7 +637,7 @@ class KioskDoneView extends StatelessWidget {
               kPracticeRealUnchanged,
               textKey: const ValueKey('done-practice-note'),
               textAlign: ta,
-              style: const TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
+              style: TextStyle(fontSize: KioskType.body, height: 1.3, color: KioskColors.ink),
             ),
           ],
           // 기다림 상한(kiosk_screen이 실제로 끊는 시간과 같은 값)과 정지를 또 누르지 않아도 된다는 말(휴리스틱 평가 10/18).
@@ -646,7 +647,7 @@ class KioskDoneView extends StatelessWidget {
               stopPendingNote(KioskTimings.stopConfirmMaxWait),
               textKey: const ValueKey('done-pending-note'),
               textAlign: ta,
-              style: const TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
+              style: TextStyle(fontSize: KioskType.body, height: 1.3, color: KioskColors.ink),
             ),
           ],
           // 무엇으로 확인했는지 제목 바로 아래 한 줄(결선 모의 평가 10/18 — 근거가 없어 '켜졌어요'가 과장으로 읽혔다).
@@ -657,8 +658,8 @@ class KioskDoneView extends StatelessWidget {
               evidence,
               textKey: const ValueKey('done-evidence'),
               textAlign: ta,
-              style: const TextStyle(
-                  fontSize: KioskType.body, fontWeight: FontWeight.w700, height: 1.3, color: Colors.white),
+              style: TextStyle(
+                  fontSize: KioskType.body, fontWeight: FontWeight.w700, height: 1.3, color: KioskColors.ink),
             ),
           ],
           if (success && successSub != null) ...[
@@ -671,7 +672,7 @@ class KioskDoneView extends StatelessWidget {
               style: TextStyle(
                   fontSize: evidence != null ? KioskType.body : KioskType.status,
                   fontWeight: evidence != null ? FontWeight.w500 : FontWeight.w700,
-                  color: Colors.white),
+                  color: KioskColors.ink),
             ),
           ],
           // '확인 못 함'이면 순서 안내 2~3단계(사용자 결정 10/18). 자동 재시도 단추는 두지 않는다.
@@ -688,7 +689,7 @@ class KioskDoneView extends StatelessWidget {
               style: TextStyle(
                   fontSize: KioskType.body,
                   fontWeight: FontWeight.w700,
-                  color: stopAgain == 'failed' ? KioskColors.danger : Colors.white),
+                  color: stopAgain == 'failed' ? KioskColors.danger : KioskColors.ink),
             ),
           ],
           // 경로(ThinQ)와 확인 수준. 서버가 준 값만 말한다(물리 경로는 배지 없음).
@@ -697,8 +698,8 @@ class KioskDoneView extends StatelessWidget {
             KioskText(
               facts.join(' · '),
               textAlign: ta,
-              style: const TextStyle(
-                  fontSize: KioskType.body, color: Colors.white),
+              style: TextStyle(
+                  fontSize: KioskType.body, color: KioskColors.ink),
             ),
           ],
           // 위 한 줄은 /status의 **마지막 단계** 기준이다. 두 가전을
@@ -814,6 +815,7 @@ class KioskDoneView extends StatelessWidget {
                     semanticsLabel: '다시 멈추기. 누름 장치에 한 번 더 멈추라고 해요')
                 : null,
           );
+    final who = kioskResultWho(context, target);
     // 화면을 만지면 자동 복귀를 멈춘다(UI 평가 10/17) — 단추 동작은 그대로 지나간다(translucent).
     return Listener(
       behavior: HitTestBehavior.translucent,
@@ -843,18 +845,22 @@ class KioskDoneView extends StatelessWidget {
                               children: [
                                 Expanded(child: KioskScrollArea(child: content)),
                                 const SizedBox(height: KioskSpace.sm),
-                                KioskStepTrail(
-                                  key: const ValueKey('done-step-trail'),
-                                  title: mock ? '연습으로 누른 순서' : '누른 순서',
-                                  steps: [
-                                    for (final b in pressed!)
-                                      (
-                                        label: b.button,
-                                        state: b.success
-                                            ? KioskStepState.done
-                                            : KioskStepState.unknown
-                                      ),
-                                  ],
+                                // 어두운 표시창 안에 누른 순서(시안 B ④ 10/24).
+                                KioskGlassPanel(
+                                  child: KioskStepTrail(
+                                    key: const ValueKey('done-step-trail'),
+                                    title: mock ? '연습으로 누른 순서' : '누른 순서',
+                                    onGlass: true,
+                                    steps: [
+                                      for (final b in pressed!)
+                                        (
+                                          label: b.button,
+                                          state: b.success
+                                              ? KioskStepState.done
+                                              : KioskStepState.unknown
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             )
@@ -886,7 +892,7 @@ class KioskDoneView extends StatelessWidget {
                     constraints: BoxConstraints(
                         minHeight: box.maxHeight.isFinite ? box.maxHeight : 0,
                         maxWidth: KioskSizes.resultMaxWidth),
-                    child: Align(alignment: Alignment.centerLeft, child: content),
+                    child: Align(alignment: Alignment.centerLeft, child: kioskWithWho(who, content)),
                   ),
                 ),
               ),
@@ -930,10 +936,10 @@ class _RunSteps extends StatelessWidget {
                       KioskText(
                         _stepTitle(i, steps[i]),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: KioskType.body,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                          color: KioskColors.ink,
                         ),
                       ),
                       KioskText(
@@ -1171,7 +1177,7 @@ class _ThinqResult extends StatelessWidget {
           KioskStatusBand(tone: KioskBandTone.attention, icon: Icons.help_outline, label: kBandCheck,
               detail: _name, detailIcon: target?.icon),
         ),
-      ThinqResultTone.practice => (Colors.white, KioskStatusBand.practice(detail: _name, detailIcon: target?.icon)),
+      ThinqResultTone.practice => (KioskColors.ink, KioskStatusBand.practice(detail: _name, detailIcon: target?.icon)),
     };
     final name = target?.displayName;
     // 큰 글자에 가전 이름이 없으면(바람 세기 결과 등) 아래 작게 무엇의 결과인지 — 다른 결과 화면과 같은 가전 줄(아이콘 + 이름).
@@ -1199,13 +1205,14 @@ class _ThinqResult extends StatelessWidget {
             copy.sub,
             textKey: const ValueKey('thinq-result-sub'),
             textAlign: TextAlign.start,
-            style: const TextStyle(
-                fontSize: KioskType.status, fontWeight: FontWeight.w700, height: 1.3, color: Colors.white),
+            style: TextStyle(
+                fontSize: KioskType.status, fontWeight: FontWeight.w700, height: 1.3, color: KioskColors.ink),
           ),
           if (steps != null) KioskRecoverySteps(steps: steps!),
         ],
       ),
     );
+    final who = kioskResultWho(context, target);
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => onHold?.call(),
@@ -1227,7 +1234,7 @@ class _ThinqResult extends StatelessWidget {
                       constraints: BoxConstraints(
                           minHeight: box.maxHeight.isFinite ? box.maxHeight : 0,
                           maxWidth: KioskSizes.resultMaxWidth),
-                      child: Align(alignment: Alignment.centerLeft, child: content),
+                      child: Align(alignment: Alignment.centerLeft, child: kioskWithWho(who, content)),
                     ),
                   ),
                 ),
@@ -1312,7 +1319,7 @@ class _AutoReturn extends StatelessWidget {
                 minHeight: 4,
                 backgroundColor: KioskColors.border,
                 valueColor: AlwaysStoppedAnimation(
-                  Colors.white.withValues(alpha: 0.3),
+                  KioskColors.ink.withValues(alpha: 0.3),
                 ),
               ),
             ),
@@ -1362,7 +1369,7 @@ class KioskHomeButton extends StatelessWidget {
         icon: Icon(Icons.home_outlined, size: size),
         label: Text('처음 화면으로',
             maxLines: 1, softWrap: false, style: TextStyle(fontSize: size, fontWeight: FontWeight.w700)),
-        style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.muted).copyWith(
+        style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.muted).copyWith(
           padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)),
         ),
       );
@@ -1420,7 +1427,7 @@ class KioskSecondaryAction extends StatelessWidget {
         onPressed: onTap,
         icon: Icon(icon, size: _iconSize),
         label: Text(label, maxLines: 1, softWrap: false, style: _style),
-        style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.muted).copyWith(
+        style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.muted).copyWith(
           padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: _padH)),
         ),
       );
@@ -1731,9 +1738,14 @@ class KioskContinuePrimary extends StatelessWidget {
       key: const ValueKey('done-continue'),
       onPressed: onTap,
       icon: const Icon(Icons.touch_app_outlined, size: KioskType.status),
-      label: Text('$who 계속 조작',
-          maxLines: 1, softWrap: false, style: const TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
-      style: KioskButtons.primary(background: KioskColors.neutralFill, foreground: KioskColors.onAccent),
+      // 긴 가전 이름도 잘리지 않게 — 한 줄에 다 들어가도록 글자만 줄인다(단추 크기는 그대로).
+      label: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text('$who 계속 조작',
+            maxLines: 1, softWrap: false, style: const TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
+      ),
+      // 성공 뒤 할 일이 정해진 주 행동 — 강조색(시안 B ④ 10/24, 폰과 같은 청록).
+      style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent),
     );
   }
 }
@@ -1828,9 +1840,9 @@ class _KioskCheckActionsState extends State<KioskCheckActions> {
           ),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(0, KioskSizes.primaryButton),
-            foregroundColor: Colors.white,
+            foregroundColor: KioskColors.ink,
             backgroundColor: KioskColors.surface2,
-            side: const BorderSide(color: Colors.white, width: 2),
+            side: BorderSide(color: KioskColors.ink, width: 2),
             padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
           ),
@@ -1902,7 +1914,7 @@ class _KioskCheckActionsState extends State<KioskCheckActions> {
         children: [
           KioskText(prompt,
               textKey: const ValueKey('done-check-prompt'),
-              style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
+              style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.ink)),
           const SizedBox(height: KioskSpace.xs),
           row,
           if (home != null && large) ...[const SizedBox(height: KioskSpace.xs), home],
@@ -1976,8 +1988,8 @@ class _KioskRecoveryStepsState extends State<KioskRecoverySteps> {
               ),
               child: Text('${i + 1}',
                   textScaler: TextScaler.noScaling,
-                  style: const TextStyle(
-                      fontSize: KioskType.caption, height: 1, fontWeight: FontWeight.w700, color: Colors.white)),
+                  style: TextStyle(
+                      fontSize: KioskType.caption, height: 1, fontWeight: FontWeight.w700, color: KioskColors.ink)),
             ),
             const SizedBox(width: KioskSpace.sm),
             Flexible(
@@ -1986,9 +1998,9 @@ class _KioskRecoveryStepsState extends State<KioskRecoverySteps> {
                 textKey: ValueKey('done-recovery-step-$i'),
                 style: big
                     // 할 일 한 줄과 같은 크기(상태 크기·굵게) — 처음 보는 사람도 이것 하나는 읽는다.
-                    ? const TextStyle(
-                        fontSize: KioskType.status, fontWeight: FontWeight.w700, height: 1.3, color: Colors.white)
-                    : const TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
+                    ? TextStyle(
+                        fontSize: KioskType.status, fontWeight: FontWeight.w700, height: 1.3, color: KioskColors.ink)
+                    : TextStyle(fontSize: KioskType.body, height: 1.3, color: KioskColors.ink),
               ),
             ),
           ],
@@ -2019,7 +2031,7 @@ class _KioskRecoveryStepsState extends State<KioskRecoverySteps> {
               label: Text(_open ? '접기' : '더 볼 것 ${steps.length - 1}가지',
                   style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),
               style: TextButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: KioskColors.ink,
                 minimumSize: const Size(0, KioskSizes.secondaryButton),
                 padding: const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
               ),
@@ -2034,3 +2046,17 @@ class _KioskRecoveryStepsState extends State<KioskRecoverySteps> {
     );
   }
 }
+
+/// 결과 화면 왼쪽 위 어느 가전인지(시안 B ④ 10/24) — 폰과 같은 가전 그림 + 이름. 큰 글씨·대상 모름이면 null(위 띠가 말한다).
+Widget? kioskResultWho(BuildContext context, ApplianceMap? target) => target == null || KioskLayout.isLarge(context)
+    ? null
+    : KioskWhoRow(category: target.category, fallbackIcon: target.icon);
+
+/// 결과 본문 위에 [who]를 얹는다(없으면 본문 그대로).
+Widget kioskWithWho(Widget? who, Widget content) => who == null
+    ? content
+    : Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [who, const SizedBox(height: KioskSpace.md), content],
+      );

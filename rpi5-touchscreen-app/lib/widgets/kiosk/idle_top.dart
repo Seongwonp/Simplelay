@@ -223,7 +223,7 @@ class KioskIdleProblemBar extends StatelessWidget {
   static const double height = 52;
 
   /// 둘째 줄([also]) 글자 — 본문 크기, 두 줄까지(접근성 감사 10/18 — 한 줄로 줄이면 글자가 너무 작아졌다).
-  static const _alsoStyle = TextStyle(fontSize: KioskType.body, height: 1.2, color: Colors.white);
+  static TextStyle get _alsoStyle => TextStyle(fontSize: KioskType.body, height: 1.2, color: KioskColors.ink);
   static const int _alsoMaxLines = 2;
 
   /// 오른쪽 '해결 방법 보기' 단추 폭(글자 + 화살표 + 여백 + 테두리) — 둘째 줄이 쓸 수 있는 폭을 잰다.
@@ -313,11 +313,11 @@ class KioskIdleProblemBar extends StatelessWidget {
                                   key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
                                   maxLines: 1,
                                   softWrap: false,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: KioskType.status,
                                       height: 1.15,
                                       fontWeight: FontWeight.w800,
-                                      color: Colors.white)),
+                                      color: KioskColors.ink)),
                             ),
                             if (also case final a?)
                               Text.rich(TextSpan(text: keepWords(a), semanticsLabel: a),
@@ -343,7 +343,7 @@ class KioskIdleProblemBar extends StatelessWidget {
             child: OutlinedButton(
               key: const ValueKey('idle-problem-help'),
               onPressed: onTap,
-              style: KioskButtons.secondary(foreground: Colors.white, border: tone).copyWith(
+              style: KioskButtons.secondary(foreground: KioskColors.ink, border: tone).copyWith(
                 padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -394,8 +394,8 @@ class KioskIdleProblemBar extends StatelessWidget {
                             key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
                             maxLines: 1,
                             softWrap: false,
-                            style: const TextStyle(
-                                fontSize: KioskType.status, height: 1.15, fontWeight: FontWeight.w800, color: Colors.white)),
+                            style: TextStyle(
+                                fontSize: KioskType.status, height: 1.15, fontWeight: FontWeight.w800, color: KioskColors.ink)),
                       ),
                     ),
                   ]),
@@ -415,7 +415,7 @@ class KioskIdleProblemBar extends StatelessWidget {
                       child: OutlinedButton(
                         key: const ValueKey('idle-problem-help'),
                         onPressed: onTap,
-                        style: KioskButtons.secondary(foreground: Colors.white, border: tone).copyWith(
+                        style: KioskButtons.secondary(foreground: KioskColors.ink, border: tone).copyWith(
                           minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
                           padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)),
                         ),
@@ -513,17 +513,17 @@ class KioskIdleSheet extends StatelessWidget {
                   Row(children: [
                     Expanded(
                       child: Text(title,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: KioskType.body,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white)),
+                              color: KioskColors.ink)),
                     ),
                     TextButton(
                       key: const ValueKey('idle-sheet-close'),
                       onPressed: onClose,
                       style: TextButton.styleFrom(
                           minimumSize: const Size(120, 48),
-                          foregroundColor: Colors.white),
+                          foregroundColor: KioskColors.ink),
                       child: const Text('닫기',
                           style: TextStyle(fontSize: KioskType.body)),
                     ),
@@ -545,7 +545,7 @@ class KioskSheetRow extends StatelessWidget {
     required this.icon,
     required this.label,
     this.sub,
-    this.iconColor = Colors.white,
+    this.iconColor,
     this.badge = false,
     this.badgeKey,
     required this.onTap,
@@ -559,7 +559,7 @@ class KioskSheetRow extends StatelessWidget {
 
   /// 아래 작은 줄의 최대 줄 수. null이면 자르지 않는다(방해 금지 범위 문장처럼 잘리면 뜻이 바뀌는 말).
   final int? subMaxLines;
-  final Color iconColor;
+  final Color? iconColor;
 
   /// 문제 표시('!' 배지) — 색만으로 말하지 않는다.
   final bool badge;
@@ -586,7 +586,7 @@ class KioskSheetRow extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: KioskSpace.md, vertical: KioskSpace.xs),
                   child: Row(children: [
-                    Icon(icon, size: 28, color: iconColor),
+                    Icon(icon, size: 28, color: iconColor ?? KioskColors.ink),
                     const SizedBox(width: KioskSpace.sm),
                     Expanded(
                       child: Column(
@@ -594,10 +594,10 @@ class KioskSheetRow extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(label,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: KioskType.body,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white)),
+                                  color: KioskColors.ink)),
                           if (sub != null && sub!.isNotEmpty)
                             KioskText(sub!,
                                 maxLines: subMaxLines,

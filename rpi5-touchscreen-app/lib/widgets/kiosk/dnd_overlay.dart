@@ -71,10 +71,10 @@ class DndOverlay extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // 아이콘 규칙(평가 7차 10/18, 폰과 같이): 방해 금지 = 일시정지, 조용한 시간 = 달.
-                    const Row(
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.pause_circle_outline, size: 26, color: Color(0xFFFAF7F2)),
+                        Icon(Icons.pause_circle_outline, size: 26, color: KioskColors.ink),
                         SizedBox(width: KioskSpace.xs),
                         Text(
                           kDndName,
@@ -82,7 +82,7 @@ class DndOverlay extends StatelessWidget {
                           softWrap: false,
                           style: TextStyle(
                             fontSize: KioskType.body,
-                            color: Color(0xFFFAF7F2),
+                            color: KioskColors.ink,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -143,7 +143,7 @@ class DndOverlay extends StatelessWidget {
                     OutlinedButton(
                       onPressed: busy ? null : onDismiss,
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
+                        foregroundColor: KioskColors.ink,
                         side: BorderSide(color: KioskColors.border, width: 2),
                         minimumSize: const Size(160, 52),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -183,7 +183,7 @@ class _DndOption extends StatelessWidget {
           backgroundColor: accent
               ? KioskColors.warning.withValues(alpha: 0.12)
               : KioskColors.surface2,
-          foregroundColor: accent ? KioskColors.warning : const Color(0xFFFAF7F2),
+          foregroundColor: accent ? KioskColors.warning : KioskColors.ink,
           side: BorderSide(
             color: accent
                 ? KioskColors.warning.withValues(alpha: 0.35)

@@ -80,8 +80,8 @@ class KioskPastResultLine extends StatelessWidget {
                   key: const ValueKey('idle-past-result-text'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: KioskType.body, fontWeight: FontWeight.w600, height: 1.25, color: Colors.white),
+                  style: TextStyle(
+                      fontSize: KioskType.body, fontWeight: FontWeight.w600, height: 1.25, color: KioskColors.ink),
                 ),
               ),
             ),
@@ -91,7 +91,7 @@ class KioskPastResultLine extends StatelessWidget {
               onPressed: onAcknowledge,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(88, 48),
-                foregroundColor: Colors.white,
+                foregroundColor: KioskColors.ink,
                 side: BorderSide(color: KioskColors.muted, width: 1.5),
                 padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),

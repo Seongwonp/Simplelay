@@ -120,6 +120,9 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 고대비(사용자 결정 10/18) — 큰 글씨와 같은 파일에 저장. 색 토큰([KioskColors])을 바꾸고 화면 전체를 다시 그린다.
   bool _highContrast = false;
 
+  /// 어두운 화면(시안 B 10/24, 설정 '어두운 화면'). 기본은 밝은 화면.
+  bool _darkMode = false;
+
   /// 조용한 시간에 화면을 만져 잠시 평소 밝기다([kQuietWakeDuration] 뒤 다시 어둡게).
   bool _quietAwake = false;
   Timer? _quietWakeTimer;
@@ -378,6 +381,7 @@ class _KioskScreenState extends State<KioskScreen> {
       ttsEnabled: _tts.enabled,
       largeText: _largeText,
       highContrast: _highContrast,
+      darkMode: _darkMode,
       applianceId: _currentAppliance.id,
       countdownSeconds: _countdownSeconds,
     ));
@@ -394,6 +398,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _tts.enabled = saved.ttsEnabled;
       _largeText = saved.largeText;
       _highContrast = saved.highContrast;
+      _darkMode = saved.darkMode;
       _countdownSeconds = saved.countdownSeconds;
       var restored = false;
       for (final a in kAppliances) {
@@ -409,6 +414,7 @@ class _KioskScreenState extends State<KioskScreen> {
       }
     }
     // 고대비는 저장값으로(없으면 평소 색). 색 토큰은 앱 전체가 함께 쓰는 값이다.
+    KioskColors.setDarkMode(_darkMode);
     KioskColors.setHighContrast(_highContrast);
     _checkHealth();
     _fetchSensors();
@@ -461,6 +467,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _quietWakeTimer?.cancel();
     // 색 토큰은 정적 값이다 — 이 화면이 사라지면 평소 색으로 돌린다(다음 화면·시험이 고대비를 물려받지 않게).
     KioskColors.setHighContrast(false);
+    KioskColors.setDarkMode(false);
+    KioskColors.setQuietNight(false);
     _doneReturnTimer?.cancel();
     _nextRunNoticeTimer?.cancel();
     _holdReturnTimer?.cancel();
@@ -1437,13 +1445,29 @@ class _KioskScreenState extends State<KioskScreen> {
   void _setHighContrast(bool on) {
     setState(() => _highContrast = on);
     KioskColors.setHighContrast(on);
+    _repaintAll();
+  }
+
+  /// 밝은·어두운 화면을 고른다(시안 B 10/24) — 고대비와 같은 방식으로 다시 그리고 저장한다.
+  void _setDarkMode(bool on) {
+    setState(() => _darkMode = on);
+    KioskColors.setDarkMode(on);
+    _repaintAll();
+  }
+
+  void _repaintAll() {
+    _rebuildAll();
+    _persistSettings();
+  }
+
+  /// 색 한 벌이 바뀌면 같은 위젯 인스턴스도 새 색을 읽게 화면 전체를 다시 그린다.
+  void _rebuildAll() {
     void rebuild(Element e) {
       e.markNeedsBuild();
       e.visitChildren(rebuild);
     }
 
     (context as Element).visitChildren(rebuild);
-    _persistSettings();
   }
 
   /// 지금 결과의 복귀 문맥(R7) — 사람이 직접 고른 가전. [_toExecuting]이 실행마다 새로 정한다.
@@ -1567,12 +1591,15 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 내 가전의 루틴 → 카드(다가오면). 실행은 카드의 "지금 실행"(승인) 뒤에만.
   Future<void> _onRoutine(KioskRoutine routine) async {
+    // 처음 화면 '무엇을 할까요?' 카드(시안 B 10/24)에서도 온다 — 그때는 카드가 끝나면 처음 화면으로(돌아갈 가전 없음).
+    final startedFrom = _phase;
+    if (startedFrom != KioskPhase.manual && startedFrom != KioskPhase.idle) return;
     try {
       final result = await _api.triggerRoutine(routine.id);
-      if (!mounted || _phase != KioskPhase.manual) return;
+      if (!mounted || _phase != startedFrom) return;
       final card = result.suggestion;
       if (card != null) {
-        final from = _manualAppliance;
+        final from = startedFrom == KioskPhase.manual ? _manualAppliance : null;
         _routineCard = from == null ? null : (card.id, from.id);
         _toSuggestion(card);
         return;
@@ -2248,22 +2275,33 @@ class _KioskScreenState extends State<KioskScreen> {
     // 실제 화면 크기로 되돌아간다.
     final media = MediaQuery.of(context);
     final base = Theme.of(context);
-    // 고대비면 Material 기본 색(스위치 바탕·구분선·대화 창 면)도 검정·흰색 쪽으로(사용자 결정 10/18).
-    final theme = !_highContrast
-        ? base
-        : base.copyWith(
-            scaffoldBackgroundColor: KioskColors.bg,
-            dividerColor: KioskColors.border,
-            colorScheme: base.colorScheme.copyWith(
-              surface: KioskColors.surface,
-              onSurface: Colors.white,
-              onSurfaceVariant: Colors.white,
-              outline: KioskColors.border,
-              outlineVariant: KioskColors.border,
-              primary: KioskColors.primary,
-              onPrimary: KioskColors.onAccent,
-            ),
-          );
+    // 조용한 시간 어둡게면 밝은 화면도 그동안 어두운 색(시안 B 10/24) — 바뀌는 순간 화면 전체를 새 색으로 다시 그린다.
+    final night = _quietDim;
+    if (KioskColors.quietNight != night) {
+      KioskColors.setQuietNight(night);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _rebuildAll();
+      });
+    }
+    // Material 기본 색(스위치 바탕·구분선·대화 창 면)도 지금 색 한 벌(밝은·어두운 화면·고대비)을 따른다
+    // (고대비 사용자 결정 10/18, 밝은·어두운 화면 시안 B 10/24).
+    final scheme = ColorScheme.fromSeed(seedColor: KioskColors.primary, brightness: KioskColors.brightness).copyWith(
+      surface: KioskColors.surface,
+      onSurface: KioskColors.ink,
+      onSurfaceVariant: KioskColors.highContrast ? KioskColors.ink : KioskColors.muted,
+      outline: KioskColors.border,
+      outlineVariant: KioskColors.border,
+      primary: KioskColors.primary,
+      onPrimary: KioskColors.onAccent,
+    );
+    final theme = base.copyWith(
+      brightness: KioskColors.brightness,
+      scaffoldBackgroundColor: KioskColors.bg,
+      dividerColor: KioskColors.border,
+      colorScheme: scheme,
+      textTheme: base.textTheme.apply(bodyColor: KioskColors.ink, displayColor: KioskColors.ink),
+      iconTheme: base.iconTheme.copyWith(color: KioskColors.ink),
+    );
     return MediaQuery(
       data: media.copyWith(
         textScaler: TextScaler.linear(_largeText ? 1.22 : 1.0),
@@ -2361,6 +2399,8 @@ class _KioskScreenState extends State<KioskScreen> {
                           },
                           highContrastEnabled: _highContrast,
                           onHighContrastChanged: _setHighContrast,
+                          darkModeEnabled: _darkMode,
+                          onDarkModeChanged: _setDarkMode,
                           countdownSeconds: _countdownSeconds,
                           onCountdownChanged: (seconds) {
                             setState(() => _countdownSeconds = seconds);
@@ -2555,6 +2595,9 @@ class _KioskScreenState extends State<KioskScreen> {
           onSettingsGesture: () => setState(() => _showSettings = true),
           // 비상 버튼이 눌려 있을 때 상태 칩·못 쓰는 가전 타일을 누르면 위 띠의 풀기 안내를 연다(평가 4차 10/18).
           onEstopGuide: () => setState(() => _estopConfirming = true),
+          // '무엇을 할까요?' 카드(시안 B 10/24) — 내 가전 화면 루틴 칸과 같은 길(확인 카드가 승인).
+          routines: _routines,
+          onRoutine: _onRoutine,
           quietDim: _quietDim,
           onTouch: _noteIdleTouch,
         );

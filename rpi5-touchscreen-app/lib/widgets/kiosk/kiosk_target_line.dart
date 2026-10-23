@@ -38,7 +38,7 @@ class KioskTargetLine extends StatelessWidget {
                 // 행동 이름까지 붙이면 길어진다 — 말줄임 대신 어절 단위로 줄을 바꾼다.
                 : KioskText('${appliance.displayName} · $detail',
                     textKey: textKey,
-                    style: TextStyle(fontSize: size, color: Colors.white)),
+                    style: TextStyle(fontSize: size, color: KioskColors.ink)),
           ),
         ],
       );

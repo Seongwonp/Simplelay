@@ -25,6 +25,8 @@ class KioskSettingsOverlay extends StatefulWidget {
     this.onLargeTextChanged,
     this.highContrastEnabled = false,
     this.onHighContrastChanged,
+    this.darkModeEnabled = false,
+    this.onDarkModeChanged,
     this.countdownSeconds = KioskTimings.countdownSeconds,
     this.onCountdownChanged,
     this.quietSchedule,
@@ -49,6 +51,10 @@ class KioskSettingsOverlay extends StatefulWidget {
   /// 고대비 켜짐 여부 + 토글 콜백(사용자 결정 10/18)
   final bool highContrastEnabled;
   final ValueChanged<bool>? onHighContrastChanged;
+
+  /// 어두운 화면 켜짐 여부 + 토글 콜백(시안 B 10/24). 기본은 밝은 화면.
+  final bool darkModeEnabled;
+  final ValueChanged<bool>? onDarkModeChanged;
 
   /// 제안 카드 자동 닫힘 시간(초) + 변경 콜백
   final int countdownSeconds;
@@ -229,11 +235,11 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
 
   Widget _buildHeader() => Row(
         children: [
-          const Text(
+          Text(
             '본체 화면 설정',
             style: TextStyle(
               fontSize: KioskType.caption,
-              color: Color(0xFFFAF7F2),
+              color: KioskColors.ink,
               fontWeight: FontWeight.w300,
               letterSpacing: 0.5,
             ),
@@ -263,9 +269,9 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '조용한 시간',
-                style: TextStyle(fontSize: KioskType.caption, color: Color(0xFFFAF7F2)),
+                style: TextStyle(fontSize: KioskType.caption, color: KioskColors.ink),
               ),
               KioskText(
                 q == null
@@ -314,6 +320,16 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
             value: widget.highContrastEnabled,
             onChanged: widget.onHighContrastChanged,
           ),
+          const SizedBox(height: 4),
+          // 밝은·어두운 화면(시안 B 10/24) — 같은 파일에 저장된다. 고대비를 켜면 고대비가 우선한다.
+          _toggleRow(
+            key: const ValueKey('settings-dark-mode'),
+            icon: Icons.dark_mode_outlined,
+            title: '어두운 화면',
+            subtitle: '끄면 밝은 화면으로 보여 줘요',
+            value: widget.darkModeEnabled,
+            onChanged: widget.onDarkModeChanged,
+          ),
           const SizedBox(height: 10),
           _buildCountdownRow(),
         ],
@@ -331,7 +347,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
               children: [
                 Text(
                   '제안 표시 시간',
-                  style: TextStyle(fontSize: KioskType.caption, color: Color(0xFFFAF7F2)),
+                  style: TextStyle(fontSize: KioskType.caption, color: KioskColors.ink),
                 ),
                 Text(
                   '제안 카드가 저절로 닫히기까지 걸리는 시간이에요',
@@ -400,7 +416,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                 Text(
                   title,
                   style:
-                      const TextStyle(fontSize: KioskType.caption, color: Color(0xFFFAF7F2)),
+                      TextStyle(fontSize: KioskType.caption, color: KioskColors.ink),
                 ),
                 Text(
                   subtitle,
@@ -472,7 +488,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   fontSize: KioskType.caption,
                   color: isSelected
                       ? KioskColors.primary
-                      : const Color(0xFFFAF7F2),
+                      : KioskColors.ink,
                   fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
                 ),
               ),
@@ -527,7 +543,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   child: TextField(
                     controller: _urlCtrl,
                     style:
-                        const TextStyle(fontSize: KioskType.caption, color: Color(0xFFFAF7F2)),
+                        TextStyle(fontSize: KioskType.caption, color: KioskColors.ink),
                     decoration: InputDecoration(
                       hintText: '192.168.x.x  또는  http://...:8080',
                       hintStyle: TextStyle(

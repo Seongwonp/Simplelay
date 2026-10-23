@@ -313,6 +313,10 @@ void main() {
   });
 
   group('4. 조용한 시간 — 막을 글자 위에 덮지 않고, 남는 글자 대비 4.5:1 이상', () {
+    // 실제 화면(kiosk_screen)은 조용한 시간 어둡게 동안 어두운 화면 색을 쓴다(시안 B 10/24 — 밝은 화면이 기본이 된 뒤).
+    // 이 묶음은 처음 화면만 띄우므로 그 색을 직접 켠다.
+    setUp(() => KioskColors.setQuietNight(true));
+    tearDown(() => KioskColors.setQuietNight(false));
     KioskIdleView quiet() => KioskIdleView(
           now: DateTime(2026, 9, 30, 23, 12),
           quietUntil: '07:00',

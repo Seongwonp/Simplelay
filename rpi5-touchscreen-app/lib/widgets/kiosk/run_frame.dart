@@ -148,19 +148,19 @@ class KioskStatusHeader extends StatelessWidget {
     super.key,
     required this.icon,
     required this.title,
-    this.iconColor = Colors.white,
+    this.iconColor,
   });
 
   final IconData icon;
   final String title;
-  final Color iconColor;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) => Row(
         key: const ValueKey('status-header'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: KioskSizes.statusIcon, color: iconColor),
+          Icon(icon, size: KioskSizes.statusIcon, color: iconColor ?? KioskColors.ink),
           const SizedBox(width: 12),
           Flexible(
             child: Padding(
@@ -168,11 +168,11 @@ class KioskStatusHeader extends StatelessWidget {
               padding: const EdgeInsets.only(top: 3),
               child: KioskText(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: KioskType.status,
                   fontWeight: FontWeight.w800,
                   height: 1.2,
-                  color: Colors.white,
+                  color: KioskColors.ink,
                 ),
               ),
             ),

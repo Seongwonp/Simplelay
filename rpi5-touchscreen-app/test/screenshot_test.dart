@@ -58,7 +58,7 @@ Future<void> _shoot(
   await tester.pumpWidget(
     MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(fontFamily: 'Malgun', brightness: Brightness.dark),
+      theme: ThemeData(fontFamily: 'Malgun', brightness: KioskColors.brightness),
       // Scaffold가 있어야 Text들이 테마의 기본 텍스트 스타일(=한글 폰트)을
       // 물려받는다. 없으면 fontFamily를 명시하지 않은 Text가 전부 네모로 나온다.
       home: MediaQuery(
@@ -88,7 +88,7 @@ Future<void> _shoot15(WidgetTester tester, String name, Widget child,
   await tester.pumpWidget(
     MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(fontFamily: 'Malgun', brightness: Brightness.dark),
+      theme: ThemeData(fontFamily: 'Malgun', brightness: KioskColors.brightness),
       home: KioskCanvas(
         dim: dim,
         child: Scaffold(backgroundColor: KioskColors.bg, body: child),
@@ -179,8 +179,11 @@ KioskIdleView _idle({
   DateTime? now,
   String? quietUntil,
   bool quietDim = false,
+  List<KioskRoutine>? routines,
 }) =>
     KioskIdleView(
+      routines: routines,
+      onRoutine: routines == null ? null : (_) {},
       // 7:38 — 예보 첫 칸(9시)이 지금 ±90분 안이라 날짜 옆에 바깥 날씨가 붙는다(사용자 요청 10/18).
       now: now ?? DateTime(2026, 9, 30, 7, 38),
       quietUntil: quietUntil,
@@ -1217,6 +1220,9 @@ void main() {
   // 사용자 결정(10/18) — 조용한 시간에는 처음 화면만 어둡게: 시계·다음 루틴·문제 표시만, 예보·인사말·가전 줄은 접는다.
   // 막 짙기는 추측이다(실패널에서 밤에 1~2 m로 보고 고친다).
   testWidgets('15인치 미리보기 — 평소, 조용한 시간 어둡게', (t) async {
+    // 조용한 시간 어둡게 동안은 밝은 화면도 어두운 색(시안 B 10/24) — kiosk_screen이 켜는 것을 여기서 직접.
+    KioskColors.setQuietNight(true);
+    addTearDown(() => KioskColors.setQuietNight(false));
     await _shoot15(
         t,
         'kiosk15_idle_quiet',
@@ -1235,6 +1241,67 @@ void main() {
             )),
         // 평가 15차(10/18) — 어두운 막은 패널 전체(가장자리 여백까지). kiosk_screen이 캔버스에 같은 판정을 넘긴다.
         dim: true);
+  });
+
+  // 시안 B(사용자 승인 10/24) — 처음 화면 '무엇을 할까요?'(저장된 동작 하나) + 가전 그림 타일. 밝은 화면·어두운 화면.
+  for (final dark in [false, true]) {
+    testWidgets('15인치 미리보기 — 평소, 무엇을 할까요(${dark ? '어두운' : '밝은'} 화면)', (t) async {
+      KioskColors.setDarkMode(dark);
+      addTearDown(() => KioskColors.setDarkMode(false));
+      await _shoot15(
+          t,
+          dark ? 'kiosk15_idle_dark' : 'kiosk15_idle_featured',
+          _idle(
+              appliances: [_purifierAppliance, _mw, _ind, _washerSetup],
+              running: const {},
+              on: const {'air_purifier'},
+              nextRun: _nextRun(),
+              routines: const [
+                KioskRoutine(id: 'rt-30s', name: '30초 데우기', applianceIds: ['microwave'], pressCount: 2),
+              ]));
+    });
+  }
+
+  // 시안 B ②(10/24) — 내 가전: 저장된 동작이 먼저 큰 칸, 마지막 칸 '버튼 직접 고르기'.
+  testWidgets('15인치 미리보기 — 내 가전, 저장된 동작 먼저', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_manual_actions',
+      KioskManualView(
+        appliance: kMicrowaveAppliance,
+        onExecute: (_) {},
+        onCancel: () {},
+        routines: const [
+          KioskRoutine(id: 'rt-30s', name: '30초 데우기', applianceIds: ['microwave'], pressCount: 2),
+          KioskRoutine(id: 'rt-rice', name: '즉석밥', applianceIds: ['microwave'], pressCount: 2),
+          KioskRoutine(id: 'rt-thaw', name: '냉동 해동', applianceIds: ['microwave'], pressCount: 3),
+        ],
+        onRoutine: (_) {},
+      ),
+    );
+  });
+
+  // 시안 B ④(10/24) — 직접 고른 가전의 결과 뒤 같은 가전 계속 조작(주 단추)·다른 가전 고르기.
+  testWidgets('15인치 미리보기 — 완료, 같은 가전 계속', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_done_continue',
+        KioskDoneView(
+            success: true,
+            label: '30초 데우기',
+            target: kMicrowaveAppliance,
+            executionMode: 'real',
+            resultConfirmation: 'reported',
+            operationConfirmed: true,
+            operationSource: 'real',
+            pressed: const [
+              KioskButtonResult(button: '30초', success: true),
+              KioskButtonResult(button: '시작', success: true)
+            ],
+            continueName: '전자레인지',
+            onContinue: _noop,
+            onPickOther: _noop,
+            onDismiss: _noop));
   });
 
   // 사용자 결정(10/18) — 설정의 고대비: 회색 보조 글자 → 흰색, 옅은 면 → 검정 + 흰 테두리, 상태색은 더 또렷하게.

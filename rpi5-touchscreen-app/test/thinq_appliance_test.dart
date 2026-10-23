@@ -2,6 +2,8 @@
 // 가전 선택 화면은 ThinQ 배지를 달고, ThinQ 가전에는 버튼판 대신 상태·조작 상세를 그린다(2026-10-16).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_art.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
@@ -133,7 +135,7 @@ void main() {
       expect(purifier.left, lessThan(microwave.left));
       // 사용자 결정(10/19): 글자 대신 아이콘, 화면 읽기는 그대로 '켜져 있어요'.
       // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐은 흰 아이콘(밝게), 꺼짐·모름·쉬는 중은 tileDim(흐리게). 강조색은 쓰지 않는다.
-      expect(tester.widget<Icon>(find.byKey(const ValueKey('tile-icon-air_purifier'))).color, Colors.white);
+      expect(tester.widget<KioskApplianceArt>(find.byKey(const ValueKey('tile-icon-air_purifier'))).color, KioskColors.ink);
       expect(find.bySemanticsLabel(RegExp(r'LG 가전, 켜져 있어요, 자세히 보기')), findsOneWidget);
       expect(tester.takeException(), isNull);
     }

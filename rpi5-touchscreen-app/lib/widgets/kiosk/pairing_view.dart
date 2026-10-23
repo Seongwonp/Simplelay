@@ -142,8 +142,8 @@ class _KioskPairingViewState extends State<KioskPairingView> {
           padding: const EdgeInsets.all(24),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Text('휴대폰 연결하기',
-                style: TextStyle(fontSize: KioskType.status, color: Colors.white)),
+            Text('휴대폰 연결하기',
+                style: TextStyle(fontSize: KioskType.status, color: KioskColors.ink)),
             Expanded(
                 child: SingleChildScrollView(
                     child: Column(children: [
@@ -158,7 +158,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
                       semanticLabel: '휴대폰 연결 QR 코드'),
                 Text('${session['code']}',
                     key: const Key('pair-code'),
-                    style: const TextStyle(fontSize: KioskType.key, color: Colors.white)),
+                    style: TextStyle(fontSize: KioskType.key, color: KioskColors.ink)),
                 Text('주소 ${session['host']}',
                     style: const TextStyle(fontSize: KioskType.body)),
               ],

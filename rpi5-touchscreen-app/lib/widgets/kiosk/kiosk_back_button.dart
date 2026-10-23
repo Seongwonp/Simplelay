@@ -35,14 +35,14 @@ class KioskBackButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: KioskColors.border),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.arrow_back, color: Colors.white, size: 26),
+                  Icon(Icons.arrow_back, color: KioskColors.ink, size: 26),
                   SizedBox(width: 6),
                   Text('뒤로',
-                      style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w600, color: Colors.white)),
+                      style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w600, color: KioskColors.ink)),
                 ],
               ),
             ),

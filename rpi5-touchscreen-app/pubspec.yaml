@@ -30,6 +30,8 @@ environment:
 dependencies:
   routine_rehearsal:
     path: ../packages/routine_rehearsal
+  appliance_artwork:
+    path: ../packages/appliance_artwork
   flutter:
     sdk: flutter
 

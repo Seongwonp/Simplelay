@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
+import 'appliance_art.dart';
 import 'route_badge.dart';
 import '../../theme/kiosk_tokens.dart';
 
@@ -228,7 +229,7 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
                       key: const ValueKey('strip-page'),
                       maxLines: 1,
                       softWrap: false,
-                      style: const TextStyle(fontSize: KioskType.caption, color: Colors.white)),
+                      style: TextStyle(fontSize: KioskType.caption, color: KioskColors.ink)),
                   const SizedBox(height: 2),
                   hasNext
                       ? _ArrowButton(
@@ -278,9 +279,9 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
                             key: const ValueKey('strip-page'),
                             maxLines: 1,
                             softWrap: false,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: KioskType.caption,
-                                color: Colors.white)),
+                                color: KioskColors.ink)),
                       ),
                     ),
                   ),
@@ -342,14 +343,14 @@ class _ArrowButton extends StatelessWidget {
                   child: SizedBox(
                     width: _KioskApplianceStripState._arrow,
                     height: _KioskApplianceStripState._arrow,
-                    child: Icon(icon, size: 34, color: Colors.white),
+                    child: Icon(icon, size: 34, color: KioskColors.ink),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(word,
                     maxLines: 1,
                     softWrap: false,
-                    style: const TextStyle(fontSize: KioskType.caption, color: Colors.white)),
+                    style: TextStyle(fontSize: KioskType.caption, color: KioskColors.ink)),
               ],
             ),
           ),
@@ -448,16 +449,23 @@ class _StripItemState extends State<_StripItem>
     // 밝기 = 켜짐·작동 중(사용자 결정 10/19, 두 번째) — 밝게(흰 아이콘·흰 이름)는 [kioskTileLit]일 때만, 그 밖은 흐리게.
     // 문제('!'·'?'·톱니)라고 따로 흐리게 하지 않는다(옛 규칙: 쓸 수 없으면 반투명 — 실패널에서 '흐림 = 문제'로 읽혔다).
     final fg = kioskTileLit(a, running: widget.running, on: widget.on, off: widget.off)
-        ? Colors.white
+        ? KioskColors.ink
         : KioskColors.tileDim;
     final edge = widget.attention
         ? KioskColors.warning
         : widget.running
-            ? Colors.white
+            ? KioskColors.ink
             : KioskColors.border;
     final iconSize = (widget.iconBox * 0.58 + (widget.tileHeight - 112) * 0.3)
         .clamp(widget.iconBox * 0.58, 44)
         .toDouble();
+    // 가전 그림은 선이 가늘어 아이콘보다 크게 — 안쪽 여백·이름·'LG 가전' 줄 자리를 남기고 64까지(시안 B 10/24).
+    final scaler = MediaQuery.textScalerOf(context);
+    final reserve = 2 * KioskSpace.sm +
+        scaler.scale(widget.labelSize) * 1.15 +
+        scaler.scale(widget.statusSize) * 1.2 +
+        KioskSpace.xs;
+    final artSize = math.max(iconSize, math.min(64.0, widget.tileHeight - reserve));
     final tile = Semantics(
       button: true,
       // 문제 문장은 표시가 따로 읽는다 — 타일은 이름·종류와 문제가 아닌 상태만.
@@ -512,7 +520,14 @@ class _StripItemState extends State<_StripItem>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          Icon(a.icon, key: ValueKey('tile-icon-${a.id}'), size: iconSize, color: fg),
+                          // 폰 홈과 같은 가전 그림(시안 B 10/24) — 밝기 규칙(켜짐 밝게·꺼짐 흐리게)은 선 색이 말한다.
+                          KioskApplianceArt(
+                              key: ValueKey('tile-icon-${a.id}'),
+                              category: a.category,
+                              fallbackIcon: a.icon,
+                              size: artSize,
+                              color: fg,
+                              paper: widget.running ? KioskColors.surface2 : KioskColors.surface),
                           // 연습 가전(서버 이름 표기 '(연습)')은 '연습' 배지 그대로(정직성) — 문제 표시가 있으면 그 왼쪽.
                           // 남는 폭은 배지 칸 하나가 가진다(Spacer와 나누면 배지가 반으로 줄었다).
                           Expanded(
@@ -724,7 +739,7 @@ class _KioskTileMarkButtonState extends State<KioskTileMarkButton> {
                 color: unusable ? KioskColors.warning : KioskColors.bg,
                 border: unusable ? null : Border.all(color: KioskColors.muted, width: 1.5),
               ),
-              child: Icon(icon, size: widget.dot * 0.66, color: unusable ? Colors.black : Colors.white),
+              child: Icon(icon, size: widget.dot * 0.66, color: unusable ? KioskColors.onAccent : KioskColors.ink),
             ),
           ),
         ),

@@ -12,6 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_art.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/thinq.dart';
@@ -419,8 +420,12 @@ void main() {
       final a = tester.getRect(find.text('전자레인지'));
       final b = tester.getRect(find.text('인덕션'));
       expect(a.top, b.top, reason: '이름 높이');
-      final ia = tester.getRect(find.byIcon(kMicrowaveAppliance.icon));
-      final ib = tester.getRect(find.byIcon(kInductionAppliance.icon));
+      // 아이콘 대신 폰과 같은 가전 그림 칸(시안 B 10/24).
+      Rect art(String name) => tester.getRect(find.descendant(
+          of: find.ancestor(of: find.text(name), matching: find.byType(Column)).first,
+          matching: find.byType(KioskArtTile)));
+      final ia = art('전자레인지');
+      final ib = art('인덕션');
       expect(ia.top, ib.top, reason: '아이콘 높이');
       expect(find.text('지난번'), findsOneWidget);
     });

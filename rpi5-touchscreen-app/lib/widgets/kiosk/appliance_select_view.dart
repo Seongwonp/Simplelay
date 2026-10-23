@@ -5,6 +5,7 @@ import '../../theme/kiosk_tokens.dart';
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_back_button.dart';
+import 'appliance_art.dart';
 import 'kiosk_text.dart';
 import 'route_badge.dart';
 
@@ -46,12 +47,12 @@ class KioskApplianceSelectView extends StatelessWidget {
                 // 뒤로가기 — 수동 조작 화면과 같은 단추(흰 화살표 + '뒤로', UI 평가 4차 10/17)
                 KioskBackButton(onTap: onCancel),
                 const SizedBox(width: 14),
-                const Text(
+                Text(
                   '어느 가전을 조작할까요?',
                   style: TextStyle(
                     fontSize: KioskType.status,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: KioskColors.ink,
                   ),
                 ),
               ],
@@ -73,7 +74,7 @@ class KioskApplianceSelectView extends StatelessWidget {
                             style: TextStyle(
                               fontSize: KioskType.body,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: KioskColors.ink,
                             ),
                           ),
                           SizedBox(height: 8),
@@ -153,17 +154,18 @@ class _ApplianceCard extends StatelessWidget {
               child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(appliance.icon, size: 44, color: KioskColors.muted),
-                const SizedBox(height: 12),
+                // 폰과 같은 가전 그림(시안 B 10/24).
+                KioskArtTile(category: appliance.category, fallbackIcon: appliance.icon, size: 72),
+                const SizedBox(height: 10),
                 // 낱말 단위로 줄을 바꾼다(출시 검토 10/18 — '연습 전자레인/지'처럼 한 글자가 떨어졌다).
                 KioskText(
                   appliance.displayName,
                   textKey: ValueKey('appliance-select-name-${appliance.id}'),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: KioskType.body,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: KioskColors.ink,
                   ),
                 ),
                 // 표시(LG 가전·지난번)는 칸마다 같은 높이의 자리에(평가 12차 10/18 — '지난번' 칩이 있는 칸만 아이콘·이름이

@@ -27,7 +27,11 @@ typedef KioskStep = ({String? label, KioskStepState state});
 /// 누른 이름)가 있을 때만 그린다 — 두 칸 미만이거나 [maxSteps]를 넘으면 그리지 않는다(위 '누를 버튼 N개 중 K번째'가 말한다).
 /// 화면 읽기는 위 상태 영역이 같은 말을 하므로 읽지 않는다. 키는 칸마다 `step-<i>-<상태>`.
 class KioskStepTrail extends StatelessWidget {
-  const KioskStepTrail({super.key, required this.steps, this.title, this.caution = false, this.big = false});
+  const KioskStepTrail(
+      {super.key, required this.steps, this.title, this.caution = false, this.big = false, this.onGlass = false});
+
+  /// 어두운 표시창([KioskGlassPanel]) 안에 그린다(시안 B 10/24) — 밝은 화면에서도 표시창은 어두우니 어두운 바탕용 색을 쓴다.
+  final bool onGlass;
 
   /// 크게(실행 화면 제목 아래, 출시 검토 10/18) — 동그라미·이름 한 단계 크게.
   final bool big;
@@ -63,7 +67,7 @@ class KioskStepTrail extends StatelessWidget {
             Text(t,
                 maxLines: 1,
                 softWrap: false,
-                style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+                style: TextStyle(fontSize: KioskType.caption, color: onGlass ? KioskColors.glassMuted : KioskColors.muted)),
             const SizedBox(height: KioskSpace.xs),
           ],
           LayoutBuilder(builder: (context, box) {
@@ -73,7 +77,7 @@ class KioskStepTrail extends StatelessWidget {
                 ? ((box.maxWidth - (n - 1) * _gap) / n).clamp(_dotSmall, _dotBig).toDouble()
                 : _dotSmall;
             final cell = ((box.maxWidth - (n - 1) * _gap) / n).clamp(dot, big ? _maxCellBig : _maxCell).toDouble();
-            return Row(
+            final row = Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -86,13 +90,15 @@ class KioskStepTrail extends StatelessWidget {
                           width: _gap,
                           height: 3,
                           color: steps[i - 1].state == KioskStepState.done
-                              ? KioskColors.muted
-                              : KioskColors.border),
+                              ? (onGlass ? KioskColors.glassMuted : KioskColors.muted)
+                              : (onGlass ? KioskColors.glassMuted.withValues(alpha: 0.35) : KioskColors.border)),
                     ),
-                  SizedBox(width: cell, child: _Cell(index: i, step: steps[i], caution: caution, big: big, dot: dot)),
+                  SizedBox(width: cell, child: _Cell(index: i, step: steps[i], caution: caution, big: big, dot: dot, onGlass: onGlass)),
                 ],
               ],
             );
+            // 표시창 안은 안쪽 여백만큼 좁다 — 칸이 다 들어가지 않으면 줄 전체를 조금 줄인다(넘치지 않게).
+            return onGlass ? FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: row) : row;
           }),
         ],
       ),
@@ -101,7 +107,15 @@ class KioskStepTrail extends StatelessWidget {
 }
 
 class _Cell extends StatelessWidget {
-  const _Cell({required this.index, required this.step, required this.caution, required this.big, required this.dot});
+  const _Cell(
+      {required this.index,
+      required this.step,
+      required this.caution,
+      required this.big,
+      required this.dot,
+      this.onGlass = false});
+
+  final bool onGlass;
 
   final double dot;
 
@@ -114,20 +128,23 @@ class _Cell extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = step.state;
     final mk = dot / KioskStepTrail._dotSmall;
-    final currentColor = caution ? KioskColors.warning : KioskColors.running;
+    // 표시창 안이면 어두운 바탕용 색 한 벌(고대비면 고대비 그대로 — 고대비도 검정 바탕이다).
+    final p = !onGlass || KioskColors.highContrast ? KioskColors.palette : KioskColors.dark;
+    final muted = onGlass ? KioskColors.glassMuted : KioskColors.muted;
+    final currentColor = caution ? p.warning : p.running;
     final (Color fill, Color border, Widget mark) = switch (s) {
       KioskStepState.done => (
-          KioskColors.neutralFill,
-          KioskColors.neutralFill,
-          Icon(Icons.check, size: 30 * mk, color: KioskColors.onAccent)
+          p.neutralFill,
+          p.neutralFill,
+          Icon(Icons.check, size: 30 * mk, color: p.onAccent)
         ),
       KioskStepState.unknown => (
           Colors.transparent,
-          KioskColors.warning,
-          Icon(Icons.question_mark, size: 28 * mk, color: KioskColors.warning)
+          p.warning,
+          Icon(Icons.question_mark, size: 28 * mk, color: p.warning)
         ),
-      KioskStepState.current => (currentColor, currentColor, _num(index, KioskColors.onAccent, mk)),
-      KioskStepState.todo => (Colors.transparent, KioskColors.muted, _num(index, KioskColors.muted, mk)),
+      KioskStepState.current => (currentColor, currentColor, _num(index, p.onAccent, mk)),
+      KioskStepState.todo => (Colors.transparent, muted, _num(index, muted, mk)),
     };
     final label = step.label;
     return Column(
@@ -156,7 +173,7 @@ class _Cell extends StatelessWidget {
             fontSize: big ? KioskType.status : KioskType.body,
             height: 1.2,
             fontWeight: s == KioskStepState.current ? FontWeight.w800 : FontWeight.w600,
-            color: s == KioskStepState.current ? Colors.white : KioskColors.muted,
+            color: s == KioskStepState.current ? (onGlass ? KioskColors.glassText : KioskColors.ink) : muted,
           ),
         ),
       ],

@@ -19,6 +19,7 @@ class KioskSettings {
     this.ttsEnabled = true,
     this.largeText = false,
     this.highContrast = false,
+    this.darkMode = false,
     this.applianceId,
     this.countdownSeconds = KioskTimings.countdownSeconds,
   });
@@ -28,6 +29,9 @@ class KioskSettings {
 
   /// 고대비(사용자 결정 10/18) — 큰 글씨와 같은 파일에 같은 방식으로 저장한다.
   final bool highContrast;
+
+  /// 어두운 화면(시안 B 10/24) — 기본은 밝은 화면. 고대비와 따로 저장한다(고대비를 끄면 고른 밝기로).
+  final bool darkMode;
 
   /// 제안 카드가 자동으로 닫히기까지의 시간(초).
   final int countdownSeconds;
@@ -39,6 +43,7 @@ class KioskSettings {
     bool? ttsEnabled,
     bool? largeText,
     bool? highContrast,
+    bool? darkMode,
     String? applianceId,
     int? countdownSeconds,
   }) =>
@@ -46,6 +51,7 @@ class KioskSettings {
         ttsEnabled: ttsEnabled ?? this.ttsEnabled,
         largeText: largeText ?? this.largeText,
         highContrast: highContrast ?? this.highContrast,
+        darkMode: darkMode ?? this.darkMode,
         applianceId: applianceId ?? this.applianceId,
         countdownSeconds: countdownSeconds ?? this.countdownSeconds,
       );
@@ -58,6 +64,7 @@ class KioskSettings {
             json['large_text'] is bool ? json['large_text'] as bool : false,
         highContrast:
             json['high_contrast'] is bool ? json['high_contrast'] as bool : false,
+        darkMode: json['dark_mode'] is bool ? json['dark_mode'] as bool : false,
         applianceId: json['appliance_id'] is String
             ? json['appliance_id'] as String
             : null,
@@ -73,6 +80,7 @@ class KioskSettings {
         'tts_enabled': ttsEnabled,
         'large_text': largeText,
         'high_contrast': highContrast,
+        'dark_mode': darkMode,
         'appliance_id': applianceId,
         'countdown_seconds': countdownSeconds,
       };

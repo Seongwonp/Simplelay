@@ -136,7 +136,7 @@ class KioskPanelPicture extends StatelessWidget {
                               kScreenNoPress,
                               textKey: captionKey,
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: KioskType.body, color: Colors.white),
+                              style: TextStyle(fontSize: KioskType.body, color: KioskColors.ink),
                             ),
                           Text(
                             '버튼판 그림이 없어요',
@@ -229,7 +229,7 @@ class KioskPanelPicture extends StatelessWidget {
                             color: caution
                                 ? KioskColors.warning
                                 : resting
-                                    ? Colors.white
+                                    ? KioskColors.ink
                                     : KioskColors.running,
                             fontWeight: FontWeight.w800))),
                 const SizedBox(width: KioskSpace.xs),
@@ -267,7 +267,7 @@ class KioskPanelPicture extends StatelessWidget {
     final mark = pressed[button.id];
     final marked = numbers != null || mark != null;
     final fill = caution ? KioskColors.warning : KioskColors.running;
-    final Color edge = mark == false ? KioskColors.warning : Colors.white;
+    final Color edge = mark == false ? KioskColors.warning : KioskColors.ink;
     // 기다리는 칸 — 채우지 않고 흰 테(굵게)만.
     final rest = on && resting && !caution;
     final cell = DecoratedBox(
@@ -276,7 +276,7 @@ class KioskPanelPicture extends StatelessWidget {
         color: rest ? KioskColors.surface2 : on ? fill : KioskColors.bg,
         borderRadius: BorderRadius.circular(8),
         border: rest
-            ? Border.all(color: Colors.white, width: 3)
+            ? Border.all(color: KioskColors.ink, width: 3)
             : marked && !on
                 ? Border.all(color: edge, width: 2)
                 : null,
@@ -293,11 +293,11 @@ class KioskPanelPicture extends StatelessWidget {
                 fontSize: KioskType.caption,
                 fontWeight: on || marked ? FontWeight.w800 : FontWeight.w500,
                 color: rest
-                    ? Colors.white
+                    ? KioskColors.ink
                     : on
                     ? KioskColors.onAccent
                     : marked
-                        ? Colors.white
+                        ? KioskColors.ink
                         : KioskColors.panelText,
               ),
             ),
@@ -311,11 +311,11 @@ class KioskPanelPicture extends StatelessWidget {
         ? _Badge(
             key: ValueKey('panel-order-${button.id}'),
             text: numbers.join(','),
-            fill: Colors.white)
+            fill: KioskColors.ink)
         : _Badge(
             key: ValueKey('panel-pressed-${button.id}'),
             icon: mark! ? Icons.check : Icons.question_mark,
-            fill: mark ? Colors.white : KioskColors.warning);
+            fill: mark ? KioskColors.ink : KioskColors.warning);
     return Stack(clipBehavior: Clip.none, children: [
       Positioned.fill(child: cell),
       Positioned(left: -7, top: -9, child: badge),

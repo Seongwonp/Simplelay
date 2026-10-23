@@ -459,7 +459,7 @@ void main() {
             .widgetList<Text>(find.byType(Text))
             .firstWhere((t) => t.style?.fontSize == KioskType.key);
         // 누름 보고만도 확인 필요 결과 — 다른 확인 필요 제목과 같은 앰버(접근성 감사 10/18). 초록은 확인한 성공만.
-        expect(headline.style!.color, strong ? KioskColors.confirmed : view.executionMode == 'mock' ? Colors.white : KioskColors.warning);
+        expect(headline.style!.color, strong ? KioskColors.confirmed : view.executionMode == 'mock' ? KioskColors.ink : KioskColors.warning);
       });
     }
   });

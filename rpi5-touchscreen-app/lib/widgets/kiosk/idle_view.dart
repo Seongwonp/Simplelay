@@ -11,6 +11,7 @@ import 'appliance_strip.dart';
 import 'connection_status.dart';
 import 'dnd_overlay.dart' show kDndCarriedScopeText, kDndName, kDndScopeText;
 import 'help_guide.dart';
+import 'idle_featured.dart';
 import 'idle_top.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'kiosk_canvas.dart';
@@ -57,7 +58,14 @@ class KioskIdleView extends StatelessWidget {
     this.onEstopGuide,
     this.quietDim = false,
     this.onTouch,
+    this.routines,
+    this.onRoutine,
   });
+
+  /// 저장된 동작(루틴) — 맨 앞 하나를 '무엇을 할까요?' 카드로 세운다(시안 B 10/24). 누르면 [onRoutine] — 내 가전 화면의
+  /// 루틴 칸과 같은 길(서버가 확인 카드를 만들고 그 카드의 '시작'이 승인). 둘 중 하나라도 없으면 카드가 없다.
+  final List<KioskRoutine>? routines;
+  final ValueChanged<KioskRoutine>? onRoutine;
 
   /// 조용한 시간이라 어둡게(사용자 결정 10/18) — 시계·다음 루틴·문제 표시만 남기고 예보·인사말·온습도·가전 줄을 접고,
   /// 화면 전체에 어두운 막을 얹는다. 막을 누르면 [onTouch]만 불린다(그 아래 단추는 눌리지 않는다 — 깨우는 손길).
@@ -197,7 +205,11 @@ class KioskIdleView extends StatelessWidget {
     // 비가 오거나 올 것 같으면(서버 비 안내 기준과 같은 60%) 인사말을 뺀다(평가 14차 10/18 — '좋은 아침이에요' 바로 아래
     // '비 80%'가 엇갈렸다). 날씨 안내가 있으면 이미 안내가 인사말 자리를 쓴다.
     final rainy = showHours && slots.any((s) => s.hour.precip || (s.hour.pop ?? 0) >= 60);
-    final showGreeting = rawTip == null && !rainy;
+    // '무엇을 할까요?' 카드(시안 B 10/24) — 큰 글씨에서는 두지 않는다(자리가 모자라 시계·다음 루틴이 밀린다). 카드가 있으면
+    // 인사말은 접는다(인사말이 이 칸에서 가장 덜 중요하다).
+    final onRoutine = this.onRoutine;
+    final featured = large || quietDim || onRoutine == null ? null : KioskFeaturedAction.pick(routines, list);
+    final showGreeting = rawTip == null && !rainy && featured == null;
     final dnd = dndUntil != null && dndUntil!.isAfter(now) ? dndUntil : null;
     // 본체에 닿지 않으면 지난 연결 목록을 믿지 않는다(평가 7차 10/18 — 끊겼는데 칩이 '모두 정상').
     final connections = connectionsForDisplay(this.connections, connected: connected);
@@ -357,6 +369,7 @@ class KioskIdleView extends StatelessWidget {
             final left = _Idle.clock + rest;
             double rightOf(List<ForecastSlot> hours) =>
                 _rightColumnHeight(context, rightWidth,
+                    featured: featured != null,
                     greeting: showGreeting ? greeting : null,
                     tip: tip,
                     hours: hours,
@@ -421,6 +434,7 @@ class KioskIdleView extends StatelessWidget {
                 // 다음 루틴은 왼쪽 시계 아래로 옮겼다(사용자 결정 10/18) — 이 칸은 날씨 안내와 예보가 넉넉히 쓴다.
                 final hoursFit = hourly.isNotEmpty &&
                     _rightColumnHeight(context, box.maxWidth,
+                                featured: featured != null,
                                 greeting: showGreeting ? greeting : null,
                                 tip: tip,
                                 hours: hourly,
@@ -432,6 +446,7 @@ class KioskIdleView extends StatelessWidget {
                     isWeatherTip(tip) &&
                     !large &&
                     _rightColumnHeight(context, box.maxWidth,
+                                featured: featured != null,
                                 tip: tip, hours: hourly, large: large, roomyHours: true) <=
                         box.maxHeight;
                 final top = Column(
@@ -439,9 +454,18 @@ class KioskIdleView extends StatelessWidget {
                   children: [
                     // 큰 글씨에서 묶은 경고(연결 문제 + 확인 필요 안내)는 이 칸 맨 위 세로 카드 하나(접근성 감사 10/18).
                     if (barInRight && connProblem) statusChip(sheets, vertical: true),
+                    if (featured != null) ...[
+                      KioskFeaturedAction(
+                        routine: featured.$1,
+                        appliance: featured.$2,
+                        sizeLabel: featured.$1.sizeLabelWith({for (final a in list!) a.id: a.displayName}),
+                        onRun: () => onRoutine!(featured.$1),
+                      ),
+                      if (tip != null) const SizedBox(height: _Idle.hoursGap),
+                    ],
                     if (showGreeting)
-                      KioskText(greeting, style: const TextStyle(
-                          fontSize: _Idle.greeting, height: 1.25, color: Colors.white)),
+                      KioskText(greeting, style: TextStyle(
+                          fontSize: _Idle.greeting, height: 1.25, color: KioskColors.ink)),
                     // 날씨 안내만 예보 줄을 카드 안에 품는다(평가 12차). 알림(약 드실 시간·확인 필요 가전 등)은 날씨와 다른 일이라
                     // 따로 선 카드 — 예보는 그 아래 따로(평가 15차 10/18: '약 드실 시간이에요'가 날씨 카드 안에 있었다).
                     if (tip != null)
@@ -530,8 +554,13 @@ class KioskIdleView extends StatelessWidget {
       AmbientTip? tip,
       required List<ForecastSlot> hours,
       required bool large,
-      bool roomyHours = false}) {
+      bool roomyHours = false,
+      bool featured = false}) {
     var h = 0.0;
+    if (featured) {
+      h += KioskFeaturedAction.heightFor(context);
+      if (tip != null) h += _Idle.hoursGap;
+    }
     if (greeting != null) {
       h += _textHeight(context, keepWords(greeting),
           const TextStyle(fontSize: _Idle.greeting, height: 1.25), width);
@@ -584,7 +613,7 @@ class _Clock extends StatelessWidget {
                   style: TextStyle(
                       fontSize: size,
                       height: 1,
-                      color: Colors.white,
+                      color: KioskColors.ink,
                       fontFeatures: const [FontFeature.tabularFigures()])),
             ],
           ),
@@ -793,7 +822,7 @@ class _NextRunLine extends StatelessWidget {
                     textKey: const ValueKey('idle-next-run-word'),
                     // 건너뛰었으면 그 말이 이 묶음의 요점이다 — 같은 작은 글씨로 흰색 굵게. 조용한 시간은 회색.
                     style: _wordStyle.copyWith(
-                        color: skipped ? Colors.white : KioskColors.muted,
+                        color: skipped ? KioskColors.ink : KioskColors.muted,
                         fontWeight: skipped ? FontWeight.w700 : null));
         final undoOnHead = _undoOnHead(context, next, label, shownNotice ?? word, width);
         final undoButton = undoOnHead
@@ -877,7 +906,7 @@ class _NextRunLine extends StatelessWidget {
                         key: const ValueKey('idle-next-run-skipped-head'),
                         maxLines: 1,
                         softWrap: false,
-                        style: _headStyle.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+                        style: _headStyle.copyWith(color: KioskColors.ink, fontWeight: FontWeight.w700)),
                   ]),
                 ),
               ),
@@ -891,7 +920,7 @@ class _NextRunLine extends StatelessWidget {
               softWrap: false,
               overflow: TextOverflow.ellipsis,
               // 건너뛴 회차는 흐리게 — 무엇을 건너뛰는지는 그대로 읽힌다.
-              style: _lineStyle.copyWith(color: skipped ? KioskColors.muted : Colors.white));
+              style: _lineStyle.copyWith(color: skipped ? KioskColors.muted : KioskColors.ink));
           final natural = _spanWidth(context, _lineSpan(next), _lineStyle);
           if (natural <= width || natural * 0.85 > width) return line;
           return SizedBox(
@@ -1157,7 +1186,7 @@ class _DndEntry extends StatelessWidget {
                       ])
                     else
                       // 아이콘 규칙(평가 7차 10/18, 폰과 같이): 조용한 시간 = 달, 방해 금지 = 일시정지.
-                      Icon(quiet != null ? Icons.bedtime : Icons.pause_circle, size: 30, color: Colors.white),
+                      Icon(quiet != null ? Icons.bedtime : Icons.pause_circle, size: 30, color: KioskColors.ink),
                     if (on) ...[
                       const SizedBox(width: 6),
                       // 좁은 위 줄에 들어가도록 두 줄로 — "제안 쉬는 중" / 남은 시간.
@@ -1169,18 +1198,18 @@ class _DndEntry extends StatelessWidget {
                           Text(title,
                               maxLines: 1,
                               softWrap: false,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: KioskType.body,
                                   height: 1.15,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white)),
+                                  color: KioskColors.ink)),
                           Text(sub,
                               maxLines: 1,
                               softWrap: false,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: KioskType.body,
                                   height: 1.15,
-                                  color: Colors.white)),
+                                  color: KioskColors.ink)),
                         ],
                       ),
                     ],
@@ -1262,7 +1291,7 @@ class _AirLine extends StatelessWidget {
                 // 낱말 단위로 줄을 바꾼다(평가 12차 10/18 — 큰 글씨에서 '공기 아주 나빠 / 요'로 한 글자만 꺾였다).
                 Text.rich(
                   TextSpan(children: [
-                    const TextSpan(text: '공기 ', style: TextStyle(color: Colors.white)),
+                    TextSpan(text: '공기 ', style: TextStyle(color: KioskColors.ink)),
                     TextSpan(text: keepWords(word),
                         semanticsLabel: word,
                         style: TextStyle(color: color, fontWeight: FontWeight.w800)),
@@ -1420,7 +1449,7 @@ class _TipCard extends StatelessWidget {
               Icon(_tipIcon(tip.icon),
                   size: _Idle.tipIcon,
                   // 일상 안내(날씨·루틴)는 중립 — 앰버는 확인 필요에만(2026-10-16 §1-4).
-                  color: attention ? KioskColors.warning : Colors.white),
+                  color: attention ? KioskColors.warning : KioskColors.ink),
               SizedBox(width: _gap(compact)),
               Expanded(
                 // 서버 문장이 아주 길 때만 마지막 수단으로 말줄임한다. 어절·어구 단위로 줄을 바꾼다("주/세요"·"나갈/때" 방지).
@@ -1429,7 +1458,7 @@ class _TipCard extends StatelessWidget {
                   key: const ValueKey('ambient-tip-text'),
                   maxLines: _maxLines,
                   overflow: TextOverflow.ellipsis,
-                  style: _style(compact).copyWith(color: Colors.white),
+                  style: _style(compact).copyWith(color: KioskColors.ink),
                 ),
               ),
             ],
@@ -1597,7 +1626,7 @@ class _Hours extends StatelessWidget {
       fontSize: compact ? _Idle.hourPopCompact : _Idle.hourPop,
       height: compact ? 1.0 : null,
       fontWeight: FontWeight.w700,
-      color: Colors.white);
+      color: KioskColors.ink);
 
   /// 기온 글꼴 — 모든 칸 같은 꼴.
   static TextStyle _tempStyle(bool compact) => TextStyle(
@@ -1698,7 +1727,7 @@ class _Hours extends StatelessWidget {
                           softWrap: false,
                           style: _labelStyle(compact).copyWith(
                               fontSize: _Idle.hourLabel * labelScale,
-                              color: s.isNow ? Colors.white : KioskColors.muted,
+                              color: s.isNow ? KioskColors.ink : KioskColors.muted,
                               fontWeight: s.isNow ? FontWeight.w700 : null)),
                     ),
                     SizedBox(height: _gap(compact)),
@@ -1709,14 +1738,14 @@ class _Hours extends StatelessWidget {
                         _WeatherIcon(s.hour.icon,
                             night: s.night,
                             size: _Idle.hourIcon,
-                            color: s.hour.precip || s.isNow ? Colors.white : KioskColors.muted),
+                            color: s.hour.precip || s.isNow ? KioskColors.ink : KioskColors.muted),
                         if (_tempOf(s.hour).isNotEmpty) ...[
                           const SizedBox(width: 3),
                           Text(_tempOf(s.hour),
                               maxLines: 1,
                               softWrap: false,
                               style: _tempStyle(compact)
-                                  .copyWith(color: s.isNow ? Colors.white : KioskColors.muted)),
+                                  .copyWith(color: s.isNow ? KioskColors.ink : KioskColors.muted)),
                         ],
                       ]),
                     ),

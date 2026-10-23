@@ -14,11 +14,11 @@ class SimpleLayKioskApp extends StatelessWidget {
         title: 'SimpleLay',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          brightness: Brightness.dark,
+          brightness: KioskColors.brightness,
           scaffoldBackgroundColor: KioskColors.bg,
           colorScheme: ColorScheme.fromSeed(
             seedColor: KioskColors.primary,
-            brightness: Brightness.dark,
+            brightness: KioskColors.brightness,
           ),
         ),
         // 설정 영속화는 프로덕션에서만 — 테스트는 미주입(세션 한정)으로
