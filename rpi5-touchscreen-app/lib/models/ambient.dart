@@ -326,10 +326,14 @@ class KioskRoutine {
     this.thinqSteps = const [],
     this.mode = 'approve',
     this.enabled = true,
+    this.timeTriggered = false,
   });
 
   final String id;
   final String name;
+
+  /// 정한 시각에 도는 루틴(trigger.kind == 'time') — 처음 화면 '무엇을 할까요?'에 세우지 않는다(폰 홈과 같은 규칙).
+  final bool timeTriggered;
 
   /// 단계들이 다루는 가전(순서대로, 중복 없음).
   final List<String> applianceIds;
@@ -399,6 +403,7 @@ class KioskRoutine {
       thinqSteps: thinq,
       mode: json['mode'] as String? ?? 'approve',
       enabled: json['enabled'] as bool? ?? true,
+      timeTriggered: (json['trigger'] as Map<String, dynamic>?)?['kind'] == 'time',
     );
   }
 }

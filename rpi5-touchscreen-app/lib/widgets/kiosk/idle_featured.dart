@@ -34,10 +34,12 @@ class KioskFeaturedAction extends StatelessWidget {
     return head + headGap + cardHeight;
   }
 
-  /// 처음 화면에 세울 저장된 동작 — 목록 맨 앞에서 가전이 목록에 있는 첫 루틴. 없으면 null.
+  /// 처음 화면에 세울 저장된 동작 — 폰 홈과 같은 후보(켜져 있고, 승인해서 실행하고, 시각 예약이 아닌 루틴) 중
+  /// 가전이 목록에 있는 첫 루틴. 없으면 null.
   static (KioskRoutine, ApplianceMap)? pick(List<KioskRoutine>? routines, List<ApplianceMap>? appliances) {
     if (routines == null || appliances == null) return null;
     for (final r in routines) {
+      if (!r.enabled || r.mode != 'approve' || r.timeTriggered) continue;
       for (final id in r.applianceIds) {
         final a = appliances.where((x) => x.id == id).firstOrNull;
         if (a != null) return (r, a);
@@ -48,7 +50,9 @@ class KioskFeaturedAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sub = [appliance.tileName, if (sizeLabel.isNotEmpty) sizeLabel].join(' · ');
+    // 가전은 왼쪽 그림이 말한다 — 부제는 무엇을 하는지 한 줄(실패널 10/24: 이름이 길면 부제가 잘렸다). 읽을 때는 가전 이름까지.
+    final sub = sizeLabel.isNotEmpty ? sizeLabel : appliance.tileName;
+    final spoken = [appliance.tileName, if (sizeLabel.isNotEmpty) sizeLabel].join(' · ');
     return Column(
       key: const ValueKey('idle-featured'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,7 +66,7 @@ class KioskFeaturedAction extends StatelessWidget {
         const SizedBox(height: headGap),
         Semantics(
           button: true,
-          label: '${routine.name}, $sub, 실행하기',
+          label: '${routine.name}, $spoken, 실행하기',
           excludeSemantics: true,
           child: Material(
             color: KioskColors.surface,
@@ -87,12 +91,12 @@ class KioskFeaturedAction extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(routine.name,
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: KioskType.body, height: 1.2, fontWeight: FontWeight.w700, color: KioskColors.ink)),
                           KioskText(sub,
-                              maxLines: 2,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(fontSize: KioskType.caption, height: 1.2, color: KioskColors.muted)),
                         ],
