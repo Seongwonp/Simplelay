@@ -82,10 +82,10 @@ class _ApplianceCard extends ConsumerWidget {
                       children: [
                         Container(
                           key: Key('appliance-icon-${a.id}'),
-                          width: AppSpace.xxxl + AppSpace.sm,
-                          height: AppSpace.xxxl + AppSpace.sm,
-                          alignment: Alignment.centerLeft,
-                          child: Icon(a.icon, size: 28, color: fg),
+                          width: 64,
+                          height: 64,
+                          alignment: Alignment.center,
+                          child: ApplianceArtwork(category:a.category,size:64,color:fg),
                         ),
                         // 남는 폭은 배지 칸 하나가 가진다(Spacer와 나누면 배지가 반으로 줄었다).
                         Expanded(

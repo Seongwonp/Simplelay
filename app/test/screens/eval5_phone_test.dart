@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:simplelay/widgets/appliance_artwork.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -211,8 +212,8 @@ Future<void> _pump(WidgetTester tester, Widget screen,
 }
 
 /// 가전 그림 아이콘(사용자 결정 10/19 — 켜짐·꺼짐은 이 아이콘의 색).
-Icon _tileIcon(WidgetTester tester, String id) => tester
-    .widget<Icon>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(Icon)));
+ApplianceArtwork _tileIcon(WidgetTester tester, String id) => tester
+    .widget<ApplianceArtwork>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(ApplianceArtwork)));
 
 final _koreanFont = File('C:/Windows/Fonts/malgun.ttf');
 final _noKoreanFont = _koreanFont.existsSync() ? null : '맑은 고딕 글꼴이 없어 줄 검사를 건너뛰어요';
@@ -246,7 +247,7 @@ void main() {
       expect(tileMarkText(tester, 'mw'), isNull);
       expect(_tileIcon(tester, 'mw').color, AppColors.tileDimLight);
       // 타일 아이콘은 가전마다 — 공기청정기는 바람.
-      expect(find.descendant(of: find.byKey(const Key('appliance-card-air')), matching: find.byIcon(Icons.air)),
+      expect(find.descendant(of: find.byKey(const Key('appliance-card-air')), matching: find.byKey(const Key('appliance-artwork-air_purifier'))),
           findsOneWidget);
     });
 

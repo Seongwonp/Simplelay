@@ -10,6 +10,7 @@ import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
 import 'package:simplelay/widgets/settings_action.dart';
+import 'package:simplelay/widgets/notification_action.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
 
@@ -45,7 +46,7 @@ GoRouter _router() => GoRouter(
           branches: [
             for (final p in ['/', '/appliances', '/automation', '/history'])
               StatefulShellBranch(routes: [
-                GoRoute(path: p, builder: (_, __) => Scaffold(appBar: AppBar(actions: const [SettingsAction()]), body: Text('body $p'))),
+                GoRoute(path: p, builder: (_, __) => Scaffold(appBar: AppBar(actions: const [NotificationAction(), SettingsAction()]), body: Text('body $p'))),
               ]),
           ],
         ),
@@ -68,23 +69,23 @@ void main() {
     final handle = tester.ensureSemantics();
     await _pumpShell(
         tester, CareEventsState(events: _events(13), status: CareInboxStatus.ready));
-    expect(find.descendant(of: find.byKey(const Key('settings-unread-badge')), matching: find.text('13')), findsOneWidget);
-    expect(find.bySemanticsLabel('설정, 안 본 알림 13건'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('notifications-unread-badge')), matching: find.text('13')), findsOneWidget);
+    expect(find.bySemanticsLabel('알림, 안 읽은 알림 13개'), findsOneWidget);
     handle.dispose();
   });
 
   testWidgets('0건이면 배지가 없다', (tester) async {
     await _pumpShell(
         tester, const CareEventsState(events: [], status: CareInboxStatus.ready));
-    expect(find.byKey(const Key('settings-unread-badge')), findsNothing);
+    expect(find.byKey(const Key('notifications-unread-badge')), findsNothing);
   });
 
   testWidgets('조회 실패는 0건으로 읽히지 않는다(탭 접근성 이름)', (tester) async {
     final handle = tester.ensureSemantics();
     await _pumpShell(
         tester, const CareEventsState(events: [], status: CareInboxStatus.failed));
-    expect(find.byKey(const Key('settings-unread-badge')), findsNothing);
-    expect(find.bySemanticsLabel('설정, 알림을 불러오지 못했어요'), findsOneWidget);
+    expect(find.byKey(const Key('notifications-unread-badge')), findsNothing);
+    expect(find.bySemanticsLabel('알림, 새 알림을 불러오지 못했어요'), findsOneWidget);
     handle.dispose();
   });
 

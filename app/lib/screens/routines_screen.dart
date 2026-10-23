@@ -27,6 +27,7 @@ import '../widgets/row_menu.dart';
 import '../widgets/skip_next_control.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/settings_action.dart';
+import '../widgets/notification_action.dart';
 import '../theme/app_tokens.dart';
 
 // 오전/오후 시각 꼴은 clock_text 한 곳(평가 8차 10/18) — 홈·시험이 이 파일에서 가져가던 이름을 그대로 내보낸다.

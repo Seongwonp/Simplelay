@@ -5,6 +5,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:simplelay/widgets/appliance_artwork.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -229,8 +230,8 @@ void main() {
       expect(f, findsOneWidget);
     }
     expect(y(todo), lessThan(y(routines)));
-    expect(y(routines), lessThan(y(attention)));
-    expect(y(attention), lessThan(y(appliances)));
+    expect(y(routines), lessThan(y(appliances)));
+    expect(y(appliances), lessThan(y(attention)));
     expect(y(appliances), lessThan(y(now)));
     // 제안이 주 행동이면 저장 동작은 보조 목록이다.
     expect(find.byKey(const Key('home-routine-hero')), findsNothing);
@@ -269,13 +270,13 @@ void main() {
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
 
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < 1; i++) {
       expect(_tile('r-$i'), findsOneWidget, reason: 'r-$i');
     }
-    expect(_tile('r-4'), findsNothing);
+    expect(_tile('r-1'), findsNothing);
     // 줄 목록(평가 5차 10/18: 가전 타일과 다른 모양) — 위아래로 선다.
     expect(find.byKey(const Key('home-routine-hero')), findsOneWidget);
-    expect(tester.getTopLeft(_tile('r-0')).dy, lessThan(tester.getTopLeft(_tile('r-1')).dy));
+    expect(find.byType(FilledButton), findsOneWidget);
     // 시각 루틴은 정해진 때 저절로 돈다 — 타일로 겹쳐 두지 않는다(같은 루틴 여러 번 노출 금지).
     expect(_tile('r-t'), findsNothing);
     for (final name in ['세탁 알림', '꺼둔 것', '말만 하기']) {
@@ -315,7 +316,6 @@ void main() {
       _routine('r-w', '빨래 시작', steps: [
         {'kind': 'press_sequence', 'appliance_id': 'washer', 'buttons': ['시작']},
       ]),
-      _routine('r-b', '저녁 데우기'),
     ]);
     _tall(tester);
     await tester.pumpWidget(_home(hub,
@@ -323,7 +323,7 @@ void main() {
     await _settle(tester);
 
     // 준비된 루틴이 먼저, 설정이 필요한 루틴은 뒤.
-    expect(tester.getTopLeft(_tile('r-b')).dy, lessThan(tester.getTopLeft(_tile('r-w')).dy));
+    expect(_tile('r-w'), findsOneWidget);
     // 타일은 설정 경고를 말하지 않는다(확인 카드 한 곳, 평가 3차 10/18) — 누르면 그 가전 설정으로 간다.
     expect(find.descendant(of: _tile('r-w'), matching: findPlainText('설정이 필요해요', contains: true)),
         findsNothing);
@@ -393,7 +393,7 @@ void main() {
     expect(tileMarkText(tester, 'air'), isNull);
     final ctx = tester.element(find.byKey(const Key('appliance-icon-air')));
     Color? icon(String id) => tester
-        .widget<Icon>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(Icon)))
+        .widget<ApplianceArtwork>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(ApplianceArtwork)))
         .color;
     // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐·실행 중은 본문 글자색(appInk), 꺼짐·모름·쉬는 중은 appTileDim. 강조색은 쓰지 않는다.
     // 모르는 전원도 밝게 그리지 않는다 — 흐린 모양 + '?' 표시.
@@ -418,7 +418,7 @@ void main() {
     expect(find.descendant(of: attention, matching: find.text('해야 할 일')), findsOneWidget);
     expect(find.descendant(of: attention, matching: find.byKey(const Key('setup-summary-card'))), findsOneWidget);
     final lastTile = find.byKey(const Key('appliance-card-w2'));
-    expect(tester.getTopLeft(attention).dy, lessThan(tester.getTopLeft(lastTile).dy));
+    expect(tester.getTopLeft(attention).dy, greaterThan(tester.getBottomLeft(lastTile).dy));
     // 사용자 결정(10/19): 타일은 설정 톱니 표시 하나 — 무엇이 남았는지는 확인 카드 한 곳.
     expect(tileMarkIcon(tester, 'w2'), Icons.settings_rounded);
     // 준비된 가전은 표시 없음 — '바로 쓸 수 있어요'로 단정하지 않는다.
@@ -485,9 +485,10 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
-    for (final name in ['아침 데우기', '빨래 시작', '문 열기']) {
+    for (final name in ['아침 데우기']) {
       expect(find.bySemanticsLabel('$name 실행하기'), findsOneWidget);
     }
+    expect(find.byKey(const Key('home-routines-more')), findsOneWidget);
     handle.dispose();
   });
 

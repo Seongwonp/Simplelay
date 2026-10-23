@@ -9,6 +9,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:simplelay/widgets/appliance_artwork.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -125,7 +126,7 @@ List<String> _texts(WidgetTester tester) => [
     ];
 
 Color? _iconColor(WidgetTester tester, String id) => tester
-    .widget<Icon>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(Icon)))
+    .widget<ApplianceArtwork>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(ApplianceArtwork)))
     .color;
 
 void main() {

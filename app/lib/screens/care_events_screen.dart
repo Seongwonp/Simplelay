@@ -33,7 +33,9 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final notifier = ref.read(careEventsProvider.notifier);
       await notifier.refresh();
+      if (!mounted) return;
       await notifier.markAllSeen();
+      if (!mounted) return;
       // 쉬는 중인지도 같이 확인한다 -- 아래 배너의 근거다.
       await ref.read(wellnessPauseProvider.notifier).refresh();
     });
@@ -42,6 +44,7 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
   Future<void> _reload() async {
     final notifier = ref.read(careEventsProvider.notifier);
     await notifier.refresh();
+    if (!mounted) return;
     await notifier.markAllSeen();
   }
 

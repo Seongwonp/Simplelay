@@ -73,16 +73,26 @@ class _Header extends StatelessWidget {
         ),
       ),
     );
+    final brand = Tooltip(message: text,
+      child: Text('SimpleLay', style: AppText.title.copyWith(color: context.appPrimary)));
+    final large = MediaQuery.textScalerOf(context).scale(1) > 1.3;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(children: [
-          Expanded(child: Text('SimpleLay', style: AppText.title)),
+          Expanded(child: brand),
+          if (!large) voice,
+          const NotificationAction(),
           const SettingsAction(),
         ]),
-        const SizedBox(height: AppSpace.sm),
-        Wrap(spacing: AppSpace.md, runSpacing: AppSpace.sm,
-          crossAxisAlignment: WrapCrossAlignment.center, children: [chip, voice]),
+        if (large || rpiState != RpiConnectionState.connected) ...[
+          const SizedBox(height: AppSpace.sm),
+          Wrap(spacing: AppSpace.md, runSpacing: AppSpace.sm,
+            crossAxisAlignment: WrapCrossAlignment.center, children: [
+              if (rpiState != RpiConnectionState.connected) chip,
+              if (large) voice,
+            ]),
+        ],
       ],
     );
   }

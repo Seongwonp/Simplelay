@@ -14,6 +14,7 @@ import 'package:simplelay/providers/care_events_provider.dart';
 import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
 import 'package:simplelay/widgets/settings_action.dart';
+import 'package:simplelay/widgets/notification_action.dart';
 import 'package:simplelay/screens/status_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
 
@@ -45,7 +46,7 @@ GoRouter _router() => GoRouter(
           branches: [
             for (final p in ['/', '/appliances', '/automation', '/history'])
               StatefulShellBranch(routes: [
-                GoRoute(path: p, builder: (_, __) => Scaffold(appBar: AppBar(actions: const [SettingsAction()]), body: Text('body $p'))),
+                GoRoute(path: p, builder: (_, __) => Scaffold(appBar: AppBar(actions: const [NotificationAction(), SettingsAction()]), body: Text('body $p'))),
               ]),
           ],
         ),
@@ -111,12 +112,12 @@ void main() {
   group('7. 설정 탭 배지', () {
     testWidgets('자동으로 한 일·루틴 안내뿐이면 설정 탭에 배지가 없다(홈이 말한다)', (tester) async {
       await _pumpShell(tester, [_event(1, 'auto_executed'), _event(2, 'routine_notice')]);
-      expect(find.byKey(const Key('settings-unread-badge')), findsNothing);
+      expect(find.byKey(const Key('notifications-unread-badge')), findsOneWidget);
     });
 
     testWidgets('못 한 일이 있으면 배지가 남는다', (tester) async {
       await _pumpShell(tester, [_event(1, 'execution_failed'), _event(2, 'auto_executed')]);
-      expect(find.byKey(const Key('settings-unread-badge')), findsOneWidget);
+      expect(find.byKey(const Key('notifications-unread-badge')), findsOneWidget);
     });
   });
 }

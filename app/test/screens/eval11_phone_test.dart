@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:simplelay/widgets/appliance_artwork.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -341,7 +342,7 @@ void main() {
       // 사용자 결정(10/19, 두 번째): 밝기 = 켜짐·작동 중 — 켜짐·실행 중은 본문 글자색(appInk), 꺼짐·모름·쉬는 중은 appTileDim. 강조색은 쓰지 않는다.
       final ctx = tester.element(find.byKey(const Key('appliance-icon-air')));
       expect(
-          tester.widget<Icon>(find.descendant(of: find.byKey(const Key('appliance-icon-air')), matching: find.byType(Icon))).color,
+          tester.widget<ApplianceArtwork>(find.descendant(of: find.byKey(const Key('appliance-icon-air')), matching: find.byType(ApplianceArtwork))).color,
           ctx.appInk);
     });
 

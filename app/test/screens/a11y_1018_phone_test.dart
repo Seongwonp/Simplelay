@@ -21,6 +21,7 @@ import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
 import 'package:simplelay/widgets/settings_action.dart';
+import 'package:simplelay/widgets/notification_action.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/routines_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -266,7 +267,7 @@ void main() {
               branches: [
                 for (final p in ['/', '/appliances', '/automation', '/history'])
                   StatefulShellBranch(routes: [
-                    GoRoute(path: p, builder: (_, __) => Scaffold(appBar: AppBar(actions: const [SettingsAction()]), body: Text('body $p'))),
+                    GoRoute(path: p, builder: (_, __) => Scaffold(appBar: AppBar(actions: const [NotificationAction(), SettingsAction()]), body: Text('body $p'))),
                   ]),
               ],
             ),
@@ -292,20 +293,20 @@ void main() {
 
     testWidgets('안 본 알림 3건이면 설정 탭에 숫자 3 배지(색만으로 말하지 않는다)', (tester) async {
       await pumpShell(tester, CareEventsState(events: events(3), status: CareInboxStatus.ready));
-      final badge = find.byKey(const Key('settings-unread-badge'));
+      final badge = find.byKey(const Key('notifications-unread-badge'));
       expect(badge, findsOneWidget);
       expect(find.descendant(of: badge, matching: find.text('3')), findsOneWidget);
     });
 
     testWidgets('100건 이상은 99+', (tester) async {
       await pumpShell(tester, CareEventsState(events: events(120), status: CareInboxStatus.ready));
-      expect(find.descendant(of: find.byKey(const Key('settings-unread-badge')), matching: find.text('99+')),
+      expect(find.descendant(of: find.byKey(const Key('notifications-unread-badge')), matching: find.text('99+')),
           findsOneWidget);
     });
 
     testWidgets('0건이면 배지가 없다', (tester) async {
       await pumpShell(tester, const CareEventsState(events: [], status: CareInboxStatus.ready));
-      expect(find.byKey(const Key('settings-unread-badge')), findsNothing);
+      expect(find.byKey(const Key('notifications-unread-badge')), findsNothing);
     });
   });
 }

@@ -9,6 +9,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:simplelay/widgets/appliance_artwork.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -207,7 +208,9 @@ void main() {
       expect(find.bySemanticsLabel(kTilePanelSetup), findsOneWidget);
       // 루틴 타일은 경고 문장 대신 무엇을 하는지(평가 5차 10/18: '누를 버튼 N개').
       final tile = find.byKey(const Key('home-routine-tile-r-w'));
-      expect(find.descendant(of: tile, matching: findPlainText('세탁기 · 누를 버튼 1개')), findsOneWidget);
+      // 홈은 적격 동작 한 개만 강조한다. 나머지는 전체 목록에서 관리한다.
+      expect(tile, findsNothing);
+      expect(find.byKey(const Key('home-routines-more')), findsOneWidget);
       handle.dispose();
     });
 
@@ -236,9 +239,15 @@ void main() {
       await _settle(tester);
       final mwIcon = ApplianceMap.fromJson(_mw).icon;
       final single = find.byKey(const Key('home-routine-hero'));
-      expect(_iconIn(single, mwIcon), findsOneWidget);
+      expect(tester.widget<ApplianceArtwork>(find.descendant(of: single, matching: find.byType(ApplianceArtwork))).category,
+          ApplianceCategory.microwave);
       expect(_iconIn(single, AppIcons.routine), findsNothing);
-      final multi = find.byKey(const Key('home-routine-tile-r-m'));
+      await tester.pumpWidget(const SizedBox.shrink());
+      final multiHub = _hub();
+      multiHub.routines = multiHub.routines.where((r) => r['id'] == 'r-m').toList();
+      await tester.pumpWidget(_app(multiHub, const HomeScreen(), installed: _installed));
+      await _settle(tester);
+      final multi = find.byKey(const Key('home-routine-hero'));
       expect(_iconIn(multi, mwIcon), findsOneWidget);
       expect(find.descendant(of: multi, matching: find.byKey(const Key('routine-icon-more'))), findsOneWidget);
       expect(find.descendant(of: multi, matching: findPlainText('전자레인지 · 누를 버튼 2개 · 공기청정기 켜기')),

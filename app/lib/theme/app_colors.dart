@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
+  static const brandBanner = Color(0xFF183B36);
+  static const brandBannerLight = Color(0xFFDDF4EE);
   // ── 다크 배경 계층 ──────────────────────────────────────────────────────
   static const background     = Color(0xFF0F1117);
   static const surfaceLow     = Color(0xFF191C24);

@@ -159,7 +159,7 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
     ),
     GoRoute(
       path: '/care',
-      builder: (_, __) => const CareEventsScreen(),
+      builder: (_, __) => const StandaloneTaskFrame(child: CareEventsScreen()),
     ),
     GoRoute(
       path: '/settings/hub',

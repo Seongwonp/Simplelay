@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:simplelay/widgets/appliance_artwork.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -115,7 +116,7 @@ Future<void> _pump(WidgetTester tester, List<Map<String, dynamic>> list,
 Finder _tile(String id) => find.byKey(Key('appliance-tile-$id'));
 
 Color? _icon(WidgetTester tester, String id) => tester
-    .widget<Icon>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(Icon)))
+    .widget<ApplianceArtwork>(find.descendant(of: find.byKey(Key('appliance-icon-$id')), matching: find.byType(ApplianceArtwork)))
     .color;
 
 /// 이름 글자색 — 스타일에 없으면 물려받은 기본 글자색.

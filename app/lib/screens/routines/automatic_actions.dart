@@ -12,7 +12,7 @@ extension _AutomaticActions on _RoutinesScreenState {
     final allRules = rules.valueOrNull ?? const <AutoRule>[];
     return Scaffold(
       appBar: AppBar(title: Text('자동 실행', style: AppText.heading),
-        actions: const [SettingsAction()]),
+        actions: const [NotificationAction(), SettingsAction()]),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(routinesProvider);

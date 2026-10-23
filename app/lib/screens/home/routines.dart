@@ -30,7 +30,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
   String? _error;
   String? _errorFor;
 
-  static const _maxTiles = 4;
+  static const _maxTiles = 1;
 
   Future<void> _run(Routine r) async {
     final id = r.id!;
@@ -95,7 +95,13 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
           for (final r in routines)
             if (r.isRunCandidate && r.trigger.kind != RoutineTriggerKind.time) r,
         ];
-        if (manual.isEmpty) return const SizedBox.shrink();
+        if (manual.isEmpty) {
+          return Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+            key: const Key('home-routines-more'),
+            onPressed: () => context.push('/routines'),
+            icon: const Icon(Icons.bookmark_outline), label: const Text('저장한 동작 전체'),
+          ));
+        }
         // 준비된 루틴이 먼저, 설정이 필요한 루틴은 뒤.
         final ordered = [
           ...manual.where((r) => !needsSetup(r)),

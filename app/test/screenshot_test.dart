@@ -206,6 +206,11 @@ void main() {
     });
   }
 
+  testWidgets('승인된 홈 — 배너와 안 읽은 알림 3개', (t) async {
+    await _shoot(t, 'home_banner_notifications', const HomeScreen(), light: true,
+      installed: _submissionInstalled, hub: _demoHub(submission: true, unreadNotifications: 3));
+  });
+
   // 2026-10-18 루틴 탭 — 본체가 준 루틴·자동으로 하기.
   for (final (page, screen) in <(String, Widget)>[
     ('task_home', const HomeScreen()),
@@ -1058,7 +1063,7 @@ final _submissionInstalled = <ApplianceMap>[_homeInstalled[0], _homeInstalled[1]
 
 /// 골든용 가짜 본체 — 실행 경로는 없다(찍기만 한다).
 /// [submission]이면 지금 실물 구성(전자레인지 + LG 공기청정기)만 — 등록 안 된 세탁기 루틴·알림을 뺀다(10/18 §3-5).
-RpiApiService _demoHub({bool submission = false, bool practiceWasher = false}) {
+RpiApiService _demoHub({bool submission = false, bool practiceWasher = false, int unreadNotifications = 0}) {
   http.Response json(Object body, [int status = 200]) => http.Response.bytes(
       utf8.encode(jsonEncode(body)), status,
       headers: {'content-type': 'application/json'});
@@ -1082,6 +1087,13 @@ RpiApiService _demoHub({bool submission = false, bool practiceWasher = false}) {
       };
   return RpiApiService('http://hub.test', client: MockClient((req) async {
     final path = req.url.path;
+    if (path == '/care-events') {
+      return json([for (var i = unreadNotifications; i > 0; i--) {
+        'id': i, 'kind': 'routine_notice', 'message': '예약 안내 $i',
+        'occurred_at': '2026-10-23T09:00:00+09:00',
+      }]);
+    }
+    if (path == '/acks') return json({'care_seen_id': 0});
     // 제출용: 실물 캐리지 이동이 아직 검증되지 않아 실제 확인 주행 기록이 없다 — 있는 척하지 않는다(10/18 §3-5).
     if (submission && path.endsWith('/verify-pass')) {
       return json({'detail': VerifyPassLookup.noRecordDetail}, 404);

@@ -37,6 +37,9 @@ import '../theme/app_icons.dart';
 import '../widgets/skip_next_control.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/settings_action.dart';
+import '../widgets/notification_action.dart';
+import '../widgets/appliance_artwork.dart';
+import '../widgets/touch_mark.dart';
 import '../models/execution_status.dart';
 import '../theme/app_tokens.dart';
 
@@ -57,6 +60,7 @@ part 'home/connectivity.dart';
 part 'home/environment.dart';
 part 'home/appliances_screen.dart';
 part 'home/featured_action.dart';
+part 'home/brand_banner.dart';
 
 /// 과업 우선 홈(10/23). 중요한 차단·제안 → 저장한 동작 → 가전 → 환경·예약.
 /// 제안이 있으면 제안만 강조하고, 없으면 첫 실행 가능 저장 동작을 강조한다.
@@ -132,7 +136,7 @@ class HomeScreen extends ConsumerWidget {
     ];
 
     return Scaffold(
-      appBar: appliancesOnly ? AppBar(title: Text('가전', style: AppText.heading), actions: const [SettingsAction()]) : null,
+      appBar: appliancesOnly ? AppBar(title: Text('가전', style: AppText.heading), actions: const [NotificationAction(), SettingsAction()]) : null,
       body: SafeArea(
         bottom: false,
         child: ListView(
@@ -177,6 +181,11 @@ class HomeScreen extends ConsumerWidget {
             // ── 실패 경고(있을 때만, 맨 위 따로 — 휴리스틱 평가 10/18) ─────────────────
             _FailureAlert(execution: execution),
 
+            if (!appliancesOnly) ...[
+              const _BrandBanner(),
+              const SizedBox(height: AppSpace.lg),
+            ],
+
             // ── 지금 우리 집 ─────────────────────────────────────────────
 
             // ── ① 지금 할 일 ──────────────────────────────────────────────
@@ -208,7 +217,6 @@ class HomeScreen extends ConsumerWidget {
             ),
 
             // ── ② 해야 할 일(설정 남음)·안 본 알림(설정과 같은 수) ─────────────────────
-            _TodoAndUnread(setupCandidates: setupCandidates),
 
             // ── ③ 가전 ────────────────────────────────────────────────────
             if (!appliancesOnly) _SectionTitle('가전', key: const Key('home-appliances')),
@@ -238,6 +246,8 @@ class HomeScreen extends ConsumerWidget {
                 onAdd: () => context.push('/appliance/add'),
               ),
 
+            const SizedBox(height: AppSpace.lg),
+            _TodoAndUnread(setupCandidates: setupCandidates),
             if (!appliancesOnly) const _HomeNow(),
 
             // ── 온습도 ─────────────────────────────────────────────────────
