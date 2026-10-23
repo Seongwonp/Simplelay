@@ -25,7 +25,7 @@
    - **가. 실행** — 전자레인지 버튼 순서 실행 → 통신 프레임에 `execute` → `result`, '모의' 표시.
    - **나. 실패** — 실패를 주입하고 다시 실행 → 실패가 결과로 그대로 남는다(성공으로 바꾸지 않음).
    - **다. 승인** — '키오스크에 시연 제안 띄우기' → `/kiosk/`의 제안 카드. 승인하기 전에는 실행하지 않는다(키오스크 웹은 먼저 빌드 — [브라우저 시뮬레이터 실행](docs/브라우저-시뮬레이터-실행.md)).
-3. **실물 화면(1분)** — 2026-10-19 실제 RPi5 허브에 붙은 화면: [키오스크 15.8형 실패널](docs/submission/img/kiosk-idle-real-panel-2026-10-19.png) · [폰 홈](docs/submission/img/phone-home-real-hub-2026-10-19.png) · [폰 루틴](docs/submission/img/phone-routines-real-hub-2026-10-19.png) · [폰 기록](docs/submission/img/phone-history-real-hub-2026-10-19.png)(공기청정기 '켜짐 확인'은 상태를 다시 읽어 확인한 것, 누름 장치의 '연습'은 모의 실행 — 실제 가전은 누르지 않음).
+3. **실물 화면(1분)** — 실제 RPi5 허브에 붙은 화면: [키오스크 15.8형 실패널](docs/submission/img/kiosk-idle-real-panel-2026-10-19.png)(10/19) · [폰 홈](docs/submission/img/phone-home-2026-10-24.png) · [폰 루틴](docs/submission/img/phone-routines-2026-10-24.png) · [폰 기록](docs/submission/img/phone-history-2026-10-24.png)(폰은 10/24 최신 화면. 공기청정기 '켜짐 확인'은 상태를 다시 읽어 확인한 것. 누름 장치 실행은 모의 모션의 '연습'이며 실제 가전은 누르지 않음).
 4. **시연 영상** — 영상 링크 자리(촬영 뒤 기입 — 승인 → 버튼 누름 → 누름 장치 확인, 실제 공기청정기 변경 → 상태 다시 읽기).
 
 ## 1. 누구를 위한가
