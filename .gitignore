@@ -24,6 +24,8 @@ dist/
 *.elf
 # 골든 비교 실패 시 생기는 진단 이미지 (재생성 가능)
 **/test/failures/
+# 실기기·에뮬레이터의 실제 사용자 데이터가 보일 수 있는 로컬 UI 검토 캡처
+/.local-ui-review/
 
 # 키오스크 웹 빌드 산출물 (36MB, PC에서 만들어 기기로 복사 — deploy_kiosk.ps1)
 kiosk-web/
