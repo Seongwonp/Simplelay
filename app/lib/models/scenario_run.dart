@@ -81,9 +81,9 @@ String runStepFacts(ScenarioRunStep step) {
       '연습'
     // 단계 결과(실행 상태·기록 상세)에서는 모르면 모른다고 남긴다 — 실제 성공처럼 보이지 않게(F4, 2026-10-14).
     else if (step.executionMode != 'real' && step.executionMode != 'mock')
-      '실제 가전이 움직였는지 몰라요',
+      '실제 가전이 움직였는지 확인하지 못했어요',
     if (confirmation != null) confirmation,
-    // 확인 못 함은 위 확인 수준이 이미 '몰라요'라고 한다 — 같은 말을 두 번 쓰지 않는다(2026-10-17).
+    // 확인 못 함은 위 확인 수준이 이미 '확인하지 못했어요'라고 한다 — 같은 말을 두 번 쓰지 않는다(2026-10-17).
     if (!(kind == ResultKind.unconfirmed && confirmation != null)) resultWord(kind),
   ].join(', ');
 }

@@ -32,7 +32,7 @@ void main() {
       success: false, label: '실행 확인 불가',
       reason: KioskFailureReason.serverLost,
     ));
-    expect(find.text('어떻게 됐는지 몰라요'), findsOneWidget);
+    expect(find.text('어떻게 됐는지 확인하지 못했어요'), findsOneWidget);
     expect(find.text('실행을 멈췄어요'), findsNothing);
     expect(find.textContaining('가전을 봐 주세요'), findsOneWidget);
   });
@@ -144,7 +144,7 @@ void main() {
       ),
     );
 
-    expect(find.text('눌렸는지 몰라요'), findsOneWidget);
+    expect(find.text('눌렸는지 확인하지 못했어요'), findsOneWidget);
     // 같은 경고는 화면에 한 번 — '다시 시도' 확인 창에만 있다(쉬운 말 10/17).
     expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
     expect(find.text('처음 화면으로'), findsOneWidget);
@@ -155,7 +155,7 @@ void main() {
     expect(find.text('누름 장치로 골라 누르기'), findsNothing);
     expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsNothing);
     // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
-    // '살펴볼 게 있어요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 몰라요').
+    // '살펴볼 게 있어요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 확인하지 못했어요').
     expect(find.text('살펴볼 게 있어요'), findsOneWidget);
     expect(find.text('주의'), findsNothing);
     expect(find.text('실패'), findsNothing);
@@ -187,7 +187,7 @@ void main() {
     );
 
     expect(find.textContaining('안전하게 멈췄어요'), findsNothing);
-    expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
     expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
     // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
     // 멈췄는지 모르면 누름 장치를 다시 움직이게 하는 '누름 장치로 골라 누르기'도 두지 않는다(평가 15차 10/18, 안전).
@@ -244,12 +244,12 @@ void main() {
       ),
     );
 
-    expect(find.text('LG 가전 · 연습 · 받았는지 몰라요 · 확인 못 함'),
+    expect(find.text('LG 가전 · 연습 · 받았는지 확인하지 못했어요 · 확인 못 함'),
         findsOneWidget);
-    // 보내지 않은 단계는 '몰라요'이 아니라 '누르지 않았어요'. 물리 경로 배지는 달지 않는다(2026-10-14).
+    // 보내지 않은 단계는 '확인하지 못했어요'이 아니라 '누르지 않았어요'. 물리 경로 배지는 달지 않는다(2026-10-14).
     expect(find.text('연습 · 누르지 않았어요 · 실패'),
         findsOneWidget);
-    expect(find.textContaining('바뀐 것을 봤어요'), findsNothing);
+    expect(find.textContaining('설정 변경을 확인했어요'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -468,7 +468,7 @@ void main() {
   // 평가 5차(10/18): 제목 '연습이 중간에 멈췄어요' 아래 '연습 누르기를 끝내지 못했어요'가 같은 말을 되풀이했다 — 한 줄로.
   testWidgets('연습 실패는 한 줄 — 연습이 중간에 멈췄어요(실제 가전은 누르지 않았다는 말은 띠)', (tester) async {
     for (final (reason, why) in [
-      // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 몰라요'는 쓰지 않는다(평가 4차 10/18).
+      // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 확인하지 못했어요'는 쓰지 않는다(평가 4차 10/18).
       (KioskFailureReason.safetyStop, kPracticeStoppedHeadline),
       (KioskFailureReason.execution, kPracticeStoppedHeadline),
       (KioskFailureReason.serverLost, kPracticeStoppedHeadline),
@@ -496,7 +496,7 @@ void main() {
 
   // 외부 평가 10/16 4차: 위 줄은 '취소' 버튼을 직접 누르라는데 아래 줄은 '정지 버튼'이라 했다 — 같은 이름으로.
   // 평가 8차(10/18): '대신 눌렀어요'는 '직접 눌러 주세요'와 엇갈렸다 — 누름 장치도 눌렀지만 확인이 안 됐다고.
-  testWidgets('정지 몰라요: 누름 장치도 누른 버튼을 실제 이름으로, 확인이 안 됐다고 말한다', (tester) async {
+  testWidgets('정지 확인하지 못했어요: 누름 장치도 누른 버튼을 실제 이름으로, 확인이 안 됐다고 말한다', (tester) async {
     await _pump(
       tester,
       KioskHoldView(
@@ -510,7 +510,7 @@ void main() {
         onStop: () {},
       ),
     );
-    expect(find.text('취소 버튼이 눌렸는지 몰라요'), findsOneWidget);
+    expect(find.text('취소 버튼이 눌렸는지 확인하지 못했어요'), findsOneWidget);
     expect(find.textContaining('정지 버튼을 눌렀지만'), findsNothing);
     expect(find.textContaining('대신 눌렀어요'), findsNothing);
   });

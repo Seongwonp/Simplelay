@@ -128,7 +128,7 @@ void main() {
     // 정지·재확인 수단을 남긴 채 사용자에게 직접 확인을 청해야 한다.
     final state = container.read(executionStatusProvider);
     expect(state.phase, ExecutionPhase.unknown);
-    expect(state.message, contains('어떻게 됐는지 몰라요'));
+    expect(state.message, contains('어떻게 됐는지 확인하지 못했어요'));
 
     // 그리고 정지 수단이 남아 있어야 한다. 추적 대상을 지워버리면
     // emergencyStop이 HTTP 경로를 잃고 BLE로 빠져 실제로 멈추지 못한다.

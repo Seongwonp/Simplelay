@@ -45,7 +45,7 @@ class ThinqStateCard extends ConsumerStatefulWidget {
 const kThinqPowerOffNote = '전원이 꺼져 있어요. 켜야 바람 세기와 운전 방식을 바꿀 수 있어요.';
 
 /// 응답 없이 끝난 조작 요청(시간 초과·연결 끊김·응답 해석 실패).
-const kThinqUnknownOutcome = '바뀌었는지 몰라요. 새로 보기를 눌러 봐 주세요.';
+const kThinqUnknownOutcome = '바뀌었는지 확인하지 못했어요. 새로 보기를 눌러 봐 주세요.';
 
 class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
   /// 묻기부터 응답(또는 실행 상태 화면에서 돌아옴)까지 — 이 동안 다른 조작을 받지 않는다.

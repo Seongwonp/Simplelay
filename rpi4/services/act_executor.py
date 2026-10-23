@@ -196,7 +196,7 @@ def result_detail_fields(result: ExecutionResult, controller: object) -> dict:
     else:
         confirmed, source = None, None
         detail = (
-            "가전이 켜졌는지 몰라요. 전기 플러그에서 값을 읽지 못했어요."
+            "가전이 켜졌는지 확인하지 못했어요. 전기 플러그에서 값을 읽지 못했어요."
             if result.failed_layer is VerificationLayer.OPERATION
             else None
         )
@@ -1315,7 +1315,7 @@ class ActExecutor:
             report = await asyncio.to_thread(probe)
         except Exception as exc:  # noqa: BLE001 - 확인 실패는 '보냄'까지만으로 낮춘다
             log.exception("stop confirmation failed")
-            return {"stop_level": "sent", "ack_ms": None, "stop_detail": "멈추는 중이에요. 멈췄는지는 아직 몰라요. 가전을 봐 주세요."}
+            return {"stop_level": "sent", "ack_ms": None, "stop_detail": "멈추는 중이에요. 멈췄는지는 아직 확인하지 못했어요. 가전을 봐 주세요."}
         return report.fields()
 
     async def _report_stop(self, stop_id: str, target: str, probe) -> None:

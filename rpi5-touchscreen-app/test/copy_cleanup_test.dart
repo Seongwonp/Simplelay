@@ -87,7 +87,7 @@ void main() {
     }
   });
 
-  group('정지·모터 걸림 뒤에는 "몰라요" 칩을 덧붙이지 않는다', () {
+  group('정지·모터 걸림 뒤에는 "확인하지 못했어요" 칩을 덧붙이지 않는다', () {
     testWidgets('사용자 정지', (tester) async {
       await _pump(
         tester,
@@ -161,8 +161,8 @@ void main() {
     expect(find.byIcon(Icons.close), findsNothing);
     // 물음표는 위 띠가 말한다 — 순서 안내가 있으면 큰 원을 두지 않는다(사용자 결정 10/18, 평가 15차).
     expect(find.byIcon(Icons.help_outline), findsOneWidget);
-    // 단계를 모르면 확인하지 못한 정지다 — 결과 화면은 멈췄어요/멈췄는지 몰라요 둘뿐(평가 8차 10/18).
-    expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
+    // 단계를 모르면 확인하지 못한 정지다 — 결과 화면은 멈췄어요/멈췄는지 확인하지 못했어요 둘뿐(평가 8차 10/18).
+    expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
     expect(find.textContaining('— 정지 요청으로'), findsNothing);
     expect(find.text('가전을 봐 주세요'), findsNothing);
     expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
@@ -301,7 +301,7 @@ void main() {
 
     testWidgets('버튼 누름 단계에 "경로 모름" 경고 칩을 붙이지 않는다', (tester) async {
       await pumpCard(tester, routineRun);
-      expect(find.text('어떻게 할지 몰라요'), findsNothing);
+      expect(find.text('어떻게 할지 확인하지 못했어요'), findsNothing);
     });
 
     testWidgets('내가 직접 시작한 루틴은 근거 줄이 없고 목록 제목은 "누를 버튼"', (tester) async {
@@ -328,7 +328,7 @@ void main() {
         id: 's2', purpose: '무언가', occurrences: 0,
         commands: [KioskSuggestionCommand(targetId: 'x', route: 'mystery', summary: '알 수 없는 동작')],
       ));
-      expect(find.text('어떻게 할지 몰라요'), findsOneWidget);
+      expect(find.text('어떻게 할지 확인하지 못했어요'), findsOneWidget);
     });
   });
 }

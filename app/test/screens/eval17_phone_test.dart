@@ -354,15 +354,15 @@ void main() {
       final time = find.byKey(const Key('history-time-press-1'));
       expect(_rawText(tester, time).replaceAll('⁠', ''), contains('바로$_nbsp실행'));
       final reason = tester.widget<Text>(find.byKey(const Key('history-reason-press-1')));
-      expect(reason.semanticsLabel, '버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요');
+      expect(reason.semanticsLabel, '버튼은 다 눌렀어요. 가전이 움직였는지는 확인하지 못했어요');
       expect(reason.semanticsLabel, isNot(contains('봐 주세요')));
       expect(_in(find.byKey(const Key('history-result-press-1')), findPlainText('봐 주세요', contains: true)),
           findsOneWidget);
     });
 
     test("'바로 실행'과 '화면에서 직접 골랐어요'은 뜻이 다르다(목적 문장 유무)", () {
-      expect(historyLookReason('보냈지만 가전이 받았는지 몰라요. 다시 보내기 전에 집에서 가전을 확인해야 해요.'),
-          '보냈지만 가전이 받았는지 몰라요. 다시 보내기 전에 집에서 가전을 확인해야 해요.');
+      expect(historyLookReason('보냈지만 가전이 받았는지 확인하지 못했어요. 다시 보내기 전에 집에서 가전을 확인해야 해요.'),
+          '보냈지만 가전이 받았는지 확인하지 못했어요. 다시 보내기 전에 집에서 가전을 확인해야 해요.');
     });
 
     testWidgets('볼 것 칩이 제목을 꺾으면 칩은 제목 아래로', (tester) async {
@@ -439,12 +439,12 @@ void main() {
   });
 
   group('6. 말', () {
-    testWidgets('자동 규칙 안내는 자연스러운 한 문장', (tester) async {
+    testWidgets('자동 조건과 시각 루틴을 바꿀 위치를 안내한다', (tester) async {
       await _pump(tester, const RoutinesScreen());
       await tester.tap(findPlainText('자동으로 하기'));
       await _settle(tester);
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
-      expect(intro.semanticsLabel, '스위치가 켜져 있는 동안은 묻지 않고 바로 해요');
+      expect(intro.semanticsLabel, "허용한 조건에 맞으면 묻지 않고 실행해요. 정해진 시각의 루틴은 '내 루틴'에서 바꿔요.");
     });
   });
 }

@@ -793,7 +793,7 @@ class _UnknownTargetScreen extends StatelessWidget {
             Icon(Icons.help_outline, size: 40, color: context.appWarning),
             const SizedBox(height: AppSpace.md),
             Text(
-              '어느 가전인지 몰라요.',
+              '어느 가전인지 확인하지 못했어요.',
               textAlign: TextAlign.center,
               style: AppText.heading,
             ),

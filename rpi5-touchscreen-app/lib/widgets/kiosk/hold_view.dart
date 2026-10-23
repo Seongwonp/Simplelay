@@ -126,7 +126,7 @@ class KioskHoldView extends StatelessWidget {
     }
     // 정지 미확인 — 상태 영역은 짧게, 바로 아래 첫 블록이 할 일, 무엇을 했는지는 그 아래 작게(2026-10-16 §1-2).
     if (_unconfirmed) {
-      return ('가전이 멈췄는지 몰라요', Icons.help_outline, KioskColors.warning);
+      return ('가전이 멈췄는지 확인하지 못했어요', Icons.help_outline, KioskColors.warning);
     }
     return switch (holdState) {
       'stopping' => (
@@ -172,7 +172,7 @@ class KioskHoldView extends StatelessWidget {
       return KioskStatusBand(
           tone: KioskBandTone.danger,
           icon: Icons.error_outline,
-          label: _fault ? '누름 장치에 문제가 있어요' : '정지가 안 닿았어요',
+          label: _fault ? '누름 장치에 문제가 있어요' : '정지 요청 확인 필요',
           practice: _mock);
     }
     if (_unconfirmed) {
@@ -193,8 +193,8 @@ class KioskHoldView extends StatelessWidget {
 
   String get _operationLine {
     final ok = operationConfirmed;
-    if (ok == null) return '가전이 켜졌는지는 몰라요';
-    if (!ok) return '가전이 켜진 것은 못 봤어요';
+    if (ok == null) return '가전이 켜졌는지는 확인하지 못했어요';
+    if (!ok) return '가전이 켜졌는지 확인하지 못했어요';
     // 외부 평가 2026-10-13 M5: 출처가 real일 때만 확인이라고 말한다. 모의 실행·모의 입력은 연습 값,
     // 출처를 모르면 단정하지 않는다.
     if (_mock || operationSource == 'mock') {
@@ -216,9 +216,9 @@ class KioskHoldView extends StatelessWidget {
             ? null
             : KioskPanelPicture(
                 appliance: appliance,
-                current: pressCell,
-                caution: true,
-                caption: '직접 누를 버튼이에요',
+                current: _mock ? null : pressCell,
+                caution: !_mock,
+                caption: _mock ? kPracticePanelCaption : '실제 가전에서 눌러 주세요',
                 captionKey: const ValueKey('hold-estop-panel-caption'),
               ),
         band: _band,
@@ -231,7 +231,9 @@ class KioskHoldView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             KioskText(
-                cancel == null
+                _mock
+                    ? '연습 중이라 실제 가전은 조작하지 않았어요'
+                    : cancel == null
                     ? '가전 정지 버튼을 손으로 눌러 주세요'
                     : '$_name $cancel 버튼을 손으로 눌러 주세요',
                 style: const TextStyle(
@@ -278,7 +280,7 @@ class KioskHoldView extends StatelessWidget {
       if (stopFailed)
         (
           Icons.error_outline,
-          '정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.',
+          '정지 요청 결과를 확인하지 못했어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.',
           KioskColors.danger
         ),
     ];
@@ -309,8 +311,8 @@ class KioskHoldView extends StatelessWidget {
               ? (cancel == null ? '연습으로 정지 버튼을 눌렀어요' : '연습으로 $cancel 버튼을 눌렀어요')
               // 주어는 제목과 같은 가전 쪽 하나로(평가 16차 10/18 — '가전이 …' 제목 아래 '누름 장치도 …'가 섞였다).
               : (cancel == null
-                  ? '정지 버튼이 눌렸는지 몰라요'
-                  : '$cancel 버튼이 눌렸는지 몰라요'),
+                  ? '정지 버튼이 눌렸는지 확인하지 못했어요'
+                  : '$cancel 버튼이 눌렸는지 확인하지 못했어요'),
           KioskColors.muted
         ),
       // 누름 장치가 제자리로 돌아간 것은 서버가 알려 온 사실(hold_state=parked — RPi4가 제자리 이동을 모션 보드 응답으로 마친 뒤에만
@@ -365,9 +367,9 @@ class KioskHoldView extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                 ],
-                // 연습에는 끝날 가전이 없다 — '끝나는 시간은 몰라요'를 두지 않는다(평가 4차 10/18).
+                // 연습에는 끝날 가전이 없다 — '끝나는 시간은 확인하지 못했어요'를 두지 않는다(평가 4차 10/18).
                 if (waiting && !_mock) ...[
-                  KioskText('끝나는 시간은 몰라요',
+                  KioskText('끝나는 시간은 확인하지 못했어요',
                       style: TextStyle(
                           fontSize: KioskType.body,
                           height: 1.25,
@@ -415,7 +417,7 @@ class KioskHoldView extends StatelessWidget {
               appliance: a,
               current: pressCell,
               caution: true,
-              caption: '직접 누를 버튼이에요',
+              caption: '실제 가전에서 눌러 주세요',
               captionKey: const ValueKey('panel-caption'),
             )
           : KioskPanelPicture(

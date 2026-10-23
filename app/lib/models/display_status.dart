@@ -248,7 +248,7 @@ TileStatus applianceTileStatus({
     final thinq = appliance.isThinq;
     switch (execution.phase) {
       case ExecutionPhase.unknown:
-        return const TileStatus('지금 상태를 몰라요', TileTone.attention,
+        return const TileStatus('지금 상태를 확인하지 못했어요', TileTone.attention,
             issue: TileIssue(TileMark.unknown, kTileRunUnknown));
       case ExecutionPhase.waiting:
         return const TileStatus('차례를 기다려요', TileTone.active);
@@ -310,7 +310,7 @@ TileStatus applianceTileStatus({
   // 4. 서버 판정. 들은 적이 없으면 canExecute 기본값(true)으로 긍정하지 않는다.
   final r = readinessSource;
   if (r == null || !r.readinessKnown) {
-    return const TileStatus('준비됐는지 몰라요', TileTone.unknown,
+    return const TileStatus('준비됐는지 확인하지 못했어요', TileTone.unknown,
         issue: TileIssue(TileMark.unknown, kTileReadyUnknown));
   }
   final reason = r.readinessReasons.isEmpty ? null : r.readinessReasons.first;
@@ -355,7 +355,7 @@ TileStatus applianceTileStatus({
               issue: TileIssue(TileMark.unusable,
                   reason == null ? kTileUnusableLink : '지금은 쓸 수 없어요. ${tileReasonText(reason, pressHosts: pressHosts)}'));
     default:
-      return const TileStatus('준비됐는지 몰라요', TileTone.unknown,
+      return const TileStatus('준비됐는지 확인하지 못했어요', TileTone.unknown,
           issue: TileIssue(TileMark.unknown, kTileReadyUnknown));
   }
 }
@@ -394,7 +394,7 @@ const kVerifyUnknownNote = '버튼 자리를 다시 맞춰 주세요';
 /// 확인 주행 조회 결과 하나를 말로 — 타일 보조 줄과 설정 카드가 **같은 근거 수준**으로
 /// 쓴다(검토 M4, 2026-10-13). 실제 완료면 null. 진행 중·모의 실패·모드 모름은 모름.
 String? verifyPassLookupNote(VerifyPassLookup lookup) {
-  // 평가 12차(10/18): '자리 확인을 했는지 몰라요'는 무엇을 하라는 말인지 없었다 → 할 일로. 설정 화면의 '버튼 자리를
+  // 평가 12차(10/18): '자리 확인을 했는지 확인하지 못했어요'는 무엇을 하라는 말인지 없었다 → 할 일로. 설정 화면의 '버튼 자리를
   // 맞춰 주세요'와 같은 말 계열. 언제 이 말을 쓰는지(판정)는 그대로다 — 실제 확인 주행 완료를 확인하지 못한 경우.
   const unknown = kVerifyUnknownNote;
   switch (lookup.kind) {
@@ -424,10 +424,10 @@ String objectParticle(String word) {
 
 /// 기록 한 건의 제목 — **규칙 하나: '무엇을 하기'(행동 이름)**(평가 3차 10/18).
 ///
-/// 왜 과거형('공기청정기를 켰어요')이 아닌가: 오른쪽 배지가 결과(됐어요·몰라요·못 했어요)를 말한다. 제목이
-/// '켰어요'면 배지가 '몰라요'일 때 둘이 엇갈린다 — 확인 수준을 높여 보이게 된다(안전 계약). '켜려고 했어요'는
+/// 왜 과거형('공기청정기를 켰어요')이 아닌가: 오른쪽 배지가 결과(됐어요·확인하지 못했어요·못 했어요)를 말한다. 제목이
+/// '켰어요'면 배지가 '확인하지 못했어요'일 때 둘이 엇갈린다 — 확인 수준을 높여 보이게 된다(안전 계약). '켜려고 했어요'는
 /// 결과를 피하지만 말이 어색하고 길다. 그래서 제목은 할 일 목록처럼 **행동 이름**('공기청정기 켜기')으로 두고,
-/// 배지와 이어 읽으면 '공기청정기 켜기 — 됐어요/몰라요'가 되게 한다. 말로 한 명령('켜줘')·질문('바꿀까요?')·
+/// 배지와 이어 읽으면 '공기청정기 켜기 — 됐어요/확인하지 못했어요'가 되게 한다. 말로 한 명령('켜줘')·질문('바꿀까요?')·
 /// 해요체('켜요')·설정표 말('전원 켜기'·'풍량')이 섞이던 것을 이 한 꼴로 맞춘다.
 ///
 /// 1. 목적 문장이 있으면 그 행동을 행동 이름으로. 출처('자동 실행 · '·''…' 루틴')는 [historySource]·
@@ -683,7 +683,7 @@ const kStoppedByRequestSentence = '멈춰 달라는 요청으로 멈췄어요';
 /// 남긴다(평가 17차 10/18: 본문 '움직이는지 봐 주세요'와 칩 '봐 주세요'가 겹쳤다). 확인한 것처럼 바꾸지 않는다.
 String historyLookReason(String sentence) {
   // 다른 문장('다시 보내기 전에 가전을 봐 주세요' 등)은 안전 안내가 담겨 있어 그대로 둔다.
-  if (sentence == kPressedAllSentence) return '버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요';
+  if (sentence == kPressedAllSentence) return '버튼은 다 눌렀어요. 가전이 움직였는지는 확인하지 못했어요';
   return sentence;
 }
 
@@ -704,7 +704,7 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
   final mockNote = mock
       ? (thinq ? '연습이라 $target에 보내지 않았어요' : '연습이라 실제로 누르지 않았어요')
       : unknownMode
-          ? '실제 가전이 움직였는지 몰라요'
+          ? '실제 가전이 움직였는지 확인하지 못했어요'
           : null;
 
   // 정지·안전 정지 — 정지 확인 단계 작업의 계약을 건드리지 않는다.
@@ -731,7 +731,7 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
     return HistoryResult(
       kind: kind,
       sentence: e.termination == 'retries_exhausted'
-          ? '한 번 더 눌렀지만 몰라서 스스로 멈췄어요'
+          ? '한 번 더 눌렀지만 눌렸는지 확인하지 못해 스스로 멈췄어요'
           : '스스로 멈췄어요',
       mockNote: mockNote,
     );
@@ -806,7 +806,7 @@ HistoryResult _liveResult(
       // 접수 여부(받았는지 모름·접수됨)는 아래 보조 줄이 말한다. 다시 보내라고 권하지 않는다.
       ResultKind.unconfirmed => HistoryResult(
           kind: kind,
-          sentence: '보냈지만 설정이 바뀌었는지 몰라요',
+          sentence: '보냈지만 설정이 바뀌었는지 확인하지 못했어요',
           next: '다시 보내기 전에 $checkTarget',
         ),
       _ => HistoryResult(
@@ -832,7 +832,7 @@ HistoryResult _liveResult(
       return HistoryResult(kind: kind, sentence: kPressedAllSentence);
     case ResultKind.unconfirmed:
       return HistoryResult(
-          kind: kind, sentence: '눌렸는지 몰라요', next: '다시 누르기 전에 $checkTarget');
+          kind: kind, sentence: '눌렸는지 확인하지 못했어요', next: '다시 누르기 전에 $checkTarget');
     case ResultKind.failed:
       if (e.receipt == 'not_dispatched') {
         return HistoryResult(
@@ -840,7 +840,7 @@ HistoryResult _liveResult(
       }
       if (e.termination == 'retries_exhausted') {
         return HistoryResult(
-            kind: kind, sentence: '한 번 더 눌렀지만 눌렸는지 몰라요', next: '다시 누르기 전에 $checkTarget');
+            kind: kind, sentence: '한 번 더 눌렀지만 눌렸는지 확인하지 못했어요', next: '다시 누르기 전에 $checkTarget');
       }
       return HistoryResult(
           kind: kind,

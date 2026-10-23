@@ -144,7 +144,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       // 짧은 명사구 + 한 문장.
                       // 평가 15차(10/18): '묻지 않고 하도록 허락한 일.'은 번역투 명사문이었다 → 쉬운 말 한 문장 + 짧은 안내.
                       // 평가 17차(10/18): '~해요. ~꺼요' 토막 두 마디 → 자연스러운 한 문장(끄는 방법이 문장 안에).
-                      const _Note('스위치가 켜져 있는 동안은 묻지 않고 바로 해요',
+                      const _Note("허용한 조건에 맞으면 묻지 않고 실행해요. 정해진 시각의 루틴은 '내 루틴'에서 바꿔요.",
                           key: Key('auto-rules-intro'), textKey: Key('auto-rules-intro-text')),
                       // 평가 15차(10/18): 그림자 진 흰 카드 한 장이 '내 루틴'의 면 없는 목록과 문법이 달랐다 → 같은 면 없는 줄,
                       // 줄 사이는 옅은 구분선.
@@ -1255,7 +1255,7 @@ Future<bool> setAutoRuleSwitch(BuildContext context, RpiApiService api, AutoRule
   final fp = rule.fingerprint;
   if (fp == null) {
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('어느 가전인지 몰라서 켤 수 없어요. 가전 연결을 봐 주세요')));
+        const SnackBar(content: Text('어느 가전인지 확인하지 못해 켤 수 없어요. 가전 연결을 봐 주세요')));
     return false;
   }
   final ok = await showAutoRuleConfirmSheet(

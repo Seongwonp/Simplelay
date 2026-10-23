@@ -92,7 +92,7 @@ void main() {
       'last_route': 'physical',
       'last_execution_mode': 'real',
     });
-    expect(s.message, '눌렸는지 몰라서 멈췄어요. 다시 하기 전에 집에서 가전을 확인해야 해요. 가전이 이미 움직이고 있으면 다시 누르지 마세요. 같은 버튼이 한 번 더 눌려요.');
+    expect(s.message, '버튼 눌림을 확인하지 못해 멈췄어요. 다시 하기 전에 집에서 가전을 확인해야 해요. 가전이 이미 움직이고 있으면 다시 누르지 마세요. 같은 버튼이 한 번 더 눌려요.');
   });
 
   test('기록: 걸림 원인이 있으면 "다시 눌러도 확인하지 못해"라고 하지 않는다', () {
@@ -104,7 +104,7 @@ void main() {
     expect(r.sentence, '누름 장치가 움직이지 못해 멈췄어요');
     expect(r.next, '다시 누르지 않았어요. 누름 장치를 집에서 봐 주세요');
     final old = historyResult(_entry(const {'outcome': 'safety_stop', 'termination': 'retries_exhausted'}));
-    expect(old.sentence, '한 번 더 눌렀지만 몰라서 스스로 멈췄어요');
+    expect(old.sentence, '한 번 더 눌렀지만 눌렸는지 확인하지 못해 스스로 멈췄어요');
   });
 
   testWidgets('결과 화면: 걸림이면 다시 시도를 권하지 않는다(자동 재누름·재시도 버튼 없음)', (tester) async {

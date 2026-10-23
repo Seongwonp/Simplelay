@@ -1,7 +1,7 @@
 // 검토 10/19(코어 5차 #4) — 내 실행의 결과는 실행 번호로 묻는다(GET /jobs/{job_id}).
 //
 // 예전: 끝난 결과는 /status의 마지막 한 건(last_job_id)뿐이라, 내 실행이 끝난 뒤 폴링 사이에 다른 실행(폰·자동 실행)이
-// 시작해 끝나면 내 결과를 잃고 몇 번 뒤 '어떻게 됐는지 몰라요'로 빠졌다.
+// 시작해 끝나면 내 결과를 잃고 몇 번 뒤 '어떻게 됐는지 확인하지 못했어요'로 빠졌다.
 // 이제: 진행·결과는 /jobs/{job_id}로, 기기 전체 값(비상정지·대기·자동 실행)은 /status로. 옛 본체는 종전처럼 /status.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

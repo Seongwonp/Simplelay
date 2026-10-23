@@ -80,7 +80,7 @@ def test_root_job_reports_the_routine_outcome_not_the_first_segment(client):
     gate = threading.Event()
 
     def not_done(run, appliance_id):
-        return False, "끝났는지 몰라서 다음 할 일을 멈췄어요. 가전을 봐 주세요.", "none", False
+        return False, "끝났는지 확인하지 못해 다음 할 일을 멈췄어요. 가전을 봐 주세요.", "none", False
 
     root = _start_routine(client, gate, check=not_done)
     gate.set()

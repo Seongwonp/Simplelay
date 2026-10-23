@@ -596,7 +596,7 @@ class _NextUp extends StatelessWidget {
 /// 홈 맨 위 **실패 경고**(휴리스틱 평가 10/18 — 실패 경고·일반 알림·설정 남음이 '확인이 필요해요' 한 상자에 같은 무게로
 /// 섞였다). 가장 무거운 것 하나와 할 일 단추 하나만 — 있을 때만.
 ///
-/// - 지난 일을 못 했으면(failed) '지난 일을 못 했어요 · 결과 보기', 됐는지 모르면(unconfirmed) '지난 일이 됐는지 몰라요 · 결과 보기'.
+/// - 지난 일을 못 했으면(failed) '지난 일을 못 했어요 · 결과 보기', 됐는지 모르면(unconfirmed) '지난 일이 됐는지 확인하지 못했어요 · 결과 보기'.
 ///   됐다고 말하지 않는다 — 상태 화면에서 무엇이 확인됐는지 본다.
 /// - 안 본 알림에 못 한 일이 있으면 '공기청정기 바람 중간으로 하기 · 3번 못 했어요 · 기록 보기'(못 한 일만 거른 기록으로).
 ///   위험 소리·멈춘 일 같은 다른 볼 것은 '알림 보기'(보호자 알림함).
@@ -614,7 +614,7 @@ class _FailureAlert extends ConsumerWidget {
         switch (execution.phase) {
       ExecutionPhase.failed => ('지난 일을 못 했어요', context.appDanger, Icons.cancel_outlined, '결과 보기',
           () => context.push('/status')),
-      ExecutionPhase.unconfirmed => ('지난 일이 됐는지 몰라요', context.appWarning, Icons.help_outline, '결과 보기',
+      ExecutionPhase.unconfirmed => ('지난 일이 됐는지 확인하지 못했어요', context.appWarning, Icons.help_outline, '결과 보기',
           () => context.push('/status')),
       _ => look == null
           ? null
@@ -726,7 +726,7 @@ class _TodoAndUnread extends ConsumerWidget {
                       ),
                     ),
                   ]),
-                  // 한 대면 그 가전의 설정 카드를 그대로(연습 자리 확인이면 '실제 자리는 몰라요'까지), 둘 이상은 한 줄.
+                  // 한 대면 그 가전의 설정 카드를 그대로(연습 자리 확인이면 '실제 자리는 확인하지 못했어요'까지), 둘 이상은 한 줄.
                   if (pending.length == 1)
                     ApplianceSetupCard(appliance: pending.single, flat: true)
                   else

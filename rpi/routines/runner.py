@@ -23,7 +23,7 @@
   **``done_confirmed``(전력·종료음 둘 다)만 끝남 확인**이다(평가 B1). 입력 하나뿐(``done_power_only``·``done_beep_only``)
   이면 "끝난 것 같아요."로 시작하는 문장을 남기고 뒤 단계(안내·장치)를 **보내지 않고** 루틴을 멈춘다(보수적 선택).
   안 오면 루틴을 멈추고 알림함에 남긴다.
-- 끝 센서가 없으면 L3·상태 확인으로 통과하되 단계에 **"시작한 것만 확인했어요. 끝났는지는 몰라요."**(``basis: start_only``).
+- 끝 센서가 없으면 L3·상태 확인으로 통과하되 단계에 **"시작한 것만 확인했어요. 끝났는지는 확인하지 못했어요."**(``basis: start_only``).
 - 정지: 루틴 정지·전체 정지(``POST /stop`` → `stop_all`)·비상정지 걸림(실행 중 한 번이라도 걸렸으면 해제 확인 뒤에도)은
   기다림을 끊고 남은 단계를 보내지 않는다(평가 B5).
 - 구간 사이 정지(2026-10-16 안전 보고 G3): 정지는 (1) 각 단계 앞, (2) 다른 명령이 끝나기를 기다린 **뒤**, (3) 다음 구간의
@@ -73,7 +73,7 @@ DEFAULT_DONE_TIMEOUT_S = 1200.0
 DEFAULT_DONE_TIMEOUTS_S: dict[str, float] = {"microwave": 900.0, "washer": 3 * 3600.0}
 # 10/18 쉬운 말: 결과 한 줄 + 할 일 한 줄('단계' → '할 일'). '—'·괄호로 잇지 않는다. 확인 수준은 그대로 —
 # 시작만 본 것을 끝났다고, 입력 하나뿐인 끝을 확인했다고 말하지 않는다.
-START_ONLY_DETAIL = "시작한 것만 확인했어요. 끝났는지는 몰라요."
+START_ONLY_DETAIL = "시작한 것만 확인했어요. 끝났는지는 확인하지 못했어요."
 #: 입력 하나뿐인 끝(``probable``)의 문장 머리. 단계 상태는 이 글자가 아니라 `_wait_cycle_end`가 돌려준 값으로 정한다.
 PROBABLE_DETAIL = "끝난 것 같아요."
 ESTOP_STOP_DETAIL = "비상 버튼이 눌려 남은 할 일을 멈췄어요. 풀어도 이어서 하지 않아요."
@@ -488,7 +488,7 @@ class RoutineRunner:
             record = self._await_job(job_id)
         self._clear_active(run)
         if record is None:
-            self._finish(run, routine, RunStatus.UNCONFIRMED, "첫 할 일이 됐는지 몰라요. 가전을 봐 주세요.", notify=True)
+            self._finish(run, routine, RunStatus.UNCONFIRMED, "첫 할 일이 됐는지 확인하지 못했어요. 가전을 봐 주세요.", notify=True)
             return
         if not self._absorb(run, record):
             self._finish_unabsorbed(run, routine, record)
@@ -590,7 +590,7 @@ class RoutineRunner:
         if stopped:
             self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
             return
-        self._finish(run, routine, status, "앞의 할 일이 됐는지 몰라서 멈췄어요. 가전을 봐 주세요.")
+        self._finish(run, routine, status, "앞의 할 일이 됐는지 확인하지 못해 멈췄어요. 가전을 봐 주세요.")
 
     def _absorb(self, run: RoutineRun, record) -> bool:
         for i, result in enumerate(record.results):
@@ -630,7 +630,7 @@ class RoutineRunner:
             run.is_demo = True
             return True, "연습이라 실제로 끝났는지는 확인하지 않았어요.", "mock", False
         # 확인 수준(``result.confirmation``)은 결과 기록에 남는다 — 문장에는 내지 않는다.
-        return False, "끝났는지 몰라서 다음 할 일을 멈췄어요. 가전을 봐 주세요.", "none", False
+        return False, "끝났는지 확인하지 못해 다음 할 일을 멈췄어요. 가전을 봐 주세요.", "none", False
 
     def done_timeout_for(self, appliance_id: str) -> float:
         return self._done_timeouts.get(appliance_id, self._done_timeout)

@@ -240,7 +240,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   static const _recoverTries = 15;
   static const _recoverJobTries = 3;
   static const bleStopSentNotice = '멈추라고 보냈어요. 멈췄다는 답은 아직 없어요. 멈추지 않으면 정지를 다시 눌러 주세요.';
-  static const submissionUnknownNotice = '보냈는데 답이 없어 시작됐는지 몰라요. 가전을 보고, 움직이면 정지를 눌러 주세요.';
+  static const submissionUnknownNotice = '보냈는데 답이 없어 시작됐는지 확인하지 못했어요. 가전을 보고, 움직이면 정지를 눌러 주세요.';
   static const submissionNotAcceptedNotice = '본체가 이 요청을 받지 않았어요. 가전이 그대로면 다시 해 주세요.';
 
   /// [requestId]는 [beginSubmitting]이 준 번호 — 보내는 사이 누른 정지는 지금 한 번 더 보내고, 복구가 실행을 찾으면 또 보낸다.
@@ -598,7 +598,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (_missingPolls >= 10) {
         // 실패가 아니라 '모름'이다. 가전은 계속 움직이고 있을 수 있으므로
         // 정지·재확인 수단을 남긴 채 사용자에게 직접 확인을 청한다.
-        const notice = '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.';
+        const notice = '연결이 끊겨 어떻게 됐는지 확인하지 못했어요. 집에서 가전을 확인해야 해요.';
         state = state.copyWith(
           phase: ExecutionPhase.unknown,
           message: notice,
@@ -612,7 +612,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (since != null &&
           DateTime.now().difference(since) > _unreachableAfter) {
         if (mounted) {
-          const notice = '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.';
+          const notice = '연결이 끊겨 어떻게 됐는지 확인하지 못했어요. 집에서 가전을 확인해야 해요.';
           state = state.copyWith(
             phase: ExecutionPhase.unknown,
             message: notice,

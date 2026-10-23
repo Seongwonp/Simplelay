@@ -1,7 +1,7 @@
 // 평가 10차(2026-10-18) 지적 수리 — 키오스크. 옛 코드에도 있는 공개 구성만 써서 옛 코드에서 실패하는 것을 확인한다.
 //
 // 1. LG 가전 화면에 '명령'(엔지니어 말)을 쓰지 않는다 — 하려는 일로('공기청정기를 켜고 있어요', '바람을 세게 바꾸고 있어요').
-//    확인 못 함은 '켜 달라고 했어요 / 켜졌는지는 아직 몰라요 · 가전을 봐 주세요', 이미 그 설정이면 '그대로 두었어요'.
+//    확인 못 함은 '켜 달라고 했어요 / 켜졌는지는 아직 확인하지 못했어요 · 가전을 봐 주세요', 이미 그 설정이면 '그대로 두었어요'.
 // 2. 보내는 중 위 띠에 무슨 동작인지('공기청정기 켜기').
 // 3. 보내는 중 배치 — 가운데 한 열(오른쪽 위가 비지 않게), 정지 단추는 다른 실행 화면과 같은 자리·크기.
 // 4. 보내는 중 정지 아래 사실 한 줄 — 서버 /stop은 아직 안 보냈으면 보내지 않고, 이미 보낸 것은 되돌리지 않는다.
@@ -215,14 +215,14 @@ void main() {
 
     // 평가 11차(10/18): 제목에 가전 이름 — '켜 달라고 했어요'는 누가 누구에게인지 몰랐다.
     // 평가 15차(10/18): '보냈어요'는 기계가 한 일 — '공기청정기에 켜 달라고 했어요'(가전 이름 포함). 무엇을 볼지는 번호 안내가 한 번만.
-    testWidgets('확인 못 함 — 공기청정기에 켜 달라고 했어요 / 켜졌는지는 아직 몰라요, 자동으로 닫지 않는다', (tester) async {
+    testWidgets('확인 못 함 — 공기청정기에 켜 달라고 했어요 / 켜졌는지는 아직 확인하지 못했어요, 자동으로 닫지 않는다', (tester) async {
       final api = await _start(tester, cards: [_powerOn]);
       await _approve(tester, api);
       await _finish(tester, api,
-          _done(outcome: 'unconfirmed', confirmation: 'none', detail: '가전에 전했지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.'));
+          _done(outcome: 'unconfirmed', confirmation: 'none', detail: '가전에 전했지만 설정이 바뀌었는지 확인하지 못했어요. 가전을 봐 주세요.'));
       expect(_result, findsOneWidget);
       expect(find.text('공기청정기에 켜 달라고 했어요'), findsOneWidget);
-      expect(find.text('켜졌는지는 아직 몰라요'), findsOneWidget);
+      expect(find.text('켜졌는지는 아직 확인하지 못했어요'), findsOneWidget);
       expect(_texts(tester).where((t) => t.contains('명령')), isEmpty);
       await tester.pump(const Duration(seconds: 30));
       expect(_result, findsOneWidget);

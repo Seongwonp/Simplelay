@@ -74,7 +74,7 @@ void main() {
     await _pump(tester, attempt: 2);
 
     expect(find.text('자리를 맞춰 다시 누르고 있어요'), findsOneWidget);
-    expect(find.textContaining('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
+    expect(find.textContaining('눌렸는지 확인하지 못해 한 번 더 눌러요'), findsOneWidget);
     expect(find.textContaining('보정'), findsNothing);
     expect(find.byIcon(Icons.autorenew), findsOneWidget);
     expect(find.textContaining('2번째 누르기'), findsOneWidget);

@@ -260,7 +260,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('다시 누를까요?'),
-        content: Text("아까 누른 '$label' 버튼은 눌렸는지 아직 몰라요. 다시 누르면 두 번 눌릴 수 있어요. "
+        content: Text("아까 누른 '$label' 버튼은 눌렸는지 아직 확인하지 못했어요. 다시 누르면 두 번 눌릴 수 있어요. "
             '가전을 보고 안 눌렸을 때만 다시 눌러 주세요.'),
         actions: [
           TextButton(
@@ -329,7 +329,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
             _TargetHeader(appliance: appliance),
             const SizedBox(height: AppSpace.xl),
             Text(
-              'LG 가전이라 누를 버튼이 없어요.',
+              '누름 장치 없이 조작할 수 있어요.',
               style: AppText.title,
             ),
             const SizedBox(height: AppSpace.sm),

@@ -1,8 +1,8 @@
-"""RPi4가 누르기 전에 분명히 거절한 실행은 '연결이 끊겨 눌렸는지 몰라요'가 아니다(2026-10-19 검토 LOW-MED).
+"""RPi4가 누르기 전에 분명히 거절한 실행은 '연결이 끊겨 눌렸는지 확인하지 못했어요'가 아니다(2026-10-19 검토 LOW-MED).
 
 RPi4는 ``busy``·``estop_latched``·``motion_not_ready``·``target_bind_failed``·``hold_busy``·``dev_busy`` 등으로 거절할 때
 아무 버튼도 누르지 않았다는 것을 안다(실행을 시작하기 전에 ``error``로 답한다). 예전에는 RPi5가 이것을 모든 ``error``와
-같은 ``ActLinkError``로 올려, 서비스가 '연결이 끊겨 눌렸는지 몰라요'(수신 unknown·unconfirmed)와 보호자 '확인 못 함' 알림으로
+같은 ``ActLinkError``로 올려, 서비스가 '연결이 끊겨 눌렸는지 확인하지 못했어요'(수신 unknown·unconfirmed)와 보호자 '확인 못 함' 알림으로
 남겼다. 이제 보내지 않음(``not_dispatched``)·실패와 거절 이유를 쉬운 말로 남기고 '모름' 알림은 내지 않는다.
 누른 뒤 생길 수 있는 ``actuator_fail``(실행 중 예외)은 그대로 '눌렸는지 모름'이다.
 """

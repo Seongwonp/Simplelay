@@ -70,7 +70,7 @@ void main() {
       ),
     );
 
-    expect(find.text('가전이 움직였는지 몰라요'), findsOneWidget);
+    expect(find.text('가전이 움직였는지 확인하지 못했어요'), findsOneWidget);
     expect(find.text('가전이 전기를 쓰기 시작한 것도 확인했어요'), findsNothing);
   });
 
@@ -134,7 +134,7 @@ void main() {
     const realSentence = '가전이 전기를 쓰기 시작한 것도 확인했어요';
     const mockMotion = '연습이라 실제 가전은 보지 않았어요';
     const mockL3 = '가전 동작은 연습 값으로 봤어요. 실제로 확인한 건 아니에요';
-    const unknownL3 = '가전이 움직였는지 몰라요. 집에서 가전을 확인해야 해요';
+    const unknownL3 = '가전이 움직였는지 확인하지 못했어요. 집에서 가전을 확인해야 해요';
     final cases = <(String, String?, String)>[
       ('real', 'real', realSentence),
       ('real', 'mock', mockL3),

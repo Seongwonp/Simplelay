@@ -10,7 +10,7 @@
 // 6. 설정 '사용 방법' — 누름 장치·LG 가전·멈추는 방법·연습·보호자 알림.
 // 7. 마이크 옆 '말로 하기' 글자, 본체 끊김은 설정 위 배너 한 번(줄은 '못 불러왔어요'), ⋮ 메뉴 읽는 이름에 항목.
 // A. 정해진 시각 루틴 줄에 켜기·끄기 스위치(규칙이 있으면 규칙, 없으면 루틴), '지금 하기'는 따로 작은 단추, 끈 뒤 알림.
-// B. 기록 '못 한 일만' 거르기, 날짜 머리(오늘·어제), 멈춘 까닭 한 줄, '한 번 더 눌렀지만 눌렸는지 몰라요'.
+// B. 기록 '못 한 일만' 거르기, 날짜 머리(오늘·어제), 멈춘 까닭 한 줄, '한 번 더 눌렀지만 눌렸는지 확인하지 못했어요'.
 // C. 폰은 멀리 있는 보호자도 쓴다 — '가전이 움직이는지 봐 주세요' 대신 '집에서 확인이 필요해요' 꼴.
 // D. 설정의 연습 가전 부제 '연습용이라 등록할 필요 없어요'.
 import 'dart:convert';
@@ -674,11 +674,11 @@ void main() {
       expect(find.byKey(const ValueKey('history-fail-ex')), findsOneWidget);
     });
 
-    test("멈춘 까닭 — 정지 요청·연결 끊김, '한 번 더 눌렀지만 눌렸는지 몰라요'", () {
+    test("멈춘 까닭 — 정지 요청·연결 끊김, '한 번 더 눌렀지만 눌렸는지 확인하지 못했어요'", () {
       RpiHistoryEntry e(Map<String, dynamic> j) => RpiHistoryEntry.fromJson(j);
       expect(historyResult(e(_history[4])).sentence, '멈춰 달라는 요청으로 멈췄어요');
       expect(historyResult(e(_history[5])).sentence, '연결이 끊겨 스스로 멈췄어요');
-      expect(historyResult(e(_history[2])).sentence, '한 번 더 눌렀지만 눌렸는지 몰라요');
+      expect(historyResult(e(_history[2])).sentence, '한 번 더 눌렀지만 눌렸는지 확인하지 못했어요');
     });
 
     testWidgets('멈춘 줄에는 까닭 한 줄', (tester) async {

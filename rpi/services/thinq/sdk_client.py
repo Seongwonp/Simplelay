@@ -182,7 +182,7 @@ class SdkThinqClient:
                 reason="LG 서버에 연결하지 못했어요. 인터넷 연결을 봐 주세요.")
         except (asyncio.TimeoutError, concurrent.futures.TimeoutError, aiohttp.ClientError,
                 ValueError, AttributeError, TypeError):
-            reason = ("LG 가전의 답을 받지 못했어요. 바뀌었는지 몰라요. 저절로 다시 하지 않아요."
+            reason = ("LG 가전의 답을 받지 못했어요. 바뀌었는지 확인하지 못했어요. 저절로 다시 하지 않아요."
                       if control else "LG 서버와 연결이 끊겼거나 답을 읽지 못했어요.")
             failure = ThinqTransportError(reason, reason=reason)
         raise failure

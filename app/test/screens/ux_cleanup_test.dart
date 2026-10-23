@@ -76,7 +76,7 @@ Widget _home({
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  group('2 — 멈춘 실행에 "눌렸는지 몰라요"를 붙이지 않는다', () {
+  group('2 — 멈춘 실행에 "눌렸는지 확인하지 못했어요"를 붙이지 않는다', () {
     for (final (outcome, abort) in [
       ('stopped', null),
       ('safety_stop', 'motion_alarm: stall'),
@@ -94,7 +94,7 @@ void main() {
               label: '아침 데우기',
             )));
         await tester.pump();
-        expect(find.text('눌렸는지 몰라요'), findsNothing);
+        expect(find.text('눌렸는지 확인하지 못했어요'), findsNothing);
       });
     }
 

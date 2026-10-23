@@ -192,7 +192,7 @@ void main() {
     // 실패한 쪽만 단계를 펼친다 -- 성공한 이력까지 늘어놓으면 목록이
     // 다시 개발 도구처럼 보인다.
     expect(findPlainText('2번 만에 눌렸어요'), findsOneWidget);
-    expect(findPlainText('눌렸는지 몰라요'), findsOneWidget);
+    expect(findPlainText('눌렸는지 확인하지 못했어요'), findsOneWidget);
     expect(findPlainText('버튼판에서 직접 누르기'), findsOneWidget);
     // 성공한 실행은 그대로 한 줄이다
     expect(findPlainText('눌렸어요'), findsNothing);
@@ -248,7 +248,7 @@ void main() {
     expect(findPlainText('어제'), findsOneWidget);
     expect(findPlainText('9월 6일'), findsOneWidget);
     // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄. '봐 주세요' 줄은 그 까닭 한 줄로(평가 10차 10/18).
-    expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), findsNWidgets(3));
+    expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 확인하지 못했어요'), findsNWidgets(3));
     // 동작을 확인하지 못한 물리 기록은 성공 체크가 아니라 중립 아이콘(UI 평가 5차 10/17 — 체크 바로 아래
     // '확인하지 못했어요'가 와서 신호가 섞였다).
     expect(find.byIcon(Icons.check_circle), findsNothing);
@@ -294,7 +294,7 @@ void main() {
     await _expandAll(tester);
 
     expect(findPlainText('멈춰 달라는 요청으로 멈췄어요', contains: true), findsOneWidget);
-    expect(findPlainText('한 번 더 눌렀지만 눌렸는지 몰라요', contains: true), findsOneWidget);
+    expect(findPlainText('한 번 더 눌렀지만 눌렸는지 확인하지 못했어요', contains: true), findsOneWidget);
   });
 
   testWidgets('어느 가전이었는지 알 때만 말한다', (tester) async {
@@ -467,7 +467,7 @@ void main() {
       findPlainText('오늘'),
       findPlainText('아침 데우기'),
       findPlainText('오전 8:10 · 바로 실행 · 전자레인지'),
-      findPlainText('한 번 더 눌렀지만 눌렸는지 몰라요'),
+      findPlainText('한 번 더 눌렀지만 눌렸는지 확인하지 못했어요'),
       findPlainText('연습이라 실제로 누르지 않았어요'),
       findPlainText('버튼판에서 직접 누르기'),
     ];
@@ -510,7 +510,7 @@ void main() {
     expect(findPlainText('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다. 목적 없는 실행은 수동 조작 화면에서 고른 것(평가 13차).
     expect(findPlainText('오전 8:10 · 화면에서 직접 골랐어요'), findsOneWidget);
-    expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), findsNWidgets(2)); // 평가 17차: '봐 주세요'는 칩이 말한다
+    expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 확인하지 못했어요'), findsNWidgets(2)); // 평가 17차: '봐 주세요'는 칩이 말한다
     expect(findPlainText('버튼 누르기'), findsOneWidget);
   });
 
@@ -564,7 +564,7 @@ void main() {
       },
     ]);
     expect(findPlainText('누르지 않았어요'), findsOneWidget);
-    expect(findPlainText('눌렸는지 몰라요'), findsNothing);
+    expect(findPlainText('눌렸는지 확인하지 못했어요'), findsNothing);
     expect(findPlainText('눌렸어요'), findsOneWidget);
   });
 
@@ -626,11 +626,11 @@ void main() {
     expect(find.byIcon(AppIcons.routine), findsOneWidget);
     expect(find.byIcon(AppIcons.manual), findsOneWidget);
     // 상태를 다시 읽어 확인한 것만 초록 '됐어요' — 무엇을 확인했는지 짧게('켜짐 확인', 평가 14차 10/18).
-    expect(findPlainText('켜진 걸 봤어요'), findsOneWidget);
+    expect(findPlainText('켜짐 확인'), findsOneWidget);
     expect(findPlainText('실패'), findsOneWidget);
     expect(findPlainText('봐 주세요'), findsOneWidget);
     // 배지는 행 오른쪽.
-    expect(tester.getCenter(findPlainText('켜진 걸 봤어요')).dx,
+    expect(tester.getCenter(findPlainText('켜짐 확인')).dx,
         greaterThan(tester.getCenter(findPlainText('공기청정기 켜기')).dx));
     // 결과 문장·버튼판 길은 접혀 있다.
     expect(findPlainText('버튼판에서 직접 누르기'), findsNothing);

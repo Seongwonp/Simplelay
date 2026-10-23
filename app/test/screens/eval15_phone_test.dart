@@ -302,7 +302,7 @@ void main() {
       expect(intro, isNot(contains('허락한 일.')));
       // 평가 16차(10/18): 더 짧게 — eval16_phone_test 5.
       // 평가 17차(10/18): 토막 두 마디 → 한 문장(eval17_phone_test 6).
-      expect(intro, contains('묻지 않고 바로 해요'));
+      expect(intro, contains('조건에 맞으면 묻지 않고 실행해요'));
     });
   });
 

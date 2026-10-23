@@ -230,10 +230,10 @@ def _attention(service, registry, alerts, care_events=None, acks=None) -> list[A
             # FAILED로 접혀 있어 명령 경로 상태로 가른다. ``outcome_of``의 의미는 그대로 둔다.
             if getattr(snap, "last_command_status", None) == "unconfirmed":
                 # 물리 실행이 연결 끊김으로 끝났으면(2026-10-15 G1) 바뀐 것이 아니라 눌렸는지를 모른다.
-                # 10/17 쉬운 말: 결과 한 줄('몰라요') + 할 일 한 줄('봐 주세요'). '—'·'·'로 잇지 않는다.
-                text = (f"{name} 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."
+                # 10/17 쉬운 말: 결과 한 줄('확인하지 못했어요') + 할 일 한 줄('봐 주세요'). '—'·'·'로 잇지 않는다.
+                text = (f"{name} 버튼이 눌렸는지 확인하지 못했어요. 가전을 봐 주세요."
                         if getattr(snap, "last_route", None) == "physical"
-                        else f"{name}{_subject_particle(name)} 바뀌었는지 몰라요. 가전을 봐 주세요.")
+                        else f"{name}{_subject_particle(name)} 바뀌었는지 확인하지 못했어요. 가전을 봐 주세요.")
             elif getattr(snap, "last_route", None) == "thinq":
                 # 10/18 쉬운 말 4차: '작업' 대신 한 일(설정 바꾸기·버튼 누르기).
                 text = f"{name} 설정을 바꾸지 못했어요. 가전을 봐 주세요."

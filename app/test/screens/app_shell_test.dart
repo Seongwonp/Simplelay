@@ -164,7 +164,7 @@ void main() {
       tester,
       status: const ExecutionStatus(phase: ExecutionPhase.unknown),
     );
-    expect(find.text('지금 상태를 몰라요'), findsOneWidget);
+    expect(find.text('지금 상태를 확인하지 못했어요'), findsOneWidget);
     expect(find.byKey(const Key('shell-stop')), findsOneWidget);
   });
 }

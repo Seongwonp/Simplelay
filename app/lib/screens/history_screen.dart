@@ -334,7 +334,7 @@ class _StepBreakdown extends StatelessWidget {
                       ? (b.attempts > 1 ? '${b.attempts}번 만에 눌렸어요' : '눌렸어요')
                       : notPressed
                           ? '누르지 않았어요'
-                          : '눌렸는지 몰라요',
+                          : '눌렸는지 확인하지 못했어요',
                   style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
               ],
@@ -493,8 +493,8 @@ String historyRunKey(RpiHistoryEntry e, {String? applianceName}) => [
 /// '됐어요' 기록이 **무엇을 확인했는지** 짧게(평가 14차 10/18: 성공 줄이 '됐어요' 한 마디로 끝나 무엇이 됐는지 몰랐다).
 ///
 /// 기록의 확인 수준(`confirmation`)에서만 말한다 — 초록 '됐어요'가 아닌 기록(보고·접수만, 모름, 연습)은 null.
-/// - LG 가전 상태를 다시 읽음(state_confirmed·state_confirmed_unknown_before): 행동 이름이 켜기/끄기면 '켜진 걸 봤어요'/'꺼진 걸 봤어요',
-///   그 밖은 '바뀐 걸 봤어요'. 루틴 기록은 이름이 한 일을 다 말하지 않을 수 있어 '상태를 봤어요'.
+/// - LG 가전 상태를 다시 읽음(state_confirmed·state_confirmed_unknown_before): 행동 이름이 켜기/끄기면 '켜짐 확인'/'꺼짐 확인',
+///   그 밖은 '설정 확인'. 루틴 기록은 이름이 한 일을 다 말하지 않을 수 있어 '상태 확인'.
 /// - 이미 그 설정이라 보내지 않음(already_at_target): '이미 그 설정이었어요'.
 /// - 누름 장치: 전기를 쓰기 시작함(operation_confirmed) '전기 쓰는 걸 봤어요', 눌림 확인(press_confirmed) '눌린 걸 봤어요'(문구 기준 R7 10/19 — 결과 꼬리표를 할 일로 읽지 않게).
 String? historyConfirmedPhrase(RpiHistoryEntry e, {String? applianceName}) {
@@ -505,11 +505,11 @@ String? historyConfirmedPhrase(RpiHistoryEntry e, {String? applianceName}) {
         return '이미 그 설정이었어요';
       case 'state_confirmed':
       case 'state_confirmed_unknown_before':
-        if (!historyIsLgAppliance(e)) return '상태를 봤어요';
+        if (!historyIsLgAppliance(e)) return '상태 확인';
         final title = historyTitle(e, applianceName: applianceName);
-        if (title.endsWith(' 켜기')) return '켜진 걸 봤어요';
-        if (title.endsWith(' 끄기')) return '꺼진 걸 봤어요';
-        return '바뀐 걸 봤어요';
+        if (title.endsWith(' 켜기')) return '켜짐 확인';
+        if (title.endsWith(' 끄기')) return '꺼짐 확인';
+        return '설정 확인';
     }
     return null;
   }
@@ -609,7 +609,7 @@ class _HistoryRowState extends ConsumerState<_HistoryRow> {
             : '$count번 ${badge.label}';
     // 됐어요·연습은 칩 없이 작은 기호·글자. 볼 것만 칩.
     final quiet = badge.tone == BadgeTone.confirmed || badge.tone == BadgeTone.neutral;
-    // 됐어요는 무엇을 확인했는지 짧게('켜진 걸 봤어요') — 기록의 확인 수준에서만([historyConfirmedPhrase]).
+    // 됐어요는 무엇을 확인했는지 짧게('켜짐 확인') — 기록의 확인 수준에서만([historyConfirmedPhrase]).
     final confirmed = historyConfirmedPhrase(entry, applianceName: applianceName);
     final quietLabel = confirmed == null ? label : (count > 1 ? '$confirmed · $count번' : confirmed);
     final Widget badgeWidget = quiet

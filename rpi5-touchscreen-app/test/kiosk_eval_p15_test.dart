@@ -188,7 +188,7 @@ KioskDoneView _thinqDone({bool confirmed = true}) => KioskDoneView(
       thinqOnly: true,
       route: 'thinq',
       resultConfirmation: confirmed ? 'state_confirmed' : 'none',
-      detail: confirmed ? '전원 켜기로 바꿨어요.' : '가전에 전했지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.',
+      detail: confirmed ? '전원 켜기로 바꿨어요.' : '가전에 전했지만 설정이 바뀌었는지 확인하지 못했어요. 가전을 봐 주세요.',
       onDismiss: () {},
     );
 
@@ -259,7 +259,7 @@ void main() {
 
     testWidgets('안전 — 누름 장치가 멈췄는지 모르면 누름 장치로 골라 누르기가 없고 번호 안내가 있다', (tester) async {
       await _pump15(tester, _userStop());
-      expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
+      expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
       expect(find.byKey(const ValueKey('done-manual')), findsNothing);
       expect(find.text(kManualEntryLabel), findsNothing);
       expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
@@ -448,7 +448,7 @@ void main() {
           tester,
           KioskEstopLayout(
             banner: KioskPastResultLine(
-              result: KioskPastResult(at: DateTime(2026, 9, 30, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 몰라요'),
+              result: KioskPastResult(at: DateTime(2026, 9, 30, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 확인하지 못했어요'),
               onAcknowledge: _noop,
             ),
             child: _idle(appliances: [_purifier, _mw, _ind, _washer], on: const {'air_purifier'}, nextRun: _next()),

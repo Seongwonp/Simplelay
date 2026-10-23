@@ -29,7 +29,7 @@ from rpi.services.care_events import CareEventStore
 from rpi.services.history import InMemoryJobHistory, Termination
 
 NOW = datetime(2026, 10, 15, 19, tzinfo=timezone(timedelta(hours=9)))
-DETAIL = "연결이 끊겨 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."
+DETAIL = "연결이 끊겨 버튼이 눌렸는지 확인하지 못했어요. 가전을 봐 주세요."
 HEAT = {"kind": "press_sequence", "appliance_id": "microwave", "buttons": ["BT-08", "시작"]}
 INDUCTION = {"kind": "press_sequence", "appliance_id": "induction", "buttons": ["전원"]}
 
@@ -168,4 +168,4 @@ def test_ambient_tip_says_press_unknown_for_a_physical_link_drop():
     _wait_done(service, job_id)
 
     items = _attention(service, ApplianceRegistry(), DangerAlertStore(FixedClock(NOW)))
-    assert [i.text for i in items if i.kind == "appliance"] == ["가전 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."]
+    assert [i.text for i in items if i.kind == "appliance"] == ["가전 버튼이 눌렸는지 확인하지 못했어요. 가전을 봐 주세요."]

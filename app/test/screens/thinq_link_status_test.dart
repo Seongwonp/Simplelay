@@ -19,7 +19,7 @@ import 'package:simplelay/services/rpi_api_service.dart';
 import '../helpers/test_helpers.dart';
 
 const _off = '본체에 LG 계정이 아직 연결되지 않았어요. 설치하는 분이 연결해요.';
-const _failed = 'LG 가전이 연결됐는지 몰라요. 본체 연결을 봐 주세요.';
+const _failed = 'LG 가전이 연결됐는지 확인하지 못했어요. 본체 연결을 봐 주세요.';
 const _loading = '연결을 알아보는 중이에요.';
 
 RpiApiService _api() => RpiApiService('http://rpi5.local:8000',
@@ -82,7 +82,7 @@ void main() {
     // 평가 10차(10/18): 까닭은 본체 연결 상태로 알 때만 — 여기서는 본체가 연결돼 있어 '못 불러왔어요'까지만.
     // (조용한 시간 줄도 같은 까닭으로 '못 불러왔어요'라 둘 이상.)
     expect(findPlainText('못 불러왔어요'), findsWidgets);
-    expect(findPlainText('연결됐는지 몰라요'), findsNothing);
+    expect(findPlainText('연결됐는지 확인하지 못했어요'), findsNothing);
     expect(find.text('아직 연결 전이에요'), findsNothing);
 
     await _openThinq(tester);

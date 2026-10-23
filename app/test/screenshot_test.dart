@@ -106,9 +106,15 @@ Future<void> _shoot(
         // 우리 팔레트가 화면에 어떻게 나오는지는 확인되지 않는다.
         theme: light
             ? AppTheme.light.copyWith(
-                textTheme: AppTheme.light.textTheme.apply(fontFamily: 'Malgun'))
+                textTheme: AppTheme.light.textTheme.apply(fontFamily: 'Malgun'),
+                appBarTheme: AppTheme.light.appBarTheme.copyWith(
+                  titleTextStyle: AppTheme.light.appBarTheme.titleTextStyle?.copyWith(fontFamily: 'Malgun'),
+                ))
             : AppTheme.dark.copyWith(
-                textTheme: AppTheme.dark.textTheme.apply(fontFamily: 'Malgun')),
+                textTheme: AppTheme.dark.textTheme.apply(fontFamily: 'Malgun'),
+                appBarTheme: AppTheme.dark.appBarTheme.copyWith(
+                  titleTextStyle: AppTheme.dark.appBarTheme.titleTextStyle?.copyWith(fontFamily: 'Malgun'),
+                )),
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)
               .copyWith(textScaler: TextScaler.linear(textScale)),
@@ -405,7 +411,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.',
+    message: '연결이 끊겨 어떻게 됐는지 확인하지 못했어요. 집에서 가전을 확인해야 해요.',
   );
   for (final (name, st) in [
     ('status_retrying', retrying),
@@ -924,9 +930,15 @@ Future<void> _shootShell(
         debugShowCheckedModeBanner: false,
         theme: light
             ? AppTheme.light.copyWith(
-                textTheme: AppTheme.light.textTheme.apply(fontFamily: 'Malgun'))
+                textTheme: AppTheme.light.textTheme.apply(fontFamily: 'Malgun'),
+                appBarTheme: AppTheme.light.appBarTheme.copyWith(
+                  titleTextStyle: AppTheme.light.appBarTheme.titleTextStyle?.copyWith(fontFamily: 'Malgun'),
+                ))
             : AppTheme.dark.copyWith(
-                textTheme: AppTheme.dark.textTheme.apply(fontFamily: 'Malgun')),
+                textTheme: AppTheme.dark.textTheme.apply(fontFamily: 'Malgun'),
+                appBarTheme: AppTheme.dark.appBarTheme.copyWith(
+                  titleTextStyle: AppTheme.dark.appBarTheme.titleTextStyle?.copyWith(fontFamily: 'Malgun'),
+                )),
         routerConfig: router,
       ),
     ),

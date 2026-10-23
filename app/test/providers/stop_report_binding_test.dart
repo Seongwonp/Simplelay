@@ -276,7 +276,7 @@ void main() {
       status = _stopped('J1', level: 'mcu_ack', ackMs: 12, stopJob: 'J1');
       await _until(() => c.read(executionStatusProvider).message?.contains('멈추라는 신호를 받았어요') ?? false);
       expect(c.read(executionStatusProvider).message,
-          '누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 몰라요. 가전은 집에서 확인해야 해요.');
+          '누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 확인하지 못했어요. 가전은 집에서 확인해야 해요.');
       expect(tts.spoken.length, spoken);
     });
 

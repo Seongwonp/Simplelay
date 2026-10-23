@@ -95,7 +95,7 @@ void main() {
 
     // ThinQ 확인 못 함은 실패로 말하지 않는다.
     // '확인 필요' 줄의 까닭 한 줄은 낱말 단위로 그린다(평가 10차 10/18) — 결합 문자를 빼고 본다.
-    expect(findPlainText('설정이 바뀌었는지 몰라요', contains: true), findsNWidgets(2));
+    expect(findPlainText('설정이 바뀌었는지 확인하지 못했어요', contains: true), findsNWidgets(2));
     // 경로 · 확인 수준은 '경로'·'확인' 꼬리표 없이 자연스러운 한 줄로 말한다.
     expect(find.text('가전이 받았어요'), findsOneWidget);
     // t2는 모의 실행 — 결과 문장 한 줄이 연습이라고 말하고 수신 줄을 겹치지 않는다(2026-10-14).
@@ -103,7 +103,7 @@ void main() {
     expect(find.text('연습이라 가전에 보내지 않았어요'), findsOneWidget);
     // 접수 불명은 받았는지 모른다고만 말한다(접수됨·확인됨으로 올리지 않는다,
     // 실패로도 말하지 않는다).
-    expect(find.text('가전이 받았는지 몰라요'), findsOneWidget);
+    expect(find.text('가전이 받았는지 확인하지 못했어요'), findsOneWidget);
     expect(find.textContaining('확인 받았는지'), findsNothing);
     expect(find.textContaining('확인 확인'), findsNothing);
     // t2는 모의 실행이다 — 실제 가전 확인 문장을 쓰지 않는다.
@@ -145,7 +145,7 @@ void main() {
     expect(find.textContaining('명령을 보냈어요'), findsNothing);
   });
 
-  testWidgets('이력: 실제/연습을 모르는 기록은 성공 문장만 두지 않고 "실제 가전이 움직였는지 몰라요"를 남긴다',
+  testWidgets('이력: 실제/연습을 모르는 기록은 성공 문장만 두지 않고 "실제 가전이 움직였는지 확인하지 못했어요"를 남긴다',
       (tester) async {
     // 10/14 Codex 의견: 일반 화면에서 '실행 환경 미확인'을 지워도 기록에서는 실제 성공처럼 보이면 안 된다(F4 경계).
     tester.view.physicalSize = const Size(900, 2400);
@@ -179,7 +179,7 @@ void main() {
       await tester.tap(find.byKey(e.widget.key!));
       await tester.pump();
     }
-    expect(find.text('실제 가전이 움직였는지 몰라요'), findsOneWidget);
+    expect(find.text('실제 가전이 움직였는지 확인하지 못했어요'), findsOneWidget);
     // 연습 표시는 그대로 남는다.
     expect(find.text('연습이라 실제로 누르지 않았어요'), findsOneWidget);
     expect(find.textContaining('실행 환경 미확인'), findsNothing);

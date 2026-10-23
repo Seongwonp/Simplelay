@@ -103,7 +103,7 @@ class KioskThinqPanel extends StatefulWidget {
   final Future<KioskJobAccepted> Function(String action, Map<String, Object> args, String clientRequestId)?
       sendCommand;
 
-  /// GET /jobs/by-request/{id} — 응답을 잃은 조작이 접수됐는지 찾는다. null이면 찾지 않고 '됐는지 몰라요'.
+  /// GET /jobs/by-request/{id} — 응답을 잃은 조작이 접수됐는지 찾는다. null이면 찾지 않고 '됐는지 확인하지 못했어요'.
   final Future<KioskRequestLookup> Function(String clientRequestId)? lookupRequest;
 
   /// 접수됨 — job_id와 실행 화면 제목.

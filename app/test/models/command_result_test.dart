@@ -56,7 +56,7 @@ void main() {
               receipt: 'unknown',
               confirmation: 'none',
               kind: ResultKind.unconfirmed),
-          '가전이 받았는지 몰라요');
+          '가전이 받았는지 확인하지 못했어요');
       expect(
           confirmationLabel(
               route: 'thinq',
@@ -77,7 +77,7 @@ void main() {
       }
       // 접수 불명: 받았는지 모른다고 말하고, 다시 보내기 전에 확인하라고 한다.
       final unknown = unconfirmedSentence(receipt: 'unknown');
-      expect(unknown, contains('받았는지 몰라요'));
+      expect(unknown, contains('받았는지 확인하지 못했어요'));
       expect(unknown, contains('다시 보내기 전에'));
       expect(unknown, isNot(contains('못 했어요')));
       expect(unknown, isNot(contains('확인했어요')));
@@ -110,7 +110,7 @@ void main() {
               confirmation: 'state_confirmed',
               kind: ResultKind.success,
               executionMode: 'mock'),
-          '연습 상태를 봤어요');
+          '연습 상태 확인');
     });
     test('실제·미확인 실행은 상태 확인됨 그대로', () {
       for (final mode in ['real', 'uart', 'unknown', null]) {

@@ -31,7 +31,7 @@ from rpi.tests.test_thinq_u1 import HIGH, _controller
 ALREADY = "이미 바람 세기 강으로 설정돼 있어요. 그래서 보내지 않았어요."
 CHANGED = "바람 세기 강으로 바꿨어요."
 TARGET_SEEN = "바람 세기 강으로 설정된 것을 확인했어요."
-UNCONFIRMED = "설정이 바뀌었는지 몰라요."
+UNCONFIRMED = "설정이 바뀌었는지 확인하지 못했어요."
 
 # ── 값 객체 ─────────────────────────────────────────────────────────────
 

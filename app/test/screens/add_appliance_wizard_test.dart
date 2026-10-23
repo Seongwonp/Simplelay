@@ -438,7 +438,7 @@ void main() {
     }
     FilledButton next() =>
         tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
-    expect(find.textContaining('버튼판 크기를 아직 몰라요'), findsOneWidget);
+    expect(find.textContaining('버튼판 크기를 아직 확인하지 못했어요'), findsOneWidget);
     expect(next().onPressed, isNull);
     await tester.enterText(find.byKey(const Key('wizard-frame-w')), '300');
     await tester.enterText(find.byKey(const Key('wizard-frame-h')), '200');

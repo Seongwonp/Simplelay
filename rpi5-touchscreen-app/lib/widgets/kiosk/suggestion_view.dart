@@ -676,7 +676,7 @@ class _CommandList extends StatelessWidget {
           // 버튼 누름(physical)은 칩 없이 — routeLabel이 null을 주지만 '경로를 모름'이 아니다(10/14 회귀 수리).
           final path = c.route == 'physical'
               ? null
-              : (routeLabel(c.route) ?? '어떻게 할지 몰라요');
+              : (routeLabel(c.route) ?? '어떻게 할지 확인하지 못했어요');
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

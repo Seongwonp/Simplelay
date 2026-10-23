@@ -231,7 +231,7 @@ void main() {
           scale: 1.22, panel15: panel15);
       expect(tester.takeException(), isNull);
       _expectFullyVisible(tester,
-          find.text('정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.'));
+          find.text('정지 요청 결과를 확인하지 못했어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.'));
       _expectFullyVisible(tester, find.text('정지'));
     });
 

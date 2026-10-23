@@ -235,7 +235,7 @@ class _ThinqScreen extends ConsumerWidget {
     // 그 말은 허브가 ThinQ를 껐다고 답했을 때(404)만.
     final String headline;
     if (api == null || async.hasError) {
-      headline = 'LG 가전이 연결됐는지 몰라요. 본체 연결을 봐 주세요.';
+      headline = 'LG 가전이 연결됐는지 확인하지 못했어요. 본체 연결을 봐 주세요.';
     } else if (!async.hasValue) {
       headline = '연결을 알아보는 중이에요.';
     } else if (overview == null) {

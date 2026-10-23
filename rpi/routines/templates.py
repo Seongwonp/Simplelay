@@ -55,7 +55,7 @@ TEMPLATES: tuple[dict, ...] = (
         "name": "방문자 문 열기",
         "icon": "door",
         "description": "인터폰으로 방문자를 확인하고, 허락하면 문 열림 버튼을 눌러요",
-        "caution": "인터폰이 울리는 건 아직 몰라요. 직접 실행하면 물어봐요",
+        "caution": "인터폰이 울리는 건 아직 확인하지 못했어요. 직접 실행하면 물어봐요",
         "trigger": {"kind": "manual"},
         "conditions": [],
         "mode": "approve",

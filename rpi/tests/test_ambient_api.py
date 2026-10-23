@@ -137,7 +137,7 @@ def test_ambient_unconfirmed_command_is_not_failure(client, monkeypatch, outcome
     app.dependency_overrides[deps.get_appliance_registry] = lambda: Registry()
     tip = client.get("/ambient").json()["tip"]
     assert tip["kind"] == "appliance"
-    assert tip["text"] == "공기청정기(모의)가 바뀌었는지 몰라요. 가전을 봐 주세요."
+    assert tip["text"] == "공기청정기(모의)가 바뀌었는지 확인하지 못했어요. 가전을 봐 주세요."
 
 
 def test_ambient_success_is_not_attention(client, monkeypatch):

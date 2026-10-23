@@ -748,10 +748,10 @@ void main() {
       await tester.pump();
     }
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('어떻게 됐는지 몰라요'), findsOneWidget);
+    expect(find.text('어떻게 됐는지 확인하지 못했어요'), findsOneWidget);
     expect(find.text('실행을 멈췄어요'), findsNothing);
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(tts.utterances.last, contains('어떻게 됐는지 몰라요'));
+    expect(tts.utterances.last, contains('어떻게 됐는지 확인하지 못했어요'));
     await tester.tap(find.text('처음 화면으로'));
     await tester.pump();
     api.statusResult = const KioskStatus(running: true,
@@ -1878,7 +1878,7 @@ void main() {
           lastOutcome: 'safety_stop'),
     );
     expect(done.reason, KioskFailureReason.safetyStop);
-    expect(find.text('눌렸는지 몰라서 멈췄어요'), findsOneWidget);
+    expect(find.text('버튼 눌림을 확인하지 못해 멈췄어요'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -1923,7 +1923,7 @@ void main() {
     final done = tester.widget<KioskDoneView>(find.byType(KioskDoneView));
     expect(done.reason, KioskFailureReason.stopped);
     expect(done.stopLevel, 'mcu_ack');
-    expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -1976,7 +1976,7 @@ void main() {
       const KioskStatus(
           running: false, lastJobId: 'job-1', lastStatus: 'safety_stopped', lastOutcome: 'safety_stop'),
     );
-    expect(find.text('눌렸는지 몰라서 멈췄어요'), findsOneWidget);
+    expect(find.text('버튼 눌림을 확인하지 못해 멈췄어요'), findsOneWidget);
     // 실패 화면은 스스로 사라지지 않는다 — 그동안 폰이 다음 실행을 시작했다.
     api.statusResult = const KioskStatus(
         running: true, jobId: 'job-2', currentButton: '시작', lastJobId: 'job-1');
@@ -1994,7 +1994,7 @@ void main() {
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(seconds: 1));
     }
-    expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -2027,7 +2027,7 @@ void main() {
     expect(autoRunNotice(ok), '공기청정기 풍량을 강으로 바꿨어요');
     const unconfirmed = KioskAutoRun(jobId: 'b', outcome: 'sent', status: 'unconfirmed', receipt: 'accepted',
         confirmation: 'none', executionMode: 'real', targetName: '공기청정기', settingLabel: '풍량', valueLabel: '강');
-    expect(autoRunNotice(unconfirmed), '공기청정기 설정이 바뀌었는지 몰라요');
+    expect(autoRunNotice(unconfirmed), '공기청정기 설정이 바뀌었는지 확인하지 못했어요');
     const mock = KioskAutoRun(jobId: 'c', outcome: 'sent', status: 'succeeded', receipt: 'accepted',
         confirmation: 'state_confirmed', executionMode: 'mock', targetName: '공기청정기(모의)',
         settingLabel: '풍량', valueLabel: '중');
@@ -2086,7 +2086,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.byType(KioskDoneView), findsNothing);
-    expect(find.text('공기청정기(모의) 설정이 바뀌었는지 몰라요. 연습이에요'),
+    expect(find.text('공기청정기(모의) 설정이 바뀌었는지 확인하지 못했어요. 연습이에요'),
         findsOneWidget);
     await tester.pump(KioskTimings.autoRunNotice);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -2205,7 +2205,7 @@ void main() {
     expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).stopLevel,
         isNull);
     // 기다리기를 그만두면 확인하지 못한 정지로 끝낸다 — 진행 말이 남지 않는다(평가 8차 10/18).
-    expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
     expect(find.text('멈추는 중이에요'), findsNothing);
     expect(find.byKey(const ValueKey('done-home')), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -2350,7 +2350,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('ThinQ 몰라요은 실패가 아니다 — 다시 시도 없이 접수 수준을 말한다',
+  testWidgets('ThinQ 확인하지 못했어요은 실패가 아니다 — 다시 시도 없이 접수 수준을 말한다',
       (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()..suggestionList = [scenario];
@@ -2372,7 +2372,7 @@ void main() {
     expect(done.reason, KioskFailureReason.unconfirmed);
     // LG 가전 명령 하나뿐인 카드는 결과 창 하나(사용자 요청 10/18) — 체크 없이 보낸 사실만(연습).
     expect(find.byKey(const ValueKey('thinq-result')), findsOneWidget);
-    expect(find.text('연습으로 부탁했어요'), findsOneWidget);
+    expect(find.text('연습 요청을 보냈어요'), findsOneWidget);
     expect(find.text('실제 가전은 바꾸지 않았어요'), findsOneWidget);
     expect(find.descendant(of: find.byKey(const ValueKey('thinq-result')), matching: find.byIcon(Icons.check)),
         findsNothing);
@@ -2400,9 +2400,9 @@ void main() {
     );
     expect(done.reason, KioskFailureReason.receiptUnknown);
     // 받았는지 모름 — 확인됨으로 올리지 않고, 다시 보내기 전에 보라고(LG 가전 결과 창, 사용자 요청 10/18).
-    expect(find.text('가전이 받았는지 몰라요'), findsOneWidget);
+    expect(find.text('가전이 받았는지 확인하지 못했어요'), findsOneWidget);
     expect(find.text('다시 하기 전에 가전을 봐 주세요'), findsOneWidget);
-    expect(find.textContaining('바뀐 것을 봤어요'), findsNothing);
+    expect(find.textContaining('설정 변경을 확인했어요'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -2492,7 +2492,7 @@ void main() {
           lastOperationConfirmed: false,
           lastOperationDetail: '전력 변화가 없었어요'),
     );
-    expect(find.text('가전이 켜진 것은 못 봤어요'), findsOneWidget);
+    expect(find.text('가전이 켜졌는지 확인하지 못했어요'), findsOneWidget);
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());

@@ -405,7 +405,7 @@ class RoutineEngine:
                 return  # 끝 센서가 있으면 시작 확인으로 깨우지 않는다 — 사이클 끝(on_appliance_done)에서 한 번
             reason, is_demo = "동작을 확인했어요", False
         elif event.execution_mode is ExecutionMode.MOCK:
-            reason, is_demo = "연습 실행이 끝났어요. 실제로 끝났는지는 몰라요.", True
+            reason, is_demo = "연습 실행이 끝났어요. 실제로 끝났는지는 확인하지 못했어요.", True
         else:
             return
         fired_any = False

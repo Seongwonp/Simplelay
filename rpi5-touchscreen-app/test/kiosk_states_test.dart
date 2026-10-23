@@ -492,8 +492,8 @@ void main() {
       expect(find.textContaining('눌러 볼 수'), findsNothing);
       expect(find.text('빨간 정지를 눌러 보세요'), findsNothing);
       // 연습에는 가전 판정·끝나는 시간 줄을 두지 않는다 — 위 연습 띠('실제 가전은 그대로예요')와 부딪혔다(평가 4차 10/18).
-      expect(find.text('가전이 켜졌는지는 몰라요'), findsNothing);
-      expect(find.text('끝나는 시간은 몰라요'), findsNothing);
+      expect(find.text('가전이 켜졌는지는 확인하지 못했어요'), findsNothing);
+      expect(find.text('끝나는 시간은 확인하지 못했어요'), findsNothing);
       expect(find.textContaining(RegExp(r'\d+:\d\d')), findsNothing);
       // 모의를 실물처럼 보이지 않는다
       expect(find.text(kPracticeBandText), findsOneWidget);
@@ -541,7 +541,7 @@ void main() {
 
       expect(find.textContaining('멈춘 것을'), findsNothing);
       // 상태 영역은 짧게(2026-10-16 디자인 규격 §1-2) — 무엇을 했는지는 할 일 아래 작은 줄이 말한다.
-      expect(find.text('가전이 멈췄는지 몰라요'), findsOneWidget);
+      expect(find.text('가전이 멈췄는지 확인하지 못했어요'), findsOneWidget);
       // 가장 큰 글자는 할 일 한 가지 — 정지 버튼은 자리·크기·색 그대로 이름만 바뀐다(2026-10-15).
       expect(find.text('지금 전자레인지 취소 버튼을 손으로 눌러 주세요'), findsOneWidget);
       // 누름 장치가 제자리로 돌아갔으면 다시 멈출 것이 없다 — 이름은 '정지' 그대로(평가 16차 10/18).

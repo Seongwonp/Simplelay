@@ -229,7 +229,7 @@ def test_unknown_receipt_with_stop_request_asserts_neither_end_nor_stop():
     assert out.status is CommandStatus.UNCONFIRMED
     assert out.receipt is Receipt.UNKNOWN
     assert out.stop_requested is True
-    assert "눌렸는지 몰라요" in out.detail and out.detail.endswith(STOP_REQUESTED_NOTE)
+    assert "눌렸는지 확인하지 못했어요" in out.detail and out.detail.endswith(STOP_REQUESTED_NOTE)
     for forbidden in ("멈췄어요", "끝남", "완료", "사용자 정지로"):
         assert forbidden not in out.detail
 

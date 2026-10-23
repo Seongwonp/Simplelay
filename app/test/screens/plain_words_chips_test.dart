@@ -52,8 +52,8 @@ void main() {
           confirmation: 'none',
           kind: ResultKind.failed,
           executionMode: 'mock');
-      expect(real, '눌렸는지 몰라요');
-      expect(mock, '연습이에요. 눌렸는지 몰라요');
+      expect(real, '눌렸는지 확인하지 못했어요');
+      expect(mock, '연습이에요. 눌렸는지 확인하지 못했어요');
     });
   });
 

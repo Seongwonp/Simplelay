@@ -216,10 +216,10 @@ void main() {
   });
 
   test('C. 지난 일 — 쉼표, 오늘이 아니면 날짜 말', () {
-    final r = KioskPastResult(at: DateTime(2026, 10, 17, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 몰라요');
-    expect(r.textAt(DateTime(2026, 10, 17, 18)), '오후 3:12 즉석밥 데우기, 눌렸는지 몰라요');
-    expect(r.textAt(DateTime(2026, 10, 18, 8)), '어제 오후 3:12 즉석밥 데우기, 눌렸는지 몰라요');
-    expect(r.textAt(DateTime(2026, 10, 20, 8)), '10월 17일 오후 3:12 즉석밥 데우기, 눌렸는지 몰라요');
+    final r = KioskPastResult(at: DateTime(2026, 10, 17, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 확인하지 못했어요');
+    expect(r.textAt(DateTime(2026, 10, 17, 18)), '오후 3:12 즉석밥 데우기, 눌렸는지 확인하지 못했어요');
+    expect(r.textAt(DateTime(2026, 10, 18, 8)), '어제 오후 3:12 즉석밥 데우기, 눌렸는지 확인하지 못했어요');
+    expect(r.textAt(DateTime(2026, 10, 20, 8)), '10월 17일 오후 3:12 즉석밥 데우기, 눌렸는지 확인하지 못했어요');
   });
 
   testWidgets("E. 수동 화면 제목은 가전 이름만, 쉬기 창 닫는 단추는 '닫기'", (tester) async {

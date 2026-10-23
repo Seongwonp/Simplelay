@@ -7,7 +7,7 @@
 ///   평가 14차 10/18).
 /// - `state_confirmed_unknown_before`(보낸 뒤 목표값, 전 값 모름): 본 상태('공기청정기가 켜져 있어요') — '바꿨어요'라고 하지 않는다.
 /// - `already_at_target`(이미 목표값, 보내지 않음): '이미 켜져 있어요' + '그대로 두었어요'.
-/// - 확인 못 함(`unconfirmed`): 체크 없이 '공기청정기에 켜 달라고 했어요' + '켜졌는지는 아직 몰라요'
+/// - 확인 못 함(`unconfirmed`): 체크 없이 '공기청정기에 켜 달라고 했어요' + '켜졌는지는 아직 확인하지 못했어요'
 ///   (평가 11차 10/18 — 누가 누구에게인지 알게 제목에 가전 이름. 평가 15차 10/18 — '켜기를 보냈어요'는 기계가 한 일이었다.
 ///   무엇을 볼지는 결과 화면의 번호 안내가 한 번만 말한다).
 /// 실패·정지는 이 화면이 아니라 기존 결과 화면이 말한다.
@@ -91,10 +91,10 @@ class ThinqAction {
 
   /// 확인 못 함 결과의 아래 줄 — 아직 모른다는 것.
   String get unknown => switch (kind) {
-        ThinqActionKind.powerOn => '켜졌는지는 아직 몰라요',
-        ThinqActionKind.powerOff => '꺼졌는지는 아직 몰라요',
-        ThinqActionKind.wind => '바람이 $windWord 바뀌었는지는 아직 몰라요',
-        ThinqActionKind.other => '바뀌었는지는 아직 몰라요',
+        ThinqActionKind.powerOn => '켜졌는지는 아직 확인하지 못했어요',
+        ThinqActionKind.powerOff => '꺼졌는지는 아직 확인하지 못했어요',
+        ThinqActionKind.wind => '바람이 $windWord 바뀌었는지는 아직 확인하지 못했어요',
+        ThinqActionKind.other => '바뀌었는지는 아직 확인하지 못했어요',
       };
 }
 
@@ -180,8 +180,8 @@ ThinqResultCopy? thinqResultCopy({
       headline: kind == ResultKind.success
           ? '연습을 마쳤어요'
           : receipt == 'unknown'
-              ? '연습 부탁이 닿았는지 몰라요'
-              : '연습으로 부탁했어요',
+              ? '연습 요청이 전달됐는지 확인하지 못했어요'
+              : '연습 요청을 보냈어요',
       sub: '실제 가전은 바꾸지 않았어요',
       tone: ThinqResultTone.practice,
     );
@@ -219,9 +219,9 @@ ThinqResultCopy? thinqResultCopy({
       default: // state_confirmed_unknown_before — 전 값을 몰라 '바꿨어요'·'켜졌어요'라고 하지 않는다.
         return ThinqResultCopy(
           headline: power == null
-              ? (d.contains('설정된 것을 확인') ? _firstSentence(d) : '원하는 설정인 것을 봤어요')
+              ? (d.contains('설정된 것을 확인') ? _firstSentence(d) : '현재 설정을 확인했어요')
               : '$who ${power ? '켜져' : '꺼져'} 있어요',
-          sub: '지금 상태를 가전에서 봤어요',
+          sub: '가전에서 현재 상태를 확인했어요',
           tone: ThinqResultTone.confirmed,
         );
     }
@@ -229,7 +229,7 @@ ThinqResultCopy? thinqResultCopy({
   // 부탁했지만 확인하지 못했다 — 체크 없이, 사람이 가전을 본다. 받았는지조차 모르면 다시 하기 전에 보라고 한다.
   if (receipt == 'unknown') {
     return ThinqResultCopy(
-      headline: '${withSubject(applianceName)} 받았는지 몰라요',
+      headline: '${withSubject(applianceName)} 받았는지 확인하지 못했어요',
       sub: '다시 하기 전에 가전을 봐 주세요',
       tone: ThinqResultTone.attention,
     );

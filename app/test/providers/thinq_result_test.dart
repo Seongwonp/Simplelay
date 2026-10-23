@@ -56,7 +56,7 @@ void main() {
       'last_detail': '상태를 확인하지 못했어요',
     });
     expect(s.phase, ExecutionPhase.unconfirmed);
-    expect(s.message, contains('보냈지만 설정이 바뀌었는지 몰라요'));
+    expect(s.message, contains('보냈지만 설정이 바뀌었는지 확인하지 못했어요'));
     expect(s.route, 'thinq');
     expect(s.detail, '상태를 확인하지 못했어요');
   });
@@ -70,7 +70,7 @@ void main() {
       'last_confirmation': 'none',
     });
     expect(s.phase, ExecutionPhase.unconfirmed);
-    expect(s.message, contains('받았는지 몰라요'));
+    expect(s.message, contains('받았는지 확인하지 못했어요'));
     expect(s.message, contains('다시 보내기 전에'));
     // 실패도 성공도 말하지 않는다.
     expect(s.message, isNot(contains('못 했어요')));
@@ -84,7 +84,7 @@ void main() {
       'last_route': 'physical',
     });
     expect(s.phase, ExecutionPhase.failed);
-    expect(s.message, contains('눌렸는지 몰라서 멈췄어요'));
+    expect(s.message, contains('버튼 눌림을 확인하지 못해 멈췄어요'));
   });
 
   test('원격 실패(failed)는 정지 문구를 쓰지 않는다', () async {

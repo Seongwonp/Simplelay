@@ -125,7 +125,7 @@ void main() {
           onDismiss: () {},
         ));
     final rich = tester.widgetList<RichText>(find.byType(RichText)).firstWhere(
-        (r) => r.text.toPlainText().replaceAll('⁠', '').contains('몰라요'));
+        (r) => r.text.toPlainText().replaceAll('⁠', '').contains('확인하지 못했어요'));
     final color = rich.text.style?.color ?? (rich.text as TextSpan).children?.first.style?.color;
     expect(color, KioskColors.warning);
   });

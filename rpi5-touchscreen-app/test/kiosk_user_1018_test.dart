@@ -379,12 +379,12 @@ void main() {
   });
 
   group('4. 처음 화면 지난 일 한 줄', () {
-    test("한 줄 꼴 — '오후 3:12 즉석밥 데우기, 눌렸는지 몰라요'", () {
+    test("한 줄 꼴 — '오후 3:12 즉석밥 데우기, 눌렸는지 확인하지 못했어요'", () {
       expect(
-          KioskPastResult(at: DateTime(2026, 10, 18, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 몰라요').text,
-          '오후 3:12 즉석밥 데우기, 눌렸는지 몰라요');
-      expect(KioskPastResult(at: DateTime(2026, 10, 18, 9, 5), label: '', headline: '어떻게 됐는지 몰라요').text,
-          '오전 9:05, 어떻게 됐는지 몰라요');
+          KioskPastResult(at: DateTime(2026, 10, 18, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 확인하지 못했어요').text,
+          '오후 3:12 즉석밥 데우기, 눌렸는지 확인하지 못했어요');
+      expect(KioskPastResult(at: DateTime(2026, 10, 18, 9, 5), label: '', headline: '어떻게 됐는지 확인하지 못했어요').text,
+          '오전 9:05, 어떻게 됐는지 확인하지 못했어요');
     });
 
     test('남기는 것은 실패·확인 못 함만 — 성공·연습·확인한 정지는 남기지 않는다', () {
@@ -409,14 +409,14 @@ void main() {
             thinqOnly: thinqOnly,
             target: target,
           );
-      expect(v(reason: KioskFailureReason.execution).pastHeadline, '눌렸는지 몰라요');
-      expect(v(reason: KioskFailureReason.serverLost).pastHeadline, '어떻게 됐는지 몰라요');
-      expect(v(reason: KioskFailureReason.unconfirmed, route: 'thinq').pastHeadline, '보냈지만 됐는지 몰라요');
-      expect(v(reason: KioskFailureReason.stopped, stopLevel: 'sent').pastHeadline, '누름 장치가 멈췄는지 몰라요');
+      expect(v(reason: KioskFailureReason.execution).pastHeadline, '눌렸는지 확인하지 못했어요');
+      expect(v(reason: KioskFailureReason.serverLost).pastHeadline, '어떻게 됐는지 확인하지 못했어요');
+      expect(v(reason: KioskFailureReason.unconfirmed, route: 'thinq').pastHeadline, '보냈지만 됐는지 확인하지 못했어요');
+      expect(v(reason: KioskFailureReason.stopped, stopLevel: 'sent').pastHeadline, '누름 장치가 멈췄는지 확인하지 못했어요');
       expect(v(reason: KioskFailureReason.stopped, stopLevel: 'verified').pastHeadline, isNull);
       // 2차 독립 평가 C(10/18): 누름 보고만은 가전을 사람이 봐야 한다 — 답하지 않고 나가면 남긴다.
       expect(v(success: true, confirmation: 'reported').pastHeadline, kPressDonePastHeadline);
-      expect(v(success: true, confirmation: 'none').pastHeadline, '눌렸는지 몰라요');
+      expect(v(success: true, confirmation: 'none').pastHeadline, '눌렸는지 확인하지 못했어요');
       expect(v(mode: 'mock', reason: KioskFailureReason.execution).pastHeadline, isNull);
       expect(v(success: true, route: 'thinq', confirmation: 'state_confirmed', thinqOnly: true, target: _purifier).pastHeadline,
           isNull);
@@ -448,7 +448,7 @@ void main() {
       expect(line, findsOneWidget);
       final text = tester.widget<Text>(find.byKey(const ValueKey('idle-past-result-text'))).data!;
       expect(text, contains('전자레인지'));
-      expect(text, endsWith(', 눌렸는지 몰라요'));
+      expect(text, endsWith(', 눌렸는지 확인하지 못했어요'));
       expect(text, matches(RegExp(r'^(오전|오후|밤) \d{1,2}:\d{2} ')));
       // 시간이 지나도(다른 조회가 돌아도) 남는다.
       await tester.pump(const Duration(minutes: 2));

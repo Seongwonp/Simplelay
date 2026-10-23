@@ -299,7 +299,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       execution.beginSubmissionUnknown(
           api: rpiApi, label: text, requestId: requestId, byRequest: true);
       if (mounted) {
-        _notice('본체가 받았는지 몰라요. 다시 보내기 전에 집에서 가전을 확인해야 해요.');
+        _notice('본체가 받았는지 확인하지 못했어요. 다시 보내기 전에 집에서 가전을 확인해야 해요.');
         context.push('/status');
       }
     } finally {

@@ -105,7 +105,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
           const SizedBox(height: AppSpace.md),
           if (a.isThinq) ...[
             Text(
-              'LG 가전이라 누를 버튼이 없어요. 아래에서 바로 바꾸거나 말이나 루틴으로 맡겨 주세요.',
+              '누름 장치 없이 여기서 조작해요. 말이나 루틴으로도 조작할 수 있어요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
             const SizedBox(height: AppSpace.md),
@@ -354,7 +354,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('다시 누를까요?'),
-        content: Text("아까 누른 '${b.label}' 버튼은 눌렸는지 아직 몰라요. 다시 누르면 두 번 눌릴 수 있어요. "
+        content: Text("아까 누른 '${b.label}' 버튼은 눌렸는지 아직 확인하지 못했어요. 다시 누르면 두 번 눌릴 수 있어요. "
             '가전을 보고 안 눌렸을 때만 다시 눌러 주세요.'),
         actions: [
           TextButton(
@@ -415,7 +415,8 @@ class _TodayUse extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(nowProvider)();
-    final entries = ref.watch(historyProvider).valueOrNull ?? const [];
+    final history = ref.watch(historyProvider);
+    final entries = history.valueOrNull ?? const [];
     final today = entries
         .where((e) =>
             e.applianceId == applianceId &&
@@ -431,8 +432,21 @@ class _TodayUse extends ConsumerWidget {
           const Text('오늘 쓴 기록',
               style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpace.xs),
-          if (today.isEmpty)
-            Text('오늘은 아직 사용하지 않았어요',
+          if (history.isLoading)
+            Text('기록을 불러오고 있어요',
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
+          else if (history.hasError) ...[
+            Text('기록을 불러오지 못했어요',
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+            TextButton.icon(
+              key: const Key('today-history-retry'),
+              onPressed: () => ref.invalidate(historyProvider),
+              icon: const Icon(Icons.refresh),
+              label: const Text('새로 보기'),
+              style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+            ),
+          ] else if (today.isEmpty)
+            Text('오늘 SimpleLay에 남은 기록이 없어요',
                 style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
           else
             for (final e in today)

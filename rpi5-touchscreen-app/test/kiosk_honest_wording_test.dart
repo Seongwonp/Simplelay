@@ -6,7 +6,7 @@
 // | real      | 전력 변화(L3, 출처 real)               | '<가전 이름>이/가 켜졌어요' |
 // | real      | 전력 판정이 연습 값(출처 mock)          | '버튼은 다 눌렀어요'       |
 // | real      | 누름 장치 보고(reported)·L1(press_confirmed) | '버튼은 다 눌렀어요'   |
-// | real      | 확인 근거 없음(none)                   | '눌렸는지 몰라요'          |
+// | real      | 확인 근거 없음(none)                   | '눌렸는지 확인하지 못했어요'          |
 // | mock      | (무엇이든)                            | '연습을 마쳤어요'          |
 // | 모름      | (무엇이든)                            | '버튼은 다 눌렀어요'       |
 // '켜졌어요'는 L3 실측(출처 real)일 때만 나온다 — 누름 확인(L1)·엔코더·누름 장치 보고로는 가전이 켜졌다고 말하지 않는다.
@@ -43,7 +43,7 @@ void main() {
       ('L3 연습 값', 'real', 'reported', true, 'mock', '버튼은 다 눌렀어요'),
       ('누름 장치 보고만', 'real', 'reported', null, null, '버튼은 다 눌렀어요'),
       ('누름 센서(L1)', 'real', 'press_confirmed', null, null, '버튼은 다 눌렀어요'),
-      ('근거 없음', 'real', 'none', null, null, '눌렸는지 몰라요'),
+      ('근거 없음', 'real', 'none', null, null, '눌렸는지 확인하지 못했어요'),
       ('연습', 'mock', 'operation_confirmed', true, 'real', '연습을 마쳤어요'),
       ('실행 환경 모름', 'unknown', 'reported', true, 'real', '버튼은 다 눌렀어요'),
     ];
@@ -110,7 +110,7 @@ void main() {
           '가전이 전기를 쓰기 시작했어요');
       expect(confirmationLabel(confirmation: 'press_confirmed', executionMode: 'real'), '버튼을 눌렀어요');
       expect(confirmationLabel(confirmation: 'reported', executionMode: 'real'), '누름 장치가 눌렀어요');
-      expect(confirmationLabel(confirmation: 'none', executionMode: 'real'), '눌렸는지 몰라요');
+      expect(confirmationLabel(confirmation: 'none', executionMode: 'real'), '눌렸는지 확인하지 못했어요');
     });
 
     test('음성·상태 문장: L3 실측만 전기를 쓰기 시작했다고, 아니면 버튼까지만', () {

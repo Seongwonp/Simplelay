@@ -90,16 +90,16 @@ String? confirmationLabel({
   }
   // 보낸 뒤 목표값을 봤지만 보내기 전 값은 몰랐다(2026-10-14) — '바뀐 것 확인'이 아니다.
   if (confirmation == 'state_confirmed_unknown_before') {
-    return executionMode == 'mock' ? '연습 결과' : '그 설정인 것을 봤어요';
+    return executionMode == 'mock' ? '연습 결과' : '현재 설정을 확인했어요';
   }
   // 모의가 앞선다 — 모의 상태를 읽은 것을 실제 가전 상태 확인으로 말하지
   // 않는다(10/6 Copilot 리뷰 66990be).
   if (confirmation == 'state_confirmed') {
-    return executionMode == 'mock' ? '연습 결과' : '바뀐 것을 봤어요';
+    return executionMode == 'mock' ? '연습 결과' : '설정 변경을 확인했어요';
   }
   if (route == 'thinq') {
     if (receipt == 'not_dispatched') return '보내지 않았어요';
-    if (receipt == 'unknown') return '받았는지 몰라요';
+    if (receipt == 'unknown') return '받았는지 확인하지 못했어요';
     if (receipt == 'accepted') {
       return kind == ResultKind.unconfirmed ? '받았어요' : '하지 못했어요';
     }
@@ -119,7 +119,7 @@ String? confirmationLabel({
       'operation_confirmed' => '연습 결과',
       'press_confirmed' => '연습 결과',
       'reported' => '연습 결과',
-      // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 몰라요'는 위 연습 띠('실제 가전은 그대로예요')와 부딪혔다(평가 4차 10/18).
+      // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 확인하지 못했어요'는 위 연습 띠('실제 가전은 그대로예요')와 부딪혔다(평가 4차 10/18).
       'none' => '연습 결과',
       _ => null,
     };
@@ -130,15 +130,15 @@ String? confirmationLabel({
     'press_confirmed' => '버튼을 눌렀어요',
     // 기계 말투('알려 왔어요') 대신 본 사실(평가 4차 10/18) — 누름 장치가 눌렀다는 것까지, 가전은 말하지 않는다.
     'reported' => '누름 장치가 눌렀어요',
-    'none' => '눌렸는지 몰라요',
+    'none' => '눌렸는지 확인하지 못했어요',
     _ => null,
   };
 }
 
 /// ThinQ 확인 못 함의 한 문장. 접수 불명이면 다시 보내기 전에 확인하라고 한다.
 String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
-    ? '가전이 받았는지 몰라요. 다시 보내기 전에 가전을 봐 주세요.'
-    : '보냈지만 됐는지 몰라요. 가전을 봐 주세요.';
+    ? '가전이 받았는지 확인하지 못했어요. 다시 보내기 전에 가전을 봐 주세요.'
+    : '보냈지만 됐는지 확인하지 못했어요. 가전을 봐 주세요.';
 
 /// 정지 확인 단계(2026-10-13)의 제목. 서버가 올리는 단계는
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
@@ -149,10 +149,10 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
 ///
 /// 평가 4차(10/18): '멈추라고 보냈어요'는 기계가 한 일을 말했다 — 사람이 볼 상태로.
 /// 평가 8차(10/18): 이 제목은 **끝난 결과 화면**의 말이다 — '멈추는 중이에요'(진행 중 말)는 끝난 화면과 엇갈렸다.
-/// 결과는 둘뿐이다: 엔코더로 본 verified만 '누름 장치가 멈췄어요', 그 밖(sent·mcu_ack·모름)은 '누름 장치가 멈췄는지 몰라요'.
+/// 결과는 둘뿐이다: 엔코더로 본 verified만 '누름 장치가 멈췄어요', 그 밖(sent·mcu_ack·모름)은 '누름 장치가 멈췄는지 확인하지 못했어요'.
 /// 정지 확인 보고를 아직 기다리는 동안의 말은 [kStopPendingHeadline](결과 화면의 진행 상태)이다.
 String stopLevelHeadline(String? level, {int? ackMs}) =>
-    stopLevelConfirmed(level) ? '누름 장치가 멈췄어요' : '누름 장치가 멈췄는지 몰라요';
+    stopLevelConfirmed(level) ? '누름 장치가 멈췄어요' : '누름 장치가 멈췄는지 확인하지 못했어요';
 
 /// 정지 확인 보고를 아직 기다리는 동안(결과 화면이 처음 화면 단추 없이 잠깐 보이는 진행 상태, 평가 8차 10/18).
 const kStopPendingHeadline = '멈추는 중이에요';
@@ -225,7 +225,7 @@ String finishedMessage({
       // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
       final motion = motionAbortSentence(abortReason);
       if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 누름 장치를 봐 주세요.';
-      return '눌렸는지 몰라서 멈췄어요. 가전을 봐 주세요.';
+      return '버튼 눌림을 확인하지 못해 멈췄어요. 가전을 봐 주세요.';
     case ResultKind.failed:
       return thinq ? '가전을 바꾸지 못했어요. 연결을 보고 다시 해 주세요.' : '시작하지 못했어요. 연결을 보고 다시 해 주세요.';
   }
@@ -246,7 +246,7 @@ String? thinqOutcomeSentence(String? confirmation, String? detail) {
         : '이미 그 설정이라 보내지 않았어요.',
     'state_confirmed_unknown_before' => d.contains('설정된 것을 확인')
         ? dot(d)
-        : '원하는 설정인 것을 봤어요.',
+        : '현재 설정을 확인했어요.',
     'state_confirmed' => d.contains('바꿨어요') ? dot(d) : null,
     _ => null,
   };

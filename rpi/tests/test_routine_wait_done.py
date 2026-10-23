@@ -2,7 +2,7 @@
 
 끝 판정은 RPi4가 그 가전의 CT 채널 전력 하강(`rpi/verifier/cycle_end.py`)으로 보내는 ``appliance_done``이다.
 RPi5는 끝 센서가 있는 가전(``SIMPLELAY_ROUTINE_DONE_SENSORS``)이면 정해 둔 시간까지 기다리고, 없거나 모의 실행이면
-지금처럼 넘어가되 단계에 "시작한 것만 확인했어요. 끝났는지는 몰라요."라고 적는다. 실물 미검증(합성 기록만).
+지금처럼 넘어가되 단계에 "시작한 것만 확인했어요. 끝났는지는 확인하지 못했어요."라고 적는다. 실물 미검증(합성 기록만).
 """
 
 from __future__ import annotations
@@ -124,7 +124,7 @@ def test_without_an_end_sensor_start_confirmation_passes_but_says_so():
     run = runner.execute_approved(approved, scenario_id=routine.scenario_key())
     assert run.status is RunStatus.SUCCEEDED and len(service.calls) == 2
     assert run.steps[1]["basis"] == "start_only"
-    assert run.steps[1]["detail"] == "시작한 것만 확인했어요. 끝났는지는 몰라요."
+    assert run.steps[1]["detail"] == "시작한 것만 확인했어요. 끝났는지는 확인하지 못했어요."
 
 
 def test_mock_run_passes_immediately_even_with_a_sensor_and_says_so():

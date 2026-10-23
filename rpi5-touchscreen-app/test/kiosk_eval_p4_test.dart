@@ -8,8 +8,8 @@
 // C. 기계 말투 → 사람 말: '멈추라고 보냈어요'·'다 눌렀다고 알려 왔어요'·'연습용 숫자예요'·'모드 청정'·'콘센트'·
 //    '작업'·'화면으로 조작하기'·'누름 장치 위치'·'단추'를 쓰지 않는다.
 // D. 실행·결과 제목에 사람 명령문('즉석밥 데워줘') 대신 '즉석밥 데우기'. 다음 루틴 카드 '자동 실행' → '자동으로 해요'.
-// E. 연습 띠 한 문장('연습이에요. 실제 가전은 그대로예요'), 연습 화면에서 부딪히는 문장('눌렸는지 몰라요'·
-//    '가전은 보지 않아요'·'끝나는 시간은 몰라요') 없음.
+// E. 연습 띠 한 문장('연습이에요. 실제 가전은 그대로예요'), 연습 화면에서 부딪히는 문장('눌렸는지 확인하지 못했어요'·
+//    '가전은 보지 않아요'·'끝나는 시간은 확인하지 못했어요') 없음.
 // F. 평소 화면: 시각은 모두 오전/오후(시계 '오전 7:08', 루틴 '오전 7시', 예보 '오후 3시'), 예보의 비 확률은 '비 70%',
 //    가전 4개면 한 줄에 4개(장 넘김 없음), 시계·안내와 타일 사이 빈 띠가 크지 않음, 큰 글씨에서도 '실내'.
 import 'package:flutter/material.dart';
@@ -290,7 +290,7 @@ void main() {
       final all = _allTexts(tester).join('\n');
       expect(all, isNot(contains('보냈어요')));
       // 끝난 결과 화면에서는 진행 말('멈추는 중이에요') 대신 확인하지 못했다고(평가 8차 10/18).
-      expect(all, contains('누름 장치가 멈췄는지 몰라요'));
+      expect(all, contains('누름 장치가 멈췄는지 확인하지 못했어요'));
       expect(all, isNot(contains('중이에요')));
       expect(all, isNot(contains('멈췄어요')));
       expect(stopLevelConfirmed('sent'), isFalse);
@@ -445,7 +445,7 @@ void main() {
       expect(kPracticeBandText, '연습이에요. 실제 가전은 그대로예요');
     });
 
-    testWidgets('동작 중 연습: 가전은 보지 않아요·끝나는 시간은 몰라요 없음', (tester) async {
+    testWidgets('동작 중 연습: 가전은 보지 않아요·끝나는 시간은 확인하지 못했어요 없음', (tester) async {
       await _pump(
           tester,
           KioskHoldView(
@@ -460,12 +460,12 @@ void main() {
               onStop: () {}));
       final all = _allTexts(tester).join('\n');
       expect(all, isNot(contains('보지 않아요')));
-      expect(all, isNot(contains('끝나는 시간은 몰라요')));
+      expect(all, isNot(contains('끝나는 시간은 확인하지 못했어요')));
       expect(all, contains(kPracticeBandText));
     });
 
     for (final r in [KioskFailureReason.execution, KioskFailureReason.safetyStop]) {
-      testWidgets('연습 실패($r)에 눌렸는지 몰라요 없음', (tester) async {
+      testWidgets('연습 실패($r)에 눌렸는지 확인하지 못했어요 없음', (tester) async {
         await _pump(
             tester,
             KioskDoneView(
@@ -479,7 +479,7 @@ void main() {
       });
     }
 
-    testWidgets('연습 성공(눌림 모름 기록)에도 눌렸는지 몰라요 없음', (tester) async {
+    testWidgets('연습 성공(눌림 모름 기록)에도 눌렸는지 확인하지 못했어요 없음', (tester) async {
       await _pump(
           tester,
           KioskDoneView(

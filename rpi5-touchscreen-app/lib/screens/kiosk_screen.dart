@@ -65,7 +65,7 @@ const _doneReturnDuration = KioskTimings.doneReturn;
 // 실행 중 /status가 이 시간 동안 한 번도 응답하지 않으면 서버 유실로 판정 —
 // "실행 중" 화면에 영원히 갇히는 대신 실패 화면으로 탈출한다.
 const _statusLostTimeout = Duration(seconds: 30);
-// 접수 응답을 잃은 뒤 본체가 쉬고 결과도 그대로인 폴링이 이만큼 이어지면 결과 화면('어떻게 됐는지 몰라요')으로.
+// 접수 응답을 잃은 뒤 본체가 쉬고 결과도 그대로인 폴링이 이만큼 이어지면 결과 화면('어떻게 됐는지 확인하지 못했어요')으로.
 const _admitUnknownIdlePolls = 3;
 // 접수 응답 전에 누른 정지를, 실행을 못 찾은 채로 지키는 시간 — 늦게 접수된 실행도 멈춘다. 지나면 남의 실행을 멈추지 않게 버린다.
 const _pendingStopWindow = Duration(seconds: 20);
@@ -290,7 +290,7 @@ class _KioskScreenState extends State<KioskScreen> {
   Timer? _stopFollowTimer;
 
   /// 정지로 끝난 job의 확인 보고(stop_level)를 아직 기다리는 중(평가 8차 10/18) — 결과 화면은 그동안 진행 상태
-  /// ('멈추는 중이에요', 처음 화면 단추 없음)로 보이고, 보고가 오거나 기다리기를 그만두면 결과(멈췄어요/몰라요)로 바뀐다.
+  /// ('멈추는 중이에요', 처음 화면 단추 없음)로 보이고, 보고가 오거나 기다리기를 그만두면 결과(멈췄어요/확인하지 못했어요)로 바뀐다.
   bool _stopPending = false;
   // 화면의 '길어도 N초' 말과 같은 값(휴리스틱 평가 10/18) — 한 곳([KioskTimings])에서.
   static const _stopFollowInterval = KioskTimings.stopFollowInterval;
@@ -1223,7 +1223,7 @@ class _KioskScreenState extends State<KioskScreen> {
     var tries = 0;
     var inFlight = false;
     _stopPending = true;
-    // 기다리기를 끝낸다. 이 job의 결과 화면이 떠 있으면 바뀐 결과(멈췄어요/몰라요)를 그때 한 번 말한다 —
+    // 기다리기를 끝낸다. 이 job의 결과 화면이 떠 있으면 바뀐 결과(멈췄어요/확인하지 못했어요)를 그때 한 번 말한다 —
     // 결과 화면이 뜰 때는 '멈추는 중이에요'만 말했다(평가 8차 10/18).
     void end(Timer timer, {bool result = true}) {
       timer.cancel();
@@ -1347,7 +1347,7 @@ class _KioskScreenState extends State<KioskScreen> {
         _holdSpokenKey = key;
         _tts.speak(st.holdState == 'fault' || st.holdStopOutcome == 'drive_fault'
             ? '누름 장치에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
-            : '가전이 멈췄는지 몰라요. 지금 가전 정지 버튼을 손으로 눌러 주세요.');
+            : '가전이 멈췄는지 확인하지 못했어요. 지금 가전 정지 버튼을 손으로 눌러 주세요.');
       }
       return;
     }
@@ -1766,7 +1766,7 @@ class _KioskScreenState extends State<KioskScreen> {
           ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute, confirmation: _doneRawConfirmation, detail: _doneDetail, operationVerified: _doneOperationConfirmed == true && _doneOperationSource == 'real' && _executionMode != 'mock')}'
           : switch (reason) {
               KioskFailureReason.serverLost =>
-                '어떻게 됐는지 몰라요. 가전을 봐 주세요.',
+                '어떻게 됐는지 확인하지 못했어요. 가전을 봐 주세요.',
               // 정지 단계만큼(2026-10-15). 단계 보고를 아직 기다리면 화면과 같은 진행 말만 하고, 결과는 보고가 오거나
               // 기다리기를 그만둘 때 말한다(평가 8차 10/18).
               KioskFailureReason.stopped => _stopPending && _doneStopLevel == null
@@ -1782,7 +1782,7 @@ class _KioskScreenState extends State<KioskScreen> {
               KioskFailureReason.notExecuted =>
                 '$lead가전을 바꾸지 못했어요. 가전 연결을 봐 주세요.',
               KioskFailureReason.execution =>
-                '$lead눌렸는지 몰라요. 가전을 봐 주세요.',
+                '$lead눌렸는지 확인하지 못했어요. 가전을 봐 주세요.',
             },
     );
     _doneReturnTimer?.cancel();
@@ -1934,7 +1934,7 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   /// 응답을 잃은 접수의 실행을 본체에서 찾는다 — 요청 번호로 찾으면 그 실행을 따라가고, 본체가 모르는 번호라고 하면 남의 실행을
-  /// 이어받지 않고 기다리다 결과 화면('어떻게 됐는지 몰라요'). 옛 본체(요청 번호 조회 없음)만 종전처럼: 돌고 있으면 이어받고,
+  /// 이어받지 않고 기다리다 결과 화면('어떻게 됐는지 확인하지 못했어요'). 옛 본체(요청 번호 조회 없음)만 종전처럼: 돌고 있으면 이어받고,
   /// 그 사이 끝났으면 그 결과를, 계속 쉬면 결과 화면.
   Future<void> _pollAdmitUnknown() async {
     final gen = _admitGen;

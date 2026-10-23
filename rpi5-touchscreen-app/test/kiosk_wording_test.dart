@@ -168,12 +168,12 @@ void main() {
           onDismiss: () {},
         ),
       );
-      expect(find.text('눌렸는지 몰라요'), findsOneWidget);
+      expect(find.text('눌렸는지 확인하지 못했어요'), findsOneWidget);
       final sizes = tester
           .widgetList<Text>(find.byType(Text))
           .map((t) => t.style?.fontSize ?? 0)
           .toList();
-      final head = tester.widget<Text>(find.text('눌렸는지 몰라요'));
+      final head = tester.widget<Text>(find.text('눌렸는지 확인하지 못했어요'));
       expect(head.style!.fontSize, sizes.reduce((a, b) => a > b ? a : b));
       // 다시 시도 위험(열린 문제 R1) — 당부는 화면에 한 번, '다시 시도' 확인 창에만 있다(쉬운 말 10/17).
       expect(find.textContaining('이미 움직이고 있으면 한 번 더 하지 마세요'), findsNothing);
@@ -272,7 +272,7 @@ void main() {
       expect(find.byIcon(Icons.verified_outlined), findsNothing);
       expect(find.byIcon(Icons.check), findsNothing);
       // 받음은 '멈추는 중'까지 — 멈췄다고 하지 않는다(평가 4차 10/18: 기계 말 대신 사람이 볼 상태).
-      expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
+      expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
       expect(find.textContaining('멈췄어요'), findsNothing);
       // 주어는 누름 장치 — 실행·기계가 멈췄다고 하지 않는다.
       expect(find.text('실행을 멈췄어요'), findsNothing);
@@ -327,7 +327,7 @@ void main() {
       expect(find.text('누름 장치가 전자레인지 옆에서 기다리고 있어요'), findsOneWidget);
       expect(find.textContaining('동작 중'), findsNothing);
       expect(find.text('정지를 누르면 누름 장치가 취소 버튼을 대신 눌러요'), findsOneWidget);
-      // 정지 대기 안내는 흰색 — 주의색은 몰라요에만.
+      // 정지 대기 안내는 흰색 — 주의색은 확인하지 못했어요에만.
       final guide = tester.widget<Text>(find.text('정지를 누르면 누름 장치가 취소 버튼을 대신 눌러요'));
       expect(guide.style?.color, isNot(KioskColors.primary));
       expect(guide.style?.color, isNot(KioskColors.warning));
@@ -364,7 +364,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('정지 몰라요 — 가장 큰 글자는 직접 누르라는 할 일, 단추는 다시 정지 시도(크기 그대로)', (tester) async {
+    testWidgets('정지 확인하지 못했어요 — 가장 큰 글자는 직접 누르라는 할 일, 단추는 다시 정지 시도(크기 그대로)', (tester) async {
       await _pumpView(
         tester,
         const KioskHoldView(
@@ -441,7 +441,7 @@ void main() {
         ));
         await tester.pump(const Duration(milliseconds: 300));
         expect(tester.takeException(), isNull);
-        // 연습에는 '끝나는 시간은 몰라요'를 두지 않는다(평가 4차 10/18) — 서버 상세 줄로 본다.
+        // 연습에는 '끝나는 시간은 확인하지 못했어요'를 두지 않는다(평가 4차 10/18) — 서버 상세 줄로 본다.
         final left = find.ancestor(
             of: find.textContaining('연습용 대기예요'),
             matching: find.byType(RawScrollbar));
@@ -633,7 +633,7 @@ void main() {
     testWidgets('다시 누를 때 — 자리를 맞춰 다시 누르는 중, 한 번 더 눌러요(안전하다고는 하지 않는다)', (tester) async {
       await _pumpView(tester, exec(attempt: 2, confidence: 0.4, detail: '전류 +2mA'));
       expect(find.text('자리를 맞춰 다시 누르고 있어요'), findsOneWidget);
-      expect(find.textContaining('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
+      expect(find.textContaining('눌렸는지 확인하지 못해 한 번 더 눌러요'), findsOneWidget);
       expect(find.textContaining('2번째 누르기'), findsOneWidget);
       expect(find.textContaining('보정'), findsNothing);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);

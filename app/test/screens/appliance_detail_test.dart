@@ -2,6 +2,7 @@
 //
 // 사진 속 버튼을 눌러도 곧바로 누르지 않는다 -- 확인을 한 번 거친 뒤에만
 // /execute-buttons로 간다. 녹화는 아무것도 보내지 않고 순서만 돌려준다.
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -50,6 +51,8 @@ final _mapped = ApplianceMap(
 class _Server {
   final requests = <String>[];
   Map<String, dynamic>? executeBody;
+  int historyStatus = 200;
+  Completer<http.Response>? pendingHistory;
 
   http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
         utf8.encode(jsonEncode(body)),
@@ -66,7 +69,10 @@ class _Server {
             return _json({'job_id': 'job-1'});
           }
           if (req.url.path == '/routines') return _json(<dynamic>[]);
-          if (req.url.path == '/history') return _json(<dynamic>[]);
+          if (req.url.path == '/history') {
+            if (pendingHistory != null) return pendingHistory!.future;
+            return _json(historyStatus == 200 ? <dynamic>[] : {'detail': 'unavailable'}, historyStatus);
+          }
           return _json({'detail': 'not found'}, 404);
         }),
       );
@@ -136,6 +142,36 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  group('촬영 전 기록 표시', () {
+    testWidgets('조회 중에는 실제 미사용으로 단정하지 않는다', (tester) async {
+      final server = _Server()..pendingHistory = Completer<http.Response>();
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await _settle(tester);
+      expect(find.text('기록을 불러오고 있어요'), findsOneWidget);
+      expect(find.text('오늘은 아직 사용하지 않았어요'), findsNothing);
+      server.pendingHistory!.complete(server._json(<dynamic>[]));
+      await _settle(tester);
+      expect(find.text('오늘 SimpleLay에 남은 기록이 없어요'), findsOneWidget);
+    });
+
+    testWidgets('조회 실패 뒤 새로 보기는 기록 조회만 다시 하고 실행하지 않는다', (tester) async {
+      final server = _Server()..historyStatus = 503;
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await _settle(tester);
+      expect(find.text('기록을 불러오지 못했어요'), findsOneWidget);
+      expect(find.text('오늘은 아직 사용하지 않았어요'), findsNothing);
+      server.historyStatus = 200;
+      await tester.ensureVisible(find.byKey(const Key('today-history-retry')));
+      await tester.tap(find.byKey(const Key('today-history-retry')));
+      await _settle(tester);
+      expect(find.text('오늘 SimpleLay에 남은 기록이 없어요'), findsOneWidget);
+      expect(server.requests.where((s) => s == 'GET /history').length, 2);
+      expect(server.executeBody, isNull);
+    });
+  });
 
   testWidgets('사진 위에 버튼·정지(빨강)·쉬는 자리를 그리고, 누르기는 확인 뒤에만 보낸다',
       (tester) async {

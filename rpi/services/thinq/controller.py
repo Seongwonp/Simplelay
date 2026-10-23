@@ -68,7 +68,7 @@ from .wording import UNCONFIRMED_SENTENCE, already_sentence, changed_sentence, t
 log = logging.getLogger(__name__)
 
 REMOTE_OFF_REASON = "가전의 원격 제어가 꺼져 있어요. 가전에서 원격 제어를 켜 주세요."
-REMOTE_UNKNOWN_REASON = "가전의 원격 제어가 켜져 있는지 몰라요. 가전을 봐 주세요."
+REMOTE_UNKNOWN_REASON = "가전의 원격 제어가 켜져 있는지 확인하지 못했어요. 가전을 봐 주세요."
 
 
 class CommandController(Protocol):
@@ -493,7 +493,7 @@ class ThinqController:
                                 _not_sent(exc, "가전에 연결되지 않았어요."), requested_at)
         except Exception:  # noqa: BLE001 -- 전송 중 끊김·응답 유실·모르는 오류
             return self._result(command, CommandStatus.UNCONFIRMED, Receipt.UNKNOWN, none,
-                                "가전에 전해졌는지 몰라요. 가전을 봐 주세요.", requested_at,
+                                "가전에 전해졌는지 확인하지 못했어요. 가전을 봐 주세요.", requested_at,
                                 stop_requested=self._stop_during_confirm)
         accepted_at = self._now()
         ref = response.get("messageId") if isinstance(response, dict) else None

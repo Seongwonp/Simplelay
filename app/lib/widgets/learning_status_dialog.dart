@@ -65,7 +65,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                           Text(routine.purpose,
                               style: Theme.of(context).textTheme.titleMedium),
                           Text(
-                              '${widget.applianceNames[routine.applianceId] ?? '어느 가전인지 몰라요'}, ${routine.timeBand}'),
+                              '${widget.applianceNames[routine.applianceId] ?? '어느 가전인지 확인하지 못했어요'}, ${routine.timeBand}'),
                           Text(
                               '${routine.distinctDays}일 동안 ${routine.occurrences}번 썼어요'),
                           Text(routine.muted

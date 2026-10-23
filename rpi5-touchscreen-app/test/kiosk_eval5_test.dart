@@ -131,7 +131,7 @@ void main() {
             executionMode: 'mock',
             onRetry: noop,
             onDismiss: noop));
-    expect(find.text('눌렸는지 몰라요'), findsNothing);
+    expect(find.text('눌렸는지 확인하지 못했어요'), findsNothing);
     expect(find.textContaining('이미 켜졌다면'), findsNothing);
     expect(find.textContaining('실제 가전은 그대로예요'), findsWidgets); // 위 연습 띠(평가 4차 10/18 문장)
   });

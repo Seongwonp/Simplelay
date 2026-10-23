@@ -90,13 +90,13 @@ void main() {
       final ready = _server(const {'can_execute': true, 'readiness': 'operable'});
       expect(
           _tile(source: ready, execution: run(ExecutionPhase.unknown)).text,
-          '지금 상태를 몰라요');
+          '지금 상태를 확인하지 못했어요');
     });
 
     test('다른 가전의 실행·끝난 실행은 이 타일의 상태가 아니다', () {
       const other = ExecutionStatus(
           phase: ExecutionPhase.running, applianceId: 'washer', executionMode: 'real');
-      expect(_tile(execution: other).text, '준비됐는지 몰라요');
+      expect(_tile(execution: other).text, '준비됐는지 확인하지 못했어요');
       const done = ExecutionStatus(
         phase: ExecutionPhase.completed,
         applianceId: 'mw',
@@ -106,7 +106,7 @@ void main() {
       );
       // 과거의 CT 판정(operationConfirmed)을 지금의 운전으로 옮기지 않는다.
       final s = _tile(execution: done);
-      expect(s.text, '준비됐는지 몰라요');
+      expect(s.text, '준비됐는지 확인하지 못했어요');
       expect(s.tone, isNot(TileTone.active));
     });
   });
@@ -115,9 +115,9 @@ void main() {
     test('서버 판정이 없으면 canExecute 기본 true로 긍정하지 않는다', () {
       expect(_plain.canExecute, isTrue, reason: '모델 기본값이 true다');
       final s = _tile(source: _plain);
-      expect(s.text, '준비됐는지 몰라요');
+      expect(s.text, '준비됐는지 확인하지 못했어요');
       expect(s.tone, TileTone.unknown);
-      expect(_tile(source: null).text, '준비됐는지 몰라요');
+      expect(_tile(source: null).text, '준비됐는지 확인하지 못했어요');
     });
 
     test('operable + canExecute는 상태 줄을 비운다(평소 상태는 말하지 않는다, 2026-10-14)', () {
@@ -198,7 +198,7 @@ void main() {
 
     test('모르는 state는 미확인', () {
       expect(_tile(source: _server(const {'can_execute': true, 'readiness': 'weird'})).text,
-          '준비됐는지 몰라요');
+          '준비됐는지 확인하지 못했어요');
     });
 
     test('위치를 맞추지 않은 사용자 가전은 "설정이 필요해요"', () {
@@ -297,7 +297,7 @@ void main() {
           isNull);
       // 실제·연습을 모르면 실제 성공처럼 보이지 않게 한 줄 남긴다(F4, 2026-10-14 — 연습 표시와는 다른 말).
       expect(historyResult(_entry({'outcome': 'success', 'execution_mode': 'unknown'})).mockNote,
-          '실제 가전이 움직였는지 몰라요');
+          '실제 가전이 움직였는지 확인하지 못했어요');
     });
 
     test('모의 실패는 실제 가전 확인을 지어내지 않는다', () {
@@ -374,7 +374,7 @@ void main() {
         'execution_mode': 'real',
         'termination': 'retries_exhausted',
       }));
-      expect(r.sentence, '한 번 더 눌렀지만 눌렸는지 몰라요');
+      expect(r.sentence, '한 번 더 눌렀지만 눌렸는지 확인하지 못했어요');
       expect(r.next, '다시 누르기 전에 집에서 가전을 확인해야 해요');
     });
 

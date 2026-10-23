@@ -1,9 +1,9 @@
 // 평가 8차(2026-10-18) 지적 수리 — 키오스크. 옛 코드에도 있는 공개 구성(+ 새 선택 인자)만 써서 옛 코드에서 실패하는 것을 확인한다.
 //
 // 1. 결과 화면의 정지 — '멈추는 중이에요'(진행 중 말)를 끝난 화면에 쓰지 않는다. 결과는 '누름 장치가 멈췄어요'(엔코더 확인,
-//    verified) 또는 '누름 장치가 멈췄는지 몰라요'(그 밖) 둘뿐. 정지 확인을 아직 기다리는 동안(stopPending)만 진행 상태로
+//    verified) 또는 '누름 장치가 멈췄는지 확인하지 못했어요'(그 밖) 둘뿐. 정지 확인을 아직 기다리는 동안(stopPending)만 진행 상태로
 //    '멈추는 중이에요'를 보이고 처음 화면 단추를 숨긴다.
-// 2. 정지 미확인 대기 — 오른쪽 버튼판은 '직접 누를 버튼이에요' + 취소 칸 주의색. '누름 장치가 … 대신 눌렀어요' 대신
+// 2. 정지 미확인 대기 — 오른쪽 버튼판은 '실제 가전에서 눌러 주세요' + 취소 칸 주의색. '누름 장치가 … 대신 눌렀어요' 대신
 //    '누름 장치도 … 눌렀지만 눌렸는지 확인이 안 됐어요'.
 // 3. 결과 화면 보조 단추 — '화면에서 직접 누르기'는 손으로 가전을 누르라는 말과 헷갈렸다 → '누름 장치로 골라 누르기'.
 // 4. 문구 통일 — 잠시 쉬기 설명 하나(새 제안과 자동으로 하는 일), 실행 화면 누를 순서에 머리말·끝낸 칸 이름 자리,
@@ -59,12 +59,64 @@ KioskDoneView _stopped(String? level, {String mode = 'real', bool pending = fals
     );
 
 void main() {
-  group('1. 결과 화면의 정지 — 멈췄어요 / 멈췄는지 몰라요 둘뿐', () {
+  testWidgets('연습 중 비상정지는 실제 가전 취소를 누르게 안내하지 않는다', (tester) async {
+    await _pump(tester, const KioskHoldView(
+      appliance: kMicrowaveAppliance,
+      holdState: 'hovering_stop',
+      stopButton: '취소',
+      executionMode: 'mock',
+      elapsed: Duration.zero,
+      estopTitle: '비상 버튼이 눌려 있어요',
+      onStop: _noop,
+    ));
+    final all = _texts(tester).join('\n');
+    expect(all, contains('연습 중이라 실제 가전은 조작하지 않았어요'));
+    expect(all, isNot(contains('취소 버튼을 손으로 눌러 주세요')));
+    expect(all, isNot(contains('실제 가전에서 눌러 주세요')));
+    expect(tester.widget<ElevatedButton>(find.byKey(const ValueKey('hold-stop'))).onPressed, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('연습 요청 미확인은 접수 여부 대신 전달 여부로 말한다', (tester) async {
+    await _pump(tester, KioskDoneView(
+      success: false,
+      label: '공기청정기 켜기',
+      executionMode: 'mock',
+      reason: KioskFailureReason.receiptUnknown,
+      onRetry: _noop,
+      onManual: _noop,
+      onDismiss: _noop,
+    ));
+    expect(_texts(tester).join('\n'), contains('연습 요청이 전달됐는지 확인하지 못했어요'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('실제 가전에서 누를 위치임을 알리고 화면 정지는 계속 사용할 수 있다', (tester) async {
+    var stops = 0;
+    await _pump(tester, KioskHoldView(
+      appliance: kMicrowaveAppliance,
+      holdState: 'parked',
+      stopOutcome: 'requested_unconfirmed',
+      stopButton: '취소',
+      executionMode: 'real',
+      elapsed: const Duration(minutes: 1),
+      onStop: () => stops++,
+      onClose: _noop,
+    ));
+    expect(_texts(tester).join('\n'), contains('실제 가전에서 눌러 주세요'));
+    final picture = find.byKey(const ValueKey('panel-picture'));
+    expect(find.descendant(of: picture, matching: find.byType(InkWell)), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('hold-stop')));
+    expect(stops, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  group('1. 결과 화면의 정지 — 멈췄어요 / 멈췄는지 확인하지 못했어요 둘뿐', () {
     for (final level in ['sent', 'mcu_ack', null]) {
-      testWidgets('확인 안 된 정지($level)는 끝난 화면에서 "누름 장치가 멈췄는지 몰라요", 진행 말 없음', (tester) async {
+      testWidgets('확인 안 된 정지($level)는 끝난 화면에서 "누름 장치가 멈췄는지 확인하지 못했어요", 진행 말 없음', (tester) async {
         await _pump(tester, _stopped(level));
         final all = _texts(tester).join('\n');
-        expect(all, contains('누름 장치가 멈췄는지 몰라요'));
+        expect(all, contains('누름 장치가 멈췄는지 확인하지 못했어요'));
         expect(all, isNot(contains('중이에요')));
         expect(all, isNot(contains('멈췄어요')));
         // 물음표는 위 띠가 말한다 — 순서 안내가 있으면 큰 원을 두지 않는다(평가 15차 10/18).
@@ -78,7 +130,7 @@ void main() {
       await _pump(tester, _stopped('verified'));
       final all = _texts(tester).join('\n');
       expect(all, contains('누름 장치가 멈췄어요'));
-      expect(all, isNot(contains('몰라요')));
+      expect(all, isNot(contains('확인하지 못했어요')));
       expect(find.byKey(const ValueKey('done-ring')), findsNothing);
     });
 
@@ -93,7 +145,7 @@ void main() {
       await _pump(tester, _stopped(null, pending: true));
       final all = _texts(tester).join('\n');
       expect(all, contains('멈추는 중이에요'));
-      expect(all, isNot(contains('몰라요')));
+      expect(all, isNot(contains('확인하지 못했어요')));
       expect(find.byKey(const ValueKey('done-home')), findsNothing);
       expect(find.byKey(const ValueKey('done-manual')), findsNothing);
       expect(find.byKey(const ValueKey('done-pending')), findsOneWidget);
@@ -117,10 +169,10 @@ void main() {
           ));
       final all = _texts(tester).join('\n');
       expect(all, contains('지금 전자레인지 취소 버튼을 손으로 눌러 주세요'));
-      expect(all, contains('직접 누를 버튼이에요'));
+      expect(all, contains('실제 가전에서 눌러 주세요'));
       expect(all, isNot(contains(kPanelCaption)));
       expect(all, isNot(contains('대신 눌렀어요')));
-      expect(all, contains('취소 버튼이 눌렸는지 몰라요'));
+      expect(all, contains('취소 버튼이 눌렸는지 확인하지 못했어요'));
       final picture = tester.widget<KioskPanelPicture>(find.byType(KioskPanelPicture));
       expect(picture.caution, isTrue);
       expect(picture.current?.label, '취소');

@@ -230,7 +230,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10)); // 기다림 시간(0)이 지나 모름으로
     expect(executeCallCount, 1);
-    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
+    expect(find.text("'켜기' 아직 결과를 확인하지 못했어요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
     expect(find.byIcon(Icons.cancel_outlined), findsNothing, reason: '모름을 실패로 보이지 않는다');
 
     // 같은 버튼 — 묻고, 그만두면 보내지 않는다.
@@ -333,7 +333,7 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
     });
   }
-  // 검토 10/19(12): 결과를 last_status만 보고 갈라, 사람이 멈춘 것·스스로 멈춘 것도 같은 빨간 '눌렸는지 몰라요'였다.
+  // 검토 10/19(12): 결과를 last_status만 보고 갈라, 사람이 멈춘 것·스스로 멈춘 것도 같은 빨간 '눌렸는지 확인하지 못했어요'였다.
   for (final (outcome, status, sentence) in [
     ('stopped', 'safety_stopped', "'켜기' 멈추라고 해서 멈췄어요. 눌렸는지는 가전을 보고 확인해 주세요"),
     ('safety_stop', 'safety_stopped', "'켜기' 눌렸는지 확인이 안 돼 스스로 멈췄어요. 가전을 보고 확인해 주세요"),
@@ -396,7 +396,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(executeCallCount, 1);
-    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
+    expect(find.text("'켜기' 아직 결과를 확인하지 못했어요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
     expect(find.byIcon(Icons.cancel_outlined), findsNothing, reason: '모름을 못 함으로 보이지 않는다');
     expect(container.read(executionStatusProvider).phase, ExecutionPhase.unknown,
         reason: '정지 띠·음성 정지가 남는 단계');
@@ -447,7 +447,7 @@ void main() {
     await tester.tap(find.text('켜기'));
     await tester.pump();
     await tester.pump();
-    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
+    expect(find.text("'켜기' 아직 결과를 확인하지 못했어요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
 
     // 공용 상태가 요청 번호로 실행을 찾고(1초), 그 실행의 끝을 본다(1초).
     for (var i = 0; i < 4; i++) {
@@ -502,7 +502,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
     expect(polls, settled, reason: '모름으로 끝난 뒤에는 더 묻지 않는다');
-    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
+    expect(find.text("'켜기' 아직 결과를 확인하지 못했어요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget);
   });
 
   // 검토 10/19(core7 3): 같은 버튼 다시 보냄 잠금이 화면 안에만 있어, 화면을 나갔다 다시 들어오면 아직 모르는 누름의 같은
@@ -536,7 +536,7 @@ void main() {
     ));
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
-    expect(find.text("'켜기' 아직 결과를 몰라요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget,
+    expect(find.text("'켜기' 아직 결과를 확인하지 못했어요. 같은 버튼을 다시 누르면 두 번 눌릴 수 있어요"), findsOneWidget,
         reason: '왜 묻는지 다시 들어와서도 말한다');
 
     await tester.tap(find.text('켜기'));

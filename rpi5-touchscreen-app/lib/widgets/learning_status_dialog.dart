@@ -69,7 +69,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                               style: const TextStyle(
                                   fontSize: KioskType.body, fontWeight: FontWeight.w700)),
                           Text(
-                              '${widget.applianceNames[routine.applianceId] ?? '어느 가전인지 몰라요'} · ${routine.timeBand}',
+                              '${widget.applianceNames[routine.applianceId] ?? '어느 가전인지 확인하지 못했어요'} · ${routine.timeBand}',
                               style: const TextStyle(fontSize: KioskType.body)),
                           Text(
                               '최근 ${status.windowDays}일 중 ${routine.distinctDays}일, 모두 ${routine.occurrences}번',

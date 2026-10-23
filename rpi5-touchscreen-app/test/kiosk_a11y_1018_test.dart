@@ -472,7 +472,7 @@ void main() {
       await _pumpView(tester, done(success: true));
       final reported = tester.widget<RichText>(_plain('버튼은 다 눌렀어요').first).text.style!.color;
       await _pumpView(tester, done(success: false));
-      final unknown = tester.widget<RichText>(_plain('눌렸는지 몰라요').first).text.style!.color;
+      final unknown = tester.widget<RichText>(_plain('눌렸는지 확인하지 못했어요').first).text.style!.color;
       expect(unknown, KioskColors.warning);
       expect(reported, unknown);
     });

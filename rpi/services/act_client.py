@@ -113,7 +113,7 @@ class ActExecuteRefused(ActLinkError, ExecuteRefusedBeforePress):
     """RPi4(또는 보내기 전 RPi5)가 **누르기 전에** 분명히 거절했다(2026-10-19) — 아무것도 누르지 않았다.
 
     ``ActLinkError``의 하위라 종전처럼 잡는 호출자는 그대로 동작한다. `ActClientController`는 이것을 예외 대신
-    '보내지 않음·실패' 결과(`refused_before_press`)로 바꿔, 서비스가 '연결이 끊겨 눌렸는지 몰라요'로 적지 않게 한다."""
+    '보내지 않음·실패' 결과(`refused_before_press`)로 바꿔, 서비스가 '연결이 끊겨 눌렸는지 확인하지 못했어요'로 적지 않게 한다."""
 
     def __init__(self, reason: str, detail: str | None, message: str) -> None:
         ExecuteRefusedBeforePress.__init__(self, reason, detail, message)

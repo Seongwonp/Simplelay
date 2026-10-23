@@ -481,7 +481,7 @@ class CommandExecutionMixin:
                     receipt=Receipt.NOT_DISPATCHED, confirmation=Confirmation.NONE,
                     execution_mode=_thinq_mode(step.controller, command.target_id),
                     detail=("멈추기를 눌러서 하지 않았어요." if stop
-                            else "앞의 일이 됐는지 몰라서 하지 않았어요."),
+                            else "앞의 일이 됐는지 확인하지 못해 하지 않았어요."),
                     observed_at=self._clock.now(), stop_requested=stop,
                 )
                 results.append(skipped)

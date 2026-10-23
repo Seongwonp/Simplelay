@@ -103,7 +103,7 @@ void main() {
         const ExecutionStatus(
           phase: ExecutionPhase.unknown,
           label: '즉석밥 데워줘',
-          message: '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.',
+          message: '연결이 끊겨 어떻게 됐는지 확인하지 못했어요. 집에서 가전을 확인해야 해요.',
         ),
       );
 
@@ -113,7 +113,7 @@ void main() {
       // 큰 문장은 어절 단위로 줄을 바꾼다('동/작을' 방지, UI 평가 10/17).
       final headline = tester.widget<Text>(findPlainText('집에서 가전을 확인해야 해요', contains: true));
       expect(headline.data, contains(kWordJoiner));
-      expect(headline.semanticsLabel, '연결이 끊겨 어떻게 됐는지 몰라요. 집에서 가전을 확인해야 해요.');
+      expect(headline.semanticsLabel, '연결이 끊겨 어떻게 됐는지 확인하지 못했어요. 집에서 가전을 확인해야 해요.');
     });
 
     // 10/18 §3-5: 판정이 없으면(지금 실물 구성) 보고 있다고 하지 않는다 — 다음에 무엇이 오는지만.
@@ -272,7 +272,7 @@ void main() {
     testWidgets('재시도는 실패가 아니라 보정으로 말한다', (tester) async {
       await _pumpStatus(tester, retryingStatus);
       expect(findPlainText('자리를 맞춰 다시 누르고 있어요'), findsOneWidget);
-      expect(find.text('눌렸는지 몰라서 자리를 맞추고 다시 눌러요.'),
+      expect(find.text('눌렸는지 확인하지 못했어요.'),
           findsOneWidget);
       expect(find.textContaining('못 했어요'), findsNothing);
       expect(find.text('실패'), findsNothing);

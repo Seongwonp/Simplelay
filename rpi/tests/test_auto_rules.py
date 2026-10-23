@@ -238,7 +238,7 @@ def test_unconfirmed_result_is_never_resent(api):
     run = _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
     assert run["status"] == "unconfirmed"
     notices = " / ".join(run["notices"])
-    assert "바뀌었는지 몰라요" in notices and "저절로 다시 하지 않으니" in notices
+    assert "바뀌었는지 확인하지 못했어요" in notices and "저절로 다시 하지 않으니" in notices
     assert "바꿨어요" not in notices
     deps.receive_appliance_done(dict(frame))
     time.sleep(0.5)

@@ -77,7 +77,7 @@ void main() {
     expect(label('already_at_target', 'real'), '이미 그 설정이라 보내지 않았어요');
     expect(label('already_at_target', 'mock'), '연습이에요. 이미 그 설정이었어요');
     expect(label('state_confirmed_unknown_before', 'real'), '그 설정인 것을 확인했어요');
-    expect(label('state_confirmed_unknown_before', 'mock'), '연습이에요. 그 설정인 것을 봤어요');
+    expect(label('state_confirmed_unknown_before', 'mock'), '연습이에요. 현재 설정을 확인했어요');
     expect(label('state_confirmed', 'real'), '상태를 확인했어요');
   });
 
@@ -91,7 +91,7 @@ void main() {
     expect(seen, isNot(contains('바꿨')));
     expect(
         finishedMessage(kind: ResultKind.unconfirmed, route: 'thinq', receipt: 'accepted'),
-        '보냈지만 설정이 바뀌었는지 몰라요. 집에서 가전을 확인해야 해요.');
+        '보냈지만 설정이 바뀌었는지 확인하지 못했어요. 집에서 가전을 확인해야 해요.');
     // 서버 문장이 없으면(옛 서버) 일반 문장 — 바꿨다고 지어내지 않는다.
     expect(_finished('already_at_target', 'real', receipt: 'not_dispatched'),
         '이미 그 설정이라 보내지 않았어요.');
@@ -106,7 +106,7 @@ void main() {
     expect(seen, startsWith('연습이에요. '));
     expect(seen, contains('실제 가전은 그대로예요'));
     expect(_finished('state_confirmed', 'mock', detail: _changed),
-        '연습으로 보내고 연습 상태를 봤어요. 실제 가전은 그대로예요.');
+        '연습으로 보내고 연습 상태 확인. 실제 가전은 그대로예요.');
   });
 
   test('기록: 이미 목표값은 성공으로, 변경 명령을 보내지 않았다고(연결 확인을 권하지 않는다)', () {

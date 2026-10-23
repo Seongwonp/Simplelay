@@ -988,7 +988,7 @@ void main() {
     );
   });
 
-  testWidgets('완료 — 몰라요', (t) async {
+  testWidgets('완료 — 확인하지 못했어요', (t) async {
     await _shoot(
       t,
       'done_failed',
@@ -1110,7 +1110,7 @@ void main() {
     );
   });
 
-  testWidgets('15인치 미리보기 — 정지 몰라요', (t) async {
+  testWidgets('15인치 미리보기 — 정지 확인하지 못했어요', (t) async {
     await _shoot15(
       t,
       'kiosk15_hold_unconfirmed',
@@ -1262,7 +1262,7 @@ void main() {
         'kiosk15_idle_past',
         KioskEstopLayout(
           banner: KioskPastResultLine(
-            result: KioskPastResult(at: DateTime(2026, 9, 30, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 몰라요'),
+            result: KioskPastResult(at: DateTime(2026, 9, 30, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 확인하지 못했어요'),
             onAcknowledge: _noop,
           ),
           child: _idle(
@@ -1357,7 +1357,7 @@ void main() {
         thinqOnly: true,
         route: 'thinq',
         resultConfirmation: confirmed ? 'state_confirmed' : 'none',
-        detail: detail ?? (confirmed ? '전원 켜기로 바꿨어요.' : '가전에 전했지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.'),
+        detail: detail ?? (confirmed ? '전원 켜기로 바꿨어요.' : '가전에 전했지만 설정이 바뀌었는지 확인하지 못했어요. 가전을 봐 주세요.'),
         onDismiss: () {},
       );
 

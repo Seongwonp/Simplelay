@@ -84,7 +84,7 @@ void main() {
       expect(find.byKey(const ValueKey('done-stop-again-note')), findsOneWidget);
       expect(find.text('한 번 더 멈추라고 했어요. 누름 장치를 봐 주세요'), findsOneWidget);
       await _pump15(tester, _userStop(onStopAgain: () {}, stopAgain: 'failed'));
-      expect(find.text('정지가 닿지 않았어요. 가전 전원을 직접 꺼 주세요'), findsOneWidget);
+      expect(find.text('정지 요청 결과를 확인하지 못했어요. 가전 전원을 직접 꺼 주세요'), findsOneWidget);
     });
 
     testWidgets('확인한 정지·연습 정지에는 다시 멈추기가 없다', (tester) async {
@@ -121,7 +121,7 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 900));
-      expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
+      expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
       expect(find.byKey(const ValueKey('done-manual')), findsNothing);
       final before = api.stopCalls;
       await tester.tap(find.byKey(const ValueKey('done-stop-again')));

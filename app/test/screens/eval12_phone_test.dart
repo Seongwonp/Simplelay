@@ -179,7 +179,7 @@ void main() {
       final row = find.byKey(const ValueKey('history-j-rep'));
       final reason = find.byKey(const Key('history-reason-j-rep'));
       expect(_in(row, reason), findsOneWidget);
-      expect(find.descendant(of: reason, matching: findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), matchRoot: true),
+      expect(find.descendant(of: reason, matching: findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 확인하지 못했어요'), matchRoot: true),
           findsOneWidget);
       // 확인 수준은 그대로 — 초록 '됐어요'가 아니라 '봐 주세요'.
       final badge = tester.widget<StatusBadge>(_in(row, find.byType(StatusBadge)));
@@ -218,7 +218,7 @@ void main() {
       await _pump(tester, const HomeScreen(), installed: const []);
       // 사용자 결정(10/19): 띠 대신 설정 톱니 표시의 문장.
       expect(tileMarkText(tester, 'mw'), '버튼 자리를 다시 맞춰 주세요');
-      expect(findPlainText('자리 확인을 했는지 몰라요'), findsNothing);
+      expect(findPlainText('자리 확인을 했는지 확인하지 못했어요'), findsNothing);
       expect(_in(find.byKey(const Key('appliance-card-mw')), findPlainText('준비됐어요')), findsNothing);
     });
   });

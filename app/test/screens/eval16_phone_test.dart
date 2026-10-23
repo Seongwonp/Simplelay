@@ -357,8 +357,8 @@ void main() {
       await _settle(tester);
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
       // 평가 17차(10/18): 한 문장(eval17_phone_test 6).
-      expect(intro.semanticsLabel, '스위치가 켜져 있는 동안은 묻지 않고 바로 해요');
-      expect(intro.data, contains(' '));
+      expect(intro.semanticsLabel, "허용한 조건에 맞으면 묻지 않고 실행해요. 정해진 시각의 루틴은 '내 루틴'에서 바꿔요.");
+      expect(intro.data, contains('\u2060'));
       final name = find.descendant(
           of: find.byKey(const Key('auto-rule-ar-s')),
           matching: find.byWidgetPredicate((w) => w is Text && w.semanticsLabel == '전자레인지가 멈추면 공기청정기 세게'));

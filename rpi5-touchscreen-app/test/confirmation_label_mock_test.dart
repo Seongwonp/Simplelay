@@ -24,7 +24,7 @@ void main() {
               confirmation: 'state_confirmed',
               kind: ResultKind.success,
               executionMode: mode),
-          '바뀐 것을 봤어요');
+          '설정 변경을 확인했어요');
     }
   });
 }

@@ -459,7 +459,7 @@ void main() {
   });
 
   group('5. 사용 방법', () {
-    testWidgets("메뉴에 '사용 방법' — 여섯 장(처음 화면 · 누름 장치 · LG 가전 · 정지 · 몰라요 · 물어볼 곳), 닫기", (tester) async {
+    testWidgets("메뉴에 '사용 방법' — 여섯 장(처음 화면 · 누름 장치 · LG 가전 · 정지 · 확인하지 못했어요 · 물어볼 곳), 닫기", (tester) async {
       await _pump(
           tester,
           KioskIdleView(
@@ -496,8 +496,8 @@ void main() {
       // 음성 정지는 실물 확인 전이라 넣지 않는다(10/18 결정).
       expect(body(), allOf(contains('정지'), isNot(contains('말해도')), isNot(contains('멈춰'))));
       await next();
-      expect(title(), contains('몰라요'));
-      expect(body(), contains('가전을 직접 봐 주세요'));
+      expect(title(), contains('결과를 확인하지 못했을 때'));
+      expect(body(), contains('가전 상태를 직접 확인해 주세요'));
       await next();
       expect(number(), '사용 방법 6장 중 6장');
       expect(title(), contains('가족'));

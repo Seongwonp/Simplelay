@@ -275,7 +275,7 @@ void main() {
     expect(
         find.descendant(
             of: find.byType(ApplianceSetupCard),
-            matching: findPlainText('연습으로만 자리 확인했어요. 실제 자리는 아직 몰라요.')),
+            matching: findPlainText('연습으로만 자리 확인했어요. 실제 자리는 아직 확인하지 못했어요.')),
         findsOneWidget);
   });
 

@@ -52,7 +52,7 @@ class KioskExecutingView extends StatelessWidget {
 
   String? get _routineLine => routineSegment == null ? null : '루틴 $routineSegment번째 차례';
 
-  /// 정지를 누른 뒤의 상태(검토 10/19) — 위 띠가 '멈추는 중' 또는 '정지가 닿지 않았어요'로 바뀐다. 정지 단추는 그대로 남는다.
+  /// 정지를 누른 뒤의 상태(검토 10/19) — 위 띠가 '멈추는 중' 또는 '정지 요청 결과를 확인하지 못했어요'로 바뀐다. 정지 단추는 그대로 남는다.
   /// 멈췄는지는 서버 보고를 받은 결과 화면이 말한다.
   final KioskExecStop stopState;
 
@@ -402,7 +402,7 @@ class KioskExecutingView extends StatelessWidget {
 enum KioskExecStop { none, stopping, failed }
 
 /// 실행 화면 정지가 본체에 닿지 않았을 때(통신 실패·거절) — 정지 대기 화면과 같은 말.
-const kExecStopFailed = '정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.';
+const kExecStopFailed = '정지 요청 결과를 확인하지 못했어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.';
 
 /// 루틴 구간 사이 상태(검토 10/19) — 앞 차례를 마치고 다음 차례를 기다린다(가전이 끝나기를 기다릴 수도 있다).
 const kExecRoutineWaiting = '다음 차례를 기다리고 있어요';
@@ -436,7 +436,7 @@ class _NowBlock extends StatelessWidget {
         // '재시도'는 실패로 읽힌다. 사실만 말한다 — 한 번 더 누른다(안전하다고 말하지 않는다, 열린 문제 R1).
         ? [
             // 연습은 위 띠가 '실제 가전은 그대로예요'를 말한다 — 같은 말을 또 쓰지 않는다(평가 4차 10/18).
-            if (!view._mock) '눌렸는지 몰라서 한 번 더 눌러요',
+            if (!view._mock) '눌렸는지 확인하지 못해 한 번 더 눌러요',
             '${view.currentAttempt}번째 누르기',
           ].join('. ')
         : view._mock

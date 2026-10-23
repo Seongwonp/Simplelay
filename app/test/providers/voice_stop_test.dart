@@ -561,7 +561,7 @@ void main() {
     r.recognizer.sayFinal('멈춰');
     await _settle(tester);
     expect(hub.stopPosts, 1);
-    expect(find.text('누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 몰라요'), findsOneWidget);
+    expect(find.text('누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 확인하지 못했어요'), findsOneWidget);
 
     hub.status = {'running': false, 'last_status': 'safety_stopped', 'last_buttons': []};
     await r.container.read(estopProvider.notifier).refresh();

@@ -340,7 +340,7 @@ void main() {
       await tester.tap(findPlainText('자동으로 하기'));
       await tester.pumpAndSettle();
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
-      expect(intro.data, contains('스$kWordJoiner위$kWordJoiner치'));
+      expect(intro.data, contains('허$kWordJoiner용$kWordJoiner한'));
     });
 
     // 평가 11차(10/18): '꺼 둠'도 스위치와 같은 뜻이라 두지 않는다(eval11_phone_test 2).
@@ -377,7 +377,7 @@ void main() {
       expect(_in(unk, findPlainText('봐 주세요')), findsOneWidget);
       final reason = find.byKey(const Key('history-reason-j-unk'));
       expect(_in(unk, reason), findsOneWidget);
-      expect(find.descendant(of: reason, matching: findPlainText('눌렸는지 몰라요'), matchRoot: true), findsOneWidget);
+      expect(find.descendant(of: reason, matching: findPlainText('눌렸는지 확인하지 못했어요'), matchRoot: true), findsOneWidget);
       // 됐어요 줄에는 까닭 줄이 없다.
       expect(find.byKey(const Key('history-reason-j-me')), findsNothing);
     });
@@ -397,7 +397,7 @@ void main() {
   group('5. 설정', () {
     testWidgets("본체 연결이 끊겨 못 읽은 값은 까닭과 함께 — '새로 보기'는 따로 단추", (tester) async {
       await _pump(tester, const SettingsScreen(), hub: RpiConnectionState.unreachable, down: true);
-      expect(findPlainText('연결됐는지 몰라요'), findsNothing);
+      expect(findPlainText('연결됐는지 확인하지 못했어요'), findsNothing);
       // 휴리스틱 평가(10/18): 까닭은 위 배너 한 번, 줄은 '못 불러왔어요'만.
       expect(_in(find.byKey(const Key('settings-hub-banner')), findPlainText('본체와 연결이 끊겨', contains: true)),
           findsOneWidget);

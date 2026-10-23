@@ -99,7 +99,7 @@ class ApplianceSetupCard extends ConsumerWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // 낱말 중간에서 꺾이지 않게(평가 4차 10/18: '세탁 / 기').
         Text(keepWordsTogether('${appliance.name}, 설정이 $remaining개 남았어요')),
-        if (mockDone) Text(keepWordsTogether('연습으로만 자리 확인했어요. 실제 자리는 아직 몰라요.')),
+        if (mockDone) Text(keepWordsTogether('연습으로만 자리 확인했어요. 실제 자리는 아직 확인하지 못했어요.')),
         if (passNote != null) Text(keepWordsTogether(passNote)),
         Wrap(spacing: AppSpace.md, children: [
           OutlinedButton(onPressed: () => open('/appliance/setup'),

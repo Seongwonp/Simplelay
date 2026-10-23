@@ -140,7 +140,7 @@ void main() {
     expect(find.text('가전이 켜졌어요'), findsNothing);
   });
 
-  testWidgets('작동 중·멈췄는지 몰라요·비상 버튼 화면도 사전의 말만 쓴다', (tester) async {
+  testWidgets('작동 중·멈췄는지 확인하지 못했어요·비상 버튼 화면도 사전의 말만 쓴다', (tester) async {
     for (final view in const [
       KioskHoldView(
           appliance: kMicrowaveAppliance,

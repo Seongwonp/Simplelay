@@ -2,7 +2,7 @@
 // - 이미 목표값(보내지 않음, already_at_target): "이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요."
 // - 바꿈(state_confirmed): "강풍으로 바꿨어요."
 // - 보낸 뒤 목표값·전 값 모름(state_confirmed_unknown_before): "강풍으로 설정된 것을 확인했어요." ('바꿨어요' 금지)
-// - 미확인(unconfirmed): "설정이 바뀌었는지 몰라요"
+// - 미확인(unconfirmed): "설정이 바뀌었는지 확인하지 못했어요"
 //
 // 자동 실행 한 줄·완료 화면·확인 칩·단계 줄이 이미 목표값을 실패·미확인으로도, 바꿨다고도 말하지 않고, 연습은 연습이라고 밝힌다.
 import 'package:flutter/material.dart';
@@ -47,7 +47,7 @@ void main() {
     final seen = autoRunNotice(_run('state_confirmed_unknown_before'));
     expect(seen, '공기청정기가 강풍으로 된 것을 봤어요');
     expect(seen, isNot(contains('바꿨')));
-    expect(autoRunNotice(_run('none', status: 'unconfirmed')), '공기청정기 설정이 바뀌었는지 몰라요');
+    expect(autoRunNotice(_run('none', status: 'unconfirmed')), '공기청정기 설정이 바뀌었는지 확인하지 못했어요');
     // 옛 서버(설정 이름 없음)는 속성 이름을 붙인다.
     expect(autoRunNotice(_run('already_at_target', phrase: null)),
         '공기청정기는 이미 풍량 강으로 돼 있어 보내지 않았어요');
@@ -69,7 +69,7 @@ void main() {
         executionMode: mode);
     expect(label('already_at_target', 'real'), '이미 그 설정이라 보내지 않았어요');
     expect(label('already_at_target', 'mock'), '이미 그 설정이라 보내지 않았어요');
-    expect(label('state_confirmed_unknown_before', 'real'), '그 설정인 것을 봤어요');
+    expect(label('state_confirmed_unknown_before', 'real'), '현재 설정을 확인했어요');
     final spoken = finishedMessage(
         kind: ResultKind.success,
         executionMode: 'real',

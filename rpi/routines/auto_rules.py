@@ -1380,7 +1380,7 @@ class AutoRuleEngine:
             return f"{name}{_josa(stem, '이', '가')} {phrase}{to} 설정된 것을 확인했어요.{mock}"
         if status == "unconfirmed":
             # 확인 못 한 것은 됐다고 하지 않는다. 자동으로 다시 보내지 않는다는 사실은 남긴다.
-            return f"{name} 설정이 바뀌었는지 몰라요. 저절로 다시 하지 않으니 가전을 봐 주세요.{mock}"
+            return f"{name} 설정이 바뀌었는지 확인하지 못했어요. 저절로 다시 하지 않으니 가전을 봐 주세요.{mock}"
         if status == "stopped":
             if receipt == "not_dispatched":
                 return f"멈추기를 눌러서 {name}{_josa(stem, '을', '를')} 바꾸지 않았어요.{mock}"

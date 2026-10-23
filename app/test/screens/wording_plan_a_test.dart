@@ -23,14 +23,14 @@ void main() {
       final m = finishedMessage(kind: ResultKind.stopped, stopLevel: 'sent');
       expect(m, isNot(contains('실행을 멈췄어요')));
       expect(m, contains('멈추라고 보냈어요'));
-      expect(m, contains('멈췄는지는 아직 몰라요'));
+      expect(m, contains('멈췄는지는 아직 확인하지 못했어요'));
       expect(m, contains('가전은 집에서 확인해야 해요'));
     });
 
     test('모션 보드 받음(mcu_ack)은 멈췄다고 하지 않는다', () {
       final m = finishedMessage(kind: ResultKind.stopped, stopLevel: 'mcu_ack');
       expect(m, isNot(contains('실행을 멈췄어요')));
-      expect(m, contains('멈췄는지는 몰라요'));
+      expect(m, contains('멈췄는지는 확인하지 못했어요'));
     });
 
     test('멈춤 확인(verified)은 누름 장치가 멈췄다고 — 가전은 직접', () {

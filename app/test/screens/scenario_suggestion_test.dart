@@ -246,7 +246,7 @@ void main() {
     expect(find.text('버튼을 대신 눌러요'), findsNothing);
     expect(find.text('할 일'), findsOneWidget);
     // ThinQ 가전은 폰 가전 목록에 없어도 '대상을 찾지 못함'이 아니다.
-    expect(find.text('어느 가전인지 몰라요.'), findsNothing);
+    expect(find.text('어느 가전인지 확인하지 못했어요.'), findsNothing);
     final run = tester.widget<FilledButton>(
         find.ancestor(of: find.text('지금 하기'), matching: find.byWidgetPredicate((w) => w is FilledButton)));
     expect(run.onPressed, isNotNull);
@@ -295,7 +295,7 @@ void main() {
     expect(find.textContaining('세탁이 끝났어요'), findsOneWidget);
     expect(find.text('제습기 전원 켜기'), findsOneWidget);
     expect(find.text('LG 가전'), findsOneWidget);
-    expect(find.text('어느 가전인지 몰라요.'), findsNothing);
+    expect(find.text('어느 가전인지 확인하지 못했어요.'), findsNothing);
     final run = tester.widget<FilledButton>(find.ancestor(
         of: find.text('지금 하기'),
         matching: find.byWidgetPredicate((w) => w is FilledButton)));

@@ -189,7 +189,7 @@ def _detail(
     )
     # 10/18 쉬운 말: 결과 한 줄 + 할 일 한 줄, '—'·괄호·가운뎃점으로 잇지 않는다. 판정 근거(전력 확인 사유·검증 층·
     # 재시도 횟수)는 문장에 넣지 않는다 — 근거는 ``ExecutionResult``에 통째로 남는다. 확인 수준은 낮추거나 높이지 않는다:
-    # '확인했어요'(센서·가전 반응을 봄) · '알려 왔어요'(누름 장치 보고뿐) · '몰라요'.
+    # '확인했어요'(센서·가전 반응을 봄) · '알려 왔어요'(누름 장치 보고뿐) · '확인하지 못했어요'.
     note = STOP_REQUESTED_NOTE if stop_requested else ""
     look = " 가전이 움직이는지 봐 주세요."
 
@@ -202,7 +202,7 @@ def _detail(
         # 보내기 전 정지(G2) — 정지 요청이 원인인 것이 확실한 유일한 경우라 note를 덧붙이지 않는다.
         return "멈추기를 눌러서 버튼을 누르지 않았어요."
     if receipt is Receipt.UNKNOWN:
-        return "누름 장치의 답이 없어 눌렸는지 몰라요. 다시 누르지 않았으니 가전을 직접 봐 주세요." + note
+        return "누름 장치의 답이 없어 눌렸는지 확인하지 못했어요. 다시 누르지 않았으니 가전을 직접 봐 주세요." + note
     if confirmation is Confirmation.OPERATION_CONFIRMED:
         if is_aggregate_report(result):
             return "누름 장치가 다 눌렀고 가전이 반응한 것도 확인했다고 알려 왔어요." + note

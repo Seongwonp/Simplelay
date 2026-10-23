@@ -36,7 +36,7 @@ void main() {
 
   testWidgets('눌렸는지 몰라 멈춤 — 본 사실 한 문장, 할 일 하나를 크게, 다시 하기 주의는 늘 보인다', (tester) async {
     await _pump(tester, safetyStop);
-    expect(findPlainText('눌렸는지 몰라서 멈췄어요.'), findsOneWidget);
+    expect(findPlainText('버튼 눌림을 확인하지 못해 멈췄어요.'), findsOneWidget);
     expect(_action(tester), kPressFirstCheck);
     expect(kPressFirstCheck, contains('가전 화면이 바뀌었는지')); // 키오스크 첫 줄과 같은 볼 것
     expect(kPressFirstCheck, contains('집에서'));
@@ -115,7 +115,7 @@ void main() {
         message: unconfirmedSentence(receipt: 'unknown'),
       ),
     );
-    expect(findPlainText('보냈지만 가전이 받았는지 몰라요.'), findsOneWidget);
+    expect(findPlainText('보냈지만 가전이 받았는지 확인하지 못했어요.'), findsOneWidget);
     expect(_action(tester), kThinqFirstCheck);
     expect(findPlainText('다시 보내기 전에 집에서 가전을 확인해야 해요.'), findsOneWidget);
   });

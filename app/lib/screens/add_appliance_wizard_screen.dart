@@ -629,7 +629,7 @@ class _AddApplianceWizardScreenState
         // 2분이 넘으면 더 기다리지 않는다 -- 상태를 모른다고 말한다.
         if (ticks > 150) {
           t.cancel();
-          if (mounted) setState(() => _error = '자리 확인이 어떻게 됐는지 몰라요. 본체 화면을 봐 주세요.');
+          if (mounted) setState(() => _error = '자리 확인이 어떻게 됐는지 확인하지 못했어요. 본체 화면을 봐 주세요.');
           return;
         }
         if (inFlight) return;
@@ -944,7 +944,7 @@ class _AddApplianceWizardScreenState
           style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
         )
       else ...[
-        Text('버튼판 크기를 아직 몰라요. 자로 잰 안쪽 크기를 적어 주세요.',
+        Text('버튼판 크기를 아직 확인하지 못했어요. 자로 잰 안쪽 크기를 적어 주세요.',
             style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
         Row(
           children: [

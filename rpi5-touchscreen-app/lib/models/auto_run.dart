@@ -93,7 +93,7 @@ String autoRunNotice(KioskAutoRun run) {
     return '$target 설정을 바꿨어요$mock';
   }
   if (run.status == 'unconfirmed' || run.status == 'succeeded') {
-    return '$target 설정이 바뀌었는지 몰라요$mock';
+    return '$target 설정이 바뀌었는지 확인하지 못했어요$mock';
   }
   if (run.receipt == 'not_dispatched') {
     return '$target에 전하지 못했어요$mock';
