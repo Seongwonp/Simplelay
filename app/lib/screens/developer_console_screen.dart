@@ -15,9 +15,8 @@ import '../theme/app_tokens.dart';
 
 /// 개발자 도구 (Phase 2, 2026-10-10 실물 경로) — 기본 모의, 서버가 켜면 실제 장치.
 ///
-/// 설치·보정 준비에 필요한 것만 둔다: 대상 가전, 서버 상태, 제한된 명령,
-/// 정지, 기록. 조이스틱·자유 입력 콘솔은 없다 -- 명령은 버튼으로만 만들고
-/// 서버의 허용 목록을 그대로 따른다.
+/// 설치·보정 준비에 필요한 것만 둔다: 대상 가전, 이동 패드, 서버 상태,
+/// 정지, 기록. 방향 버튼은 한 번 누를 때 한 번만 이동하며 서버의 허용 목록을 따른다.
 ///
 /// 지키는 것:
 /// - 화면 맨 위에 '모의' 또는 '실제 장치' 표시가 늘 보인다. 근거는 서버 응답
@@ -330,12 +329,8 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         applianceId: appliance,
         text: text,
         requestId: requestId,
-        // 실제 장치는 동작이 끝나야 답한다 -- 홈은 펌웨어 상한(70초)보다 길게 기다린다.
-        timeout: real
-            ? (text == 'home'
-                ? const Duration(seconds: 100)
-                : const Duration(seconds: 30))
-            : null,
+        // 실제 장치는 동작이 끝나야 답한다.
+        timeout: real ? const Duration(seconds: 30) : null,
       );
       if (!_current(epoch, api) || _sessionId != id) return;
       _stateRead++;
@@ -466,7 +461,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         'dev_token_required' || 'dev_token_invalid' => '개발자 토큰이 맞지 않아요',
         'auth_rate_limited' => '토큰 확인 실패가 너무 많아요 — 1분 뒤 다시 시도해 주세요',
         'real_adapter_not_allowed' => '서버에서 실제 장치 조작이 켜져 있지 않아요',
-        'not_homed' => '원점을 먼저 잡아 주세요 — 홈을 눌러 주세요',
+        'not_homed' => '위치 기준이 확인되지 않아 이동할 수 없어요',
         'step_too_large' => '한 번에 움직일 수 있는 거리를 넘었어요',
         'estop_latched' => '비상정지가 걸려 있어요 — 풀고 확인한 뒤 다시 시도해 주세요',
         'link_down' || 'act_link_unavailable' => 'RPi4와 연결돼 있지 않아요',
@@ -554,6 +549,17 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
 
     return Scaffold(
       appBar: AppBar(title: const Text('개발자 도구')),
+      // 이동 패드를 보기 위해 스크롤해도 정지 버튼은 항상 같은 자리에 둔다.
+      bottomNavigationBar: api == null
+          ? null
+          : SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.sm),
+                child: _StopButton(onStop: _stop),
+              ),
+            ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpace.xl),
         children: [
@@ -641,20 +647,20 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                 ),
               ],
             ),
-            const SizedBox(height: AppSpace.xxl),
-            _Label('명령'),
+            const SizedBox(height: AppSpace.lg),
             Wrap(
               spacing: AppSpace.sm,
               runSpacing: AppSpace.sm,
               children: [
                 _CommandButton(
                     '상태', canCommand ? () => _command('status') : null),
-                _CommandButton('홈', canCommand ? () => _command('home') : null),
                 _CommandButton(
                     '센서 읽기', canCommand ? () => _command('sensor read') : null),
               ],
             ),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.lg),
+            _Label('방향 이동'),
+            const SizedBox(height: AppSpace.sm),
             _Label(real
                 ? '방향을 누를 때마다 ${_MotionBadge._mm(jogStep)}mm 이동 — 한 번에 한 번만 움직여요 (Z는 누르기로만)'
                 : '방향을 누를 때마다 ${_MotionBadge._mm(jogStep)}mm 이동'),
@@ -680,6 +686,12 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                       _command('jog $axis $sign ${_MotionBadge._mm(jogStep)}')
                   : null,
             ),
+            if (!_hasSession)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpace.sm),
+                child: Text('세션 시작을 누르면 방향 버튼이 켜져요.',
+                    style: TextStyle(color: context.appMuted)),
+              ),
             if (!real)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpace.sm),
@@ -742,8 +754,6 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                 ],
               ),
             ],
-            const SizedBox(height: AppSpace.xxl),
-            _StopButton(onStop: _stop),
             const SizedBox(height: AppSpace.xxl),
             Row(
               children: [
@@ -816,7 +826,7 @@ class _MotionBadge extends StatelessWidget {
             '실제 장치 — 기계가 움직여요',
             realBlocked
                 ? '지금은 움직일 수 없어요: ${s.realMotionReason ?? '이유를 확인하지 못했어요'}'
-                : 'RPi4를 거쳐 모션 보드로 명령이 가요. 한 번에 ${_mm(s.maxJogMm)}mm까지, 홈을 먼저 해 주세요. 정지 버튼에 손을 두세요.',
+                : 'RPi4를 거쳐 모션 보드로 명령이 가요. 한 번에 ${_mm(s.maxJogMm)}mm까지 움직여요. 정지 버튼에 손을 두세요.',
           )
         : unsupported
             ? (

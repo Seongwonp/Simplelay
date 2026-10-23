@@ -56,6 +56,7 @@ panel_up     = 10;                         // 경사면 시작에서 패널 아�
 // ── 분할 ────────────────────────────────────────────────────
 split_x      = W / 2;
 split_z      = H / 2;
+shell_horizontal_join = true; // false: 업체용 몸통 좌/우 통짜 출력(뒤판 분할은 유지)
 
 // ── 패널 좌우 멈춤 턱(#1) ───────────────────────────────────
 stop_w       = 3;        // 턱 폭(X)
@@ -147,6 +148,7 @@ clip_foam    = 1;        // 고리와 패널 뒤 사이 폼 두께
 clip_boss_d  = 10;
 clip_taper   = 25;       // 고리 받침을 벽에 붙이는 경사 길이(오버행 줄이기)
 clip_zs      = [35, panel_h - 35];  // 패널 아래 끝에서 고리 위치. 왼쪽은 포트·OSD 버튼을 피해야 한다(⚠ 실측 필요)
+left_clip_zs = clip_zs; // 왼쪽 포트 간섭 수정 시 오른쪽 고리 위치는 유지
 clip_w       = 10;   clip_t = 3;   clip_overlap = 8;   // 패널 위에 걸치는 길이
 clip_step    = 0;        // ⚠ 실측 필요 — 고리 끝 누름 턱 높이(패널 뒤가 4.7 mm 쪽이면 두께 차를 여기·폼으로 맞춤)
 vesa         = 75;       // VESA 75 x 75(사양표)
@@ -218,7 +220,7 @@ function shell_dowels() = !dowel_on ? [] : concat(
     [for (y = dowel_floor_ys) [[split_x, y, dowel_c], "x"]],                   //            바닥
     [[[split_x, dface_yc, dtop_zc], "x"]],                                     // 세로 위: 경사면 위 끝(창 위)
     [for (y = dowel_top_ys) [[split_x, y, dtop_zc], "x"]],                     //          위판
-    [for (sx = [0, 1], y = dowel_side_ys) [[sx == 0 ? dowel_c : W - dowel_c, y, split_z], "z"]]   // 가로: 옆벽
+    [for (sx = [0, 1], y = dowel_side_ys) if (shell_horizontal_join) [[sx == 0 ? dowel_c : W - dowel_c, y, split_z], "z"]]   // 가로: 옆벽
 );
 function back_dowels() = !(dowel_on && back_dowel) ? [] : concat(
     [for (z = back_dowel_zs) [[split_x, depth - dowel_c, z], "x"]],            // 뒤판 LB–RB
@@ -315,7 +317,8 @@ module dowel_pads() {
                 face_frame() translate([x0 - 1, -20, panel_up + panel_h + dowel_face_gap]) cube([L + 2, 60, 60]);
             }
             // 가로 — 옆벽 안쪽, 위아래 45° 모따기(위 조각은 뒤집어 출력하므로 양쪽 모두)
-            for (sx = [0, 1], y = dowel_side_ys) side_dowel_pad(sx, y);
+            if (shell_horizontal_join)
+                for (sx = [0, 1], y = dowel_side_ys) side_dowel_pad(sx, y);
         }
         rotate([90, 0, 90]) linear_extrude(W) profile2d();
     }
@@ -366,7 +369,7 @@ module stop_ridge(s, zo) {
     }
 }
 
-function clip_points() = [for (s = [0, 1], co = clip_zs) [s == 0 ? clip_xL : clip_xR, panel_up + co, s]];
+function clip_points() = [for (s = [0, 1], co = (s == 0 ? left_clip_zs : clip_zs)) [s == 0 ? clip_xL : clip_xR, panel_up + co, s]];
 
 module clip_boss(x, zc) {
     // 경사면 안쪽에 선 고리 받침 — 윗면(y' = clip_top)에 L자 고리를 M3(열 인서트)로 조인다
@@ -449,7 +452,7 @@ module seam_ribs() {
             translate([split_x - t - 1, y, H - wall - h / 2]) rotate([0, 90, 0]) cylinder(d = bolt_d, h = 2 * t + 2);
     }
     // 가로 분할(z = split_z): 왼쪽 · 오른쪽 옆벽
-    for (sx = [0, 1]) side_rib(sx);
+    if (shell_horizontal_join) for (sx = [0, 1]) side_rib(sx);
 }
 
 module side_rib(sx) {

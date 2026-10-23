@@ -731,6 +731,14 @@ class _StopRecord:
 class SerialMotionClient(GrblClient):
     """줄 단위 JSON으로 모션 MCU와 대화하는 GrblClient — **실물 미검증**."""
 
+    motion_protocol = "line-json/v0"
+
+    def position_xy(self, status: MotionStatus | None = None) -> tuple[float, float] | None:
+        status = self.last_status if status is None else status
+        if status is None or status.a_counts is None or status.b_counts is None:
+            return None
+        return motor_counts_to_xy(status.a_counts, status.b_counts, self.config.kinematics)
+
     #: 실제 액추에이터를 움직이라고 명령하는 어댑터다(F4). 명령이 물리적으로
     #: 성공했는지는 별개이며 이 코드는 실기기로 검증되지 않았다.
     execution_mode = ExecutionMode.REAL

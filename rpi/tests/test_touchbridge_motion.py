@@ -1,0 +1,342 @@
+"""Seams using the received sketch's wire shapes, not line-json/v0 replies."""
+
+from __future__ import annotations
+
+import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+import pytest
+
+from rpi.controller.models import PressCommand
+from rpi.controller.serial_motion import (
+    InMemoryLinePipe, MotionPositionMismatch, MotionPressFailed, MotionReset,
+    MotionStopped, MotionTimeout,
+)
+from rpi.controller.touchbridge_motion import TouchBridgeConfig, TouchBridgeMotionClient
+
+
+class ReceivedSketch:
+    """Only USB v2 shapes emitted by handleJson/handleEvent in the received ino."""
+
+    def __init__(self):
+        self.pipe = InMemoryLinePipe()
+        self.closed = threading.Event()
+        self.move_started = threading.Event()
+        self.commands = []
+        self.position = (12.5, 20.25)
+        self.homed = True
+        self.hold_moves = False
+        self.omit_positioned = False
+        self.press_error = None
+        self.move = None
+        self.token = "0123456789abcdef"
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def send(self, command, state, **fields):
+        self.pipe.device.write_line(json.dumps(
+            {"version": 2, "commandId": command["commandId"], "state": state, **fields}
+        ))
+
+    def finish_move(self):
+        command = self.move
+        self.position = command["target"]["xMm"], command["target"]["yMm"]
+        if not self.omit_positioned:
+            self.send(command, "POSITIONED", position={"xMm": self.position[0], "yMm": self.position[1]},
+                      errorMm=0.0, positionToken=self.token)
+        self.send(command, "COMPLETED")
+
+    def _run(self):
+        while not self.closed.is_set():
+            line = self.pipe.device.read_line(0.02)
+            if line is None:
+                continue
+            command = json.loads(line)
+            self.commands.append(command)
+            action = command["action"]
+            if action == "status":
+                self.send(command, "COMPLETED", homed=self.homed,
+                          position={"xMm": self.position[0], "yMm": self.position[1]})
+            elif action == "move_only":
+                self.move = command
+                self.send(command, "RECEIVED")
+                self.send(command, "MOVING")
+                self.move_started.set()
+                if not self.hold_moves:
+                    self.finish_move()
+            elif action == "press":
+                self.send(command, "RECEIVED")
+                self.send(command, "PRESSING")
+                if self.press_error:
+                    self.send(command, self.press_error, message="BOT_TIMEOUT")
+                else:
+                    self.send(command, "COMPLETED")
+            elif action == "home":
+                self.position = (0.0, 0.0)
+                self.homed = True
+                self.send(command, "HOMED", homed=True)
+                self.send(command, "COMPLETED", homed=True)
+            elif action == "stop":
+                if self.move is not None:
+                    self.send(self.move, "STOPPED")
+                self.send(command, "STOPPED")
+
+    def close(self):
+        self.closed.set()
+        self.thread.join(1)
+
+
+@pytest.fixture
+def rig():
+    mcu = ReceivedSketch()
+    config = TouchBridgeConfig(status_timeout_s=0.3, connect_timeout_s=0.5,
+                               move_timeout_s=0.5, press_timeout_s=0.3)
+    unclaimed = []
+    client = TouchBridgeMotionClient(mcu.pipe.host, config, on_unclaimed_line=unclaimed.append)
+    try:
+        yield client, mcu, unclaimed
+    finally:
+        client.close()
+        mcu.close()
+
+
+def test_connect_reads_real_v2_status_without_counts_configuration_or_automatic_home(rig):
+    client, mcu, _ = rig
+    status = client.connect()
+    assert status.homed and status.a_counts is None and status.b_counts is None
+    assert client.position_xy(status) == (12.5, 20.25)
+    assert client.not_ready_reason() is None
+    assert [c["action"] for c in mcu.commands] == ["status"]
+
+
+def test_move_and_press_keep_mm_and_received_position_token_in_the_same_command_chain(rig):
+    client, mcu, _ = rig
+    client.connect()
+    observed = []
+    client.press_with_observation(PressCommand("start", x_mm=80.75, y_mm=42.5),
+                                  lambda: observed.append([c["action"] for c in mcu.commands]))
+    move, press = mcu.commands[-2:]
+    assert move["target"] == {"xMm": 80.75, "yMm": 42.5}
+    assert "a" not in move and "b" not in move
+    assert press["positionToken"] == mcu.token
+    assert move["commandId"] != press["commandId"]
+    assert observed == [["status", "move_only"]]
+    assert client.last_position == {"x_mm": 80.75, "y_mm": 42.5}
+
+
+def test_completed_without_positioned_never_presses_even_after_a_previous_good_move(rig):
+    client, mcu, _ = rig
+    client.connect()
+    client.move_to(1, 2)
+    mcu.omit_positioned = True
+    with pytest.raises(MotionPositionMismatch):
+        client.press(PressCommand("start", x_mm=3, y_mm=4))
+    assert "press" not in [c["action"] for c in mcu.commands]
+
+
+def test_status_during_move_and_wrong_ids_do_not_consume_movement_events(rig):
+    client, mcu, unclaimed = rig
+    client.connect()
+    mcu.hold_moves = True
+    with ThreadPoolExecutor() as pool:
+        move = pool.submit(client.move_to, 3, 4)
+        assert mcu.move_started.wait(1)
+        mcu.send({"commandId": "someone-else"}, "COMPLETED")
+        assert client.status().homed
+        assert not move.done()
+        mcu.finish_move()
+        move.result(timeout=1)
+    assert client.last_position == {"x_mm": 3, "y_mm": 4}
+    assert any("someone-else" in line for line in unclaimed)
+
+
+def test_stop_goes_out_while_movement_waits_and_ack_is_bound_to_its_id(rig):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.hold_moves = True
+    with ThreadPoolExecutor() as pool:
+        move = pool.submit(client.move_to, 3, 4)
+        assert mcu.move_started.wait(1)
+        assert client.request_stop()
+        stop_id = client.last_stop_id
+        report = client.confirm_stop(stop_id=stop_id)
+        with pytest.raises(MotionStopped):
+            move.result(timeout=1)
+    assert report.stop_id == stop_id and report.sent
+    assert report.level == "mcu_ack"  # never claims physical verification
+    assert report.ack_ms is not None
+    assert "엔코더" in report.detail
+
+
+def test_bot_failure_is_not_a_motion_success_or_an_automatic_repress(rig):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.press_error = "ERROR_TIMEOUT"
+    with pytest.raises(MotionPressFailed) as result:
+        client.press(PressCommand("start", x_mm=3, y_mm=4))
+    assert result.value.press_outcome == "unknown"
+    assert [c["action"] for c in mcu.commands].count("press") == 1
+
+
+def test_restart_fails_an_outstanding_move_instead_of_accepting_a_late_completion(rig):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.hold_moves = True
+    with ThreadPoolExecutor() as pool:
+        move = pool.submit(client.move_to, 3, 4)
+        assert mcu.move_started.wait(1)
+        mcu.pipe.device.write_line("Touch Bridge CoreXY v4 ready (BLE: device, key=none)")
+        with pytest.raises(MotionReset):
+            move.result(timeout=1)
+    assert client.needs_reconnect and not client.homed
+    assert client.last_position is None
+
+
+def test_timeout_ends_the_request_and_sends_the_original_stop_action(rig):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.hold_moves = True
+    with pytest.raises(MotionTimeout):
+        client.move_to(3, 4)
+    assert client.confirm_stop().level == "mcu_ack"
+    assert [c["action"] for c in mcu.commands][-1] == "stop"
+
+
+def test_unhomed_is_reported_without_inserting_home(rig):
+    client, mcu, _ = rig
+    mcu.homed = False
+    assert not client.connect().homed
+    assert "좌표 기준" in client.not_ready_reason()
+    assert [c["action"] for c in mcu.commands] == ["status"]
+
+
+def test_wire_length_and_nonfinite_input_are_rejected_before_writing(rig):
+    client, mcu, _ = rig
+    from rpi.controller.serial_motion import MotionRefused
+
+    with pytest.raises(MotionRefused):
+        client._exchange("status", 0.1, padding="x" * 255)
+    with pytest.raises(MotionRefused):
+        client.move_to(float("nan"), 3)
+    assert mcu.commands == []
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "0", "-1"])
+def test_invalid_timeouts_do_not_create_a_link(value):
+    with pytest.raises(ValueError):
+        TouchBridgeConfig.from_env({"SIMPLELAY_MOTION_MOVE_TIMEOUT_S": value})
+
+
+def test_build_executor_and_dev_service_use_touchbridge_without_encoder_config(monkeypatch, rig):
+    import rpi4.act_main as act_main
+    from rpi4.models.act_messages import DevMotionMsg
+    from rpi.services.dev_real_motion import ActDevMotionAdapter
+
+    client, mcu, _ = rig
+    client.close()  # the factory below must be the only reader on this USB pipe
+    monkeypatch.setenv("SIMPLELAY_MOTION_MODE", "serial")
+    monkeypatch.setenv("SIMPLELAY_MOTION_PROTOCOL", "touchbridge-v2")
+    monkeypatch.setenv("SIMPLELAY_MOTION_PORT", "/dev/received-sketch")
+    monkeypatch.setenv("SIMPLELAY_MOTION_BAUD", "115200")
+    monkeypatch.setattr(act_main, "_open_motion_transport", lambda *_: mcu.pipe.host)
+    # Build through the real factory, not a stub returning the desired class.
+    built = None
+    try:
+        built, safety = act_main._build_motion()
+        assert isinstance(built, TouchBridgeMotionClient)
+        assert built.position_xy() == (12.5, 20.25)
+        monkeypatch.setattr(act_main, "_build_motion", lambda **_: (built, safety))
+        executor = act_main._build_executor(object(), object())
+        act_main._describe_act(executor, outlet_kind="none", motion_kind="serial")
+        assert executor._motion_stop is built
+        assert executor.act_info["motion_protocol"] == "touchbridge-v2"
+        service = executor._dev_motion
+        assert service.run(DevMotionMsg("status-1", "status")) == {
+            "ok": True, "homed": True, "x_mm": 12.5, "y_mm": 20.25,
+        }
+        assert service.run(DevMotionMsg("jog-1", "jog", axis="x", delta_mm=1))["ok"]
+        assert service.run(DevMotionMsg("jog-2", "jog", axis="y", delta_mm=1))["ok"]
+        assert "home" not in [c["action"] for c in mcu.commands]
+        assert service.run(DevMotionMsg("press-1", "press", label="start"))["ok"]
+        assert ActDevMotionAdapter._supports_dev({"act_info": {
+            **executor.act_info, "dev_motion_protocol": 2,
+        }})
+    finally:
+        if act_main._motion_watch is not None:
+            act_main._motion_watch.stop()
+            act_main._motion_watch = None
+        if act_main._motion_retry is not None:
+            act_main._motion_retry.stop()
+            act_main._motion_retry = None
+        if built is not None:
+            built.close()
+
+
+def test_bad_protocol_is_rejected_before_opening_a_port(monkeypatch):
+    import rpi4.act_main as act_main
+
+    monkeypatch.setenv("SIMPLELAY_MOTION_MODE", "serial")
+    monkeypatch.setenv("SIMPLELAY_MOTION_PROTOCOL", "typo")
+    monkeypatch.setenv("SIMPLELAY_MOTION_PORT", "/dev/test")
+    monkeypatch.setenv("SIMPLELAY_MOTION_BAUD", "115200")
+    opened = []
+    monkeypatch.setattr(act_main, "_open_motion_transport", lambda *_: opened.append(True))
+    with pytest.raises(RuntimeError, match="SIMPLELAY_MOTION_PROTOCOL"):
+        act_main._build_motion()
+    assert opened == []
+
+
+def test_late_processing_of_an_old_status_does_not_overwrite_newer_arrival(rig, monkeypatch):
+    client, mcu, _ = rig
+    client.connect()
+    status_received, release_status = threading.Event(), threading.Event()
+    original = client._exchange
+
+    def gated(action, timeout, **fields):
+        reply = original(action, timeout, **fields)
+        if action == "status":
+            status_received.set()
+            assert release_status.wait(2)
+        return reply
+
+    monkeypatch.setattr(client, "_exchange", gated)
+    with ThreadPoolExecutor() as pool:
+        old_status = pool.submit(client.status)
+        assert status_received.wait(1)
+        try:
+            client.move_to(40, 50)
+        finally:
+            release_status.set()
+        old_status.result(timeout=1)
+    assert client.last_position == {"x_mm": 40, "y_mm": 50}
+
+
+def test_reader_failure_wakes_the_waiter_and_reports_link_loss():
+    mcu = ReceivedSketch()
+    down = threading.Event()
+
+    class Transport:
+        def write_line(self, line):
+            mcu.pipe.host.write_line(line)
+
+        def read_line(self, timeout):
+            if down.is_set():
+                raise OSError("USB lost")
+            return mcu.pipe.host.read_line(min(timeout, 0.02))
+
+    client = TouchBridgeMotionClient(Transport())
+    try:
+        client.connect()
+        mcu.hold_moves = True
+        with ThreadPoolExecutor() as pool:
+            move = pool.submit(client.move_to, 3, 4)
+            assert mcu.move_started.wait(1)
+            down.set()
+            with pytest.raises(OSError, match="연결 끊김"):
+                move.result(timeout=1)
+        assert client.needs_reconnect
+        assert client.link_not_ready_reason() is not None
+    finally:
+        client.close()
+        mcu.close()

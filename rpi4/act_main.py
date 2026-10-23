@@ -28,7 +28,8 @@ Environment variables:
                                   판정 없이(operation_confirmed=null) 실행한다(2026-10-07 평가 H3)
   SIMPLELAY_DANGER_SOUND_ENABLED  "true" → 위험소리(경보음) 상시 감지 태스크
                                   가동, 감지 시 RPi5로 alert 자체발신
-  SIMPLELAY_MOTION_MODE           "mock"(기본) | "serial". serial이면 줄 단위 JSON
+  SIMPLELAY_MOTION_MODE           "mock"(기본) | "serial". serial이면 선택한 모션 프로토콜
+  SIMPLELAY_MOTION_PROTOCOL       "line-json/v0"(기본) | "touchbridge-v2"(HW 담당 원본)
                                   모션 MCU 어댑터(rpi/controller/serial_motion.py,
                                   **실물 미검증**)를 쓴다
   SIMPLELAY_MOTION_PORT           serial 모드의 MCU 시리얼 장치 경로 (기본값 없음)
@@ -374,7 +375,17 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
             "SIMPLELAY_MOTION_MODE=serial에는 SIMPLELAY_MOTION_PORT와 "
             "SIMPLELAY_MOTION_BAUD가 필요합니다(기본값 없음)"
         )
-    config = MotionConfig.from_env()
+    protocol = os.getenv("SIMPLELAY_MOTION_PROTOCOL", "line-json/v0").strip() or "line-json/v0"
+    if protocol == "touchbridge-v2":
+        from rpi.controller.touchbridge_motion import TouchBridgeConfig, TouchBridgeMotionClient
+
+        config = TouchBridgeConfig.from_env()
+        client_type = TouchBridgeMotionClient
+    elif protocol == "line-json/v0":
+        config = MotionConfig.from_env()
+        client_type = SerialMotionClient
+    else:
+        raise RuntimeError(f"unknown SIMPLELAY_MOTION_PROTOCOL={protocol!r}")
     baud = int(baud_raw)
     if not port.startswith("/dev/serial/by-id/"):
         # 10/13 보드 날: 모터 전원 투입 때 ESP32가 ttyACM0 → ttyACM1로 다시 잡혀 실행기가 죽은 포트를 붙잡았다.
@@ -389,7 +400,7 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
         from rpi.tools.jog import LoggingTransport
 
         transport = LoggingTransport(transport, line_log)
-    client = SerialMotionClient(transport, config, on_event=on_event)
+    client = client_type(transport, config, on_event=on_event)
     global _motion_watch
     if _motion_watch is not None:
         _motion_watch.stop()
@@ -401,7 +412,7 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
 
     reopening.set_link_listener(link_down)
     _motion_watch = watch.start()
-    warning = heartbeat_off_warning(config)
+    warning = heartbeat_off_warning(config) if protocol == "line-json/v0" else None
     if warning:
         log.warning("%s", warning)
     global _motion_retry
@@ -759,17 +770,15 @@ def _build_hold(grbl: object, raw_grbl: object, outlet=None, binder=None):
 
 
 def _is_serial_motion(raw_grbl: object) -> bool:
-    from rpi.controller.serial_motion import SerialMotionClient
+    from rpi.controller.motion_port import MotionClient
 
-    return isinstance(raw_grbl, SerialMotionClient)
+    return isinstance(raw_grbl, MotionClient)
 
 
 def _build_dev_motion(raw_grbl: object):
     """실제 모션 어댑터(serial)일 때만 개발자 조작 서비스를 만든다(2026-10-10). mock이면 None — act_info에
     dev_motion_protocol을 싣지 않아 RPi5가 개발자 조작을 보내지 않는다."""
-    from rpi.controller.serial_motion import SerialMotionClient
-
-    if not isinstance(raw_grbl, SerialMotionClient):
+    if not _is_serial_motion(raw_grbl):
         return None
     from .services.dev_motion import DEV_JOG_STEP_CEILING_MM, DevMotionService
 
@@ -931,6 +940,9 @@ def _describe_act(executor: ActExecutor, *, outlet_kind: str, motion_kind: str) 
     specs = parse_done_watches(os.getenv("SIMPLELAY_DONE_WATCH"))
     executor.act_info = {"done_watch": [spec.appliance_id for spec in specs],
                          "outlet": outlet_kind, "motion": motion_kind}
+    motion_client = getattr(executor, "_motion_stop", None)
+    if motion_client is not None:
+        executor.act_info["motion_protocol"] = getattr(motion_client, "motion_protocol", "unknown")
     allowed = motion_kind == "mock" and outlet_kind in ("fake", "none")
     executor.set_rehearsal(_RehearsalHooks() if allowed else None)
     log.info("act_info: done_watch=%s outlet=%s motion=%s rehearsal=%s",
@@ -1103,6 +1115,9 @@ async def _run() -> None:
             _motion_retry.stop()
         if _motion_watch is not None:
             _motion_watch.stop()
+        close_motion = getattr(executor._motion_stop, "close", None)
+        if callable(close_motion):
+            close_motion()
         if recorder is not None:
             recorder.close()
         if motion_log is not None:

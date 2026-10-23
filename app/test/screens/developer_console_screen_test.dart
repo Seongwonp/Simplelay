@@ -107,10 +107,11 @@ class _FakeDevServer {
             'detail': {'code': 'session_expired', 'message': '끝남'}
           }, 410);
         }
+        final command = jsonDecode(request.body) as Map<String, dynamic>;
         return _json({
           'accepted': true,
           'request_id': 'r',
-          'normalized': 'home',
+          'normalized': command['text'],
           'sensor': commandSensor,
           'state': _state('active', session: true),
         });
@@ -311,7 +312,7 @@ void main() {
     await _open(tester, server);
     await _startSession(tester);
     final gate = server.gates['/dev/sessions/s1/commands'] = Completer<void>();
-    await tester.tap(find.widgetWithText(OutlinedButton, '홈'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'x +'));
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '정지'));
     await tester.pump();
@@ -330,7 +331,7 @@ void main() {
     await _open(tester, server);
     await _startSession(tester);
     final gate = server.gates['/dev/sessions/s1/commands'] = Completer<void>();
-    await tester.tap(find.widgetWithText(OutlinedButton, '홈'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'x +'));
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '정지'));
     await tester.pump();
@@ -413,7 +414,7 @@ void main() {
     expect(server.count('/dev/sessions/s1/end'), 1);
     expect(
         tester
-            .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '홈'))
+            .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'x +'))
             .onPressed,
         isNull);
     gate.complete();
@@ -535,9 +536,9 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('세션이 끝났어요'), findsOneWidget);
-    final home =
-        tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '홈'));
-    expect(home.onPressed, isNull);
+    final jog = tester
+        .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'x +'));
+    expect(jog.onPressed, isNull);
     await _close(tester);
   });
 
@@ -569,12 +570,34 @@ void main() {
     await _close(tester);
   });
 
+  testWidgets('홈은 없고 상태·센서 읽기는 바로 사용할 수 있다', (tester) async {
+    final server = _FakeDevServer();
+    await _open(tester, server);
+    await _startSession(tester);
+
+    expect(find.widgetWithText(OutlinedButton, '홈'), findsNothing);
+    expect(find.textContaining('홈을 눌러'), findsNothing);
+    await tester.tap(find.widgetWithText(OutlinedButton, '상태'));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.widgetWithText(OutlinedButton, '센서 읽기'));
+    await tester.pump();
+    await tester.pump();
+
+    final commands = server.requests
+        .where((r) => r.url.path == '/dev/sessions/s1/commands')
+        .map((r) => (jsonDecode(r.body) as Map<String, dynamic>)['text'])
+        .toList();
+    expect(commands, ['status', 'sensor read']);
+    await _close(tester);
+  });
+
   testWidgets('명령은 세션의 대상 가전과 request_id를 싣는다', (tester) async {
     final server = _FakeDevServer();
     await _open(tester, server);
     await _startSession(tester);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, '홈'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'x +'));
     await tester.pump();
     await tester.pump();
 
@@ -582,7 +605,7 @@ void main() {
         .lastWhere((r) => r.url.path == '/dev/sessions/s1/commands');
     final body = jsonDecode(sent.body) as Map<String, dynamic>;
     expect(body['appliance_id'], kTestAppliance.id);
-    expect(body['text'], 'home');
+    expect(body['text'], 'jog x + 1');
     expect(body['request_id'], matches(RegExp(r'^[A-Za-z0-9_-]{1,32}$')));
     expect(find.textContaining('모의 어댑터가 받았어요'), findsOneWidget);
     await _close(tester);
@@ -632,7 +655,7 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'z +'), findsNothing);
     expect(find.widgetWithText(OutlinedButton, 'x +'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, '홈'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'x +'));
     await tester.pump();
     await tester.pump();
     expect(find.textContaining('실제 장치가 마쳤어요'), findsOneWidget);
@@ -669,9 +692,9 @@ void main() {
     expect(
         find.textContaining('지금은 움직일 수 없어요: RPi4가 모의 모션이에요'), findsOneWidget);
     await _startSession(tester);
-    final home =
-        tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '홈'));
-    expect(home.onPressed, isNull);
+    final jog = tester
+        .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'x +'));
+    expect(jog.onPressed, isNull);
     // 정지는 언제나 누를 수 있다.
     final stop =
         tester.widget<FilledButton>(find.widgetWithText(FilledButton, '정지'));

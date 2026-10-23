@@ -171,6 +171,17 @@ def test_jog_before_home_is_refused_without_any_move(rig) -> None:
     run(_t())
 
 
+def test_jog_never_inserts_a_hidden_home_even_with_a_bench_firmware_name(rig) -> None:
+    async def _t():
+        r = rig(homed=False, fw="firmware-motion-corexy-benchhome")
+        reply = await r.op("jog", axis="x", delta_mm=1.0)
+        assert reply["ok"] is False and reply["reason"] == "not_homed"
+        assert "home" not in r.mcu.cmds()
+        assert "move" not in r.mcu.cmds()
+
+    run(_t())
+
+
 def test_home_then_one_small_jog_is_one_relative_move(rig) -> None:
     async def _t():
         r = rig(homed=False)

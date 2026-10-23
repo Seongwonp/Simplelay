@@ -48,3 +48,5 @@ dev-docs/
 # 통째로 막는 쪽이 안전하다 — 예외가 필요하면 그때 `!경로`로 열 것.
 *.pptx
 *.pdf
+# Generated vendor archive; reviewed loose files and pack script are tracked.
+/housing/SimpleLay_vendor_first_print_R2.zip

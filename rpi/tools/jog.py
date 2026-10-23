@@ -118,6 +118,11 @@ class LoggingTransport:
             self._log.write("<<", line)
         return line
 
+    def close(self) -> None:
+        close = getattr(self._inner, "close", None)
+        if callable(close):
+            close()
+
 
 # ── 클라이언트 ────────────────────────────────────────────────────────────────
 

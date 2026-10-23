@@ -1,13 +1,13 @@
 """개발자 조작(``dev_motion``)의 RPi4 쪽 — 2026-10-10, **실물 미검증**.
 
 RPi5 개발자 API가 실물 모드(``SIMPLELAY_DEV_MODE`` + ``SIMPLELAY_DEV_REAL_MOTION``)일 때 보내는 홈·조그·누름·
-상태·정지 한 번을, 일반 실행과 **같은** `SerialMotionClient`로 모션 MCU(firmware-motion-corexy)에 넘긴다.
+상태·정지 한 번을, 일반 실행과 **같은** 모션 어댑터로 MCU에 넘긴다.
 그래서 MCU의 거절(``busy``·``not_homed``·``soft_limit``·``z_cooldown`` …)과 알람이 그대로 올라온다.
 
 이 층이 더하는 제한(펌웨어·어댑터 검사 위에 한 겹 더):
 - 조그는 X·Y 상대 이동 한 번, 크기 0 < |d| ≤ `DEV_JOG_STEP_CEILING_MM`. Z는 솔레노이드라 조그가 없다.
-  기준 위치는 MCU가 보고한 A·B 카운트(조그 CLI와 같다) — 호스트가 위치를 짐작하지 않는다.
-- 원점(홈) 전 조그·누름 거절. 정지로 끊긴 뒤에도 원점부터(재개 없음).
+  기준 위치는 프로토콜별 MCU 보고값(A·B 카운트 또는 Touch Bridge mm)이다.
+- 기준 설정 상태는 각 모션 프로토콜의 보고를 따른다. 조그 요청에 숨은 home 명령을 추가하지 않는다.
 - 누름은 지금 위치에서 시간 누름(``duration``) 한 번, 구동+유지 ≤ `DEV_PRESS_ON_MAX_MS`(펌웨어 상한과 같은 800 ms).
 - bring-up 펌웨어(``fw``가 ``-bringup``으로 끝남 — 사람용 방향 시험 명령이 켜진 빌드)에는 보내지 않는다.
 
@@ -24,6 +24,7 @@ import threading
 
 from rpi.controller.kinematics import KinematicsNotConfigured, SoftLimitExceeded, motor_counts_to_xy
 from rpi.controller.models import PressCommand
+from rpi.controller.motion_port import MotionClient
 from rpi.controller.serial_motion import (
     MotionAlarm,
     MotionConfigError,
@@ -33,7 +34,6 @@ from rpi.controller.serial_motion import (
     MotionReset,
     MotionStopped,
     MotionTimeout,
-    SerialMotionClient,
     StopReport,
 )
 
@@ -63,7 +63,7 @@ class _Refused(Exception):
 class DevMotionService:
     """개발자 조작 한 번을 모션 MCU에 넘긴다. `run`은 블로킹(실행기가 작업 스레드에서 부른다), `stop`은 즉시."""
 
-    def __init__(self, client: SerialMotionClient, *, max_step_mm: float = DEV_JOG_STEP_CEILING_MM) -> None:
+    def __init__(self, client: MotionClient, *, max_step_mm: float = DEV_JOG_STEP_CEILING_MM) -> None:
         if not (math.isfinite(max_step_mm) and 0 < max_step_mm <= DEV_JOG_STEP_CEILING_MM):
             raise ValueError(f"max_step_mm는 0보다 크고 {DEV_JOG_STEP_CEILING_MM:g} 이하여야 해요: {max_step_mm!r}")
         self._client = client
@@ -73,7 +73,7 @@ class DevMotionService:
         self._stop_seen = threading.Event()
 
     @property
-    def client(self) -> SerialMotionClient:
+    def client(self) -> MotionClient:
         return self._client
 
     def not_ready_reason(self) -> str | None:
@@ -173,6 +173,12 @@ class DevMotionService:
         return {**self._position(query=False, fallback=(x, y)), "reached": reached is not False}
 
     def _press(self, msg: DevMotionMsg) -> dict:
+        if getattr(self._client, "z_mode", None) == "switchbot":
+            self._require_homed("누름")
+            self._client.reset_stop()
+            x, y = self._current_xy("누름")
+            self._client.press(PressCommand(button=msg.label or "dev", x_mm=x, y_mm=y))
+            return self._position(query=False)
         config = self._client.config
         if config.press_mode != "duration":
             raise _Refused("press_mode_unsupported",
@@ -205,6 +211,14 @@ class DevMotionService:
 
     def _current_xy(self, operation: str) -> tuple[float, float]:
         status = self._client.status()
+        position_xy = getattr(self._client, "position_xy", None)
+        if callable(position_xy):
+            position = position_xy(status)
+            if not self._client.homed:
+                raise _Refused("not_homed", f"{operation}: 좌표 기준이 아직 설정되지 않았어요")
+            if position is None:
+                raise _Refused("position_unknown", f"{operation}: 모션 보드가 현재 위치를 알려 주지 않았어요")
+            return position
         if status.a_counts is None or status.b_counts is None:
             raise _Refused("position_unknown", f"{operation}: 모션 보드가 위치(A·B 카운트)를 알려 주지 않았어요")
         if not self._client.homed:  # status가 원점 상실(알람·재시작)을 알렸다
@@ -216,7 +230,15 @@ class DevMotionService:
         x = y = None
         if query:
             status = self._client.status()
-            if status.a_counts is not None and status.b_counts is not None:
+            position_xy = getattr(self._client, "position_xy", None)
+            if callable(position_xy):
+                try:
+                    position = position_xy(status)
+                    if position is not None:
+                        x, y = position
+                except KinematicsNotConfigured:
+                    pass
+            elif status.a_counts is not None and status.b_counts is not None:
                 try:
                     x, y = motor_counts_to_xy(status.a_counts, status.b_counts, self._client.config.kinematics)
                 except KinematicsNotConfigured:
