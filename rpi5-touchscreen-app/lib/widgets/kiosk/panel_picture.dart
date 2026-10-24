@@ -247,11 +247,8 @@ class KioskPanelPicture extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: KioskType.status,
-                            color: caution
-                                ? KioskColors.warning
-                                : resting
-                                    ? KioskColors.ink
-                                    : KioskColors.running,
+                            // 다시 누르기(caution)도 진행 색 — 앰버는 주의에만(10/24 시각 QA).
+                            color: resting && !caution ? KioskColors.ink : KioskColors.running,
                             fontWeight: FontWeight.w800))),
                 const SizedBox(width: KioskSpace.xs),
                 Text('위에 있어요',
@@ -287,7 +284,7 @@ class KioskPanelPicture extends StatelessWidget {
     final numbers = order[button.id];
     final mark = pressed[button.id];
     final marked = numbers != null || mark != null;
-    final fill = caution ? KioskColors.warning : KioskColors.running;
+    final fill = KioskColors.running; // 다시 누르기도 진행 색(10/24 시각 QA — 앰버는 주의에만)
     final Color edge = mark == false ? KioskColors.warning : KioskColors.ink;
     // 기다리는 칸 — 채우지 않고 흰 테(굵게)만.
     final rest = on && resting && !caution;

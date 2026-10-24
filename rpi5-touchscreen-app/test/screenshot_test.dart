@@ -1069,7 +1069,7 @@ void main() {
         'hold_estop_confirm',
         KioskEstopLayout(
           banner: KioskEstopBanner(
-              detail: _estopDetail, confirming: true, onRequest: () {}),
+              detail: _estopDetail, confirming: true, onRequest: () {}, onConfirm: () {}, onCancel: () {}),
           child: _hold(),
         ));
   });

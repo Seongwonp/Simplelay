@@ -120,7 +120,7 @@ void _expectHomeButton(WidgetTester tester, String why) {
       reason: '$why — 집 아이콘');
   final b = tester.widget<ButtonStyleButton>(_exitButton());
   if (b is ElevatedButton) {
-    expect(b.style!.backgroundColor!.resolve({}), KioskColors.neutralFill, reason: '$why — 한 색');
+    expect(b.style!.backgroundColor!.resolve({}), KioskColors.primary, reason: '$why — 한 색(10/24 primary)');
   } else {
     expect(b.style!.foregroundColor!.resolve({}), KioskColors.ink, reason: '$why — 보조 모양은 글자색');
   }

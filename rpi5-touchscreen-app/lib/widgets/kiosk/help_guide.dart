@@ -170,7 +170,7 @@ class _KioskHelpGuideState extends State<KioskHelpGuide> {
                         key: ValueKey(last ? 'help-done' : 'help-next'),
                         onPressed: last ? widget.onClose : () => setState(() => _i++),
                         style: button.copyWith(
-                          backgroundColor: WidgetStatePropertyAll(KioskColors.neutralFill),
+                          backgroundColor: WidgetStatePropertyAll(KioskColors.primary),
                           foregroundColor: WidgetStatePropertyAll(KioskColors.onAccent),
                           elevation: const WidgetStatePropertyAll(0),
                         ),

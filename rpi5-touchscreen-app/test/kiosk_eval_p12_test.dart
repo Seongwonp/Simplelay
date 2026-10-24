@@ -226,7 +226,7 @@ void main() {
       expect(_homeButton(), findsOneWidget);
       expect(find.descendant(of: _homeButton(), matching: find.byIcon(Icons.home_outlined)), findsOneWidget);
       final b = tester.widget<ButtonStyleButton>(_homeButton());
-      expect(b.style!.backgroundColor!.resolve({}), KioskColors.neutralFill);
+      expect(b.style!.backgroundColor!.resolve({}), KioskColors.primary); // 10/24 주 행동 primary 한 색
       expect(tester.getRect(find.byKey(const ValueKey('kiosk-stop-area'))), stopBefore, reason: '정지 자리 그대로');
       expect(find.descendant(of: find.byKey(const ValueKey('hold-stop')), matching: find.text('정지')), findsOneWidget);
       final home = tester.getRect(_homeButton());

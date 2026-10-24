@@ -151,6 +151,8 @@ void main() {
     await _pump(tester, [_mw, _air], on: {'air'});
     _expectDim(tester, _mw);
     _expectLit(tester, _air);
+    // 10/24 시각 QA — 고대비 검정 바탕에서 흐린 회색이 어둡게 읽혔다. 고대비는 흐린 이름도 10:1 이상.
+    expect(_ratio(_name(tester, _mw)!, _face(tester, _mw.id)), greaterThanOrEqualTo(10));
   });
 
   testWidgets('화면 읽기 — 상태를 이름과 함께(켜짐·꺼짐·작동 중·작동 중 아님)', (tester) async {

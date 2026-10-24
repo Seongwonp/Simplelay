@@ -91,6 +91,15 @@ Future<void> _ackFlow(WidgetTester tester) async {
 }
 
 void main() {
+  // 10/24 시각 QA — 확인 띠의 '닫기'가 못 누를 때 기본 비활성 글자색(짙은 색)이라 빨간 면 위에서 안 보였다.
+  testWidgets("비상 버튼 풀기 확인 띠 — '닫기'는 못 누를 때도 빨간 면 위 밝은 글자", (tester) async {
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: KioskEstopBanner(detail: _detail, confirming: true, onRequest: () {}))));
+    final b = tester.widget<OutlinedButton>(find.byKey(const ValueKey('estop-cancel')));
+    final fg = b.style!.foregroundColor!.resolve({WidgetState.disabled})!;
+    expect(fg.computeLuminance(), greaterThan(0.5), reason: '빨간 면 위 글자 $fg');
+  });
+
   group('KioskStatus 비상정지 필드', () {
     test('없거나 null이면 걸리지 않음', () {
       final old = KioskStatus.fromJson(const {'running': false});

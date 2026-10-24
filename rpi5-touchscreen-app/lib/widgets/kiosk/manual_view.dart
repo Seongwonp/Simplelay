@@ -514,12 +514,16 @@ String? readinessTodo(ApplianceMap appliance) {
 ///
 /// 아래로는 예전 고정 크기(멀리서 읽히는 하한), 위로는 상한을 둔다 -- 칸이
 /// 끝없이 커지면 한눈에 판 전체가 들어오지 않고 손을 크게 옮겨야 한다.
+///
+/// 누를 수 없는 판(준비 안 됨)은 손 닿는 크기 하한이 필요 없다 — 판 전체가 한 화면에 보이게 더 줄인다(10/24 시각 QA —
+/// 준비 안내 아래에서 마지막 줄이 잘려 있었다).
 Size _cellSizeFor(ApplianceMap appliance, Size area) {
   const gap = _cellGap * 2;
   final cols = appliance.cols < 1 ? 1 : appliance.cols;
   final rows = appliance.rows < 1 ? 1 : appliance.rows;
+  final minH = appliance.canExecute ? _cellHeight : _cellHeightDisabled;
   final w = ((area.width - 48) / cols - gap).clamp(_cellWidth, _cellMaxWidth);
-  final h = ((area.height - 12) / rows - gap).clamp(_cellHeight, _cellMaxHeight);
+  final h = ((area.height - 12) / rows - gap).clamp(minH, _cellMaxHeight);
   return Size(w.toDouble(), h.toDouble());
 }
 
@@ -583,6 +587,7 @@ String manualPressNote(String applianceName, String buttonLabel) =>
 // 멀리서 읽히는 하한. 4열(인덕션)·4행(전자레인지)이 800x480에 들어가는 크기였다.
 const double _cellWidth = 124;
 const double _cellHeight = 66;
+const double _cellHeightDisabled = 40;
 
 // 칸이 커질 수 있는 상한(설계 캔버스 기준).
 // 폭 상한은 3열 판이 화면 폭을 고르게 쓰는 값(결선 모의 평가 10/18 — 200이면 오른쪽 25%가 비었다). 루틴 칸이 있으면
@@ -644,9 +649,8 @@ class _ButtonCell extends StatelessWidget {
                     height: 1.15,
                     // 못 누르는 버튼은 그렇게 보여야 한다 — 색만 같으면
                     // 눌리지 않는 이유를 가전 쪽에서 찾게 된다.
-                    color: onTap == null
-                        ? KioskColors.ink.withValues(alpha: 0.35)
-                        : KioskColors.ink,
+                    // 흐린 글자도 3:1 이상(10/24 시각 QA — 35% 투명 글자는 2:1 남짓이라 읽히지 않았다).
+                    color: onTap == null ? KioskColors.tileDim : KioskColors.ink,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

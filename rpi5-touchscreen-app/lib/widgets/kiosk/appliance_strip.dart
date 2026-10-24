@@ -393,46 +393,12 @@ class _StripItem extends StatefulWidget {
   State<_StripItem> createState() => _StripItemState();
 }
 
-class _StripItemState extends State<_StripItem>
-    with SingleTickerProviderStateMixin {
-  // 확인 필요의 느린 숨쉬기 — 2.4초 한 번씩 세 번만(초당 3회 이상 깜빡임 금지,
-  // 몇 초 뒤 멈춤). 끝나면 멈춘 테로 남는다.
-  late final AnimationController _breath = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2400),
-  );
-  int _breaths = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _breath.addStatusListener((s) {
-      if (s == AnimationStatus.completed && ++_breaths < 3) {
-        _breath.forward(from: 0);
-      }
-    });
-    if (widget.attention) _breath.forward();
-  }
-
-  @override
-  void didUpdateWidget(_StripItem old) {
-    super.didUpdateWidget(old);
-    if (widget.attention && !old.attention) {
-      _breaths = 0;
-      _breath.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _breath.dispose();
-    super.dispose();
-  }
+class _StripItemState extends State<_StripItem> {
+  // 확인 필요의 앰버 숨쉬기 테는 없앴다(10/24 시각 QA — 골드 선택 테로 읽혔다). 확인 필요는 '!' 표지만 말한다.
 
   @override
   Widget build(BuildContext context) {
     final a = widget.appliance;
-    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     // 큰 사각 타일 — 평소에는 아이콘 + 이름만(사용자 결정 10/19: 아래 상태 글자 띠가 너무 복잡했고 '못 써요'는 무례하게
     // 들렸다). 켜짐·작동 중은 아이콘·이름을 밝게, 꺼짐·모름·쉬는 중은 흐리게([kioskTileLit]). 문제가 있을 때만
     // 오른쪽 위 작은 표시 하나([KioskTileMarkButton]), 누르면 부드러운 한두 문장. 상태를 지어내지 않는다.
@@ -451,11 +417,8 @@ class _StripItemState extends State<_StripItem>
     final fg = kioskTileLit(a, running: widget.running, on: widget.on, off: widget.off)
         ? KioskColors.ink
         : KioskColors.tileDim;
-    final edge = widget.attention
-        ? KioskColors.warning
-        : widget.running
-            ? KioskColors.ink
-            : KioskColors.border;
+    // 확인 필요는 '!' 표지만 말한다(10/24 시각 QA — 앰버 테·빛이 골드 선택 테로 읽혀 두 칸이 골라진 듯 보였다).
+    final edge = widget.running ? KioskColors.ink : KioskColors.border;
     final iconSize = (widget.iconBox * 0.58 + (widget.tileHeight - 112) * 0.3)
         .clamp(widget.iconBox * 0.58, 44)
         .toDouble();
@@ -476,96 +439,73 @@ class _StripItemState extends State<_StripItem>
         '자세히 보기',
       ].join(', '),
       child: ExcludeSemantics(
-        child: AnimatedBuilder(
-          animation: _breath,
-          builder: (context, child) {
-            // 확인 필요의 느린 숨쉬기 — 2.4초 한 번씩 세 번만(초당 3회 이상 깜빡임 금지), 끝나면 멈춘 테.
-            final t = widget.attention && !reduceMotion
-                ? math.sin(_breath.value * math.pi)
-                : (widget.attention ? 0.6 : 0.0);
-            return DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: widget.attention
-                    ? [
-                        BoxShadow(
-                          color: KioskColors.warning.withValues(alpha: 0.30 * t),
-                          spreadRadius: 4 * t,
+        child: Material(
+          clipBehavior: Clip.antiAlias,
+          // 카드 면은 밝기 규칙과 상관없다(사용자 결정 10/19, 두 번째 — 쓸 수 없을 때 어둡게 하던 면을 없앴다).
+          color: widget.running ? KioskColors.surface2 : KioskColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: edge, width: widget.running ? 2 : 1),
+          ),
+          child: InkWell(
+            onTap: widget.onTap,
+            customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: SizedBox(
+              height: widget.tileHeight,
+              child: Padding(
+                padding: const EdgeInsets.all(KioskSpace.sm),
+                // 쓸 수 없음 표지(시험·평소 화면이 찾는 열쇠)만 남기고 반투명은 없앴다(10/19, 두 번째).
+                child: KeyedSubtree(
+                  key: widget.unavailable ? ValueKey('tile-unavailable-${a.id}') : null,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        // 폰 홈과 같은 가전 그림(시안 B 10/24) — 밝기 규칙(켜짐 밝게·꺼짐 흐리게)은 선 색이 말한다.
+                        KioskApplianceArt(
+                            key: ValueKey('tile-icon-${a.id}'),
+                            category: a.category,
+                            fallbackIcon: a.icon,
+                            size: artSize,
+                            color: fg,
+                            paper: widget.running ? KioskColors.surface2 : KioskColors.surface),
+                        // 연습 가전(서버 이름 표기 '(연습)')은 '연습' 배지 그대로(정직성) — 문제 표시가 있으면 그 왼쪽.
+                        // 남는 폭은 배지 칸 하나가 가진다(Spacer와 나누면 배지가 반으로 줄었다).
+                        Expanded(
+                          child: a.isPractice
+                              ? const Align(
+                                  alignment: Alignment.centerRight,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: KioskRouteBadge(key: ValueKey('tile-practice'), label: '연습'),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
                         ),
-                      ]
-                    : null,
-              ),
-              child: child,
-            );
-          },
-          child: Material(
-            clipBehavior: Clip.antiAlias,
-            // 카드 면은 밝기 규칙과 상관없다(사용자 결정 10/19, 두 번째 — 쓸 수 없을 때 어둡게 하던 면을 없앴다).
-            color: widget.running ? KioskColors.surface2 : KioskColors.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: edge, width: widget.attention || widget.running ? 2 : 1),
-            ),
-            child: InkWell(
-              onTap: widget.onTap,
-              customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: SizedBox(
-                height: widget.tileHeight,
-                child: Padding(
-                  padding: const EdgeInsets.all(KioskSpace.sm),
-                  // 쓸 수 없음 표지(시험·평소 화면이 찾는 열쇠)만 남기고 반투명은 없앴다(10/19, 두 번째).
-                  child: KeyedSubtree(
-                    key: widget.unavailable ? ValueKey('tile-unavailable-${a.id}') : null,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          // 폰 홈과 같은 가전 그림(시안 B 10/24) — 밝기 규칙(켜짐 밝게·꺼짐 흐리게)은 선 색이 말한다.
-                          KioskApplianceArt(
-                              key: ValueKey('tile-icon-${a.id}'),
-                              category: a.category,
-                              fallbackIcon: a.icon,
-                              size: artSize,
-                              color: fg,
-                              paper: widget.running ? KioskColors.surface2 : KioskColors.surface),
-                          // 연습 가전(서버 이름 표기 '(연습)')은 '연습' 배지 그대로(정직성) — 문제 표시가 있으면 그 왼쪽.
-                          // 남는 폭은 배지 칸 하나가 가진다(Spacer와 나누면 배지가 반으로 줄었다).
-                          Expanded(
-                            child: a.isPractice
-                                ? const Align(
-                                    alignment: Alignment.centerRight,
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: KioskRouteBadge(key: ValueKey('tile-practice'), label: '연습'),
-                                    ),
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
-                          // 문제 표시 자리(오른쪽 위)를 비워 둔다.
-                          if (issue != null) const SizedBox(width: KioskTileMarkButton.hit - KioskSpace.sm),
-                        ]),
-                        const Spacer(),
+                        // 문제 표시 자리(오른쪽 위)를 비워 둔다.
+                        if (issue != null) const SizedBox(width: KioskTileMarkButton.hit - KioskSpace.sm),
+                      ]),
+                      const Spacer(),
+                      Text(
+                        a.tileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: widget.labelSize,
+                            height: 1.15,
+                            fontWeight: FontWeight.w700,
+                            color: fg),
+                      ),
+                      // 'LG 가전'은 오른쪽 위 배지가 아니라 이름 아래 작은 글자(10/19 — 오른쪽 위는 문제 표시 자리).
+                      if (a.isThinq && !a.isPractice)
                         Text(
-                          a.tileName,
+                          'LG 가전',
+                          key: ValueKey('tile-lg-${a.id}'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: widget.labelSize,
-                              height: 1.15,
-                              fontWeight: FontWeight.w700,
-                              color: fg),
+                          style: TextStyle(fontSize: widget.statusSize, height: 1.2, color: KioskColors.muted),
                         ),
-                        // 'LG 가전'은 오른쪽 위 배지가 아니라 이름 아래 작은 글자(10/19 — 오른쪽 위는 문제 표시 자리).
-                        if (a.isThinq && !a.isPractice)
-                          Text(
-                            'LG 가전',
-                            key: ValueKey('tile-lg-${a.id}'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: widget.statusSize, height: 1.2, color: KioskColors.muted),
-                          ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
               ),

@@ -161,8 +161,9 @@ _Tone _toneOf(Color c) {
   final hsv = HSVColor.fromColor(c);
   if (hsv.saturation < 0.2) return _Tone.neutral;
   final h = hsv.hue;
-  if (h >= 205 && h <= 255) return _Tone.running;
-  if (h >= 160 && h <= 200) return _Tone.practice; // 청록
+  // 10/24 시각 QA: 진행 중은 primary 청록 계열, 연습은 폰과 같은 파랑으로 바꿨다.
+  if (h >= 160 && h <= 200) return _Tone.running; // 청록
+  if (h >= 201 && h <= 255) return _Tone.practice; // 파랑
   if (h >= 25 && h <= 55) return _Tone.attention; // 앰버
   if (h <= 15 || h >= 345) return _Tone.danger; // 빨강
   return _Tone.neutral;
@@ -476,7 +477,7 @@ void main() {
     for (final (name, view, fill) in [
       // 멈춤을 확인해도 가전은 사람이 봐야 한다 — 띠 '확인 필요'라 중립 채움(평가 3차 10/18).
       ('사용자 정지(멈춤 확인)', _done(success: false, reason: KioskFailureReason.stopped, stopLevel: 'verified'),
-          KioskColors.neutralFill),
+          KioskColors.primary), // 10/24 시각 QA — 주 행동은 모두 primary 한 색
     ]) {
       testWidgets('$name — 처음 화면으로는 채움 단추 하나', (tester) async {
         await _pump15(tester, view);

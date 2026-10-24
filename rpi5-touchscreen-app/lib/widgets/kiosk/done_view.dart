@@ -1380,7 +1380,8 @@ class KioskHomeButton extends StatelessWidget {
       icon: Icon(Icons.home_outlined, size: size),
       label: Text('처음 화면으로',
           maxLines: 1, softWrap: false, style: TextStyle(fontSize: size, fontWeight: FontWeight.w800)),
-      style: KioskButtons.primary(background: KioskColors.neutralFill, foreground: KioskColors.onAccent).copyWith(
+      // 주 행동은 모두 primary 청록 한 색(10/24 시각 QA — 짙은 회색 면이 섞여 있었다).
+      style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent).copyWith(
         minimumSize: compact ? const WidgetStatePropertyAll(Size(0, KioskSizes.secondaryButton)) : null,
         padding: compact ? const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)) : null,
       ),
@@ -1770,7 +1771,7 @@ class KioskRetryPrimary extends StatelessWidget {
         icon: const Icon(Icons.refresh, size: KioskType.status),
         label: const Text('한 번 더 하기',
             maxLines: 1, softWrap: false, style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
-        style: KioskButtons.primary(background: KioskColors.neutralFill, foreground: KioskColors.onAccent),
+        style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent),
       );
 }
 

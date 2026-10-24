@@ -286,8 +286,8 @@ class KioskConnectionModal extends StatelessWidget {
                       onPressed: checking ? null : onRecheck,
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size(0, 56),
-                        // 문제 창(앰버)에서는 골드 면 단추를 두지 않는다(10/18) — 흰 면·검은 글자.
-                        backgroundColor: warn ? KioskColors.neutralFill : KioskColors.primary,
+                        // 주 행동은 primary 청록 한 색(10/24 시각 QA). primary는 이제 골드가 아니라 문제 창에서도 같다.
+                        backgroundColor: KioskColors.primary,
                         foregroundColor: KioskColors.onAccent,
                         disabledBackgroundColor: KioskColors.border,
                         disabledForegroundColor: KioskColors.muted,

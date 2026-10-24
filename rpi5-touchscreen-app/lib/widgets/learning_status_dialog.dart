@@ -21,6 +21,13 @@ class LearningStatusDialog extends StatefulWidget {
 
 class _LearningStatusDialogState extends State<LearningStatusDialog> {
   Future<LearningStatus>? _request;
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -36,8 +43,15 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
         title: const Text('생활 습관'),
-        scrollable: true,
-        content: SizedBox(
+        // 제목·단추는 고정, 본문만 스크롤(10/24 시각 QA — 큰 글씨 1.6배에서 본문이 단추 밑에서 잘려 끝인지 알 수 없었다).
+        // 스크롤 막대를 늘 보여 더 있다는 것을 알린다.
+        content: Scrollbar(
+          controller: _scroll,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+          controller: _scroll,
+          padding: const EdgeInsets.only(right: 14),
+          child: SizedBox(
           width: 440,
           child: widget.load == null
               ? const Text('연결하면 생활 습관을 확인할 수 있어요.')
@@ -103,6 +117,8 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                     );
                   },
                 ),
+        ),
+          ),
         ),
         actions: [
           if (widget.load != null)

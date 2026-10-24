@@ -96,11 +96,11 @@ class KioskColors {
     // 긴급 정지 면. 연한 붉은색(danger)에 검정 글자는 대비는 넉넉했지만 비상
     // 버튼으로 읽히지 않았다(9/16 화면 평가). 짙은 빨강에 흰 글자 7.3:1.
     stop: Color(0xFFA8201A),
-    // 연습(모의) 표시 전용 청록(2026-10-16 디자인 규격 §1-4·§4 결정). 앰버는 주요 행동·주의에만 쓰고
-    // 연습에는 쓰지 않는다. 바탕(bg) 위 약 7.3:1 — 아이콘·띠 줄무늬에 쓰고 글자는 흰색으로 둔다.
-    practice: Color(0xFF2BB3A6),
-    // 실행 진행과 실제 확인 완료 전용 — 연습 청록·주의 앰버와 구분한다.
-    running: Color(0xFF77A7FF),
+    // 연습(모의) 표시 전용 — 폰 팔레트와 같은 파랑(10/24 시각 QA: 진행 중 색이 청록 primary 계열로 바뀌어 연습은
+    // 파랑으로 구분한다). 앰버는 주의에만 쓰고 연습에는 쓰지 않는다.
+    practice: Color(0xFF9BCBFA),
+    // 실행 진행 — primary 청록 계열(10/24 시각 QA: 파랑은 연습과 겹쳤다). 주의 앰버와 구분한다.
+    running: Color(0xFFA0DED2),
     confirmed: Color(0xFF8DD49A),
     bg: Color(0xFF0F1117), // 시안 B --bg
     surface: Color(0xFF1A1D26), // 시안 B --card
@@ -118,7 +118,7 @@ class KioskColors {
     ink: Color(0xFFECEEF3),
     glass: Color(0xFF0A1614),
     glassText: Color(0xFFA0DED2),
-    glassMuted: Color(0xFF8FB3AC),
+    glassMuted: Color(0xFFBFD9D3), // 유리 위 10:1 이상(10/24 시각 QA — 8FB3AC는 작은 글자에서 흐렸다)
     well: Color(0xFF252935),
     mint: Color(0xFF1F3C37),
     art: Color(0xFFC9CDD6),
@@ -136,8 +136,8 @@ class KioskColors {
     danger: Color(0xFFB3261E),
     warning: Color(0xFF8A5300),
     stop: Color(0xFFA8201A),
-    practice: Color(0xFF0F6E66),
-    running: Color(0xFF1F5BB8),
+    practice: Color(0xFF164D7B), // 폰 practiceLight — 흰 글자 9:1 이상
+    running: Color(0xFF175C55), // primary 청록 계열 — 흰 글자 7.6:1
     confirmed: Color(0xFF1E6B3A),
     bg: Color(0xFFF4F6FA),
     surface: Color(0xFFFFFFFF),
@@ -150,7 +150,7 @@ class KioskColors {
     ink: Color(0xFF16181D),
     glass: Color(0xFF10201E),
     glassText: Color(0xFFA0DED2),
-    glassMuted: Color(0xFF8FB3AC),
+    glassMuted: Color(0xFFBFD9D3),
     well: Color(0xFFECEFF4),
     mint: Color(0xFFDDF4EE),
     art: Color(0xFF3D4047),
@@ -168,8 +168,8 @@ class KioskColors {
     danger: Color(0xFFFF8A80),
     warning: Color(0xFFFFCC33),
     stop: Color(0xFF8B0000), // 더 진한 빨강 — 흰 글자 대비를 올린다
-    practice: Color(0xFF33E0CC),
-    running: Color(0xFF99C2FF),
+    practice: Color(0xFF99C2FF),
+    running: Color(0xFF7FE6D6),
     confirmed: Color(0xFFA6F0B0),
     bg: Color(0xFF000000),
     surface: Color(0xFF000000),
@@ -180,7 +180,7 @@ class KioskColors {
     panelText: Color(0xFFFFFFFF),
     onAccent: Color(0xFF000000),
     // 고대비의 muted는 흰색이라 흐린 타일이 켜진 타일과 같아진다 — 검정 위 8:1 언저리 회색(너무 어둡지 않게).
-    tileDim: Color(0xFFA0A0A0),
+    tileDim: Color(0xFFC0C0C0), // 검정 위 11:1 — 흰색(밝게)과는 구분되고 흐려 보이지 않게(10/24 시각 QA)
     ink: Color(0xFFFFFFFF),
     glass: Color(0xFF000000),
     glassText: Color(0xFFFFFFFF),

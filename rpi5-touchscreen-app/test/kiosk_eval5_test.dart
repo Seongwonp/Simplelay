@@ -74,7 +74,8 @@ void main() {
     expect(find.text('가전 상태를 확인했어요'), findsNothing);
     expect(find.byIcon(Icons.check), findsNothing);
   });
-  testWidgets('실행 띠는 연습과 다른 파란 표시다', (t) async {
+  // 10/24 시각 QA: 진행 중은 primary 청록 계열(연습은 파랑).
+  testWidgets('실행 띠는 연습과 다른 청록 표시다', (t) async {
     await show(
         t,
         KioskExecutingView(
@@ -93,7 +94,7 @@ void main() {
         t.widget<Icon>(find.byKey(const ValueKey('status-band-icon'))).color!;
     final hsv = HSVColor.fromColor(color);
     expect(hsv.saturation, greaterThan(.25));
-    expect(hsv.hue, inInclusiveRange(205, 255));
+    expect(hsv.hue, inInclusiveRange(160, 200));
   });
   testWidgets('실패 다시 시도는 확인 전에는 실행하지 않는다', (t) async {
     var calls = 0;

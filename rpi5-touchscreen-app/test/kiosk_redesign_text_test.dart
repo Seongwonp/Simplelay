@@ -196,7 +196,7 @@ void main() {
               operationConfirmed: true,
               operationSource: 'real',
               onDismiss: () {}));
-      expect(fillOf(tester, const ValueKey('done-home')), KioskColors.neutralFill);
+      expect(fillOf(tester, const ValueKey('done-home')), KioskColors.primary); // 10/24 주 행동 primary 한 색
     });
   });
 

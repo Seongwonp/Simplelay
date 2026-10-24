@@ -206,6 +206,24 @@ class KioskStopButton extends StatelessWidget {
   static const double _labelInset = 18;
   static const double _labelWidth = KioskSizes.stopWidth - 2 * _labelInset;
 
+  static const TextStyle _labelStyle =
+      TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800, height: 1.1);
+
+  /// 보통 글자 크기(배율 1)에서 아이콘 옆 한 줄에 들어가는 이름인가. 그런 이름('다시 멈추기')은 큰 글씨에서도 두 줄로
+  /// 나누지 않고 글자만 한 줄 폭에 맞춘다(10/24 시각 QA — 큰 글씨 800x480에서 '다시 / 멈추기'로 갈라졌다). 글자는
+  /// 보통 크기보다 작아지지 않고 아이콘·단추 크기는 그대로다. 보통 크기에서도 안 들어가는 이름은 예전처럼 어절에서 나눈다.
+  static bool _fitsOneLine(BuildContext context, String label) {
+    final painter = TextPainter(
+      text: TextSpan(text: label, style: DefaultTextStyle.of(context).style.merge(_labelStyle)),
+      textDirection: TextDirection.ltr,
+      textScaler: TextScaler.noScaling,
+      maxLines: 1,
+    )..layout();
+    final fits = painter.width <= _labelWidth - KioskSizes.stopIcon - 12;
+    painter.dispose();
+    return fits;
+  }
+
   @override
   Widget build(BuildContext context) => SizedBox(
         key: const ValueKey('kiosk-stop-area'),
@@ -248,6 +266,14 @@ class KioskStopButton extends StatelessWidget {
                   children: [
                     const Icon(Icons.stop, size: KioskSizes.stopIcon),
                     const SizedBox(width: 12),
+                    if (_fitsOneLine(context, label))
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(label, maxLines: 1, softWrap: false, style: _labelStyle),
+                        ),
+                      )
+                    else
                     Flexible(
                       // 낱말 묶기(KioskText)를 쓰지 않는다 — '다시 멈추기'(6자)가 한 덩어리로 묶여 큰 글씨 800x480에서
                       // '다시 멈추 / 기'로 낱말 가운데서 끊겼다(평가 16차 10/18). 넘치면 띄어쓰기에서 '다시 / 멈추기'.

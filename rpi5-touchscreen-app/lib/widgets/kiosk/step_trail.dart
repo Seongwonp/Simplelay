@@ -131,7 +131,8 @@ class _Cell extends StatelessWidget {
     // 표시창 안이면 어두운 바탕용 색 한 벌(고대비면 고대비 그대로 — 고대비도 검정 바탕이다).
     final p = !onGlass || KioskColors.highContrast ? KioskColors.palette : KioskColors.dark;
     final muted = onGlass ? KioskColors.glassMuted : KioskColors.muted;
-    final currentColor = caution ? p.warning : p.running;
+    // 다시 누르기(caution)도 진행 색 — 앰버는 주의(모름 칸)에만(10/24 시각 QA).
+    final currentColor = p.running;
     final (Color fill, Color border, Widget mark) = switch (s) {
       KioskStepState.done => (
           p.neutralFill,

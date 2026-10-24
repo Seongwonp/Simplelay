@@ -74,8 +74,10 @@ class KioskEstopBanner extends StatelessWidget {
                         child: OutlinedButton(
                             key: const ValueKey('estop-cancel'),
                             onPressed: onCancel,
+                            // 쓸 수 없을 때도 빨간 면 위 흰 글자(10/24 시각 QA — 기본 비활성 글자가 짙은 빨강 위에서 안 보였다).
                             style: OutlinedButton.styleFrom(
                                 foregroundColor: _white,
+                                disabledForegroundColor: Colors.white70,
                                 side:
                                     const BorderSide(color: _white, width: 2)),
                             child: const Text('닫기',
