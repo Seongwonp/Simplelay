@@ -112,10 +112,15 @@ def _day_label(when: datetime, now: datetime) -> str:
 
 def _after_skip_day_label(when: datetime, now: datetime) -> str:
     """건너뛴 회차 다음 회차의 날짜 말. 매주 루틴은 7일 뒤일 수 있다 — 오늘과 같은 요일 이름만으로는 오늘로 읽혀
-    '다음 주 ○요일'로 가른다."""
-    if (when.date() - now.date()).days >= 7:
+    '다음 주 ○요일'로 가른다. 지금 기준 달력 주(월요일 시작)로 가른다(코드 검토 10/24) — 다음 주가 아니면
+    (매주 루틴의 6일 뒤 회차를 건너뛰면 13일 뒤일 수 있다) '11월 6일'처럼 날짜로 말한다."""
+    if (when.date() - now.date()).days < 7:
+        return _day_label(when, now)
+    this_monday = now.date() - timedelta(days=now.weekday())
+    when_monday = when.date() - timedelta(days=when.weekday())
+    if (when_monday - this_monday).days == 7:
         return f"다음 주 {_WEEKDAYS[when.weekday()]}요일"
-    return _day_label(when, now)
+    return f"{when.month}월 {when.day}일"
 
 
 class RoutineEngine:

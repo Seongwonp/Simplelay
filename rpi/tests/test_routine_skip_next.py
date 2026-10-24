@@ -216,3 +216,25 @@ def test_skip_routes_need_the_api_key(monkeypatch):
     body = {"routine_id": "x", "at": AT_2300.isoformat()}
     for path in ("/routines/next/skip", "/routines/next/unskip"):
         assert client.post(path, json=body).status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("now", "when", "label"),
+    [
+        # 2026-10-26 월요일 기준. 날짜 차이만이 아니라 지금 기준 달력 주로 가른다(코드 검토 10/24).
+        ((2026, 10, 26, 9), (2026, 10, 26, 23), "오늘"),
+        ((2026, 10, 26, 9), (2026, 10, 27, 23), "내일"),
+        ((2026, 10, 26, 9), (2026, 10, 30, 23), "금요일"),
+        ((2026, 10, 26, 9), (2026, 11, 2, 23), "다음 주 월요일"),
+        ((2026, 10, 26, 9), (2026, 11, 8, 23), "다음 주 일요일"),  # 13일 뒤지만 다음 주 안
+        ((2026, 11, 1, 9), (2026, 11, 14, 23), "11월 14일"),  # 일요일 + 13일 = 다다음 주 토요일
+        ((2026, 10, 30, 9), (2026, 11, 12, 23), "11월 12일"),  # 매주 루틴 6일 뒤 회차를 건너뜀 → 13일 뒤
+        ((2026, 10, 26, 9), (2026, 11, 23, 23), "11월 23일"),
+    ],
+)
+def test_after_skip_day_label_is_relative_to_now(now, when, label):
+    from datetime import datetime
+
+    from rpi.routines.engine import _after_skip_day_label
+
+    assert _after_skip_day_label(datetime(*when), datetime(*now)) == label
