@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -29,6 +30,8 @@ class ReceivedSketch:
         self.hold_moves = False
         self.omit_positioned = False
         self.press_error = None
+        self.press_script = None  # [(state, fields)] replaces the default press replies
+        self.move_reject = None  # state answered instead of RECEIVED (e.g. ERROR_NOT_HOMED)
         self.move = None
         self.token = "0123456789abcdef"
         self.thread = threading.Thread(target=self._run, daemon=True)
@@ -58,6 +61,8 @@ class ReceivedSketch:
             if action == "status":
                 self.send(command, "COMPLETED", homed=self.homed,
                           position={"xMm": self.position[0], "yMm": self.position[1]})
+            elif action == "move_only" and self.move_reject is not None:
+                self.send(command, self.move_reject)
             elif action == "move_only":
                 self.move = command
                 self.send(command, "RECEIVED")
@@ -65,6 +70,9 @@ class ReceivedSketch:
                 self.move_started.set()
                 if not self.hold_moves:
                     self.finish_move()
+            elif action == "press" and self.press_script is not None:
+                for state, fields in self.press_script:
+                    self.send(command, state, **fields)
             elif action == "press":
                 self.send(command, "RECEIVED")
                 self.send(command, "PRESSING")
@@ -340,3 +348,201 @@ def test_reader_failure_wakes_the_waiter_and_reports_link_loss():
     finally:
         client.close()
         mcu.close()
+
+
+# ── 2026-10-24: remaining v2 state shapes of the received sketch (banner "v4") ──
+
+from rpi.controller.closed_loop import motion_abort_reason  # noqa: E402
+from rpi.controller.serial_motion import (  # noqa: E402
+    MotionAlarm, MotionNotReady, MotionRefused,
+)
+
+
+def _held_move(client, mcu, pool):
+    mcu.hold_moves = True
+    move = pool.submit(client.move_to, 3, 4)
+    assert mcu.move_started.wait(1)
+    return move
+
+
+@pytest.mark.parametrize(("state", "fields", "kind", "abort"), [
+    ("ERROR_STALL", {}, MotionAlarm, "motion_alarm: ERROR_STALL"),
+    ("ERROR_TIMEOUT", {}, MotionAlarm, "motion_alarm: ERROR_TIMEOUT"),
+    ("ERROR_LIMIT", {}, MotionRefused, None),
+    ("ERROR_POSITION", {"position": {"xMm": 2.9, "yMm": 6.1}, "errorMm": 2.1}, MotionAlarm,
+     "motion_alarm: ERROR_POSITION"),
+])
+def test_movement_errors_keep_the_firmware_reason_and_never_press(rig, state, fields, kind, abort):
+    client, mcu, _ = rig
+    client.connect()
+    with ThreadPoolExecutor() as pool:
+        move = _held_move(client, mcu, pool)
+        mcu.send(mcu.move, state, **fields)
+        with pytest.raises(kind) as raised:
+            move.result(timeout=1)
+    assert state in str(raised.value)
+    assert motion_abort_reason(raised.value) == abort
+    assert client._token is None
+    assert "press" not in [c["action"] for c in mcu.commands]
+
+
+def test_position_error_keeps_the_reported_position_for_the_operator(rig):
+    client, mcu, _ = rig
+    client.connect()
+    with ThreadPoolExecutor() as pool:
+        move = _held_move(client, mcu, pool)
+        mcu.send(mcu.move, "ERROR_POSITION", position={"xMm": 2.9, "yMm": 6.1}, errorMm=2.1)
+        with pytest.raises(MotionAlarm):
+            move.result(timeout=1)
+    assert client.last_position == {"x_mm": 2.9, "y_mm": 6.1}
+
+
+def test_not_homed_reply_clears_the_homed_flag_without_sending_home(rig):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.move_reject = "ERROR_NOT_HOMED"
+    with pytest.raises(MotionNotReady):
+        client.move_to(3, 4)
+    assert not client.homed
+    assert "home" not in [c["action"] for c in mcu.commands]
+
+
+def test_busy_reply_is_a_refusal_before_motion(rig):
+    client, mcu, _ = rig
+    client.connect()
+    original = mcu.send
+
+    def busy(command, state, **fields):
+        if command.get("action") == "move_only" and state == "RECEIVED":
+            return original(command, "ERROR_PROTOCOL", message="BUSY")
+        if command.get("action") == "move_only":
+            return None
+        return original(command, state, **fields)
+
+    mcu.send = busy
+    with pytest.raises(MotionRefused) as raised:
+        client.move_to(3, 4)
+    assert raised.value.code == "busy"
+
+
+@pytest.mark.parametrize("script", [
+    [("ERROR_INVALID_TOKEN", {})],
+    [("ERROR_PROTOCOL", {"message": "AUTH_REQUIRED"})],
+])
+def test_press_rejected_before_received_is_known_not_pressed(rig, script):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.press_script = script
+    with pytest.raises(MotionPressFailed) as raised:
+        client.press(PressCommand("start", x_mm=3, y_mm=4))
+    assert raised.value.press_outcome == "not_pressed"
+
+
+@pytest.mark.parametrize(("state", "message"), [
+    ("ERROR_PROTOCOL", "BOT_BUSY"),
+    ("ERROR_PROTOCOL", "BOT_LOW_BATTERY"),
+    ("ERROR_TIMEOUT", "ACK_TIMEOUT"),
+    ("ERROR_TIMEOUT", "BOT_TIMEOUT"),
+    ("ERROR_TIMEOUT", None),  # failActive(ERROR_TIMEOUT) carries no message on the JSON path
+])
+def test_press_errors_after_pressing_are_unknown_and_never_repressed(rig, state, message):
+    client, mcu, _ = rig
+    client.connect()
+    fields = {} if message is None else {"message": message}
+    mcu.press_script = [("RECEIVED", {}), ("PRESSING", {}), (state, fields)]
+    with pytest.raises(MotionPressFailed) as raised:
+        client.press(PressCommand("start", x_mm=3, y_mm=4))
+    assert raised.value.press_outcome == "unknown"
+    assert raised.value.reason == state
+    assert motion_abort_reason(raised.value) == f"motion_press_failed: {state}"
+    assert [c["action"] for c in mcu.commands].count("press") == 1
+
+
+def test_press_without_any_final_reply_is_unknown_and_sends_stop(rig):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.press_script = [("RECEIVED", {}), ("PRESSING", {})]
+    with pytest.raises(MotionTimeout) as raised:
+        client.press(PressCommand("start", x_mm=3, y_mm=4))
+    assert getattr(raised.value, "press_outcome", None) == "unknown"
+    assert motion_abort_reason(raised.value) is not None  # closed loop must not press again
+    assert client.confirm_stop().level == "mcu_ack"
+    actions = [c["action"] for c in mcu.commands]
+    assert actions.count("press") == 1 and actions[-1] == "stop"
+
+
+def test_device_side_stop_during_move_is_not_retried_by_the_closed_loop(rig):
+    """STOPPED without a host stop (e.g. the owner's BLE app) must end the run, not trigger a retry."""
+    client, mcu, _ = rig
+    client.connect()
+    with ThreadPoolExecutor() as pool:
+        move = _held_move(client, mcu, pool)
+        mcu.send(mcu.move, "STOPPED")
+        with pytest.raises(MotionStopped) as raised:
+            move.result(timeout=1)
+    assert motion_abort_reason(raised.value) == "motion_stopped"
+
+
+def test_stop_after_pressing_leaves_the_press_unknown(rig):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.press_script = [("RECEIVED", {}), ("PRESSING", {}), ("STOPPED", {})]
+    with pytest.raises(MotionStopped) as raised:
+        client.press(PressCommand("start", x_mm=3, y_mm=4))
+    assert raised.value.press_outcome == "unknown"
+    assert [c["action"] for c in mcu.commands].count("press") == 1
+
+
+def test_host_requested_stop_keeps_the_existing_stop_semantics(rig):
+    client, mcu, _ = rig
+    client.connect()
+    with ThreadPoolExecutor() as pool:
+        move = _held_move(client, mcu, pool)
+        assert client.request_stop()
+        with pytest.raises(MotionStopped) as raised:
+            move.result(timeout=1)
+    # the closed loop already knows about its own stop; no device-stop abort reason is added
+    assert motion_abort_reason(raised.value) is None
+
+
+def test_stop_is_written_even_while_the_link_is_marked_for_reconnect(rig):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.pipe.device.write_line("Touch Bridge CoreXY v4 ready (BLE: device, key=none)")
+    deadline = time.monotonic() + 1
+    while not client.needs_reconnect and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert client.needs_reconnect
+    assert client.request_stop()
+    assert client.confirm_stop().level == "mcu_ack"
+    assert mcu.commands[-1]["action"] == "stop"
+
+
+def test_malformed_and_foreign_lines_are_ignored_while_a_move_completes(rig):
+    client, mcu, unclaimed = rig
+    client.connect()
+    with ThreadPoolExecutor() as pool:
+        move = _held_move(client, mcu, pool)
+        for junk in ("ERROR:JSON", "{\"version\":2,\"commandId\":", "{\"version\":1,\"state\":\"COMPLETED\"}",
+                     "[1,2]", "\x00\xff garbage", "HOMED", "STOPPED"):
+            mcu.pipe.device.write_line(junk)
+        mcu.send({"commandId": "unknown-id"}, "STOPPED")
+        assert not move.done()
+        mcu.finish_move()
+        move.result(timeout=1)
+    assert client.last_position == {"x_mm": 3, "y_mm": 4}
+    assert "ERROR:JSON" in unclaimed and any("unknown-id" in line for line in unclaimed)
+
+
+def test_banner_version_is_recorded_and_a_new_status_reconnects_without_home(rig):
+    client, mcu, _ = rig
+    client.connect()
+    mcu.pipe.device.write_line("Touch Bridge CoreXY v4 ready (BLE: device, key=none)")
+    deadline = time.monotonic() + 1
+    while not client.needs_reconnect and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert client.ready_info["fw"] == "Touch Bridge CoreXY v4"
+    mcu.homed = False  # firmware restarts unhomed
+    status = client.connect()
+    assert not client.needs_reconnect and not status.homed
+    assert "home" not in [c["action"] for c in mcu.commands]

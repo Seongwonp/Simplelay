@@ -28,6 +28,28 @@ from .serial_motion import (
 
 PROTOCOL = "touchbridge-v2"
 _TOKEN = re.compile(r"[A-Fa-f0-9]{16}")
+#: Boot banner of the received sketch, e.g. "Touch Bridge CoreXY v4 ready (...)". The firmware build
+#: label (v4) is not the wire version: JSON lines still carry "version":2.
+_BANNER = re.compile(r"(Touch Bridge CoreXY(?: v[0-9A-Za-z.]{1,12})?) ready\b")
+
+
+class TouchBridgeStopped(MotionStopped):
+    """The sketch reported STOPPED (or a host stop ended the wait).
+
+    ``requested`` is True when this host had asked to stop; the closed loop already knows about that stop.
+    A STOPPED the host did not ask for (e.g. another controller of the same board) carries an abort reason so
+    the closed loop ends the run instead of moving/pressing again. ``press_outcome`` is set for press: after the
+    sketch accepted the press (RECEIVED) the Bot request may already be out, so it is ``unknown``.
+    """
+
+    def __init__(self, message: str, *, requested: bool, press_outcome: str | None = None) -> None:
+        super().__init__(message)
+        self.requested = requested
+        self.press_outcome = press_outcome
+
+    @property
+    def motion_abort_reason(self) -> str | None:  # type: ignore[override]
+        return None if self.requested else "motion_stopped"
 
 
 @dataclass(frozen=True)
@@ -184,20 +206,33 @@ class TouchBridgeMotionClient(GrblClient):
         with self._lock:
             self._pending[wire_id] = pending
         aggregate: dict = {}
+        accepted = False  # the sketch answered RECEIVED (or later) for this commandId
         deadline = time.monotonic() + timeout
+
+        def press_outcome() -> str | None:
+            if action != "press":
+                return None
+            return "unknown" if accepted else "not_pressed"
+
         try:
             with self._write_lock:
                 if action not in ("status", "home") and self._stopped.is_set():
-                    raise MotionStopped("전송 전에 중단 요청이 왔어요")
+                    raise TouchBridgeStopped("전송 전에 중단 요청이 왔어요", requested=True,
+                                             press_outcome=press_outcome())
                 self._transport.write_line(line)
             while True:
                 if action != "status" and self._stopped.is_set():
-                    raise MotionStopped("중단 요청으로 동작을 끝냈어요")
+                    # Written already: a press may be on its way even without RECEIVED yet.
+                    raise TouchBridgeStopped("중단 요청으로 동작을 끝냈어요", requested=True,
+                                             press_outcome="unknown" if action == "press" else None)
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     if action != "status":
                         self.request_stop()
-                    raise MotionTimeout(f"Touch Bridge {action}: 응답 기한 {timeout:g}s 초과")
+                    exc = MotionTimeout(f"Touch Bridge {action}: 응답 기한 {timeout:g}s 초과")
+                    if action == "press":
+                        exc.press_outcome = "unknown"  # never a success, never a known non-press
+                    raise exc
                 try:
                     reply = pending.replies.get(timeout=min(remaining, 0.05))
                 except queue.Empty:
@@ -206,9 +241,12 @@ class TouchBridgeMotionClient(GrblClient):
                     raise reply
                 state = reply.get("state")
                 if isinstance(state, str) and state.startswith("ERROR_"):
-                    self._raise_error(action, reply)
+                    self._raise_error(action, reply, accepted=accepted)
                 if state == "STOPPED":
-                    raise MotionStopped("모션 보드가 중단을 보고했어요")
+                    raise TouchBridgeStopped("모션 보드가 중단을 보고했어요", requested=self._stopped.is_set(),
+                                             press_outcome="unknown" if action == "press" else None)
+                if isinstance(state, str):
+                    accepted = True
                 aggregate.update(reply)
                 if state == "POSITIONED":
                     aggregate["positioned"] = True
@@ -224,14 +262,15 @@ class TouchBridgeMotionClient(GrblClient):
             with self._lock:
                 self._pending.pop(wire_id, None)
 
-    def _raise_error(self, action: str, reply: dict) -> None:
+    def _raise_error(self, action: str, reply: dict, *, accepted: bool) -> None:
         state, message = reply["state"], reply.get("message", "")
+        self._note_reported_position(reply)
         if action == "press":
-            # The received sketch does not expose line-json press_outcome.
-            # Only invalid-token/BUSY proves rejection before a Bot request.
-            known_rejection = state == "ERROR_INVALID_TOKEN" or message == "BUSY"
+            # The received sketch has no line-json press_outcome. Every press rejection it can send
+            # (INVALID_TOKEN, AUTH_REQUIRED, ...) comes before RECEIVED; after RECEIVED/PRESSING the Bot
+            # request may already be out, so BOT_* and ERROR_TIMEOUT stay unknown.
             raise MotionPressFailed(f"Touch Bridge {state}: {message}", reason=state,
-                                    press_outcome="not_pressed" if known_rejection else "unknown")
+                                    press_outcome="unknown" if accepted else "not_pressed")
         if state == "ERROR_NOT_HOMED":
             with self._lock:
                 self._homed = False
@@ -240,6 +279,16 @@ class TouchBridgeMotionClient(GrblClient):
             raise MotionRefused(f"Touch Bridge {state}: {message}",
                                 code="busy" if message == "BUSY" else "soft_limit")
         raise MotionAlarm(f"Touch Bridge {state}: {message}", reason=state)
+
+    def _note_reported_position(self, reply: dict) -> None:
+        """Keep a position the sketch reported with an error (ERROR_POSITION) for the operator."""
+        pos = reply.get("position")
+        if not (isinstance(pos, dict) and all(_number(pos.get(a)) for a in ("xMm", "yMm"))):
+            return
+        with self._lock:
+            if reply["_rx_seq"] >= self._position_seq:
+                self._position_seq = reply["_rx_seq"]
+                self._position = {"x_mm": pos["xMm"], "y_mm": pos["yMm"]}
 
     def _read_loop(self) -> None:
         while not self._shutdown.is_set():
@@ -257,8 +306,9 @@ class TouchBridgeMotionClient(GrblClient):
             except (json.JSONDecodeError, ValueError):
                 doc = None
             if not isinstance(doc, dict) or doc.get("version") != 2:
-                if "Touch Bridge CoreXY" in line and "ready" in line:
-                    self._booted()
+                banner = _BANNER.search(line)
+                if banner is not None:
+                    self._booted(banner.group(1))
                 elif line.startswith("FAULT "):
                     self._fail_pending(MotionAlarm(line, reason="firmware_fault"), motions_only=True)
                 self._emit("mcu_text", {"line": line})
@@ -300,14 +350,14 @@ class TouchBridgeMotionClient(GrblClient):
                 if not motions_only or pending.action != "status":
                     pending.replies.put(exc)
 
-    def _booted(self) -> None:
+    def _booted(self, fw: str = "Touch Bridge CoreXY") -> None:
         with self._lock:
             self._connected = False
             self._homed = False
             self._position = None
             self._state = MotionState.UNKNOWN
             self._needs_reconnect = True
-            self.ready_info["fw"] = "Touch Bridge CoreXY"
+            self.ready_info["fw"] = fw
         self._fail_pending(MotionReset("모션 보드가 다시 켜졌어요"), motions_only=True)
 
     def note_link_down(self, reason: str) -> None:
