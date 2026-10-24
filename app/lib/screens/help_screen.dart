@@ -42,14 +42,16 @@ class HelpScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('사용 방법')),
-        body: ListView(
+        // 다섯 토막뿐이라 한꺼번에 그린다 — 늘어 놓는 목록(ListView)은 화면 밖 토막을 만들지 않아 화면 읽기가 '멈추는 방법'을
+        // 건너뛰었다(첫 사용 평가 2차 10/24, 접근성 트리에 없음). 토막마다 제목+본문을 한 덩어리로 읽는다.
+        body: SingleChildScrollView(
           key: const Key('help-list'),
           padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.xxxl),
-          children: [
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             for (final (i, (icon, title, body)) in sections.indexed) ...[
               if (i > 0) Divider(height: AppSpace.xxxl, color: context.appBorderFaint),
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(icon, size: AppSpace.xxl, color: context.appInk),
+              MergeSemantics(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                ExcludeSemantics(child: Icon(icon, size: AppSpace.xxl, color: context.appInk)),
                 const SizedBox(width: AppSpace.md),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -63,9 +65,9 @@ class HelpScreen extends StatelessWidget {
                         semanticsLabel: body, style: TextStyle(fontSize: AppFont.caption, color: context.appInk)),
                   ]),
                 ),
-              ]),
+              ])),
             ],
-          ],
+          ]),
         ),
       );
 }

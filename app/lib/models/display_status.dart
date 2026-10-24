@@ -150,6 +150,14 @@ List<ApplianceMap>? pressDeviceHosts(Iterable<ApplianceMap> serverBuiltins) {
   ];
 }
 
+/// 누름 장치가 끊겼다 — 누름 장치가 올라가 있는 가전([pressDeviceHosts])이 모두 본체 판정 '연결 안 됨'(`disconnected`).
+/// 그때 '다른 가전 위에 있어요'는 맞지 않는다(첫 사용 평가 2차 10/24) — 위치 대신 끊긴 것을 말한다. 모르면 false.
+bool pressDeviceDisconnected(List<ApplianceMap>? hosts) =>
+    hosts != null && hosts.isNotEmpty && hosts.every((h) => h.readiness == 'disconnected');
+
+/// 누름 장치가 끊겼을 때 위치 대신 쓰는 말([pressDeviceDisconnected]).
+const kPressDeviceDisconnectedText = '누름 장치가 연결되지 않았어요';
+
 /// 가전 타일에 적을 **짧은** 원인 한 줄(휴리스틱 평가 10/18: '누름 장치가 이 가전 위에 없어서 누를 수 없…'처럼 말줄임에
 /// 원인이 잘렸다). 아는 서버 문장은 짧은 말로, 모르는 문장은 첫 문장만(지어내지 않는다). 자세한 건 가전 상세에서.
 ///
@@ -158,6 +166,7 @@ List<ApplianceMap>? pressDeviceHosts(Iterable<ApplianceMap> serverBuiltins) {
 String tileReasonText(String reason, {List<ApplianceMap>? pressHosts}) {
   final t = reason.trim();
   if (t.startsWith(kGantryAbsentReason)) {
+    if (pressDeviceDisconnected(pressHosts)) return kPressDeviceDisconnectedText;
     return switch (pressHosts) {
       null => '누름 장치가 이 가전 위에 없어요',
       [] => '누름 장치가 어느 가전 위에도 없어요',
@@ -183,6 +192,9 @@ String? pressUnavailableNotice(ApplianceMap a, ApplianceMap? source, {List<Appli
           source.readinessReasons.any((r) => r.trim() == '아직 기기와 연결되지 않았어요'));
   if (!gantry && !noDevice) return null;
   final hosts = pressHosts?.where((h) => h.id != a.id).toList();
+  if (gantry && pressDeviceDisconnected(hosts)) {
+    return '지금은 누를 수 없어요. $kPressDeviceDisconnectedText. 누름 장치 연결을 확인해 주세요.';
+  }
   final where = switch (hosts) {
     null => '',
     [] => ' 누름 장치는 지금 어느 가전 위에도 없어요.',

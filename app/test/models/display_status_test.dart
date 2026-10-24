@@ -441,6 +441,37 @@ void main() {
       expect(tileReasonText(absent, pressHosts: hosts), '누름 장치가 다른 가전 위에 있어요');
     });
 
+    // 첫 사용 평가 2차(10/24): 누름 장치가 끊겼는데 인덕션 타일이 '누름 장치가 다른 가전 위에 있어요'라고 했다 — 끊긴 것을 먼저.
+    test('누름 장치가 올라간 가전이 연결 안 됨이면 위치 대신 끊김을 말한다', () {
+      final mw = ApplianceMap.fromJson({
+        'id': 'microwave',
+        'name': '전자레인지',
+        'rows': 1,
+        'cols': 1,
+        'buttons': const [],
+        'is_custom': false,
+        'can_execute': false,
+        'readiness': 'disconnected',
+        'readiness_reasons': ['기기와 연결되지 않았어요'],
+      });
+      final ind = builtin('induction', reasons: [absent]);
+      final hosts = pressDeviceHosts([mw, ind]);
+      expect(tileReasonText(absent, pressHosts: hosts), '누름 장치가 연결되지 않았어요');
+      final t = applianceTileStatus(
+        appliance: _plain,
+        readinessSource: ind,
+        hub: RpiConnectionState.connected,
+        catalog: ServerCatalogStatus.loaded,
+        execution: const ExecutionStatus(),
+        pressHosts: hosts,
+      );
+      expect(t.detail, isNot(contains('다른 가전 위')));
+      expect(t.issue!.text, '지금은 쓸 수 없어요. 누름 장치가 연결되지 않았어요');
+      final notice = pressUnavailableNotice(ind, ind, pressHosts: hosts)!;
+      expect(notice, isNot(contains('위에 있어요')));
+      expect(notice, contains('누름 장치가 연결되지 않았어요'));
+    });
+
     test('기본 가전 모두가 위에 없다고 하면 어느 가전 위에도 없다', () {
       final hosts = pressDeviceHosts(
           [builtin('microwave', reasons: [absent]), builtin('induction', reasons: [absent])]);

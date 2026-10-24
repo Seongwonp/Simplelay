@@ -1,7 +1,11 @@
 part of '../home_screen.dart';
 
 /// 첫 저장 동작을 강조하되 사용 빈도나 추천 근거를 만들어내지 않는다.
-class _FeaturedAction extends StatelessWidget {
+///
+/// 본체가 대상 가전을 지금은 실행할 수 없다고 하면(홈 타일 '!'·'지금 하기' 확인 시트와 같은 판정 [routineRunPlan]) 제목 아래
+/// '지금은 쓸 수 없어요'를 적고 '실행하기'를 채운 주 버튼이 아닌 흐린 테두리로 그린다(첫 사용 평가 2차 10/24, 키오스크 카드와
+/// 같게). 눌러도 바로 하지 않는다 — 확인 시트가 막힌 이유를 말하고 카드를 만들지 않는다.
+class _FeaturedAction extends ConsumerWidget {
   const _FeaturedAction(
       {required this.routine,
       required this.subtitle,
@@ -17,37 +21,52 @@ class _FeaturedAction extends StatelessWidget {
   final Map<String, ApplianceCategory> iconOf;
 
   @override
-  Widget build(BuildContext context) => Card(
-        key: const Key('home-routine-hero'),
-        margin: const EdgeInsets.only(bottom: AppSpace.md),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpace.xl),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _FeaturedActionIdentity(
-                routine: routine, subtitle: subtitle, iconOf: iconOf),
-            const SizedBox(height: AppSpace.lg),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final blocked = routineRunPlan(routine, ref.watch(installedAppliancesProvider),
+                readinessOf: ref.watch(serverApplianceCatalogProvider).readinessFor)
+            .blocked !=
+        null;
+    final label = running
+        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+        : Text('실행하기',
+            semanticsLabel: blocked ? '${routine.name} 실행하기, 지금은 쓸 수 없어요' : '${routine.name} 실행하기');
+    return Card(
+      key: const Key('home-routine-hero'),
+      margin: const EdgeInsets.only(bottom: AppSpace.md),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpace.xl),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _FeaturedActionIdentity(routine: routine, subtitle: subtitle, iconOf: iconOf, blocked: blocked),
+          const SizedBox(height: AppSpace.lg),
+          if (blocked)
+            OutlinedButton(
+              key: Key('home-routine-tile-${routine.id}'),
+              onPressed: busy ? null : onTap,
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  foregroundColor: context.appMuted,
+                  side: BorderSide(color: context.appBorderFaint)),
+              child: label,
+            )
+          else
             FilledButton(
               key: Key('home-routine-tile-${routine.id}'),
               onPressed: busy ? null : onTap,
-              child: running
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text('실행하기', semanticsLabel: '${routine.name} 실행하기'),
+              child: label,
             ),
-          ]),
-        ),
-      );
+        ]),
+      ),
+    );
+  }
 }
 
 class _FeaturedActionIdentity extends ConsumerWidget {
   const _FeaturedActionIdentity(
-      {required this.routine, required this.subtitle, required this.iconOf});
+      {required this.routine, required this.subtitle, required this.iconOf, this.blocked = false});
   final Routine routine;
   final String subtitle;
   final Map<String, ApplianceCategory> iconOf;
+  final bool blocked;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appliances = ref.watch(installedAppliancesProvider);
@@ -76,6 +95,9 @@ class _FeaturedActionIdentity extends ConsumerWidget {
           keepPhrasesTogether(subtitle,
               wholeParts: MediaQuery.textScalerOf(context).scale(1) <= 1.3),
           style: context.appCaption),
+      if (blocked)
+        Text('지금은 쓸 수 없어요',
+            style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appWarning)),
     ]);
     if (MediaQuery.textScalerOf(context).scale(1) > 1.3) {
       return Column(

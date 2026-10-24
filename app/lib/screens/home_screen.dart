@@ -18,6 +18,7 @@ import '../providers/appliance_provider.dart';
 import '../providers/routine_provider.dart';
 import '../widgets/routine_icon.dart';
 import '../widgets/routine_run.dart';
+import '../widgets/routine_confirm_sheet.dart' show routineRunPlan;
 import 'routines_screen.dart' show ampmClock, kSetupActionLabel, routineSubtitle, withAmPm;
 import 'history_screen.dart' show historyAckPendingProvider, historyFailedOnlyProvider;
 import '../providers/ble_provider.dart';

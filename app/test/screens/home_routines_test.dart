@@ -309,6 +309,32 @@ void main() {
     expect(find.text('승인 화면 card-1'), findsOneWidget);
   });
 
+  // 첫 사용 평가 2차(10/24): 누름 장치가 끊겼는데 '무엇을 할까요?' 카드의 '실행하기'가 보통 주 버튼이었다(키오스크 카드와 같게).
+  testWidgets("막힌 가전의 '무엇을 할까요?' 카드: '지금은 쓸 수 없어요' + 채운 주 버튼이 아니다", (tester) async {
+    final mw = _appliance('mw', '주방 전자레인지')
+      ..['can_execute'] = false
+      ..['readiness'] = 'disconnected'
+      ..['readiness_reasons'] = <String>['누름 장치가 연결되지 않았어요.'];
+    final hub = _Hub(appliances: [mw], routines: [_routine('r-b', '30초 데우기')]);
+    _tall(tester);
+    // 이 폰에 저장한 정의는 판정을 들고 있지 않다 — 판정은 본체 목록의 같은 id(홈 타일 '!'와 같은 근거).
+    final saved = _appliance('mw', '주방 전자레인지')
+      ..remove('can_execute')
+      ..remove('readiness')
+      ..remove('readiness_reasons');
+    await tester.pumpWidget(_home(hub, installed: [ApplianceMap.fromJson(saved)]));
+    await _settle(tester);
+    final hero = find.byKey(const Key('home-routine-hero'));
+    expect(hero, findsOneWidget);
+    expect(find.descendant(of: hero, matching: find.text('지금은 쓸 수 없어요')), findsOneWidget);
+    expect(find.descendant(of: hero, matching: find.byType(FilledButton)), findsNothing);
+    // 눌러도 바로 하지 않는다 — 확인 시트가 막힌 이유를 말한다(카드도 만들지 않는다).
+    await tester.tap(_tile('r-b'));
+    await _settle(tester);
+    expect(find.byKey(const Key('routine-confirm-blocked')), findsOneWidget);
+    expect(hub.requests.where((r) => r.endsWith('/trigger')), isEmpty);
+  });
+
   testWidgets('설정이 필요한 가전의 루틴 타일은 실행 대신 그 가전 설정으로 간다', (tester) async {
     final washer = _appliance('washer', '세탁기', mapped: false);
     final mw = _appliance('mw', '주방 전자레인지');
