@@ -68,6 +68,9 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
   /// 실행 방식 아래 한 줄 설명([routineModeNote]).
   String get _modeNote => routineModeNote(_draft, auto: _auto);
 
+  /// 자동 실행 허용으로 실행 방식이 정해진 상태 — 칸을 잠그고 실제 방식을 보인다.
+  bool get _autoLocked => _auto && _draft.mode == RoutineMode.approve;
+
   static const _autoNote = '처음 물어볼 때 "다음부터도 자동으로"를 고르면 그다음부터는 묻지 않고 해요.';
 
   @override
@@ -196,14 +199,19 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           const Text('실행 방식',
               style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpace.sm),
+          // 자동 실행 허용이 켜진 루틴은 실제로 묻지 않고 한다 — 칸도 그 사실을 보이고 잠근다(첫 사용 평가 4차 10/24:
+          // '물어보고 하기'가 골라진 채 설명은 '묻지 않고 해요'였다). 저장하는 mode 값은 그대로다.
           SegmentedButton<RoutineMode>(
-            segments: const [
-              ButtonSegment(value: RoutineMode.approve, label: Text('물어보고 하기')),
-              ButtonSegment(value: RoutineMode.notify, label: Text('알림만')),
+            segments: [
+              ButtonSegment(
+                  value: RoutineMode.approve,
+                  label: Text(_autoLocked ? '묻지 않고 하기' : '물어보고 하기')),
+              const ButtonSegment(value: RoutineMode.notify, label: Text('알림만')),
             ],
             selected: {_draft.mode},
             showSelectedIcon: false,
-            onSelectionChanged: (v) => _update(_draft.copyWith(mode: v.first)),
+            onSelectionChanged:
+                _autoLocked ? null : (v) => _update(_draft.copyWith(mode: v.first)),
           ),
           const SizedBox(height: AppSpace.sm),
           // 낱말 단위 줄바꿈 + 짧게 한 줄(평가 15차 10/18: '눌러요'에서 '러요.'만 다음 줄로 갔다).
@@ -636,7 +644,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
 /// - 누르는 단계가 있으면 '허락하면 눌러요', 없으면(LG 가전·알림) '허락하면 해요' — 공기청정기는 누르지 않는다.
 String routineModeNote(Routine r, {required bool auto}) {
   if (r.mode != RoutineMode.approve) return '알림만 보내요. 가전은 그대로예요.';
-  if (auto) return '자동 실행 허용이 켜져 있어 때가 되면 묻지 않고 해요.';
+  if (auto) return '자동 실행 허용이 켜져 있어 지금은 묻지 않고 해요. 자동 실행 탭에서 끌 수 있어요.';
   final presses = r.steps.any((s) => s.kind == RoutineStepKind.pressSequence);
   return presses ? '때가 되면 카드로 물어보고, 허락하면 눌러요.' : '때가 되면 카드로 물어보고, 허락하면 해요.';
 }

@@ -471,6 +471,43 @@ void main() {
       expect(findPlainText('안 본 알림 7건'), findsOneWidget);
     });
 
+    // 첫 사용 평가 4차(10/24): 누름 장치를 뺀 날에도 설정은 '본체 · 연결됨'만 보여 모두 괜찮은 것처럼 읽혔다.
+    testWidgets("누름 장치가 끊기면 본체 줄 옆에 '누름 장치: 연결되지 않음'", (tester) async {
+      final saved = _raw;
+      addTearDown(() => _raw = saved);
+      _raw = [
+        {
+          'id': 'microwave',
+          'name': '전자레인지',
+          'rows': 4,
+          'cols': 3,
+          'buttons': const [],
+          'is_custom': false,
+          'control_path': 'physical',
+          'can_execute': false,
+          'readiness': 'needs_setup',
+          'readiness_reasons': const ['누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.'],
+        },
+        _air,
+      ];
+      await _pump(tester, const SettingsScreen());
+      expect(findPlainText('누름 장치: 연결되지 않음', contains: true), findsOneWidget);
+    });
+
+    // 첫 사용 평가 4차(10/24): 실행 전에는 정지가 어디 나오는지 알 길이 없었다 — 시작하는 자리(첫 저장 동작 카드)에만 한 줄.
+    testWidgets('첫 저장 동작 카드 실행하기 아래에 정지 위치 한 줄', (tester) async {
+      await _pump(tester, const HomeScreen());
+      final hero = find.byKey(const Key('home-routine-hero'));
+      expect(hero, findsOneWidget);
+      expect(_in(hero, find.byKey(const Key('home-stop-hint'))), findsOneWidget);
+      expect(findPlainText('실행 중에는 화면 아래에 정지가 나와요', contains: true), findsOneWidget);
+    });
+
+    testWidgets('누름 장치 판정이 끊김이 아니면 본체 줄에 누름 장치 말을 붙이지 않는다', (tester) async {
+      await _pump(tester, const SettingsScreen());
+      expect(findPlainText('누름 장치:', contains: true), findsNothing);
+    });
+
     testWidgets("'기록 보기'는 못 한 일만 거른 기록으로", (tester) async {
       await _pump(tester, const HomeScreen());
       await tester.tap(find.byKey(const Key('home-failure-action')));
@@ -795,6 +832,24 @@ void main() {
       expect(note.semanticsLabel, isNot(contains('물어보고')));
       expect(note.semanticsLabel, contains('묻지 않고'));
       expect(note.semanticsLabel, contains('자동 실행 허용'));
+    });
+
+    // 첫 사용 평가 4차 10/24: 자동 실행 허용이 켜진 루틴에서 칸은 '물어보고 하기'가 골라진 채, 설명은 '묻지 않고 해요'였다.
+    testWidgets('자동 실행 허용 루틴의 실행 방식 칸은 실제(묻지 않고 하기)를 보이고 잠긴다', (tester) async {
+      await _pump(tester, RoutineEditorScreen(initial: Routine.fromJson(_routines[3])));
+      final seg = tester.widget<SegmentedButton<RoutineMode>>(find.byType(SegmentedButton<RoutineMode>));
+      expect(seg.onSelectionChanged, isNull);
+      expect(find.text('물어보고 하기'), findsNothing);
+      expect(find.text('묻지 않고 하기'), findsOneWidget);
+      final note = tester.widget<Text>(find.byKey(const Key('routine-mode-note')));
+      expect(note.semanticsLabel, contains('자동 실행 탭에서 끌 수 있어요'));
+    });
+
+    testWidgets('자동 실행 허용이 아닌 루틴은 실행 방식 칸을 고를 수 있다', (tester) async {
+      await _pump(tester, RoutineEditorScreen(initial: Routine.fromJson(_routines[1])));
+      final seg = tester.widget<SegmentedButton<RoutineMode>>(find.byType(SegmentedButton<RoutineMode>));
+      expect(seg.onSelectionChanged, isNotNull);
+      expect(find.text('물어보고 하기'), findsOneWidget);
     });
   });
 }

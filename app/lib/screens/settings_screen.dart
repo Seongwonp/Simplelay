@@ -23,6 +23,7 @@ import '../providers/execution_status_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
+import '../providers/server_appliance_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/tts_provider.dart';
 import '../services/ble_service.dart';
@@ -99,6 +100,9 @@ class SettingsScreen extends ConsumerWidget {
     final thinqAsync = ref.watch(thinqOverviewProvider);
     final thinq = thinqAsync.valueOrNull;
     final thinqApi = ref.watch(rpiApiServiceProvider);
+    // 홈 타일 '!'와 같은 판정 — 본체와 이어져 있고 누름 장치가 끊겼다고 알 때만(첫 사용 평가 4차 10/24).
+    final pressDown = rpi == RpiConnectionState.connected &&
+        pressDeviceDisconnected(pressDeviceHosts(ref.watch(serverApplianceCatalogProvider).appliances));
     return Scaffold(
       // 탭 제목은 홈('우리 집')과 같은 굵은 큰 제목(UI 평가 10/17).
       appBar: AppBar(title: Text('설정', style: AppText.heading)),
@@ -149,7 +153,10 @@ class SettingsScreen extends ConsumerWidget {
               icon: Icons.router_outlined,
               title: '본체',
               // 2026-10-17 쉬운 말 사전: 폰·본체 화면 모두 '본체' — 이름 해명 문장은 뺐다.
-              subtitle: _hubLine(rpi),
+              // 첫 사용 평가 4차(10/24): 누름 장치를 뺀 날에도 '연결됨'만 보여 모두 괜찮은 것처럼 읽혔다 — 홈 타일 '!'와
+              // 같은 판정([pressDeviceDisconnected])일 때만 누름 장치 상태를 붙인다(모르면 말하지 않는다).
+              subtitle: pressDown ? '${_hubLine(rpi)} · 누름 장치: 연결되지 않음' : _hubLine(rpi),
+              valueColor: pressDown ? context.appWarning : null,
               onTap: () => context.push('/settings/hub'),
             ),
             _NavRow(

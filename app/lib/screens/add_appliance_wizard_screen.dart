@@ -191,6 +191,30 @@ class _AddApplianceWizardScreenState
         _ => false,
       };
 
+  /// '다음'이 안 눌리는 까닭 한 줄 — [_canNext]와 같은 조건으로만(첫 사용 평가 4차 10/24: 흐린 '다음'에 까닭이 없었다).
+  /// 눌리면 null. 저장 중(③)은 단추 글자가 이미 말한다.
+  String? get _nextBlockedReason {
+    if (_canNext) return null;
+    switch (_step) {
+      case 0:
+        final noPhoto = _photo == null || _photoSize == null;
+        final noName = _name.text.trim().isEmpty;
+        if (noPhoto && noName) return '사진과 가전 이름이 있어야 다음으로 갈 수 있어요';
+        if (noPhoto) return '가전 사진이 있어야 다음으로 갈 수 있어요';
+        if (noName) return '가전 이름을 적어야 다음으로 갈 수 있어요';
+        if (_nameTaken) return '같은 이름의 가전이 이미 있어요. 다른 이름을 적어 주세요';
+        if (_offline) return '본체와 연결되어야 다음으로 갈 수 있어요';
+        return null;
+      case 1:
+        if (_corners.length < 4) return '버튼판 귀퉁이 네 곳을 골라야 다음으로 갈 수 있어요';
+        return '버튼판 가로·세로 크기(mm)를 적어야 다음으로 갈 수 있어요';
+      case 2:
+        return '버튼을 하나 이상 골라야 다음으로 갈 수 있어요';
+      default:
+        return null;
+    }
+  }
+
   /// 본체와 연결되지 않았나. 첫 단계에서 다음으로 가지 않는다 — 안내만 하니 사진·귀퉁이·버튼을 다 고른 뒤 저장에서야
   /// 막혔다(첫 사용 검토 10/19). 연결 화면에 다녀와도 고른 것은 이 화면에 그대로 있다.
   bool get _offline => const {
@@ -755,6 +779,14 @@ class _AddApplianceWizardScreenState
                         ),
                       ],
                     ),
+              if (_step != 4 && _nextBlockedReason != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpace.sm),
+                  child: Text(_nextBlockedReason!,
+                      key: const Key('wizard-next-why'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+                ),
             ],
           ),
         ),

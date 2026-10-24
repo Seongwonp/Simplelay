@@ -1,5 +1,8 @@
 part of '../home_screen.dart';
 
+/// 첫 저장 동작 카드 아래 정지 위치 한 줄(첫 사용 평가 4차 10/24).
+const kHomeStopHint = '실행 중에는 화면 아래에 정지가 나와요';
+
 /// 첫 저장 동작을 강조하되 사용 빈도나 추천 근거를 만들어내지 않는다.
 ///
 /// 본체가 대상 가전을 지금은 실행할 수 없다고 하면(홈 타일 '!'·'지금 하기' 확인 시트와 같은 판정 [routineRunPlan]) 제목 아래
@@ -53,6 +56,17 @@ class _FeaturedAction extends ConsumerWidget {
               key: Key('home-routine-tile-${routine.id}'),
               onPressed: busy ? null : onTap,
               child: label,
+            ),
+          // 정지가 어디 나오는지 실행 전에 한 줄(첫 사용 평가 4차 10/24). 홈 맨 위에 따로 두지 않고 시작하는 자리에만,
+          // 쓸 수 있고 아무것도 돌지 않을 때만 — 실행 중에는 정지 줄이 직접 보인다.
+          if (!blocked && !running && !busy)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpace.sm),
+              child: Text(keepWordsTogether(kHomeStopHint),
+                  key: const Key('home-stop-hint'),
+                  semanticsLabel: kHomeStopHint,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
             ),
         ]),
       ),

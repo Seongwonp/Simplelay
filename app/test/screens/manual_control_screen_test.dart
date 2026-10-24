@@ -176,6 +176,8 @@ void main() {
     expect(find.text('테스트가전'), findsOneWidget);
     // 설명은 한 줄 하나(평가 7차 10/18).
     expect(findPlainText(kManualHint), findsOneWidget);
+    // 첫 사용 평가 4차(10/24): '하나씩 눌러요'가 여러 버튼을 차례로 누르는 것처럼 읽혔다 — 한 번 누르면 그 버튼 한 번.
+    expect(kManualHint, contains('누를 때마다'));
     expect(find.text('켜기'), findsOneWidget);
     expect(find.text('끄기'), findsOneWidget);
     // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.

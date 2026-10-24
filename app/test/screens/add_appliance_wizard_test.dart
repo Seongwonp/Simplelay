@@ -730,6 +730,31 @@ void main() {
     expect(find.text('다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.'), findsOneWidget);
   });
 
+  // 첫 사용 평가 4차(10/24): '다음'이 흐려져 있는데 왜인지 말이 없었다 — 단추 아래에 빠진 것을 말한다.
+  testWidgets("'다음'이 안 눌리면 단추 아래에 빠진 것(사진·이름·귀퉁이)을 말한다", (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    String why() => tester.widget<Text>(find.byKey(const Key('wizard-next-why'))).data!;
+    expect(tester.widget<FilledButton>(find.byKey(const Key('wizard-next'))).onPressed, isNull);
+    expect(why(), contains('사진'));
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    await tester.enterText(find.byKey(const Key('wizard-name')), '');
+    await tester.pump();
+    expect(why(), contains('이름'));
+    expect(why(), isNot(contains('사진')));
+    await tester.enterText(find.byKey(const Key('wizard-name')), '전자레인지');
+    await tester.pump();
+    expect(find.byKey(const Key('wizard-next-why')), findsNothing);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(why(), contains('귀퉁이'));
+  });
+
   testWidgets('귀퉁이를 다 골랐는데 크기를 몰라 못 넘어가면 위에서 크기를 적으라고 말한다', (tester) async {
     final server = _Server()..frameKnown = false;
     _tall(tester);
