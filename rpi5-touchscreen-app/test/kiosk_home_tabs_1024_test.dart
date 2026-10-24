@@ -275,7 +275,8 @@ void main() {
       expect(e('c', confirmation: 'reported').result.$1, '확인 못 함', reason: '누름 장치 보고만');
       expect(e('d', confirmation: 'none').result.$1, '확인 못 함');
       expect(e('e', route: 'thinq', confirmation: 'none', outcome: 'unconfirmed', status: 'unconfirmed').result.$1, '확인 못 함');
-      expect(e('f', mode: 'mock').result.$1, '연습', reason: '연습을 완료로 말하지 않는다');
+      // 연습은 '완료'만으로 말하지 않는다 — 늘 '연습'을 앞에(10/24 QA: 결과도 함께).
+      expect(e('f', mode: 'mock').result.$1, '연습 · 완료', reason: '연습을 실제 완료로 말하지 않는다');
       expect(e('g', status: 'stopped', outcome: 'stopped').result.$1, '멈춤');
       expect(e('h', status: 'failed', outcome: 'failed').result.$1, '실패');
       expect(e('i', purpose: "자동 실행 · '저녁 공기청정기 켜기' 루틴").title(), '저녁 공기청정기 켜기');

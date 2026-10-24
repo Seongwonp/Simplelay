@@ -17,6 +17,7 @@ import 'idle_side_rows.dart';
 import 'idle_top.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'kiosk_canvas.dart';
+import 'kiosk_modal.dart';
 import 'kiosk_text.dart';
 import 'thinq_panel.dart' show airGradeColor;
 
@@ -1646,10 +1647,13 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
     final scope = dnd != null && v.dndScope == 'suggestions_only' ? kDndCarriedScopeText : kDndScopeText;
     final restSub = dnd != null ? '켜져 있어요. ${v._dndRemaining(dnd)} 남았어요. $scope' : scope;
     return Stack(children: [
-      body,
+      // 창이 떠 있으면 뒤 처음 화면은 화면 읽기에서 뺀다(10/24 QA) — 창만 읽히고 눌린다.
+      ExcludeSemantics(child: body),
       // 메뉴·연결·사용 방법 창이 떠 있으면 아래 탭을 숨긴다(실패널 10/24 — 탭이 창 위에 밝게 남고 창의 마지막 줄이 잘렸다).
       const KioskTabBarSuppress(),
       Positioned.fill(
+        child: KioskModalSemantics(
+        label: switch (_sheet) { _Sheet.help => '사용 방법', _Sheet.menu => '메뉴', _ => '연결' },
         child: _sheet == _Sheet.help
             // 사용 방법 세 장(휴리스틱 평가 10/18).
             ? KioskHelpGuide(onClose: _close)
@@ -1707,6 +1711,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                   v.onOpenConnection(item);
                 }),
               ),
+        ),
       ),
     ]);
   }

@@ -100,7 +100,8 @@ void main() {
     await _start(tester);
     await _poll(tester);
     expect(find.byType(KioskExecutingView), findsOneWidget);
-    expect(find.text('루틴 1번째 차례'), findsOneWidget);
+    // 첫 차례는 말하지 않는다(10/24 QA — 차례가 하나뿐인 루틴에 '루틴 1번째 차례'가 헷갈렸다). 둘째 차례부터.
+    expect(find.text('루틴 1번째 차례'), findsNothing);
 
     job = _between();
     api.statusResult = const KioskStatus(running: false);

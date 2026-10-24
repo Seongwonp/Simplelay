@@ -37,7 +37,12 @@ class KioskManualView extends StatefulWidget {
     this.thinqSend,
     this.onThinqAccepted,
     this.thinqLookup,
+    this.initialShowBoard = false,
   });
+
+  /// 처음부터 버튼판을 열어 둘까 — 버튼판에서 누른 결과의 '계속 조작'은 보던 버튼판으로 돌아온다(10/24 QA).
+  /// 저장된 동작에서 실행했으면 false(저장된 동작 칸으로).
+  final bool initialShowBoard;
 
   final ApplianceMap appliance;
   final void Function(ApplianceButton button) onExecute;
@@ -70,7 +75,7 @@ class _KioskManualViewState extends State<KioskManualView> {
   ApplianceButton? _pending;
 
   // '버튼 직접 고르기'로 버튼판을 열었나(시안 B ② 10/24). 저장된 동작이 있으면 그것이 먼저다.
-  bool _showBoard = false;
+  late bool _showBoard = widget.initialShowBoard;
 
   @override
   void didUpdateWidget(KioskManualView old) {
@@ -189,12 +194,14 @@ class _KioskManualViewState extends State<KioskManualView> {
                             : _board(appliance)),
                     // ThinQ 가전은 상태·조작 두 칸이 자리를 쓴다 — 루틴 칸은 두지 않는다(2026-10-16). 저장된 동작이 있으면
                     // 그 칸이 먼저 보였으니 버튼판 옆에 다시 두지 않는다(시안 B 10/24) — 루틴이 없을 때의 안내만 남긴다.
-                    if (routines != null && !appliance.isThinq && !showActions)
+                    // 저장된 동작에서 '버튼 직접 고르기'로 왔으면 옆 칸을 두지 않는다 — 루틴은 한 단계 뒤 칸에 있고, 빈 '내 루틴'
+                    // 머리만 남으면 루틴이 없는 것처럼 읽혔다(10/24 QA). 판이 그 자리를 쓴다.
+                    if (routines != null && !appliance.isThinq && !hasActions)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 4, 20, 16),
                         child: SizedBox(
                           width: 220,
-                          child: _RoutinePanel(hasRoutines: hasActions),
+                          child: const _RoutinePanel(),
                         ),
                       ),
                   ],
@@ -287,10 +294,7 @@ class _KioskManualViewState extends State<KioskManualView> {
 /// 내 루틴 칸 — 이 가전에 저장된 동작(루틴)이 **없을 때**만 버튼판 옆에 선다(시안 B 10/24 — 있으면 저장된 동작 칸이
 /// 먼저 보인다, [KioskManualActions]). 새 루틴은 폰에서 만든다.
 class _RoutinePanel extends StatelessWidget {
-  const _RoutinePanel({required this.hasRoutines});
-
-  /// 저장된 동작이 있는데 '버튼 직접 고르기'로 판을 열었나 — 그때는 '아직 없어요' 대신 안내만.
-  final bool hasRoutines;
+  const _RoutinePanel();
 
   @override
   Widget build(BuildContext context) => Column(
@@ -302,12 +306,10 @@ class _RoutinePanel extends StatelessWidget {
               style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
           const SizedBox(height: 8),
           Expanded(
-            child: hasRoutines
-                ? const SizedBox.shrink()
-                : KioskText(
-                    '이 가전에는 아직 루틴이 없어요',
-                    style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
-                  ),
+            child: KioskText(
+              '이 가전에는 아직 루틴이 없어요',
+              style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+            ),
           ),
           const SizedBox(height: 8),
           // 판의 버튼은 하나씩 묻고 하나씩 누른다 — '30초 → 시작'처럼 여러 개를 한 번 묻고 한 번에 맡기는 길은 루틴이다
@@ -524,7 +526,9 @@ Size _cellSizeFor(ApplianceMap appliance, Size area) {
   const gap = _cellGap * 2;
   final cols = appliance.cols < 1 ? 1 : appliance.cols;
   final rows = appliance.rows < 1 ? 1 : appliance.rows;
-  final minH = appliance.canExecute ? _cellHeight : _cellHeightDisabled;
+  // 아래 탭 줄이 선 뒤(시안 B 10/24)에는 4행 판이 예전 하한(66)으로 들어가지 않아 맨 아래 줄(취소·시작)이 탭 줄 뒤로
+  // 밀려 잘렸다(10/24 QA). 자리가 모자라면 손 닿는 하한([_cellHeightTight], 캔버스 48 이상)까지 줄여 판 전체가 보이게 한다.
+  final minH = appliance.canExecute ? _cellHeightTight : _cellHeightDisabled;
   final w = ((area.width - 48) / cols - gap).clamp(_cellWidth, _cellMaxWidth);
   final h = ((area.height - 12) / rows - gap).clamp(minH, _cellMaxHeight);
   return Size(w.toDouble(), h.toDouble());
@@ -589,7 +593,8 @@ String manualPressNote(String applianceName, String buttonLabel) =>
 
 // 멀리서 읽히는 하한. 4열(인덕션)·4행(전자레인지)이 800x480에 들어가는 크기였다.
 const double _cellWidth = 124;
-const double _cellHeight = 66;
+// 자리가 모자랄 때의 하한 — 누르는 자리 48 이상(접근성 터치 크기), 글자 한 줄이 들어간다.
+const double _cellHeightTight = 52;
 const double _cellHeightDisabled = 40;
 
 // 칸이 커질 수 있는 상한(설계 캔버스 기준).
@@ -618,27 +623,41 @@ class _ButtonCell extends StatelessWidget {
   Widget build(BuildContext context) {
     // InkWell 잉크 피드백 — "눌렸는지 모름"이 실제 물리 버튼을 누르는 앱에선
     // 오조작(연타)으로 이어진다. Material 트리가 없는 화면이라 transparency로 공급.
-    return Semantics(
-      button: true,
-      enabled: onTap != null,
-      label: '${button.label} 버튼 누르기',
-      excludeSemantics: true,
-      child: Container(
+    final enabled = onTap != null;
+    final cell = Container(
         width: size.width,
         height: size.height,
         decoration: BoxDecoration(
-          color: KioskColors.surface,
+          // 못 누르는 칸은 바탕과 같은 색(떠 있는 단추처럼 보이지 않게) — 폰의 흐린 판과 같은 뜻(10/24 QA).
+          color: enabled ? KioskColors.surface : KioskColors.bg,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: KioskColors.border),
         ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(10),
-            splashColor: KioskColors.primary.withValues(alpha: 0.25),
-            highlightColor: KioskColors.primary.withValues(alpha: 0.12),
-            child: Center(
+        child: enabled
+            ? Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(10),
+                  splashColor: KioskColors.primary.withValues(alpha: 0.25),
+                  highlightColor: KioskColors.primary.withValues(alpha: 0.12),
+                  child: label,
+                ),
+              )
+            : label,
+    );
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: '${button.label} 버튼 누르기',
+      excludeSemantics: true,
+      // 준비 안 된 판은 칸 전체를 흐리게(10/24 QA — 글자만 흐려서는 누를 수 있는 단추처럼 보였다). 폰 판과 같은 0.45 근처,
+      // 글자는 진한 색 그대로 두어 흐린 뒤에도 읽힌다.
+      child: enabled ? cell : Opacity(opacity: 0.5, child: cell),
+    );
+  }
+
+  Widget get label => Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: KioskText(
@@ -650,19 +669,13 @@ class _ButtonCell extends StatelessWidget {
                     // 칸이 넉넉해지면 글자도 함께 키운다.
                     fontSize: size.height >= 80 ? 24 : 20,
                     height: 1.15,
-                    // 못 누르는 버튼은 그렇게 보여야 한다 — 색만 같으면
-                    // 눌리지 않는 이유를 가전 쪽에서 찾게 된다.
-                    // 흐린 글자도 3:1 이상(10/24 시각 QA — 35% 투명 글자는 2:1 남짓이라 읽히지 않았다).
-                    color: onTap == null ? KioskColors.tileDim : KioskColors.ink,
+                    // 못 누르는 칸은 칸 전체를 흐린다(위 Opacity) — 글자까지 흐린 색이면 겹쳐서 읽히지 않는다(10/24 시각 QA —
+                    // 흐린 글자도 3:1 이상).
+                    color: KioskColors.ink,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+            );
 }
 

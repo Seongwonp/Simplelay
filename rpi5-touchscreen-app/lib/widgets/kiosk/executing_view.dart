@@ -51,7 +51,10 @@ class KioskExecutingView extends StatelessWidget {
   /// 루틴이 다음 구간을 기다리는 중(구간 사이, 검토 10/19) — 누르는 버튼이 없다. 루틴은 아직 하는 중이고 정지는 그대로다.
   final bool routineWaiting;
 
-  String? get _routineLine => routineSegment == null ? null : '루틴 $routineSegment번째 차례';
+  /// 첫 차례에는 말하지 않는다(10/24 QA) — 차례가 하나뿐인 루틴에 '루틴 1번째 차례'가 버튼 순서와 겹쳐 헷갈렸다. 둘째
+  /// 차례부터 말한다(차례가 여럿인 루틴만 거기에 닿는다).
+  String? get _routineLine =>
+      routineSegment == null || routineSegment! < 2 ? null : '루틴 $routineSegment번째 차례';
 
   /// 정지를 누른 뒤의 상태(검토 10/19) — 위 띠가 '멈추는 중' 또는 '정지 요청 결과를 확인하지 못했어요'로 바뀐다. 정지 단추는 그대로 남는다.
   /// 멈췄는지는 서버 보고를 받은 결과 화면이 말한다.

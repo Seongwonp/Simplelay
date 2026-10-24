@@ -7,7 +7,7 @@ import 'tab_page.dart';
 
 /// '기록' 탭(시안 B 10/24) — 최근 실행 결과(`GET /history`, 폰 기록과 같은 경로)를 읽기만 한다.
 ///
-/// 줄마다 시각 · 무엇을 했나 · 결과 한 단어(완료·실패·멈춤·스스로 멈춤·확인 못 함·연습). '완료'는 실제 실행에서 확인한 것만
+/// 줄마다 시각 · 무엇을 했나 · 결과 한 단어(완료·실패·멈춤·스스로 멈춤·확인 못 함, 연습이면 '연습 · 멈춤'처럼 함께). '완료'는 실제 실행에서 확인한 것만
 /// ([KioskHistoryEntry.result] — 폰과 같은 확인 수준 규칙). 답하기·자세히는 폰 기록에서 한다.
 class KioskHistoryView extends StatelessWidget {
   const KioskHistoryView({

@@ -11,6 +11,7 @@ import '../models/appliance.dart';
 import '../models/auto_run.dart';
 import '../models/command_result.dart';
 import '../models/estop.dart';
+import '../models/josa.dart';
 import '../models/kiosk_history.dart';
 import '../models/thinq.dart';
 import '../models/scenario_run.dart';
@@ -34,6 +35,7 @@ import '../widgets/kiosk/hold_view.dart';
 import '../widgets/kiosk/idle_top.dart' show connectionsForDisplay;
 import '../widgets/kiosk/idle_view.dart';
 import '../widgets/kiosk/kiosk_canvas.dart';
+import '../widgets/kiosk/kiosk_modal.dart';
 import '../widgets/kiosk/kiosk_phase.dart';
 import '../widgets/kiosk/kiosk_tab_bar.dart';
 import '../widgets/kiosk/kiosk_timings.dart';
@@ -234,6 +236,10 @@ class _KioskScreenState extends State<KioskScreen> {
   // 이 실행에서 이미 누른 버튼(화면이 본 차례대로, 평가 3차 10/18) — 실행 화면 버튼판의 끝난 칸 ✓.
   // 서버는 지금 버튼만 준다. 지금 버튼이 다른 버튼으로 바뀌면 앞 버튼은 누른 것이다(사이를 놓친 버튼은 표시하지 않는다).
   List<String> _execDoneButtons = const [];
+
+  /// 승인한 카드에 묶인 버튼(명령 하나·누름 장치 경로·버튼 둘 이상일 때만, 10/24 QA). 본체는 승인 명령 수를 단계 수로 실어
+  /// '30초 → 시작'(명령 하나에 버튼 둘)이 '누를 버튼 1개 중 1번째'로 보였다 — 이때 진행은 이 버튼 수로 센다. 첫 차례에만 쓴다.
+  List<String>? _execPlanButtons;
   int? _currentAttempt;
   int? _completedSteps;
   double? _verificationConfidence;
@@ -820,6 +826,9 @@ class _KioskScreenState extends State<KioskScreen> {
   bool get _scrimOn =>
       _tabSuppress.value > 0 || _showSettings || _showDnd || _openConnectionId != null || _estopConfirming;
 
+  /// 화면 전체를 덮는 창(방해 금지·연결·설정)이 떠 있다 — 뒤 화면을 화면 읽기에서 뺀다(10/24 QA).
+  bool get _overlayOpen => _showDnd || _showSettings || (_openConnectionId != null && _phase == KioskPhase.idle);
+
   bool get _showTabs =>
       !_estopConfirming && !_showSettings && !_showDnd && _openConnectionId == null && ((_phase == KioskPhase.idle && !_quietDim) || _phase == KioskPhase.manual);
 
@@ -1169,6 +1178,13 @@ class _KioskScreenState extends State<KioskScreen> {
               _totalSteps = total;
               _execBarValue =
                   ((job.completedSteps ?? 0) / total).clamp(0.0, 0.95);
+            }
+            // 카드에 묶인 버튼이 더 많으면(명령 하나에 버튼 여럿) 그 버튼 수로 센다 — 끝낸 수는 화면이 본 바뀐 버튼 수.
+            final plan = _execPlanButtons;
+            if (plan != null && (_execRoutineSegment ?? 1) <= 1 && (_totalSteps ?? 0) < plan.length) {
+              _totalSteps = plan.length;
+              _completedSteps = _execDoneButtons.length.clamp(0, plan.length);
+              _execBarValue = (_completedSteps! / plan.length).clamp(0.0, 0.95);
             }
           });
           return;
@@ -1618,8 +1634,17 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 지금 결과의 복귀 문맥(R7) — 사람이 직접 고른 가전. [_toExecuting]이 실행마다 새로 정한다.
   String? _continueApplianceId;
 
+  /// 복귀 문맥의 보던 칸 — 버튼판에서 누른 실행이면 true(계속 조작은 버튼판으로), 저장된 동작이면 false(10/24 QA).
+  bool _continueOnBoard = false;
+
+  /// 이번에 여는 조작판을 버튼판부터 보일까(계속 조작·실패 뒤 화면 조작). 가전을 새로 고르면 false.
+  bool _manualOpenBoard = false;
+
   /// 조작판 루틴에서 만든 카드(카드 id, 그 조작판의 가전 id) — 승인하면 결과 뒤 그 조작판으로 돌아간다.
   (String, String)? _routineCard;
+
+  /// 사람이 이 키오스크에서 저장된 동작을 눌러 만든 마지막 카드 id(10/24 QA) — 그 카드는 '제안'이 아니라 '확인'으로 묻는다.
+  String? _ownCardId;
 
   /// 결과 화면의 '이 가전 계속 조작' — 같은 가전 조작판으로 **돌아가기만** 한다(직전 명령을 다시 보내지 않는다).
   /// 최신 설치 목록에서 다시 찾고, 없으면(그사이 삭제) 가전 고르기로 — 다른 가전으로 메우지 않는다.
@@ -1650,6 +1675,7 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() {
       _phase = KioskPhase.manual;
       _manualAppliance = target;
+      _manualOpenBoard = target != null && _continueOnBoard;
       if (target != null) _currentAppliance = target;
       _currentSuggestion = null;
       _showDnd = false;
@@ -1749,6 +1775,7 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() {
       _phase = KioskPhase.manual;
       _manualAppliance = appliance;
+      _manualOpenBoard = false;
       _currentAppliance = appliance; // 실행 라우팅의 기준
     });
     _persistSettings();
@@ -1767,6 +1794,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (card != null) {
         final from = startedFrom == KioskPhase.manual ? _manualAppliance : null;
         _routineCard = from == null ? null : (card.id, from.id);
+        _ownCardId = card.id;
         _toSuggestion(card);
         return;
       }
@@ -1792,6 +1820,7 @@ class _KioskScreenState extends State<KioskScreen> {
   void _onManualApplianceSelected(ApplianceMap appliance) {
     setState(() {
       _manualAppliance = appliance;
+      _manualOpenBoard = false;
       _currentAppliance = appliance; // 실행 라우팅·"지난번" 배지의 기준
     });
     _persistSettings();
@@ -1822,6 +1851,7 @@ class _KioskScreenState extends State<KioskScreen> {
       // 직접 고른 가전에서 실패했으면 그 가전(R7) — 예전에는 가전이 여럿이면 선택을 비웠다.
       final ctx = _continueApplianceId == null ? null : _findIn(_appliances, _continueApplianceId!);
       _manualAppliance = ctx ?? (_appliances.length == 1 ? _appliances.single : null);
+      _manualOpenBoard = ctx != null && _continueOnBoard;
       _currentSuggestion = null;
       _showDnd = false;
     });
@@ -1835,7 +1865,11 @@ class _KioskScreenState extends State<KioskScreen> {
     // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다("…바꿀까요?").
     // 조용한 시간(2026-10-14)에는 일반 안내 소리를 내지 않는다 — 화면 카드는 그대로.
     if (_health.speakGeneral) {
-      _tts.speak(suggestion.isScenario
+      final ownName = suggestion.id == _ownCardId ? suggestion.routineName : null;
+      // 직접 누른 저장된 동작이면 화면 질문과 같은 말('30초 데우기를 할까요?', 10/24 QA).
+      _tts.speak(ownName != null && ownName.isNotEmpty
+          ? '${withObject(ownName)} 할까요? 화면에서 지금 하기를 눌러 주세요.'
+          : suggestion.isScenario
           ? '${suggestion.purpose} 화면에서 지금 하기를 눌러 주세요.'
           : '${actionName(suggestion.purpose)}, 지금 할까요? 화면에서 지금 하기를 눌러 주세요.');
     }
@@ -1907,9 +1941,11 @@ class _KioskScreenState extends State<KioskScreen> {
       String? jobId,
       bool thinqOnly = false,
       String? thinqActionText,
-      String? continueApplianceId}) {
+      String? continueApplianceId,
+      bool continueOnBoard = false}) {
     _rememberPastResult();
     _continueApplianceId = continueApplianceId;
+    _continueOnBoard = continueApplianceId != null && continueOnBoard;
     _execThinqOnly = thinqOnly;
     _execThinqActionText = thinqOnly ? thinqActionText : null;
     _executionMode = 'unknown';
@@ -1932,6 +1968,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _execRoutineSegment = null;
     _execRoutineSegmentJobId = null;
     _execRoutineWaiting = false;
+    _execPlanButtons = null;
     _retryAction = null;
     _lastStatusOk = DateTime.now();
     _foreignPolls = 0;
@@ -2110,6 +2147,10 @@ class _KioskScreenState extends State<KioskScreen> {
         thinqActionText: thinqOnly ? suggestion.commands.single.summary : null,
         // 조작판의 루틴에서 만든 카드면 그 조작판으로 돌아간다. 스스로 뜬 제안은 돌아갈 조작판이 없다.
         continueApplianceId: fromRoutine != null && fromRoutine.$1 == suggestion.id ? fromRoutine.$2 : null);
+    final commands = suggestion.commands;
+    _execPlanButtons = commands.length == 1 && commands.single.route == 'physical' && commands.single.buttons.length > 1
+        ? List.unmodifiable(commands.single.buttons)
+        : null;
     final gen = _admitGen;
     _accepting = true;
     _retryAction = () => _onApprove(suggestion: suggestion);
@@ -2289,7 +2330,9 @@ class _KioskScreenState extends State<KioskScreen> {
     if (_admitting) return;
     _beginAdmission();
     _toExecuting(button.label,
-        applianceId: _currentAppliance.id, continueApplianceId: _manualAppliance?.id ?? _currentAppliance.id);
+        applianceId: _currentAppliance.id,
+        continueApplianceId: _manualAppliance?.id ?? _currentAppliance.id,
+        continueOnBoard: true);
     final gen = _admitGen;
     _accepting = true;
     _retryAction = () => _onManualExecute(button);
@@ -2520,7 +2563,11 @@ class _KioskScreenState extends State<KioskScreen> {
                     // 자동 실행 결과 한 줄(C2)도 위에 줄을 더할 뿐 덮지 않는다. 평소·완료 화면에서만 —
                     // 실행·동작 중 화면의 정지 버튼과 실행 상태는 그대로 둔다.
                     Positioned.fill(
-                      child: KioskEstopLayout(
+                      // 창(방해 금지·연결·설정)이 떠 있으면 뒤 화면은 화면 읽기에서 뺀다(10/24 QA) — 창만 읽히고 눌린다.
+                      // 비상 멈춤 띠는 이 바깥이라 그대로 읽힌다.
+                      child: ExcludeSemantics(
+                        excluding: _overlayOpen,
+                        child: KioskEstopLayout(
                         banner: _topNotices(),
                         // 아래 탭 줄(시안 B 10/24) — 평소·가전 화면에서만. 화면 안 확인 창이 뜨면 숨는다([_tabSuppress]).
                         child: KioskTabSuppressScope(
@@ -2542,17 +2589,21 @@ class _KioskScreenState extends State<KioskScreen> {
                           ]),
                         ),
                       ),
+                      ),
                     ),
                     if (_showDnd)
                       Positioned.fill(
-                        child: DndOverlay(
-                          dndUntil: _health.dndUntil,
-                          dndScope: _health.dndScope,
-                          quietSchedule: _health.quietSchedule,
-                          busy: _dndBusy,
-                          onSet: _onSetDnd,
-                          onClear: _onClearDnd,
-                          onDismiss: () => setState(() => _showDnd = false),
+                        child: KioskModalSemantics(
+                          label: kDndName,
+                          child: DndOverlay(
+                            dndUntil: _health.dndUntil,
+                            dndScope: _health.dndScope,
+                            quietSchedule: _health.quietSchedule,
+                            busy: _dndBusy,
+                            onSet: _onSetDnd,
+                            onClear: _onClearDnd,
+                            onDismiss: () => setState(() => _showDnd = false),
+                          ),
                         ),
                       ),
                     if (_alert.active && !_alertAcknowledged)
@@ -2562,9 +2613,11 @@ class _KioskScreenState extends State<KioskScreen> {
                         ),
                       ),
                     if (_openConnectionId != null && _phase == KioskPhase.idle)
-                      Positioned.fill(child: _buildConnectionModal()),
+                      Positioned.fill(child: KioskModalSemantics(label: '연결', child: _buildConnectionModal())),
                     if (_showSettings)
                       Positioned.fill(
+                        child: KioskModalSemantics(
+                        label: '본체 화면 설정',
                         child: KioskSettingsOverlay(
                           currentAppliance: _currentAppliance,
                           appliances: _appliances,
@@ -2591,6 +2644,7 @@ class _KioskScreenState extends State<KioskScreen> {
                           onDismiss: () => setState(() => _showSettings = false),
                           // 조용한 시간은 보여 주기만 — 방해 금지는 메뉴 한 곳에만 둔다(사용자 결정 10/19).
                           quietSchedule: _health.quietSchedule,
+                        ),
                         ),
                       ),
                   ],
@@ -2865,6 +2919,7 @@ class _KioskScreenState extends State<KioskScreen> {
           appliance: manualAppliance,
           onExecute: _onManualExecute,
           onCancel: _fromManual,
+          initialShowBoard: _manualOpenBoard,
           routines: _routines
               ?.where((r) => r.involves(manualAppliance.id))
               .toList(),
@@ -2896,6 +2951,7 @@ class _KioskScreenState extends State<KioskScreen> {
           blockedWhy: suggestion.isScenario ? _scenarioBlockedWhy : null,
           onApprove: _onApprove,
           onReject: _onReject,
+          startedByUser: _ownCardId != null && _ownCardId == suggestion.id,
         );
       case KioskPhase.executing:
         return KioskExecutingView(

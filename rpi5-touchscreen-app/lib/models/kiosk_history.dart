@@ -2,7 +2,7 @@
 ///
 /// 결과 말은 폰 기록(`app/lib/screens/history_screen.dart`의 `historyBadgeOf`)과 같은 확인 수준 규칙을 따른다:
 /// **'완료'는 실제 실행에서 상태를 다시 읽었거나(LG 가전) 누름·동작을 확인했을 때만**이다. 보고·접수만 받은 것,
-/// 됐는지 모르는 것은 '확인 못 함'. 연습(모의)은 '연습'. 멈춘 것은 '멈춤'·'스스로 멈춤', 못 한 것은 '실패'.
+/// 됐는지 모르는 것은 '확인 못 함'. 연습(모의)은 '연습 · 결과'('연습 · 멈춤' — 10/24 QA: '연습'만 쓰면 멈춘 연습도 같은 말이었다). 멈춘 것은 '멈춤'·'스스로 멈춤', 못 한 것은 '실패'.
 /// 키오스크는 기록을 바꾸지 않는다(답하기·지우기는 폰).
 library;
 
@@ -97,7 +97,8 @@ class KioskHistoryEntry {
       return actionName(p);
     }
     if (buttons.isNotEmpty) {
-      final pressed = buttons.length == 1 ? '${buttons.single} 버튼 누르기' : '버튼 ${buttons.length}번 누르기';
+      // 여러 버튼은 누른 차례 그대로('30초 → 시작', 10/24 QA — '버튼 2번 누르기'는 기록마다 같아 무엇을 했는지 몰랐다).
+      final pressed = buttons.length == 1 ? '${buttons.single} 버튼 누르기' : buttons.join(' → ');
       return name == null ? pressed : '$name $pressed';
     }
     if (route == 'thinq') return name == null ? '가전 설정 바꾸기' : '$name 설정 바꾸기';
@@ -106,8 +107,16 @@ class KioskHistoryEntry {
 
   /// 결과 한 단어와 색 갈래 — 폰 기록 배지와 같은 확인 수준 규칙(위 머리말).
   (String, KioskHistoryTone) get result {
-    if (executionMode == 'mock') return ('연습', KioskHistoryTone.neutral);
     final kind = resultKindOf(outcome: outcome, status: status);
+    if (executionMode == 'mock') {
+      // 연습은 결과와 함께(10/24 QA) — '연습 · 완료'는 연습에서 끝까지 했다는 말이지 실제 가전이 됐다는 말이 아니다.
+      return switch (kind) {
+        ResultKind.success => ('연습 · ${resultWord(kind)}', KioskHistoryTone.neutral),
+        ResultKind.stopped || ResultKind.safetyStop => ('연습 · ${resultWord(kind)}', KioskHistoryTone.stopped),
+        ResultKind.failed => ('연습 · ${resultWord(kind)}', KioskHistoryTone.danger),
+        ResultKind.unconfirmed => ('연습 · ${resultWord(kind)}', KioskHistoryTone.attention),
+      };
+    }
     switch (kind) {
       case ResultKind.stopped:
       case ResultKind.safetyStop:

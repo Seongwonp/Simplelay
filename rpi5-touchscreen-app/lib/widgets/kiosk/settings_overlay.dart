@@ -75,6 +75,9 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   bool _showLearning = false;
   bool _showPairing = false;
   bool _saving = false;
+
+  /// '설치용' 칸(전기 플러그 연결 가전·주소)을 펼쳤나(10/24 QA) — 주소 입력은 설치하는 사람의 일이라 처음에는 접어 둔다.
+  bool _showInstaller = false;
   String? _saveError;
   late TextEditingController _urlCtrl;
 
@@ -214,12 +217,16 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                           _buildTtsSection(),
                           const SizedBox(height: 16),
                           Divider(color: KioskColors.border, height: 1),
-                          const SizedBox(height: 16),
-                          _buildApplianceSection(),
-                          const SizedBox(height: 20),
-                          Divider(color: KioskColors.border, height: 1),
-                          const SizedBox(height: 20),
-                          _buildNodeSection(),
+                          const SizedBox(height: 8),
+                          _buildInstallerToggle(),
+                          if (_showInstaller) ...[
+                            const SizedBox(height: 8),
+                            _buildApplianceSection(),
+                            const SizedBox(height: 20),
+                            Divider(color: KioskColors.border, height: 1),
+                            const SizedBox(height: 20),
+                            _buildNodeSection(),
+                          ],
                         ],
                       ),
                     ),
@@ -245,9 +252,22 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
             ),
           ),
           const Spacer(),
-          GestureDetector(
-            onTap: widget.onDismiss,
-            child: Icon(Icons.close, color: KioskColors.muted, size: 20),
+          // 아이콘만 있던 닫기 — 화면 읽기 이름과 누르는 자리 48(10/24 QA).
+          Semantics(
+            container: true,
+            button: true,
+            label: '설정 닫기',
+            excludeSemantics: true,
+            child: GestureDetector(
+              key: const ValueKey('settings-close'),
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.onDismiss,
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(child: Icon(Icons.close, color: KioskColors.muted, size: 20)),
+              ),
+            ),
           ),
         ],
       );
@@ -432,6 +452,45 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
             activeColor: KioskColors.primary,
             onChanged: onChanged,
           ),
+        ],
+      );
+
+  /// '설치용' 접힌 칸 머리(10/24 QA) — 전기 플러그 주소(192.168…)는 설치하는 사람이 넣는 값이라 평소에는 보이지 않게 접는다.
+  /// 기능은 그대로 — 펼치면 예전 칸 그대로 쓴다. 키오스크에는 설치자·개발자 화면 구분이 따로 없어(서버 개발자 모드는 결선에서
+  /// 끈다) 접기로 가른다.
+  Widget _buildInstallerToggle() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            container: true,
+            button: true,
+            expanded: _showInstaller,
+            label: '설치용 설정',
+            excludeSemantics: true,
+            child: InkWell(
+              key: const ValueKey('settings-installer'),
+              onTap: () => setState(() => _showInstaller = !_showInstaller),
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                height: 48,
+                child: Row(children: [
+                  Icon(Icons.build_outlined, size: 18, color: KioskColors.muted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('설치용',
+                        style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+                  ),
+                  Icon(_showInstaller ? Icons.expand_less : Icons.expand_more, color: KioskColors.muted),
+                ]),
+              ),
+            ),
+          ),
+          if (_showInstaller)
+            KioskText(
+              '설치하는 사람이 쓰는 칸이에요. 평소에는 바꾸지 않아도 돼요.',
+              textKey: const ValueKey('settings-installer-note'),
+              style: TextStyle(fontSize: KioskType.caption, color: KioskColors.warning),
+            ),
         ],
       );
 
