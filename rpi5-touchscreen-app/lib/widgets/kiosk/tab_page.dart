@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
+import 'idle_top.dart';
 import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 
@@ -18,9 +19,14 @@ class KioskTabPage extends StatelessWidget {
     this.emptyText = '',
     this.failedText = '',
     this.onReload,
+    this.onMenu,
   });
 
   final String title;
+
+  /// 위 오른쪽 '메뉴'(처음 화면과 같은 단추·같은 창, QA 10/25 — 탭 화면에서 방해 금지·설정에 가려면 홈으로 가야 했다).
+  /// null이면 두지 않는다.
+  final VoidCallback? onMenu;
 
   /// 제목 아래 작은 안내 한 줄(예: '자동 실행 끄기는 휴대폰 앱에서 할 수 있어요'). 없으면 null.
   final String? note;
@@ -88,20 +94,31 @@ class KioskTabPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Semantics(
-              header: true,
-              child: Text(title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: KioskType.status, height: 1.2, fontWeight: FontWeight.w800, color: KioskColors.ink)),
-            ),
-            if (note case final n?) ...[
-              const SizedBox(height: 2),
-              KioskText(n,
-                  textKey: const ValueKey('tab-page-note'),
-                  style: TextStyle(fontSize: KioskType.caption, height: 1.25, color: KioskColors.muted)),
-            ],
+            // 제목·안내 줄 오른쪽에 메뉴 — 제목 줄 높이 안에 두어 목록을 밀어내지 않는다.
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Semantics(
+                    header: true,
+                    child: Text(title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: KioskType.status, height: 1.2, fontWeight: FontWeight.w800, color: KioskColors.ink)),
+                  ),
+                  if (note case final n?) ...[
+                    const SizedBox(height: 2),
+                    KioskText(n,
+                        textKey: const ValueKey('tab-page-note'),
+                        style: TextStyle(fontSize: KioskType.caption, height: 1.25, color: KioskColors.muted)),
+                  ],
+                ]),
+              ),
+              if (onMenu case final open?) ...[
+                const SizedBox(width: KioskSpace.xs),
+                KioskIdleMenuButton(onTap: open),
+              ],
+            ]),
             const SizedBox(height: KioskSpace.xs),
             Expanded(child: body),
           ],

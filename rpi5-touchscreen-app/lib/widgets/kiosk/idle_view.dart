@@ -907,11 +907,13 @@ class _NextRunLine extends StatelessWidget {
         : _textHeight(context, '오후 10:00', _lineStyle, double.infinity);
     final word = keepWords(_wordOf(n, notice));
     final label = _buttonLabel(n, withButton);
+    final after = n.afterSkipText;
+    final afterH = after == null ? 0.0 : _lineGap + _textHeight(context, keepWords(after), _wordStyle, width);
     if (_undoOnHead(context, n, label, word, width)) {
       final bh = _buttonHeight(context, label!);
-      return (headH > bh ? headH : bh) + _headGap + lineH;
+      return (headH > bh ? headH : bh) + _headGap + lineH + afterH;
     }
-    var h = headH + _headGap + lineH;
+    var h = headH + _headGap + lineH + afterH;
     if (label == null) {
       if (word.isNotEmpty) h += _lineGap + _textHeight(context, word, _wordStyle, width);
     } else {
@@ -1004,13 +1006,24 @@ class _NextRunLine extends StatelessWidget {
             ]);
           }
         }
+        final after = next.afterSkipText;
         final spoken = [
           next.kindLabel,
           if (next.skippedHead case final h?) h,
           next.whenShort,
           next.name,
           if (word.isNotEmpty) word,
+          if (after != null) after,
         ].join(', ');
+        // 건너뛴 회차 — 언제 다시 하는지(본체 값, 폰과 같은 말 'QA 10/25'). 시각·이름 줄 바로 아래 작은 글씨. 값이 없으면 없다.
+        final afterLine = after == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(top: _lineGap),
+                child: KioskText(after,
+                    textKey: const ValueKey('idle-next-run-after-skip'),
+                    style: _wordStyle.copyWith(color: KioskColors.ink)),
+              );
         final head = SizedBox(
           height: _headHeight(context),
           child: Row(key: const ValueKey('idle-next-run-kind'), mainAxisSize: MainAxisSize.min, children: [
@@ -1085,6 +1098,7 @@ class _NextRunLine extends StatelessWidget {
                 ),
                 const SizedBox(height: _headGap),
                 ExcludeSemantics(child: lineWidget),
+                if (afterLine != null) ExcludeSemantics(child: afterLine),
               ],
             ),
           );
@@ -1104,6 +1118,7 @@ class _NextRunLine extends StatelessWidget {
                     head,
                     const SizedBox(height: _headGap),
                     lineWidget,
+                    if (afterLine != null) afterLine,
                   ]),
             ),
             if (last != null) last,
@@ -1618,6 +1633,19 @@ class _IdleSheets {
   final VoidCallback openConnections;
 }
 
+/// 탭 화면(가전 고르기·자동 실행·기록)의 '메뉴'(QA 10/25) — 처음 화면과 **같은** 메뉴 창(방해 금지·설정·연결·사용 방법)을
+/// 같은 코드([_IdleSheetHost])로 연다. 메뉴 항목이 쓰는 값·콜백은 처음 화면과 같은 [KioskIdleView] 설정에서 읽는다(그 화면을
+/// 그리지는 않는다). [builder]는 메뉴를 여는 콜백을 받아 탭 화면을 만든다.
+class KioskMenuHost extends StatelessWidget {
+  const KioskMenuHost({super.key, required this.view, required this.builder});
+
+  final KioskIdleView view;
+  final Widget Function(VoidCallback openMenu) builder;
+
+  @override
+  Widget build(BuildContext context) => _IdleSheetHost(view: view, builder: (sheets) => builder(sheets.openMenu));
+}
+
 class _IdleSheetHost extends StatefulWidget {
   const _IdleSheetHost({required this.view, required this.builder});
 
@@ -1661,6 +1689,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
             ? KioskIdleSheet(
                 title: '메뉴',
                 onClose: _close,
+                fit: true,
                 children: [
                   KioskSheetRow(
                     key: const ValueKey('dnd-entry'),
@@ -1676,6 +1705,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                   ),
                   KioskSheetRow(
                     key: const ValueKey('settings-entry'),
+                    hideSubWhenLarge: true,
                     icon: Icons.settings_outlined,
                     label: '설정',
                     sub: '큰 글씨, 또렷하게 보기, 음성 안내, 휴대폰 연결',
@@ -1688,6 +1718,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                   // 모두 괜찮으면 위 상태 칩이 없다(사용자 결정 10/18) — 그때도 연결 상태를 볼 수 있게 메뉴에 둔다.
                   KioskSheetRow(
                     key: const ValueKey('connections-entry'),
+                    hideSubWhenLarge: true,
                     icon: Icons.wifi,
                     label: '연결',
                     sub: '와이파이와 누름 장치 연결 보기',
@@ -1696,6 +1727,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                   // 도움말 들어가는 곳(휴리스틱 평가 10/18 — 메뉴에 잠시 쉬기·설정·연결뿐이었다).
                   KioskSheetRow(
                     key: const ValueKey('help-entry'),
+                    hideSubWhenLarge: true,
                     icon: Icons.help_outline,
                     label: '사용 방법',
                     sub: '화면 쓰는 법, 멈추는 법, 물어볼 곳',

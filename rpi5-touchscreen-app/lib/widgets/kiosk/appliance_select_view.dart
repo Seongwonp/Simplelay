@@ -6,6 +6,7 @@ import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_back_button.dart';
 import 'appliance_art.dart';
+import 'idle_top.dart';
 import 'kiosk_text.dart';
 import 'route_badge.dart';
 
@@ -24,7 +25,11 @@ class KioskApplianceSelectView extends StatelessWidget {
     required this.lastUsedId,
     required this.onSelect,
     required this.onCancel,
+    this.onMenu,
   });
+
+  /// 위 오른쪽 '메뉴'(처음 화면과 같은 단추·같은 창, QA 10/25). null이면 두지 않는다.
+  final VoidCallback? onMenu;
 
   final List<ApplianceMap> appliances;
 
@@ -47,14 +52,19 @@ class KioskApplianceSelectView extends StatelessWidget {
                 // 뒤로가기 — 수동 조작 화면과 같은 단추(흰 화살표 + '뒤로', UI 평가 4차 10/17)
                 KioskBackButton(onTap: onCancel),
                 const SizedBox(width: 14),
-                Text(
-                  '어느 가전을 조작할까요?',
-                  style: TextStyle(
-                    fontSize: KioskType.status,
-                    fontWeight: FontWeight.w700,
-                    color: KioskColors.ink,
+                Expanded(
+                  child: Text(
+                    '어느 가전을 조작할까요?',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: KioskType.status,
+                      fontWeight: FontWeight.w700,
+                      color: KioskColors.ink,
+                    ),
                   ),
                 ),
+                if (onMenu case final open?) KioskIdleMenuButton(onTap: open),
               ],
             ),
             const SizedBox(height: 20),

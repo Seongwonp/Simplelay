@@ -30,17 +30,25 @@ class KioskManualActions extends StatelessWidget {
   /// 아래 안내 한 줄 자리(칸 높이를 키울 때 남겨 둔다).
   static const double _hintRoom = 48;
 
+  /// 납작한 칸의 최소 높이 — 이름 두 줄·작은 줄(큰 글씨)이 들어가고 누름 높이 48을 넘는다.
+  static const double _compactMin = 116;
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
         final large = KioskLayout.isLarge(context);
-        final cols = large ? 2 : (box.maxWidth >= 640 ? 4 : 3);
+        // 큰 글씨도 넓은 화면이면 3열(QA 10/25 — 2열이면 루틴 2개 + '버튼 직접 고르기'가 두 줄이 돼 마지막 칸이 아래 탭
+        // 밑으로 밀려 스크롤해야만 보였다).
+        final cols = large ? (box.maxWidth >= 640 ? 3 : 2) : (box.maxWidth >= 640 ? 4 : 3);
         final w = (box.maxWidth - (cols - 1) * _gap) / cols;
         // 칸 높이 — 하한(이름 두 줄·작은 줄이 다 들어가는 높이)에서, 남는 높이가 있으면 200까지 키운다(아래가 비지 않게).
+        // 줄이 늘어 하한으로는 다 안 들어가면 그림을 이름 옆에 두는 납작한 칸으로 줄여 스크롤 없이 다 보이게 한다
+        // (누름 높이는 48 이상 — [_compactMin]).
         final count = routines.length + (onPickButtons == null ? 0 : 1);
         final rows = (count / cols).ceil().clamp(1, 99);
         final base = large ? 176.0 : 150.0;
         final room = box.maxHeight.isFinite ? (box.maxHeight - _hintRoom - (rows - 1) * _gap) / rows : base;
-        final h = room.clamp(base, 200.0).toDouble();
+        final compact = room < base;
+        final h = compact ? room.clamp(_compactMin, base).toDouble() : room.clamp(base, 200.0).toDouble();
         return SingleChildScrollView(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Wrap(
@@ -55,6 +63,7 @@ class KioskManualActions extends StatelessWidget {
                     key: ValueKey('routine-${r.id}'),
                     title: r.name,
                     sub: r.sizeLabelWith(names),
+                    compact: compact,
                     onTap: onRoutine == null ? null : () => onRoutine!(r),
                   ),
                 ),
@@ -67,6 +76,7 @@ class KioskManualActions extends StatelessWidget {
                     title: '버튼 직접 고르기',
                     sub: '하나씩 눌러요',
                     manual: true,
+                    compact: compact,
                     onTap: onPickButtons,
                   ),
                 ),
@@ -85,12 +95,45 @@ class KioskManualActions extends StatelessWidget {
 }
 
 class _ActionTile extends StatelessWidget {
-  const _ActionTile({super.key, required this.title, required this.sub, required this.onTap, this.manual = false});
+  const _ActionTile(
+      {super.key,
+      required this.title,
+      required this.sub,
+      required this.onTap,
+      this.manual = false,
+      this.compact = false});
 
   final String title;
   final String sub;
   final VoidCallback? onTap;
   final bool manual;
+
+  /// 납작한 칸 — 그림을 이름 왼쪽에 둔다(칸이 여러 줄이라 높이가 모자랄 때).
+  final bool compact;
+
+  Widget _icon() => Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: manual ? Colors.transparent : KioskColors.mint, shape: BoxShape.circle),
+        child: Icon(manual ? Icons.grid_view : Icons.play_arrow, size: 26, color: KioskColors.primary),
+      );
+
+  Widget _texts() => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        KioskText(title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: manual ? KioskType.body : KioskType.body + 2,
+                height: 1.2,
+                fontWeight: FontWeight.w700,
+                color: manual ? KioskColors.primary : KioskColors.ink)),
+        if (sub.isNotEmpty)
+          KioskText(sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: KioskType.caption, height: 1.2, color: KioskColors.muted)),
+      ]);
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -109,18 +152,26 @@ class _ActionTile extends StatelessWidget {
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.all(KioskSpace.sm + 2),
-              child: Column(
+              child: compact
+                  ? Row(children: [
+                      _icon(),
+                      const SizedBox(width: KioskSpace.sm),
+                      // 이름이 길어 납작한 칸 높이를 넘으면 잘라 내지 않고 함께 조금 줄인다(폭은 그대로 줄바꿈).
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, c) => FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: SizedBox(width: c.maxWidth, child: _texts()),
+                          ),
+                        ),
+                      ),
+                    ])
+                  : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                          color: manual ? Colors.transparent : KioskColors.mint, shape: BoxShape.circle),
-                      child: Icon(manual ? Icons.grid_view : Icons.play_arrow, size: 26, color: KioskColors.primary),
-                    ),
+                    _icon(),
                     // 누르면 한다는 표시(평가 8차 10/18 — 폰 루틴 줄과 같은 말). 누르면 확인 카드가 먼저 뜬다.
                     if (!manual && onTap != null) ...[
                       const SizedBox(width: KioskSpace.xs),
@@ -142,21 +193,7 @@ class _ActionTile extends StatelessWidget {
                     ],
                   ]),
                   const Spacer(),
-                  Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  KioskText(title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: manual ? KioskType.body : KioskType.body + 2,
-                          height: 1.2,
-                          fontWeight: FontWeight.w700,
-                          color: manual ? KioskColors.primary : KioskColors.ink)),
-                  if (sub.isNotEmpty)
-                    KioskText(sub,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: KioskType.caption, height: 1.2, color: KioskColors.muted)),
-                  ]),
+                  _texts(),
                 ],
               ),
             ),

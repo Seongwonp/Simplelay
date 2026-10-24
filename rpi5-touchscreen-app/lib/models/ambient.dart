@@ -183,7 +183,25 @@ class KioskNextRun {
     this.skipLabel,
     this.skipActionLabel,
     this.auto = false,
+    this.afterSkipAt,
+    this.afterSkipDayLabel,
   });
+
+  /// 건너뛴 회차 다음 회차의 본체 시각 원문·날짜 말(서버 `next_after_skip_at`·`next_after_skip_day_label`, 2026-10-24 —
+  /// 폰과 같은 값). 옛 본체·건너뛰지 않음이면 null.
+  final String? afterSkipAt;
+  final String? afterSkipDayLabel;
+
+  /// 건너뛴 줄에 덧붙일 '다음은 화요일 오전 7:00'(폰 `afterSkipText`와 같은 말, QA 10/25). 시각은 본체 벽시계 그대로,
+  /// 날짜 말은 본체 말 그대로 — 본체가 값을 주지 않았으면 null(지어내지 않는다).
+  String? get afterSkipText {
+    final day = afterSkipDayLabel;
+    final at = afterSkipAt;
+    if (!skipped || quietSkip || day == null || day.isEmpty || at == null) return null;
+    final m = RegExp(r'T(\d{2}):(\d{2})').firstMatch(at);
+    if (m == null || DateTime.tryParse(at) == null) return null;
+    return '다음은 $day ${clockHhmm('${m[1]}:${m[2]}')}';
+  }
 
   /// 카드 없이 자동으로 실행하는 회차(서버 `auto`, 허용한 시각 규칙). [kindLabel]은 옛 서버를 위해 `mode_label`('자동 실행')도 본다.
   final bool auto;
@@ -237,6 +255,9 @@ class KioskNextRun {
       skipLabel: json['skip_label'] is String ? json['skip_label'] as String : null,
       skipActionLabel: json['skip_action_label'] is String ? json['skip_action_label'] as String : null,
       auto: json['auto'] == true,
+      afterSkipAt: json['next_after_skip_at'] is String ? json['next_after_skip_at'] as String : null,
+      afterSkipDayLabel:
+          json['next_after_skip_day_label'] is String ? json['next_after_skip_day_label'] as String : null,
     );
   }
 

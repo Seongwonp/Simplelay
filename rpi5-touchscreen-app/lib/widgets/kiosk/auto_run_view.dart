@@ -18,6 +18,7 @@ class KioskAutoRunView extends StatelessWidget {
     this.notice,
     this.onToggleSkip,
     this.onReload,
+    this.onMenu,
   });
 
   /// 가까운 순서의 회차. null이면 못 불러왔다(불러오는 중이면 [loading]).
@@ -31,6 +32,9 @@ class KioskAutoRunView extends StatelessWidget {
   final String? notice;
   final ValueChanged<KioskNextRun>? onToggleSkip;
   final VoidCallback? onReload;
+
+  /// 위 오른쪽 '메뉴'(처음 화면과 같은 창). null이면 두지 않는다.
+  final VoidCallback? onMenu;
 
   static const kOffOnPhone = '자동 실행 끄기는 휴대폰 앱에서 할 수 있어요';
 
@@ -47,6 +51,7 @@ class KioskAutoRunView extends StatelessWidget {
       failedText: '자동 실행 목록을 불러오지 못했어요',
       emptyText: '정해진 시각에 할 일이 없어요',
       onReload: onReload,
+      onMenu: onMenu,
       rows: [
         if (n != null && n.isNotEmpty && list.isNotEmpty)
           Text(n,
@@ -70,8 +75,15 @@ class _RunRow extends StatelessWidget {
     final skipped = run.skipped && !run.quietSkip;
     final label = onToggle == null || !run.canSkip ? null : (run.skipped ? '되돌리기' : run.skipActionLabel);
     final word = run.skippedHead ?? (run.statusWord.isEmpty ? null : run.statusWord);
-    final spoken = [run.kindLabel, if (run.skippedHead case final h?) h, run.whenShort, run.name, if (run.statusWord.isNotEmpty) run.statusWord]
-        .join(', ');
+    final after = run.afterSkipText;
+    final spoken = [
+      run.kindLabel,
+      if (run.skippedHead case final h?) h,
+      run.whenShort,
+      run.name,
+      if (run.statusWord.isNotEmpty) run.statusWord,
+      if (after != null) after,
+    ].join(', ');
     return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
       Expanded(
         child: Semantics(
@@ -104,6 +116,11 @@ class _RunRow extends StatelessWidget {
               style: TextStyle(
                   fontSize: KioskType.body, height: 1.25, color: skipped ? KioskColors.muted : KioskColors.ink),
             ),
+            // 건너뛴 회차 — 언제 다시 하는지(본체 값, 폰과 같은 말). 값이 없으면 두지 않는다.
+            if (after != null)
+              Text(after,
+                  key: const ValueKey('auto-run-after-skip'),
+                  style: TextStyle(fontSize: KioskType.caption, height: 1.25, color: KioskColors.ink)),
           ]),
         ),
       ),

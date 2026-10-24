@@ -17,6 +17,7 @@ class KioskHistoryView extends StatelessWidget {
     this.loading = false,
     this.applianceNames = const {},
     this.onReload,
+    this.onMenu,
   });
 
   /// 최신순 기록. null이면 못 불러왔다(불러오는 중이면 [loading]).
@@ -27,6 +28,9 @@ class KioskHistoryView extends StatelessWidget {
   /// 기록에 가전 이름이 없을 때(옛 기록) 지금 목록에서 찾는 이름.
   final Map<String, String> applianceNames;
   final VoidCallback? onReload;
+
+  /// 위 오른쪽 '메뉴'(처음 화면과 같은 창). null이면 두지 않는다.
+  final VoidCallback? onMenu;
 
   static const kMoreOnPhone = '자세한 내용과 답하기는 휴대폰 앱 기록에서 볼 수 있어요';
 
@@ -40,6 +44,7 @@ class KioskHistoryView extends StatelessWidget {
         failedText: '기록을 불러오지 못했어요',
         emptyText: '아직 기록이 없어요',
         onReload: onReload,
+        onMenu: onMenu,
         rows: [
           for (final e in entries ?? const <KioskHistoryEntry>[])
             _HistoryRow(

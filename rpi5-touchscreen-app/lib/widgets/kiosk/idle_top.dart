@@ -496,14 +496,47 @@ class KioskIdleSheet extends StatelessWidget {
     required this.title,
     required this.children,
     required this.onClose,
+    this.fit = false,
   });
 
   final String title;
   final List<Widget> children;
   final VoidCallback onClose;
 
+  /// 줄 수가 정해진 창(메뉴 네 줄) — 스크롤로 마지막 줄을 숨기지 않고 창 안에 다 들어가게 한다(QA 10/25 — 큰 글씨에서
+  /// '사용 방법'이 아래로 잘렸다). 큰 글씨면 창을 넓혀 작은 줄이 덜 접히게 하고, 그래도 넘치면 창 내용을 함께 조금 줄인다.
+  /// 줄 수가 늘 수 있는 창(연결 목록)은 false로 두어 스크롤한다.
+  final bool fit;
+
+  Widget _content() => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // '닫기'는 제목 줄 오른쪽(휴리스틱 평가 10/18 — 메뉴에 '사용 방법'을 더하자 아래 '닫기'가 화면 가장자리 여백
+          // 밖으로 밀렸다). 누르는 자리 48 이상은 그대로.
+          Row(children: [
+            Expanded(
+              child: Text(title,
+                  style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.ink)),
+            ),
+            TextButton(
+              key: const ValueKey('idle-sheet-close'),
+              onPressed: onClose,
+              style: TextButton.styleFrom(minimumSize: const Size(120, 48), foregroundColor: KioskColors.ink),
+              child: const Text('닫기', style: TextStyle(fontSize: KioskType.body)),
+            ),
+          ]),
+          const SizedBox(height: KioskSpace.xs),
+          ...children,
+        ],
+      );
+
   @override
-  Widget build(BuildContext context) => Stack(children: [
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
+        final wide = fit && KioskLayout.isLarge(context);
+        final width = wide ? (box.maxWidth - 2 * KioskSpace.md).clamp(460.0, 680.0).toDouble() : 460.0;
+        const pad = EdgeInsets.fromLTRB(KioskSpace.md, KioskSpace.md, KioskSpace.md, KioskSpace.sm);
+        return Stack(children: [
         Positioned.fill(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -514,47 +547,25 @@ class KioskIdleSheet extends StatelessWidget {
         Center(
           child: Container(
             key: const ValueKey('idle-sheet'),
-            width: 460,
-            padding: const EdgeInsets.fromLTRB(
-                KioskSpace.md, KioskSpace.md, KioskSpace.md, KioskSpace.sm),
+            width: width,
+            padding: pad,
             decoration: BoxDecoration(
               color: KioskColors.surface,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: KioskColors.border),
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // '닫기'는 제목 줄 오른쪽(휴리스틱 평가 10/18 — 메뉴에 '사용 방법'을 더하자 아래 '닫기'가 화면 가장자리 여백
-                  // 밖으로 밀렸다). 누르는 자리 48 이상은 그대로.
-                  Row(children: [
-                    Expanded(
-                      child: Text(title,
-                          style: TextStyle(
-                              fontSize: KioskType.body,
-                              fontWeight: FontWeight.w700,
-                              color: KioskColors.ink)),
+            child: fit
+                ? LayoutBuilder(
+                    builder: (context, c) => FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: SizedBox(width: c.maxWidth, child: _content()),
                     ),
-                    TextButton(
-                      key: const ValueKey('idle-sheet-close'),
-                      onPressed: onClose,
-                      style: TextButton.styleFrom(
-                          minimumSize: const Size(120, 48),
-                          foregroundColor: KioskColors.ink),
-                      child: const Text('닫기',
-                          style: TextStyle(fontSize: KioskType.body)),
-                    ),
-                  ]),
-                  const SizedBox(height: KioskSpace.xs),
-                  ...children,
-                ],
-              ),
-            ),
+                  )
+                : SingleChildScrollView(child: _content()),
           ),
         ),
       ]);
+      });
 }
 
 /// 큰 창의 한 줄 — 아이콘 · 이름(· 아래 작은 줄) · 오른쪽 화살표. 높이 64(48 이상).
@@ -570,7 +581,11 @@ class KioskSheetRow extends StatelessWidget {
     required this.onTap,
     this.semanticsLabel,
     this.subMaxLines = 2,
+    this.hideSubWhenLarge = false,
   });
+
+  /// 큰 글씨면 아래 작은 줄을 접는다(화면 읽기 이름에는 남는다) — 줄 수가 정해진 메뉴 창이 한 화면에 들어가게(QA 10/25).
+  final bool hideSubWhenLarge;
 
   final IconData icon;
   final String label;
@@ -617,7 +632,7 @@ class KioskSheetRow extends StatelessWidget {
                                   fontSize: KioskType.body,
                                   fontWeight: FontWeight.w700,
                                   color: KioskColors.ink)),
-                          if (sub != null && sub!.isNotEmpty)
+                          if (sub != null && sub!.isNotEmpty && !(hideSubWhenLarge && KioskLayout.isLarge(context)))
                             KioskText(sub!,
                                 maxLines: subMaxLines,
                                 overflow: subMaxLines == null ? null : TextOverflow.ellipsis,

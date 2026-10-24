@@ -2802,6 +2802,44 @@ class _KioskScreenState extends State<KioskScreen> {
     );
   }
 
+  /// 처음 화면 — 탭 화면의 메뉴 창([KioskMenuHost])도 이 설정에서 방해 금지·연결·설정 값을 읽는다(같은 창 한 벌).
+  KioskIdleView _idleView() => KioskIdleView(
+      key: const ValueKey('idle'),
+      now: _now,
+      connected: _health.ok,
+      ambient: _ambient,
+      connections: _connectionItems,
+      // 서버 목록에서 확인된 가전만 줄에 세운다 — 내장 폴백으로 설치한 적
+      // 없는 가전을 세우지 않는다.
+      appliances: _appliancesFromServer ? _appliances : null,
+      running: _runningIds,
+      attention: _attentionIds,
+      on: _onIds,
+      off: _offIds,
+      air: _air,
+      nextRun: _nextRun,
+      nextRunBusy: _nextRunBusy,
+      nextRunNotice: _nextRunNotice,
+      onToggleNextRunSkip: _toggleNextRunSkip,
+      dndUntil: _health.dndUntil,
+      dndScope: _health.dndScope,
+      quietUntil: _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
+      temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
+      humidity: _sensorData?.mocked == false ? _sensorData?.humidity : null,
+      onSelectAppliance: _toMyAppliance,
+      onOpenConnection: (item) =>
+          setState(() => _openConnectionId = item.id),
+      onDndGesture: () => setState(() => _showDnd = true),
+      onSettingsGesture: () => setState(() => _showSettings = true),
+      // 비상 버튼이 눌려 있을 때 상태 칩·못 쓰는 가전 타일을 누르면 위 띠의 풀기 안내를 연다(평가 4차 10/18).
+      onEstopGuide: () => setState(() => _estopConfirming = true),
+      // '무엇을 할까요?' 카드(시안 B 10/24) — 내 가전 화면 루틴 칸과 같은 길(확인 카드가 승인).
+      routines: _routines,
+      onRoutine: _onRoutine,
+      quietDim: _quietDim,
+      onTouch: _noteIdleTouch,
+    );
+
   Widget _buildScreen() {
     switch (_phase) {
       case KioskPhase.idle:
@@ -2811,14 +2849,19 @@ class _KioskScreenState extends State<KioskScreen> {
             key: const ValueKey('auto-run'),
             behavior: HitTestBehavior.translucent,
             onPointerDown: (_) => _noteIdleTouch(),
-            child: KioskAutoRunView(
-              runs: _upcomingRuns,
-              loading: _upcomingLoading,
-              busy: _nextRunBusy,
-              notice: _nextRunNotice,
-              // 처음 화면 '오늘은 건너뛰기'와 같은 길.
-              onToggleSkip: _toggleNextRunSkip,
-              onReload: _fetchUpcoming,
+            // 위 오른쪽 '메뉴'는 처음 화면과 같은 창(QA 10/25).
+            child: KioskMenuHost(
+              view: _idleView(),
+              builder: (openMenu) => KioskAutoRunView(
+                runs: _upcomingRuns,
+                loading: _upcomingLoading,
+                busy: _nextRunBusy,
+                notice: _nextRunNotice,
+                // 처음 화면 '오늘은 건너뛰기'와 같은 길.
+                onToggleSkip: _toggleNextRunSkip,
+                onReload: _fetchUpcoming,
+                onMenu: openMenu,
+              ),
             ),
           );
         }
@@ -2827,51 +2870,20 @@ class _KioskScreenState extends State<KioskScreen> {
             key: const ValueKey('history'),
             behavior: HitTestBehavior.translucent,
             onPointerDown: (_) => _noteIdleTouch(),
-            child: KioskHistoryView(
-              entries: _historyEntries,
-              loading: _historyLoading,
-              now: _now,
-              applianceNames: {for (final a in _appliances) a.id: a.displayName},
-              onReload: _fetchHistory,
+            child: KioskMenuHost(
+              view: _idleView(),
+              builder: (openMenu) => KioskHistoryView(
+                entries: _historyEntries,
+                loading: _historyLoading,
+                now: _now,
+                applianceNames: {for (final a in _appliances) a.id: a.displayName},
+                onReload: _fetchHistory,
+                onMenu: openMenu,
+              ),
             ),
           );
         }
-        return KioskIdleView(
-          key: const ValueKey('idle'),
-          now: _now,
-          connected: _health.ok,
-          ambient: _ambient,
-          connections: _connectionItems,
-          // 서버 목록에서 확인된 가전만 줄에 세운다 — 내장 폴백으로 설치한 적
-          // 없는 가전을 세우지 않는다.
-          appliances: _appliancesFromServer ? _appliances : null,
-          running: _runningIds,
-          attention: _attentionIds,
-          on: _onIds,
-          off: _offIds,
-          air: _air,
-          nextRun: _nextRun,
-          nextRunBusy: _nextRunBusy,
-          nextRunNotice: _nextRunNotice,
-          onToggleNextRunSkip: _toggleNextRunSkip,
-          dndUntil: _health.dndUntil,
-          dndScope: _health.dndScope,
-          quietUntil: _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
-          temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
-          humidity: _sensorData?.mocked == false ? _sensorData?.humidity : null,
-          onSelectAppliance: _toMyAppliance,
-          onOpenConnection: (item) =>
-              setState(() => _openConnectionId = item.id),
-          onDndGesture: () => setState(() => _showDnd = true),
-          onSettingsGesture: () => setState(() => _showSettings = true),
-          // 비상 버튼이 눌려 있을 때 상태 칩·못 쓰는 가전 타일을 누르면 위 띠의 풀기 안내를 연다(평가 4차 10/18).
-          onEstopGuide: () => setState(() => _estopConfirming = true),
-          // '무엇을 할까요?' 카드(시안 B 10/24) — 내 가전 화면 루틴 칸과 같은 길(확인 카드가 승인).
-          routines: _routines,
-          onRoutine: _onRoutine,
-          quietDim: _quietDim,
-          onTouch: _noteIdleTouch,
-        );
+        return _idleView();
       case KioskPhase.hold:
         final st = _hold!;
         final buttons = st.lastButtons;
@@ -2911,12 +2923,17 @@ class _KioskScreenState extends State<KioskScreen> {
       case KioskPhase.manual:
         final manualAppliance = _manualAppliance;
         if (manualAppliance == null) {
-          return KioskApplianceSelectView(
-            key: const ValueKey('appliance-select'),
-            appliances: _appliances,
-            lastUsedId: _currentAppliance.id,
-            onSelect: _onManualApplianceSelected,
-            onCancel: _fromManual,
+          return KioskMenuHost(
+            key: const ValueKey('appliance-select-host'),
+            view: _idleView(),
+            builder: (openMenu) => KioskApplianceSelectView(
+              key: const ValueKey('appliance-select'),
+              appliances: _appliances,
+              lastUsedId: _currentAppliance.id,
+              onSelect: _onManualApplianceSelected,
+              onCancel: _fromManual,
+              onMenu: openMenu,
+            ),
           );
         }
         return KioskManualView(

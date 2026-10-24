@@ -113,6 +113,18 @@ class KioskSuggestionView extends StatelessWidget {
     );
   }
 
+  /// 사용자가 직접 고른 저장 동작 카드의 누를 버튼 순서 — 모든 명령이 [target] 가전의 버튼 누름이면 그 버튼을 이어 붙인다.
+  /// 아니면(시스템 제안·ThinQ 섞임·다른 가전) null.
+  List<String>? _userPressSteps(ApplianceMap? target) {
+    if (!startedByUser || !suggestion.isScenario || target == null) return null;
+    final out = <String>[];
+    for (final c in suggestion.commands) {
+      if (c.route != 'physical' || c.targetId != target.id || c.buttons.isEmpty) return null;
+      out.addAll(c.buttons);
+    }
+    return out;
+  }
+
   Widget _body(BuildContext context, ApplianceMap? target, bool scenario,
       bool canExecute) {
     final large = KioskLayout.isLarge(context);
@@ -220,9 +232,12 @@ class KioskSuggestionView extends StatelessWidget {
     );
     // 누를 버튼이 모두 버튼판에서 자리를 찾으면 그림으로(화면 구조 개편 10/18) — 실행·결과와 같은 자리(오른쪽)·같은 폭.
     // 하나라도 못 찾으면(이름이 다르거나 두 번 나옴) 지어내지 않고 지금처럼 순서 목록.
-    final order = large || scenario
+    // 내가 고른 저장 동작(루틴 '지금 하기') 확인 카드도 같은 그림(QA 10/25 — 가운데가 비어 보였다). 명령이 모두 이 가전의
+    // 버튼 누름일 때만 — ThinQ가 섞이거나 다른 가전이면 지금처럼 할 일 목록. 근거 줄은 이 카드에 두지 않으니 잃는 말이 없다.
+    final pictureSteps = _userPressSteps(target) ?? suggestion.steps;
+    final order = large || (scenario && _userPressSteps(target) == null)
         ? null
-        : KioskPanelPicture.orderOf(target, suggestion.steps);
+        : KioskPanelPicture.orderOf(target, pictureSteps);
     final pictureMode = order != null;
     return Padding(
       padding: pictureMode
@@ -298,8 +313,8 @@ class KioskSuggestionView extends StatelessWidget {
                           width: KioskPanelPicture.width,
                           child: Semantics(
                             label: '누름 장치가 누를 순서. $kScreenNoPress. ${[
-                              for (var i = 0; i < suggestion.steps.length; i++)
-                                '${i + 1} ${suggestion.steps[i]}'
+                              for (var i = 0; i < pictureSteps.length; i++)
+                                '${i + 1} ${pictureSteps[i]}'
                             ].join(', ')}',
                             child: KioskPanelPicture(
                               appliance: target,
