@@ -1622,6 +1622,7 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 조작판으로 갔으면 true. 본체에 닿지 않아 연결 창만 열었으면 false(결과 화면 그대로).
   bool _toManualAfterResult({required bool pickOther}) {
     if (_phase != KioskPhase.done) return false;
+    _leavePracticeResult();
     // 본체에 닿지 않으면 조작판을 열지 않는다(처음 화면 가전 줄과 같은 규칙) — 무엇이 안 되는지 말하는 연결 창.
     if (!_health.ok) {
       setState(() => _openConnectionId = 'network');
@@ -1645,7 +1646,17 @@ class _KioskScreenState extends State<KioskScreen> {
     return true;
   }
 
+  /// 연습 결과를 사람이 닫았다 — 같은 실행의 연습 대기(누름 장치가 정지 버튼 위에서 기다림)는 다시 띄우지 않는다(10/24 모의 보드
+  /// 시험: '연습이 끝났어요' → 처음 화면 → 대기 화면이 다시 떴다). 실제 실행의 대기는 그대로 뜬다 — 정지 버튼이 닿아야 한다.
+  void _leavePracticeResult() {
+    if (_phase != KioskPhase.done || _executionMode != 'mock') return;
+    final job = _activeJobId;
+    final appliance = _execApplianceId;
+    if (job != null && appliance != null) _leftPracticeHold = '$appliance|$job';
+  }
+
   void _toIdle() {
+    _leavePracticeResult();
     _rememberPastResult();
     _continueApplianceId = null;
     _routineCard = null;

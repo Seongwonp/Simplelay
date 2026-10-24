@@ -7,6 +7,7 @@ import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 
@@ -115,6 +116,41 @@ void main() {
     expect(find.byKey(const ValueKey('done-auto-return')), findsOneWidget);
     await tester.pump(const Duration(seconds: 12));
     await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(KioskIdleView), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('연습 결과를 닫으면 같은 실행의 연습 대기 화면을 다시 띄우지 않는다(실행은 그대로 보임)', (tester) async {
+    // 10/24 모의 보드 시험: '연습이 끝났어요' → 처음 화면 → 누름 장치가 '취소' 위에서 기다리는 대기 화면이 다시 떴다.
+    final api = await _pumpKiosk(tester);
+    await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('해동'));
+    await tester.pump();
+    await tester.tap(find.text('누르기'));
+    await tester.pump();
+    api.statusResult = const KioskStatus(
+        running: false, lastJobId: 'job-1', lastStatus: 'succeeded', lastExecutionMode: 'mock', lastOutcome: 'success');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskDoneView), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('done-home')));
+    await tester.pump();
+    api.statusResult = const KioskStatus(
+      running: false,
+      lastJobId: 'job-1',
+      lastStatus: 'succeeded',
+      lastExecutionMode: 'mock',
+      lastOutcome: 'success',
+      holdState: 'hovering_stop',
+      holdApplianceId: 'microwave',
+      holdStopButton: '취소',
+      holdExecutionMode: 'mock',
+    );
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(KioskHoldView), findsNothing);
     expect(find.byType(KioskIdleView), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
