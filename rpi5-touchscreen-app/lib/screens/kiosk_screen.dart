@@ -816,6 +816,10 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 아래 탭 줄을 둘까 — 평소 화면(조용한 시간으로 어둡지 않을 때)·가전 고르기·가전 조작에서만. 제안·확인·누르는 중·결과·
   /// 정지 대기에서는 두지 않는다(정지·승인이 앞선다). 화면 안 확인 창은 [_tabSuppress]가 따로 가린다.
+  /// 화면 안 창(메뉴·설정·방해 금지·연결·확인 창)이 떠 있다 — 패널 전체를 막 색으로.
+  bool get _scrimOn =>
+      _tabSuppress.value > 0 || _showSettings || _showDnd || _openConnectionId != null || _estopConfirming;
+
   bool get _showTabs =>
       !_estopConfirming && !_showSettings && !_showDnd && _openConnectionId == null && ((_phase == KioskPhase.idle && !_quietDim) || _phase == KioskPhase.manual);
 
@@ -2437,7 +2441,7 @@ class _KioskScreenState extends State<KioskScreen> {
             valueListenable: _tabSuppress,
             builder: (context, suppressed, _) => KioskCanvas(
               dim: _quietDim,
-              scrim: suppressed > 0 || _showSettings || _showDnd || _openConnectionId != null || _estopConfirming,
+              scrim: _scrimOn,
               child: _buildScaffold(),
             ),
           )),
@@ -2454,7 +2458,10 @@ class _KioskScreenState extends State<KioskScreen> {
               label: const Text('여러 가전 연습'), icon: const Icon(Icons.science_outlined),
             ) : null,
       // 조용한 시간이면 바탕만 어둡게(접근성 감사 10/18) — 캔버스 바탕과 같은 색이라 안쪽 사각형 테두리가 드러나지 않는다.
-      backgroundColor: _quietDim ? KioskCanvas.quietBg : KioskColors.bg,
+      // 창이 떠 있으면 바탕도 막과 같은 색 — 맨 위 3px(진행 막대 자리)·캔버스 가장자리가 밝은 선으로 남았다(실패널 10/24).
+      backgroundColor: _scrimOn
+          ? Color.alphaBlend(Colors.black.withValues(alpha: KioskCanvas.scrimAlpha), _quietDim ? KioskCanvas.quietBg : KioskColors.bg)
+          : (_quietDim ? KioskCanvas.quietBg : KioskColors.bg),
       body: Stack(
         children: [
           Positioned(

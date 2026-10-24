@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 
 import 'kiosk_phase_test.dart' show FakeEventStream, FakeKioskApi, FakeTts;
@@ -24,6 +25,10 @@ void main() {
     await tester.pump();
     expect(find.byKey(const ValueKey('kiosk-tab-bar')), findsNothing);
     expect(tester.widget<KioskCanvas>(find.byType(KioskCanvas)).scrim, isTrue);
+    // 화면 바탕도 막 색 — 맨 위 3px(진행 막대 자리)가 밝은 선으로 남지 않게.
+    final scaffold = tester.widget<Scaffold>(
+        find.descendant(of: find.byType(KioskCanvas), matching: find.byType(Scaffold)).first);
+    expect(scaffold.backgroundColor, isNot(KioskColors.bg));
     // 메뉴의 마지막 줄(사용 방법)이 화면 안에 다 보인다.
     final help = find.text('사용 방법');
     expect(help, findsOneWidget);

@@ -16,6 +16,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/help_guide.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_featured.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
@@ -102,7 +103,9 @@ void main() {
       await tester.tap(find.descendant(of: row, matching: find.byType(Switch)));
       await tester.pump();
       expect(KioskColors.darkMode, isTrue);
-      expect(tester.widget<Scaffold>(find.byType(Scaffold).first).backgroundColor, KioskColors.dark.bg);
+      // 설정 창이 떠 있어 바탕은 어두운 팔레트 위에 창 막 색(10/24 — 가장자리까지 같은 막).
+      expect(tester.widget<Scaffold>(find.byType(Scaffold).first).backgroundColor,
+          Color.alphaBlend(Colors.black.withValues(alpha: KioskCanvas.scrimAlpha), KioskColors.dark.bg));
       expect(store.load().darkMode, isTrue);
       expect(File('${dir.path}/settings.json').readAsStringSync(), contains('"dark_mode":true'));
       await tester.pumpWidget(const SizedBox.shrink());
