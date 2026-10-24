@@ -15,6 +15,7 @@ from rpi.controller.serial_motion import (
     MotionStopped, MotionTimeout,
 )
 from rpi.controller.touchbridge_motion import TouchBridgeConfig, TouchBridgeMotionClient
+from rpi.tools.touchbridge_sim import banner, state_line
 
 
 class ReceivedSketch:
@@ -38,9 +39,8 @@ class ReceivedSketch:
         self.thread.start()
 
     def send(self, command, state, **fields):
-        self.pipe.device.write_line(json.dumps(
-            {"version": 2, "commandId": command["commandId"], "state": state, **fields}
-        ))
+        # Same v2 line builder as the TCP simulator (rpi/tools/touchbridge_sim.py) so the fakes never diverge.
+        self.pipe.device.write_line(state_line(command["commandId"], state, **fields))
 
     def finish_move(self):
         command = self.move
@@ -194,7 +194,7 @@ def test_restart_fails_an_outstanding_move_instead_of_accepting_a_late_completio
     with ThreadPoolExecutor() as pool:
         move = pool.submit(client.move_to, 3, 4)
         assert mcu.move_started.wait(1)
-        mcu.pipe.device.write_line("Touch Bridge CoreXY v4 ready (BLE: device, key=none)")
+        mcu.pipe.device.write_line(banner("device"))
         with pytest.raises(MotionReset):
             move.result(timeout=1)
     assert client.needs_reconnect and not client.homed
@@ -508,7 +508,7 @@ def test_host_requested_stop_keeps_the_existing_stop_semantics(rig):
 def test_stop_is_written_even_while_the_link_is_marked_for_reconnect(rig):
     client, mcu, _ = rig
     client.connect()
-    mcu.pipe.device.write_line("Touch Bridge CoreXY v4 ready (BLE: device, key=none)")
+    mcu.pipe.device.write_line(banner("device"))
     deadline = time.monotonic() + 1
     while not client.needs_reconnect and time.monotonic() < deadline:
         time.sleep(0.01)
@@ -537,7 +537,7 @@ def test_malformed_and_foreign_lines_are_ignored_while_a_move_completes(rig):
 def test_banner_version_is_recorded_and_a_new_status_reconnects_without_home(rig):
     client, mcu, _ = rig
     client.connect()
-    mcu.pipe.device.write_line("Touch Bridge CoreXY v4 ready (BLE: device, key=none)")
+    mcu.pipe.device.write_line(banner("device"))
     deadline = time.monotonic() + 1
     while not client.needs_reconnect and time.monotonic() < deadline:
         time.sleep(0.01)

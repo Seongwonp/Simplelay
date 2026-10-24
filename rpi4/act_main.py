@@ -387,7 +387,7 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
     else:
         raise RuntimeError(f"unknown SIMPLELAY_MOTION_PROTOCOL={protocol!r}")
     baud = int(baud_raw)
-    if not port.startswith("/dev/serial/by-id/"):
+    if not port.startswith("/dev/serial/by-id/") and "://" not in port:  # socket:// 모의 보드는 USB가 아니다
         # 10/13 보드 날: 모터 전원 투입 때 ESP32가 ttyACM0 → ttyACM1로 다시 잡혀 실행기가 죽은 포트를 붙잡았다.
         log.warning("SIMPLELAY_MOTION_PORT=%s — USB 재열거 뒤 이름이 바뀔 수 있어요. "
                     "/dev/serial/by-id/… 경로를 쓰세요(docs/결선-운영-런북.md)", port)
@@ -401,6 +401,13 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
 
         transport = LoggingTransport(transport, line_log)
     client = client_type(transport, config, on_event=on_event)
+    # 모의 보드(rpi/tools/touchbridge_sim.py)에 붙였으면 결과를 '연습'으로 남긴다 — 실제 누름 기록과 섞이지 않게(10/24).
+    # 네트워크 주소(socket://)일 때만 받는다: USB 장치 경로는 언제나 실물이다.
+    if "://" in port and os.getenv("SIMPLELAY_MOTION_SIMULATED", "").strip().lower() in ("1", "true", "yes"):
+        from rpi.controller.models import ExecutionMode
+
+        client.execution_mode = ExecutionMode.MOCK
+        log.warning("motion %s는 모의 보드 — 결과를 연습(mock)으로 기록합니다", port)
     global _motion_watch
     if _motion_watch is not None:
         _motion_watch.stop()

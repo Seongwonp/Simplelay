@@ -276,8 +276,12 @@ class PySerialLineTransport:
                 raise RuntimeError(
                     "pyserial is not installed. Run: pip install -e \".[gpio]\""
                 ) from exc
-        ser = serial_module.Serial()
-        ser.port = port
+        if "://" in port:
+            # pyserial URL(예: socket://host:port — 모의 보드 rpi/tools/touchbridge_sim.py). 규약 처리는 같다.
+            ser = serial_module.serial_for_url(port, do_not_open=True)
+        else:
+            ser = serial_module.Serial()
+            ser.port = port
         ser.baudrate = baud
         ser.timeout = 0
         ser.dsrdtr = False
