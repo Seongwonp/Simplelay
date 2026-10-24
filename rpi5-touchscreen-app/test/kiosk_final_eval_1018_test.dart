@@ -308,9 +308,10 @@ void main() {
       expect(cause, findsOneWidget);
       expect(_plain('누름 장치가 끊겨 가전 2대를 쓸 수 없어요'), findsOneWidget);
       final style = _styleOf(tester, cause);
-      expect(style.fontSize, greaterThanOrEqualTo(KioskType.status));
+      // 시안 B(10/24): 처음 화면 띠는 높이를 고정한 한 줄(아래 칸을 밀어내지 않게) — 제목은 본문보다 큰 글자.
+      expect(style.fontSize, greaterThan(KioskType.body));
       // 한 줄 — 높이가 글자 두 줄에 못 미친다(캔버스 단위).
-      expect(tester.getSize(cause).height, lessThan(KioskType.status * 2));
+      expect(tester.getSize(cause).height, lessThan(style.fontSize! * 2));
       final help = find.byKey(const ValueKey('idle-problem-help'));
       expect(help, findsOneWidget);
       expect(tester.widget(help), isA<ButtonStyleButton>());

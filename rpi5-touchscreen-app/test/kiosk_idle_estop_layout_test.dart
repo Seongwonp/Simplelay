@@ -146,22 +146,12 @@ void main() {
         }
 
         if (band) expect(find.text('작동 중'), findsNothing);
-        // 예보는 다 보이거나 일부러 숨긴다 — 반쯤 걸린 채로 두지 않는다.
-        final hours = find.byKey(const ValueKey('ambient-hours'));
-        if (hours.evaluate().isNotEmpty) {
-          _expectFullyVisible(tester, hours, isText: false);
-          // 예보 칸 이름도 오전/오후(평가 4차 10/18). 첫 칸은 '지금'(23:41 — 0시 칸 값, 사용자 요청 10/18).
-          for (final label in ['지금', '오전 3시', '오전 6시', '오전 9시', '14°', '15°']) {
-            // 예보 칸 안에서 찾는다.
-            _expectFullyVisible(tester, find.descendant(of: hours, matching: find.text(label)));
-          }
-          // 예보가 가전 줄에 걸치지 않는다.
-          final strip = tester.getRect(find.byKey(const ValueKey('strip-washer')));
-          expect(tester.getRect(hours).bottom <= strip.top + 0.5, isTrue,
-              reason: '예보 ${tester.getRect(hours)} 가 가전 줄 $strip 에 걸친다');
-        }
-        // 띠가 없고 보통 글씨면 예보는 함께 보여야 한다(UI 확정 §3-1).
-        if (!band && scale == 1.0) expect(hours, findsOneWidget);
+        // 시안 B(10/24): 예보 칸 대신 오른쪽 '바깥 날씨' 줄 — 지금 기온(0시 칸 값 14°)이 다 보이고 가전 줄과 겹치지 않는다.
+        final weather = find.byKey(const ValueKey('idle-weather'));
+        expect(weather, findsOneWidget);
+        _expectFullyVisible(tester, weather, isText: false);
+        final strip = tester.getRect(find.byKey(const ValueKey('strip-washer')));
+        expect(tester.getRect(weather).overlaps(strip), isFalse);
       });
     }
   }
@@ -173,11 +163,12 @@ void main() {
     double size(Finder f) => tester.widget<Text>(f).style!.fontSize!;
     final clock = size(find.text('11:41'));
     final tip = size(find.text(_tipText));
-    final hour = size(find.text('오전 3시'));
+    // 시안 B(10/24): 오른쪽 줄 머리말('바깥 날씨')이 가장 작은 글자.
+    final label = size(find.text('바깥 날씨'));
     final appliance = size(find.text('세탁기'));
     expect(clock, greaterThan(tip));
-    expect(tip, greaterThan(hour));
-    for (final s in [tip, hour, appliance]) {
+    expect(tip, greaterThan(label));
+    for (final s in [tip, label, appliance]) {
       expect(s, greaterThanOrEqualTo(14));
     }
   });

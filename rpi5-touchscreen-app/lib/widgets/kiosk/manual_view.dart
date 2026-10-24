@@ -6,6 +6,7 @@ import '../../models/ambient.dart';
 import '../../models/appliance.dart';
 import '../../models/thinq.dart';
 import '../../services/kiosk_api_service.dart';
+import 'kiosk_tab_bar.dart' show KioskTabBarSuppress;
 import 'kiosk_text.dart';
 import '../../theme/kiosk_colors.dart';
 import 'appliance_art.dart';
@@ -201,6 +202,8 @@ class _KioskManualViewState extends State<KioskManualView> {
               ),
             ],
           ),
+          // 누르기 확인이 떠 있는 동안 아래 탭을 숨긴다(확인이 앞선다, 시안 B 10/24 ②-1).
+          if (pending != null) const KioskTabBarSuppress(),
           if (pending != null)
             Positioned.fill(
               child: _PressConfirm(

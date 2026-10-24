@@ -294,13 +294,15 @@ void main() {
   testWidgets('평소 화면: 실내 공기 한 줄은 나쁠 때만 — 등급(색+말), 공기청정기 전원 말은 없다', (tester) async {
     final handle = tester.ensureSemantics();
     await pumpIdle(tester, _air);
-    expect(find.byKey(const ValueKey('idle-air')), findsNothing, reason: '좋음은 줄이 없다(사용자 결정 10/18)');
+    // 시안 B(10/24, 사용자 승인): 공기질 줄은 값이 있으면 늘(예전 '나쁠 때만'을 대신한다).
+    expect(find.byKey(const ValueKey('idle-air')), findsOneWidget);
+    expect(_gradeSpan(tester).text!.replaceAll('⁠', ''), '좋음');
     await pumpIdle(tester, _badAir);
     expect(find.byKey(const ValueKey('idle-air')), findsOneWidget);
     // 공기는 한 줄 + 색(2차 평가 10/18) — 숫자는 LG 상세 '자세히' 안, 전원은 가전 타일이 말한다.
     expect(find.bySemanticsLabel('공기 나빠요'), findsOneWidget);
     final grade = _gradeSpan(tester);
-    expect(grade.text!.replaceAll('⁠', ''), '나빠요');
+    expect(grade.text!.replaceAll('⁠', ''), '나쁨');
     expect(grade.style!.color, KioskColors.warning);
     expect(find.byIcon(Icons.air), findsOneWidget);
     expect(find.text('공기청정기가 켜져 있어요'), findsNothing);
@@ -318,8 +320,10 @@ void main() {
       final clock = tester.getRect(find.text('9:05'));
       final air = tester.getRect(find.byKey(const ValueKey('idle-air')));
       final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
+      // 시안 B(10/24): 오른쪽 줄 칸 — 위 줄 아래, 가전 줄과 다른 칸, 화면 안.
       expect(air.top, greaterThanOrEqualTo(clock.bottom), reason: '$size');
-      expect(air.bottom, lessThanOrEqualTo(strip.top), reason: '$size');
+      expect(air.left, greaterThanOrEqualTo(strip.right), reason: '$size');
+      expect(air.bottom, lessThanOrEqualTo(size.height), reason: '$size');
       // 항목마다 따로 — 줄이 바뀌어도 '·'가 줄 끝에 매달리지 않는다(외부 평가 10/16 2차 k01).
       expect(find.text('초미세먼지 8'), findsNothing);
       expect(find.text('공기청정기가 켜져 있어요'), findsNothing, reason: '전원은 가전 타일이 말한다');
@@ -354,7 +358,9 @@ void main() {
       expect(tester.takeException(), isNull);
       final air = tester.getRect(find.byKey(const ValueKey('idle-air')));
       final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
-      expect(air.bottom, lessThanOrEqualTo(strip.top), reason: '$size');
+      // 시안 B(10/24): 오른쪽 줄 칸 — 가전 줄과 다른 칸, 화면 안.
+      expect(air.left, greaterThanOrEqualTo(strip.right), reason: '$size');
+      expect(air.bottom, lessThanOrEqualTo(size.height), reason: '$size');
       // 큰 글씨에서는 아래 작은 줄도 뺀다(공기청정기 켜짐은 가전 타일에 있다).
       expect(find.bySemanticsLabel(RegExp('공기 아주 나빠요')), findsOneWidget);
       expect(find.text('초미세먼지 120'), findsNothing);

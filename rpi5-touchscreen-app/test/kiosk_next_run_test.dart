@@ -94,7 +94,8 @@ void main() {
     // 담담한 줄(사용자 결정 10/18): 작은 머리말 '자동 루틴' + '내일 오전 7:00 · 아침 공기청정기 끄기'(분까지 — 평가 13차).
     final line = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-text')));
     // 어절 단위로 줄을 바꾼다 — 실패널에서 '공기청/정기'처럼 낱말 가운데서 끊겼다(10/16 밤).
-    expect(line.textSpan!.toPlainText(includeSemanticsLabels: false),
+    // 시안 B(10/24): 오른쪽 줄 칸 — 시각 줄 다음 이름 줄.
+    expect(line.textSpan!.toPlainText(includeSemanticsLabels: false).replaceAll('⁠', '').replaceAll('\n', ' · '),
         '내일 오전 7:00 · 아침 공기청정기 끄기');
     expect(find.text('자동 루틴'), findsOneWidget);
     expect(find.text('자동으로 해요'), findsNothing);
@@ -144,17 +145,18 @@ void main() {
       if (scale > 1) {
         // 큰 글씨: 자리가 있으면 짧은 문장으로 다 보이고, 없으면 숨는다 — 잘린 채로는 두지 않는다.
         if (next.evaluate().isEmpty) {
-          expect(find.byKey(const ValueKey('ambient-tip')), findsOneWidget, reason: '날씨 안내는 남는다');
+          expect(find.byKey(const ValueKey('idle-weather')), findsOneWidget, reason: '날씨 안내는 남는다');
           return;
         }
       }
       expect(next, findsOneWidget);
       final rect = tester.getRect(next);
       final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
-      expect(rect.bottom, lessThanOrEqualTo(strip.top), reason: '가전 줄 위에서 끝난다');
+      // 시안 B(10/24): 다음 루틴은 오른쪽 줄 칸 — 가전 줄과 다른 칸.
+      expect(rect.left, greaterThanOrEqualTo(strip.right), reason: '가전 줄과 다른 칸');
       // 스크롤 안 보이는 곳이 아니라 실제 화면 안에 있다.
       expect(rect.bottom, lessThanOrEqualTo(size.height));
-      expect(tester.getRect(find.byKey(const ValueKey('ambient-tip'))).top, greaterThanOrEqualTo(0));
+      expect(tester.getRect(find.byKey(const ValueKey('idle-weather'))).top, greaterThanOrEqualTo(0)); // 시안 B: 날씨 안내는 바깥 날씨 줄
     });
   }
 }

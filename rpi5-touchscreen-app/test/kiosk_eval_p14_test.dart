@@ -292,8 +292,10 @@ void main() {
       await _pumpView(tester, _idle(air: offAir, next: _next(), onSelect: (a) => opened = a));
       final action = find.byKey(const ValueKey('idle-air-action'));
       expect(action, findsOneWidget);
-      expect(tester.getRect(action).bottom,
-          lessThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('strip-air_purifier'))).top));
+      // 시안 B(10/24): 공기질 줄은 오른쪽 줄 칸 — 가전 줄과 다른 칸이고 화면 안.
+      expect(tester.getRect(action).left,
+          greaterThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('strip-air_purifier'))).right));
+      expect(tester.getRect(action).bottom, lessThanOrEqualTo(480));
       expect(tester.getSize(find.byKey(const ValueKey('idle-air-tap'))).height, greaterThanOrEqualTo(48));
       await tester.tap(action);
       expect(opened?.id, 'air_purifier');
@@ -334,10 +336,12 @@ void main() {
             ],
           )));
       expect(_texts(tester).where((t) => t.contains('좋은 아침')), isEmpty);
-      expect(find.byKey(const ValueKey('ambient-hours')), findsOneWidget);
+      // 시안 B(10/24): 예보 칸 대신 '바깥 날씨' 줄.
+      expect(find.byKey(const ValueKey('idle-weather')), findsOneWidget);
     });
 
-    testWidgets('비 소식이 없으면 인사말은 그대로', (tester) async {
+    // 시안 B(10/24): 처음 화면에 인사말 줄은 두지 않는다(오른쪽은 줄 칸) — 비 소식이 없어도 없다.
+    testWidgets('비 소식이 없어도 인사말 줄은 없다(시안 B)', (tester) async {
       await _pumpView(
           tester,
           _idle(
@@ -347,7 +351,7 @@ void main() {
             now: AmbientHour(label: '지금', hour: 7, icon: 'clear', temp: 14),
             hourly: [AmbientHour(label: '9시', hour: 9, icon: 'partly', temp: 15)],
           )));
-      expect(_texts(tester).where((t) => t.contains('좋은 아침')), isNotEmpty);
+      expect(_texts(tester).where((t) => t.contains('좋은 아침')), isEmpty);
     });
   });
 

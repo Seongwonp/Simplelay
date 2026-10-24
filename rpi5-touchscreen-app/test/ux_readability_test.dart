@@ -27,9 +27,9 @@ void main() {
     expect(find.text('방해 금지'), findsNothing);
     await tapIdleMenuItem(tester, 'dnd-entry');
     expect(opened, 1);
-    // 10/7 평소 화면 여백 정리로 인사말 33 → 28. 시계 다음 위계라 다른 글자보다 크고,
-    // 14pt 하한(15.8형 캔버스 기준 약 13.2)보다 넉넉히 크다.
-    expect(tester.widget<Text>(find.text('좋은 아침이에요')).style!.fontSize, greaterThanOrEqualTo(24));
+    // 시안 B(10/24): 인사말 줄은 없다 — 위 줄 시계는 14pt 하한(15.8형 캔버스 기준 약 13.2)보다 넉넉히 크다.
+    expect(find.text('좋은 아침이에요'), findsNothing);
+    expect(tester.widget<Text>(find.text('9:00')).style!.fontSize, greaterThanOrEqualTo(30));
     expect(tester.takeException(), isNull);
   });
 

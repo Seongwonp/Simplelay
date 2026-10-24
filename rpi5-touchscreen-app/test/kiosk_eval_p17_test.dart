@@ -10,7 +10,6 @@
 // (6. 인덕션 '시작·취소' / 전자레인지 '취소·시작'은 서버 가전 등록표의 버튼 자리(x, y)를 그대로 따른다 — 시험 없음.)
 // 17차 평가 추가: A. 결과 띠에 늘 가전·할 일 이름(본문 이름 줄 없음) B. 두 줄 단추는 같은 폭 격자 C. 지난 일은 쉼표·날짜 말
 // D. 정지 확인 기다림은 띠 '멈추는 중'(돌아가는 원 없음) E. 창 닫는 단추 '닫기'·수동 화면 제목에서 '내' 뺌.
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,8 +23,6 @@ import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/past_result_line.dart';
 
-const _fontPath = r'C:\Windows\Fonts\malgun.ttf';
-final _hasFont = File(_fontPath).existsSync();
 
 Future<void> _pump(WidgetTester tester, Widget child, {bool panel = true}) async {
   final size = panel ? const Size(1920, 1080) : const Size(800, 480);
@@ -243,25 +240,14 @@ void main() {
     }
   });
 
-  testWidgets('3. 예보 칸 머리는 모두 같은 글자 크기(오후 12시만 작지 않다)', (tester) async {
-    if (!_hasFont) return;
-    await _pump(tester, _idle(_rainTip));
-    final heights = [
-      for (final label in ['오후 12시', '오후 3시', '오후 6시'])
-        tester.getRect(find.text(label)).height,
-    ];
-    for (final h in heights) {
-      expect((h - heights.first).abs(), lessThan(0.5), reason: '$heights');
-    }
-  });
-
-  // 출시 검토(10/18)에서 바꿈: 비 확률이 없는 날은 칸을 내용에 맞춰 줄인다(아래 절반이 비었다). 칸끼리는 늘 같다.
-  testWidgets('4. 예보 칸은 비 확률 줄이 없으면 줄어든다(칸끼리는 같다)', (tester) async {
+  // 시안 B(10/24): 예보 칸 줄(3·4번의 대상)은 처음 화면에서 빠지고 '바깥 날씨' 줄 하나 — 비 소식이 있을 때만 아래 작은 줄.
+  testWidgets('3·4. 예보 칸 줄 대신 바깥 날씨 줄 — 비 소식은 있을 때만', (tester) async {
     await _pump(tester, _idle(_dry));
-    final dry = tester.getSize(find.byKey(const ValueKey('ambient-hour-0'))).height;
+    expect(find.byKey(const ValueKey('ambient-hour-0')), findsNothing);
+    expect(find.byKey(const ValueKey('idle-weather')), findsOneWidget);
+    expect(find.byKey(const ValueKey('idle-weather-advice')), findsNothing);
     await _pump(tester, _idle(_wet));
-    final wet = tester.getSize(find.byKey(const ValueKey('ambient-hour-0'))).height;
-    expect(dry, lessThan(wet - 10));
+    expect(find.byKey(const ValueKey('idle-weather-advice')), findsOneWidget);
   });
 
   testWidgets("5. 문제 칩은 '연결 확인 필요 N' — 가전 문제와 함께여도 무엇을 센 숫자인지 드러난다", (tester) async {

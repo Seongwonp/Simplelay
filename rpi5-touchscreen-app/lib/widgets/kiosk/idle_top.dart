@@ -115,7 +115,16 @@ const kProblemHelp = '눌러서 해결 방법 보기';
 /// 평소 화면은 그 줄을 위 줄 아래 한 줄 전체에 둔다.
 class KioskIdleStatusChip extends StatelessWidget {
   const KioskIdleStatusChip(
-      {super.key, required this.items, required this.onTap, this.pressImpact, this.also, this.vertical = false});
+      {super.key,
+      required this.items,
+      required this.onTap,
+      this.pressImpact,
+      this.also,
+      this.vertical = false,
+      this.compact = false});
+
+  /// 처음 화면의 한 줄 띠 꼴([KioskIdleProblemBar.compact], 시안 B 10/24) — 높이 고정, 아래 칸을 밀어내지 않는다.
+  final bool compact;
 
   final List<ConnectionItem> items;
   final VoidCallback onTap;
@@ -154,8 +163,9 @@ class KioskIdleStatusChip extends StatelessWidget {
       return KioskIdleProblemBar(
         title: cause ?? text,
         titleIsCause: cause != null,
-        also: also,
+        also: compact ? null : also,
         vertical: vertical,
+        compact: compact,
         // 화면 읽기는 무엇이 문제인지까지 읽는다('누름 장치가 끊겨 가전 5대를 쓸 수 없어요. 연결 확인 필요 1').
         semanticsLabel: [if (cause != null) cause, text, if (cause == null) ...what, if (also != null) also!].join('. '),
         onTap: onTap,
@@ -217,10 +227,17 @@ class KioskIdleProblemBar extends StatelessWidget {
     this.titleIsCause = false,
     this.also,
     this.vertical = false,
+    this.compact = false,
   });
 
   /// 줄 높이(캔버스) — 1920x1080에서 약 107px.
   static const double height = 52;
+
+  /// 처음 화면 한 줄 띠 높이(시안 B 10/24, 1920x1080에서 약 98px) — 오른쪽 단추가 누르는 자리 48을 지킨다.
+  static const double compactHeight = 48;
+
+  /// 한 줄 띠 꼴 — 제목을 본문보다 조금 큰 글자로, 둘째 줄([also])은 두지 않는다. 높이는 [compactHeight].
+  final bool compact;
 
   /// 둘째 줄([also]) 글자 — 본문 크기, 두 줄까지(접근성 감사 10/18 — 한 줄로 줄이면 글자가 너무 작아졌다).
   static TextStyle get _alsoStyle => TextStyle(fontSize: KioskType.body, height: 1.2, color: KioskColors.ink);
@@ -273,8 +290,9 @@ class KioskIdleProblemBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final tone = KioskColors.warning;
     if (vertical) return _verticalCard(tone);
+    final titleSize = compact ? KioskType.body + 1 : KioskType.status;
     return LayoutBuilder(builder: (context, box) {
-    final barHeight = heightFor(context, also: also, width: box.maxWidth);
+    final barHeight = compact ? compactHeight : heightFor(context, also: also, width: box.maxWidth);
     return SizedBox(
       height: barHeight,
       child: Row(
@@ -299,7 +317,7 @@ class KioskIdleProblemBar extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
                     child: Row(children: [
-                      Icon(Icons.error_outline, size: KioskType.status, color: tone),
+                      Icon(Icons.error_outline, size: compact ? 24 : KioskType.status, color: tone),
                       const SizedBox(width: KioskSpace.sm),
                       Expanded(
                         child: Column(
@@ -314,12 +332,12 @@ class KioskIdleProblemBar extends StatelessWidget {
                                   maxLines: 1,
                                   softWrap: false,
                                   style: TextStyle(
-                                      fontSize: KioskType.status,
+                                      fontSize: titleSize,
                                       height: 1.15,
                                       fontWeight: FontWeight.w800,
                                       color: KioskColors.ink)),
                             ),
-                            if (also case final a?)
+                            if (also case final a? when !compact)
                               Text.rich(TextSpan(text: keepWords(a), semanticsLabel: a),
                                   key: const ValueKey('idle-problem-also'),
                                   maxLines: _alsoMaxLines,
@@ -438,7 +456,8 @@ class KioskIdleProblemBar extends StatelessWidget {
       );
 }
 
-/// 메뉴 단추 — 아이콘 아래 이름 '메뉴'. 누르는 자리 64x64(48 이상).
+/// 메뉴 단추 — 톱니바퀴(시안 B 10/24, 폰 설정 단추와 같은 모양) + 아래 작은 이름 '메뉴'. 누르는 자리 60x60(48 이상).
+/// 화면 읽기 이름은 '메뉴'와 그 안의 항목(방해 금지·설정·연결·사용 방법).
 class KioskIdleMenuButton extends StatelessWidget {
   const KioskIdleMenuButton({super.key, required this.onTap});
 
@@ -454,16 +473,16 @@ class KioskIdleMenuButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: SizedBox(
-            width: 64,
-            height: 64,
+            width: 60,
+            height: 60,
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.menu, size: 28, color: KioskColors.muted),
+              Icon(Icons.settings, size: 28, color: KioskColors.primary),
+              // 아이콘 아래 작은 이름은 남긴다(평가 10/18 — 아이콘만으로는 뜻을 몰랐다).
               Text('메뉴',
                   maxLines: 1,
                   softWrap: false,
                   textScaler: TextScaler.noScaling,
-                  style: TextStyle(
-                      fontSize: KioskType.caption, height: 1.1, color: KioskColors.muted)),
+                  style: TextStyle(fontSize: KioskType.caption, height: 1.1, color: KioskColors.muted)),
             ]),
           ),
         ),

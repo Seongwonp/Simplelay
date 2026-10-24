@@ -10,6 +10,7 @@ import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'estop_banner.dart';
 import 'kiosk_scroll_area.dart';
+import 'kiosk_tab_bar.dart' show KioskTabBarSuppress;
 import 'kiosk_text.dart';
 
 /// 가전 등급 색(2026-10-16) — 좋음 초록 · 보통 중립 · 나쁨 앰버 · 매우 나쁨 빨강. 글자(등급 말)를 늘 함께 쓴다(색만으로 말하지 않는다).
@@ -310,6 +311,8 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
                   ),
                 ),
         ),
+        // 설정 확인·보내는 중에는 아래 탭을 숨긴다 — 탭으로 벗어나면 접수된 실행을 놓친다(시안 B 10/24).
+        if (pending != null || _sending) const KioskTabBarSuppress(),
         if (pending != null)
           Positioned.fill(
             child: _ChangeConfirm(

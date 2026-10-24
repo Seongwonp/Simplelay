@@ -120,25 +120,20 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('10월 18일 일요일'), findsOneWidget);
       expect(_outside, findsNothing);
-      final now = find.byKey(const ValueKey('ambient-hour-0'));
-      expect(find.descendant(of: now, matching: find.text('지금')), findsOneWidget);
-      expect(find.descendant(of: now, matching: find.text('14°')), findsOneWidget);
+      // 시안 B(10/24): 지금 날씨는 오른쪽 '바깥 날씨' 줄(예보 칸 줄 대신).
+      final now = find.byKey(const ValueKey('idle-weather-now'));
+      expect(find.descendant(of: now, matching: find.textContaining('14°', findRichText: true)), findsWidgets);
       final icon = tester.widget<Icon>(find.descendant(of: now, matching: find.byType(Icon)));
       expect(icon.icon, Icons.cloud);
-      // 지금 칸으로 쓴 9시 칸은 다시 두지 않는다 — 지금 + 12·15·18시.
-      expect(find.text('오전 9시'), findsNothing);
-      expect(find.text('오후 6시'), findsOneWidget);
       // 화면 읽기: 무엇의 값인지 말로.
-      expect(find.bySemanticsLabel(RegExp('지금, 흐림, 14도')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('바깥 날씨, 14도, 흐림')), findsOneWidget);
     });
 
-    testWidgets('지금 칸이 없으면 예보 칸만', (tester) async {
+    testWidgets('지금 칸이 없으면 지금 날씨를 지어내지 않는다', (tester) async {
       await _pump(tester, _idle(DateTime(2026, 10, 18, 7, 8), _amb(_hours)));
-      expect(find.text('지금'), findsNothing);
-      expect(find.text('오전 9시'), findsOneWidget);
-      expect(find.byKey(const ValueKey('ambient-hour-3')), findsOneWidget);
+      expect(find.byKey(const ValueKey('idle-weather-now')), findsNothing);
       await _pump(tester, _idle(DateTime(2026, 10, 18, 8, 20), null));
-      expect(find.text('지금'), findsNothing);
+      expect(find.byKey(const ValueKey('idle-weather')), findsNothing);
     });
 
     for (final scale in [1.0, 1.22]) {
@@ -167,8 +162,8 @@ void main() {
           expect(date.overlaps(r), isFalse);
         }
         expect(date.left, greaterThanOrEqualTo(0));
-        // 보통 글씨에서는 지금 칸이 예보 줄에 보인다(큰 글씨 + 안내면 예보는 접힌다 — 안내가 먼저).
-        if (scale == 1.0) expect(find.text('지금'), findsOneWidget);
+        // 시안 B(10/24): 바깥 날씨 줄은 글씨 크기와 상관없이 남는다.
+        expect(find.byKey(const ValueKey('idle-weather')), findsOneWidget);
       });
     }
   });

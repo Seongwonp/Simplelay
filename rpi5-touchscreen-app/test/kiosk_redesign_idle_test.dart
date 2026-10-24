@@ -156,7 +156,8 @@ void main() {
       })!;
       expect(air.sentence, '공기 나빠요');
       await _pump(tester, _idle(air: air));
-      expect(find.textContaining('나빠요'), findsOneWidget);
+      // 시안 B(10/24): 오른쪽 '공기질' 줄 값은 등급 말(명사형).
+      expect(find.textContaining('나쁨'), findsOneWidget);
       expect(find.textContaining('종합 등급은 공기청정기가 정한 거예요'), findsNothing);
       expect(find.textContaining('미세먼지'), findsNothing);
     });
@@ -168,7 +169,9 @@ void main() {
       })!;
       await _pump(tester, _idle(air: air));
       expect(find.textContaining('보통이에요'), findsNothing);
-      expect(find.byKey(const ValueKey('idle-air')), findsNothing);
+      // 시안 B(10/24, 사용자 승인): 공기질 줄은 값이 있으면 늘 — 문장 대신 등급 말 '보통'.
+      expect(find.byKey(const ValueKey('idle-air')), findsOneWidget);
+      expect(find.textContaining('보통'), findsOneWidget);
     });
 
     test('등급 말 — 좋아요 · 보통이에요 · 나빠요 · 아주 나빠요', () {

@@ -11,6 +11,7 @@ import '../models/appliance.dart';
 import '../models/auto_run.dart';
 import '../models/command_result.dart';
 import '../models/estop.dart';
+import '../models/kiosk_history.dart';
 import '../models/thinq.dart';
 import '../models/scenario_run.dart';
 import '../models/thinq_run.dart';
@@ -20,6 +21,7 @@ import '../services/kiosk_settings_store.dart';
 import '../services/kiosk_tts_service.dart';
 import '../theme/kiosk_colors.dart';
 import '../widgets/kiosk/appliance_select_view.dart';
+import '../widgets/kiosk/auto_run_view.dart';
 import '../widgets/kiosk/auto_run_notice.dart';
 import '../widgets/kiosk/danger_alert_overlay.dart';
 import '../widgets/kiosk/dnd_overlay.dart';
@@ -27,11 +29,13 @@ import '../widgets/kiosk/estop_banner.dart';
 import '../widgets/kiosk/done_view.dart';
 import '../widgets/kiosk/connection_status.dart';
 import '../widgets/kiosk/executing_view.dart';
+import '../widgets/kiosk/history_view.dart';
 import '../widgets/kiosk/hold_view.dart';
 import '../widgets/kiosk/idle_top.dart' show connectionsForDisplay;
 import '../widgets/kiosk/idle_view.dart';
 import '../widgets/kiosk/kiosk_canvas.dart';
 import '../widgets/kiosk/kiosk_phase.dart';
+import '../widgets/kiosk/kiosk_tab_bar.dart';
 import '../widgets/kiosk/kiosk_timings.dart';
 import '../widgets/kiosk/manual_view.dart';
 import '../widgets/kiosk/past_result_line.dart';
@@ -331,6 +335,21 @@ class _KioskScreenState extends State<KioskScreen> {
   KioskAirReading? _air;
   KioskNextRun? _nextRun;
 
+  /// 아래 탭(시안 B 10/24) — 평소 화면에서 고른 탭(홈·자동 실행·기록). 가전 고르기·조작 화면은 늘 '가전'이다.
+  /// 처음 화면으로 돌아갈 때([_toIdle]) 홈으로.
+  KioskTab _homeTab = KioskTab.home;
+
+  /// 화면 안 확인 창(누르기 확인·LG 가전 설정 확인·보내는 중)이 떠 있는 수 — 0보다 크면 탭 줄을 숨긴다.
+  final ValueNotifier<int> _tabSuppress = ValueNotifier(0);
+
+  /// '자동 실행' 탭 목록(GET /routines/next, 읽기만). null = 못 불러옴.
+  List<KioskNextRun>? _upcomingRuns;
+  bool _upcomingLoading = false;
+
+  /// '기록' 탭 목록(GET /history, 읽기만). null = 못 불러옴.
+  List<KioskHistoryEntry>? _historyEntries;
+  bool _historyLoading = false;
+
   /// '오늘은 건너뛰기'·'되돌리기'를 보내는 중(2026-10-18) — 그동안 단추를 막아 같은 요청을 두 번 보내지 않는다.
   bool _nextRunBusy = false;
 
@@ -465,6 +484,7 @@ class _KioskScreenState extends State<KioskScreen> {
   @override
   void dispose() {
     _quietWakeTimer?.cancel();
+    _tabSuppress.dispose();
     // 색 토큰은 정적 값이다 — 이 화면이 사라지면 평소 색으로 돌린다(다음 화면·시험이 고대비를 물려받지 않게).
     KioskColors.setHighContrast(false);
     KioskColors.setDarkMode(false);
@@ -742,10 +762,16 @@ class _KioskScreenState extends State<KioskScreen> {
     final result = await _api.setNextRoutineSkip(next, skip: skip);
     if (!mounted) return;
     _nextRunGen++;
+    final changed = result.item;
     setState(() {
       _nextRunBusy = false;
-      if (result.item != null) _nextRun = result.item;
-      _nextRunNotice = result.item == null ? result.message : null;
+      // '자동 실행' 탭에서 뒤 회차를 건너뛰어도 처음 화면 다음 루틴을 그 회차로 바꾸지 않는다 — 같은 회차일 때만.
+      if (changed != null && (_nextRun == null || _sameRun(_nextRun!, next))) _nextRun = changed;
+      final upcoming = _upcomingRuns;
+      if (changed != null && upcoming != null) {
+        _upcomingRuns = [for (final r in upcoming) _sameRun(r, next) ? changed : r];
+      }
+      _nextRunNotice = changed == null ? result.message : null;
     });
     if (_nextRunNotice != null) {
       _nextRunNoticeTimer = Timer(const Duration(seconds: 8), () {
@@ -753,11 +779,81 @@ class _KioskScreenState extends State<KioskScreen> {
       });
     }
     if (result.reload) {
+      if (_upcomingRuns != null) _fetchUpcoming();
       final gen = _nextRunGen;
       final fresh = await _api.nextRoutine();
       if (!mounted || gen != _nextRunGen) return;
       setState(() => _nextRun = fresh);
     }
+  }
+
+  /// 같은 루틴의 같은 회차인가(건너뛰기 요청 본문과 같은 두 값).
+  static bool _sameRun(KioskNextRun a, KioskNextRun b) => a.routineId == b.routineId && a.at == b.at;
+
+  /// '자동 실행' 탭 목록을 다시 읽는다(읽기 전용 GET /routines/next).
+  Future<void> _fetchUpcoming() async {
+    if (_upcomingLoading) return;
+    setState(() => _upcomingLoading = true);
+    final runs = await _api.nextRoutines(limit: 10);
+    if (!mounted) return;
+    setState(() {
+      _upcomingLoading = false;
+      _upcomingRuns = runs;
+    });
+  }
+
+  /// '기록' 탭 목록을 다시 읽는다(읽기 전용 GET /history).
+  Future<void> _fetchHistory() async {
+    if (_historyLoading) return;
+    setState(() => _historyLoading = true);
+    final entries = await _api.history(limit: 20);
+    if (!mounted) return;
+    setState(() {
+      _historyLoading = false;
+      _historyEntries = entries;
+    });
+  }
+
+  /// 아래 탭 줄을 둘까 — 평소 화면(조용한 시간으로 어둡지 않을 때)·가전 고르기·가전 조작에서만. 제안·확인·누르는 중·결과·
+  /// 정지 대기에서는 두지 않는다(정지·승인이 앞선다). 화면 안 확인 창은 [_tabSuppress]가 따로 가린다.
+  bool get _showTabs => !_estopConfirming && ((_phase == KioskPhase.idle && !_quietDim) || _phase == KioskPhase.manual);
+
+  /// 지금 탭 — 가전 고르기·조작 화면은 '가전'.
+  KioskTab get _currentTab => _phase == KioskPhase.manual ? KioskTab.appliances : _homeTab;
+
+  /// 아래 탭을 눌렀다. '가전'은 가전 고르기 화면(가전을 고르면 그 조작판), 나머지는 평소 화면의 그 탭.
+  /// 평소·가전 화면에서만 받는다 — 확인 창이 떠 있으면 탭 줄이 없어 여기로 오지 않지만, 한 번 더 막는다.
+  void _onTab(KioskTab tab) {
+    if (_phase != KioskPhase.idle && _phase != KioskPhase.manual) return;
+    if (_tabSuppress.value > 0) return;
+    if (tab == KioskTab.appliances) {
+      if (_phase == KioskPhase.manual) {
+        // 이미 가전 화면 — 고르기 목록으로(조작판에서 '가전'을 누르면 다른 가전을 고른다).
+        if (_manualAppliance != null) setState(() => _manualAppliance = null);
+        return;
+      }
+      // 본체에 닿지 않으면 가전 화면을 열지 않는다 — 가전 타일과 같은 규칙([_toMyAppliance]).
+      if (!_health.ok) {
+        setState(() => _openConnectionId = 'network');
+        return;
+      }
+      setState(() {
+        _phase = KioskPhase.manual;
+        _manualAppliance = null;
+        _homeTab = KioskTab.home;
+      });
+      _fetchRoutines();
+      return;
+    }
+    setState(() {
+      if (_phase == KioskPhase.manual) {
+        _phase = KioskPhase.idle;
+        _manualAppliance = null;
+      }
+      _homeTab = tab;
+    });
+    if (tab == KioskTab.auto) _fetchUpcoming();
+    if (tab == KioskTab.history) _fetchHistory();
   }
 
   /// ThinQ 가전 상세에서 확인을 거쳐 접수된 조작 — 다른 실행처럼 실행 화면이 job_id로 따라간다.
@@ -1555,6 +1651,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _countdownTimer?.cancel();
     setState(() {
       _phase = KioskPhase.idle;
+      _homeTab = KioskTab.home;
       _currentSuggestion = null;
       _showDnd = false;
     });
@@ -2381,9 +2478,24 @@ class _KioskScreenState extends State<KioskScreen> {
                     Positioned.fill(
                       child: KioskEstopLayout(
                         banner: _topNotices(),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 250),
-                          child: _buildScreen(),
+                        // 아래 탭 줄(시안 B 10/24) — 평소·가전 화면에서만. 화면 안 확인 창이 뜨면 숨는다([_tabSuppress]).
+                        child: KioskTabSuppressScope(
+                          count: _tabSuppress,
+                          child: Column(children: [
+                            Expanded(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 250),
+                                child: _buildScreen(),
+                              ),
+                            ),
+                            if (_showTabs)
+                              ValueListenableBuilder<int>(
+                                valueListenable: _tabSuppress,
+                                builder: (context, suppressed, _) => suppressed > 0
+                                    ? const SizedBox.shrink()
+                                    : KioskTabBar(current: _currentTab, onSelect: _onTab),
+                              ),
+                          ]),
                         ),
                       ),
                     ),
@@ -2590,6 +2702,37 @@ class _KioskScreenState extends State<KioskScreen> {
   Widget _buildScreen() {
     switch (_phase) {
       case KioskPhase.idle:
+        // '자동 실행'·'기록' 탭(시안 B 10/24) — 읽기만 하는 화면. 조용한 시간으로 어두우면 처음 화면(큰 시계)이 앞선다.
+        if (!_quietDim && _homeTab == KioskTab.auto) {
+          return Listener(
+            key: const ValueKey('auto-run'),
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _noteIdleTouch(),
+            child: KioskAutoRunView(
+              runs: _upcomingRuns,
+              loading: _upcomingLoading,
+              busy: _nextRunBusy,
+              notice: _nextRunNotice,
+              // 처음 화면 '오늘은 건너뛰기'와 같은 길.
+              onToggleSkip: _toggleNextRunSkip,
+              onReload: _fetchUpcoming,
+            ),
+          );
+        }
+        if (!_quietDim && _homeTab == KioskTab.history) {
+          return Listener(
+            key: const ValueKey('history'),
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _noteIdleTouch(),
+            child: KioskHistoryView(
+              entries: _historyEntries,
+              loading: _historyLoading,
+              now: _now,
+              applianceNames: {for (final a in _appliances) a.id: a.displayName},
+              onReload: _fetchHistory,
+            ),
+          );
+        }
         return KioskIdleView(
           key: const ValueKey('idle'),
           now: _now,

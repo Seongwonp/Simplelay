@@ -260,14 +260,19 @@ void main() {
             air: const KioskAirReading(
                 applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
           ));
+      // 시안 B(10/24): 왼쪽 가전 줄 · 오른쪽 줄 칸(다음 자동 실행·바깥 날씨·공기질) — 알림은 가전 줄 아래나 오른쪽 맨 위.
+      // 어느 것도 빠지거나 화면 밖으로 잘리지 않고 서로 겹치지 않는다.
       final next = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
-      final hours = find.byKey(const ValueKey('ambient-hours'));
-      expect(hours, findsOneWidget, reason: '예보가 빠지지 않는다');
-      final tileTop = tester.getRect(find.byKey(const ValueKey('strip-microwave'))).top;
+      final weather = tester.getRect(find.byKey(const ValueKey('idle-weather')));
+      final tip = tester.getRect(find.byKey(const ValueKey('ambient-tip')));
+      final tile = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(next.top, greaterThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('idle-clock'))).bottom));
-      final lower = next.bottom > tester.getRect(hours).bottom ? next.bottom : tester.getRect(hours).bottom;
-      expect(tileTop - lower, lessThan(40), reason: '가운데가 크게 비지 않는다');
-      expect(tileTop, greaterThanOrEqualTo(lower));
+      expect(next.left, greaterThanOrEqualTo(tile.right));
+      expect(weather.top, greaterThanOrEqualTo(next.bottom - 1));
+      expect(tip.overlaps(next) || tip.overlaps(weather) || tip.overlaps(tile), isFalse);
+      for (final r in [next, weather, tip, tile]) {
+        expect(r.bottom, lessThanOrEqualTo(480));
+      }
     });
 
     testWidgets('예보가 없어도(빈 목록) 다음 루틴은 시계 아래, 안내는 오른쪽 위', (tester) async {
@@ -283,9 +288,11 @@ void main() {
             air: const KioskAirReading(
                 applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
           ));
-      final tip = tester.getRect(find.byKey(const ValueKey('ambient-tip')));
+      // 시안 B(10/24): 날씨 안내는 '바깥 날씨' 줄(오른쪽 칸), 다음 루틴은 그 위 — 가전 줄과 다른 칸.
+      final weather = tester.getRect(find.byKey(const ValueKey('idle-weather')));
       final next = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
-      expect(next.right, lessThanOrEqualTo(tip.left), reason: '다음 루틴은 왼쪽 칸, 안내는 오른쪽 칸');
+      expect(next.bottom, lessThanOrEqualTo(weather.top + 1), reason: '다음 루틴이 위, 날씨 안내가 아래');
+      expect(next.left, greaterThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('strip-microwave'))).right));
       expect(next.top, greaterThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('idle-clock'))).bottom));
     });
 
@@ -301,7 +308,8 @@ void main() {
           findsNothing);
     });
 
-    testWidgets('가전 5개면 한 장에 4개 + 장 넘김(오른쪽이 비지 않는다)', (tester) async {
+    // 시안 B(10/24): 한 장에 3개(큰 그림 칸) — 오른쪽 줄 칸 자리를 남긴다.
+    testWidgets('가전 5개면 한 장에 3개 + 장 넘김(오른쪽이 비지 않는다)', (tester) async {
       await _pump(
           tester,
           _idle(appliances: const [_thinqAir, kMicrowaveAppliance, kInductionAppliance, _washer, _fan]));
@@ -310,14 +318,14 @@ void main() {
           if (find.byKey(ValueKey('strip-$id')).evaluate().isNotEmpty)
             tester.getRect(find.byKey(ValueKey('strip-$id'))),
       ];
-      expect(tiles, hasLength(4));
+      expect(tiles, hasLength(3));
       expect(find.byKey(const ValueKey('strip-next')), findsOneWidget);
       // 마지막 타일과 장 넘김 사이가 크게 비지 않는다.
       final next = tester.getRect(find.byKey(const ValueKey('strip-next')));
       final lastTileRight = tiles.fold<double>(0, (m, r) => r.right > m ? r.right : m);
       expect(next.left - lastTileRight, lessThan(60), reason: '타일 끝 $lastTileRight · 다음 $next');
       // 이름은 줄여 말하지 않는다.
-      for (final n in ['공기청정기', '전자레인지', '인덕션', '세탁기']) {
+      for (final n in ['공기청정기', '전자레인지', '인덕션']) {
         expect(find.text(n), findsOneWidget, reason: n);
       }
     });

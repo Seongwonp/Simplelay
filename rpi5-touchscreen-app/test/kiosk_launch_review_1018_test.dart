@@ -83,12 +83,6 @@ const _wet = AmbientInfo(
   ],
 );
 
-List<double> _cellHeights(WidgetTester tester) => [
-      for (var i = 0; i < 4; i++)
-        if (find.byKey(ValueKey('ambient-hour-$i')).evaluate().isNotEmpty)
-          tester.getSize(find.byKey(ValueKey('ambient-hour-$i'))).height,
-    ];
-
 void main() {
   testWidgets('1. 연습 실패(확인 필요)는 연습 색 — 제목 청록, 위 띠는 연습 띠', (tester) async {
     await _pump(
@@ -164,19 +158,13 @@ void main() {
     }
   });
 
-  testWidgets('2. 비 %가 없는 날 예보 칸은 줄어들고, 칸끼리는 늘 같은 높이', (tester) async {
+  // 시안 B(10/24): 예보 칸 줄은 처음 화면에서 빠졌다 — '바깥 날씨' 줄은 비 소식이 있을 때만 아래 작은 줄을 둔다(빈 자리 없음).
+  testWidgets('2. 비 소식이 없는 날 바깥 날씨 줄에 빈 둘째 줄이 없다', (tester) async {
     await _pump(tester, _idle(_wet));
-    final wet = _cellHeights(tester);
-    expect(wet.length, greaterThanOrEqualTo(3));
-    for (final h in wet) {
-      expect(h, closeTo(wet.first, 0.5));
-    }
+    expect(find.byKey(const ValueKey('idle-weather-advice')), findsOneWidget);
     await _pump(tester, _idle(_dry));
-    final dry = _cellHeights(tester);
-    for (final h in dry) {
-      expect(h, closeTo(dry.first, 0.5));
-    }
-    expect(dry.first, lessThan(wet.first - 10), reason: '비 % 줄 자리를 비워 두지 않는다');
+    expect(find.byKey(const ValueKey('idle-weather')), findsOneWidget);
+    expect(find.byKey(const ValueKey('idle-weather-advice')), findsNothing);
   });
 
   // 첫 사용 평가 3차(10/24): 흐린 '버튼 없음' 글자도 칸마다 되풀이돼 단추처럼 읽혔다 — 폰처럼 빈 칸(자리만 남긴다).

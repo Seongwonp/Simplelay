@@ -81,22 +81,16 @@ List<String> _texts(WidgetTester tester) => [
 Rect _rect(WidgetTester tester, String key) => tester.getRect(find.byKey(ValueKey(key)));
 
 void main() {
-  group('1. 공기 줄은 나쁠 때만', () {
-    for (final grade in ['GOOD', 'NORMAL']) {
-      testWidgets('$grade — 공기 줄이 없다(전원 말도 없다)', (tester) async {
-        await _pump(tester, _idle(air: _air(grade), next: _next));
-        expect(find.byKey(const ValueKey('idle-air')), findsNothing);
-        expect(_texts(tester).where((t) => t.contains('공기청정기가 꺼져 있어요')), isEmpty);
-        expect(_texts(tester).where((t) => t.startsWith('공기 ')), isEmpty);
-      });
-    }
-
-    for (final grade in ['BAD', 'VERY_BAD']) {
-      testWidgets('$grade — 공기 줄이 보이고 공기청정기 전원 말은 빠진다', (tester) async {
+  // 시안 B(10/24, 사용자 승인): 오른쪽 '공기질' 줄은 값이 있으면 늘 보인다(예전 10/18 '나쁠 때만'을 대신한다). 말은 가전이 매긴
+  // 등급 그대로, 공기청정기 전원 말은 두지 않는다(가전 칸이 말한다). 값이 없으면 줄도 없다(지어내지 않는다).
+  group('1. 공기질 줄 — 값이 있으면 등급 말, 전원 말 없음', () {
+    for (final (grade, word) in [('GOOD', '좋음'), ('NORMAL', '보통'), ('BAD', '나쁨'), ('VERY_BAD', '매우 나쁨')]) {
+      testWidgets('$grade — 공기질 줄에 $word, 전원 말 없음', (tester) async {
         for (final power in ['on', 'off']) {
           await _pump(tester, _idle(air: _air(grade, power: power), next: _next));
           expect(find.byKey(const ValueKey('idle-air')), findsOneWidget);
           final texts = _texts(tester).join('\n');
+          expect(texts, contains(word));
           expect(texts, isNot(contains('공기청정기가 꺼져 있어요')));
           expect(texts, isNot(contains('공기청정기가 켜져 있어요')));
         }
@@ -109,21 +103,20 @@ void main() {
     });
   });
 
-  group('2. 다음 루틴은 시계 아래 담담한 줄', () {
-    testWidgets("시계 아래 왼쪽에 머리말 '자동 루틴' + '오후 10:00 · 저녁 공기청정기 켜기', 오른쪽 큰 카드는 없다", (tester) async {
+  // 시안 B(10/24): 다음 루틴은 오른쪽 줄 칸 맨 위 — 머리말 + 시각 줄 + 이름 줄. 큰 카드는 없다.
+  group('2. 다음 루틴은 오른쪽 줄 칸', () {
+    testWidgets("머리말 '자동 루틴' + '오후 10:00' / '저녁 공기청정기 켜기', 큰 카드는 없다", (tester) async {
       await _pump(tester, _idle(next: _next, air: _air('NORMAL')));
       final texts = _texts(tester);
-      expect(texts, contains('오후 10:00 · 저녁 공기청정기 켜기'));
+      expect(texts.map((t) => t.replaceAll('\n', ' · ')), contains('오후 10:00 · 저녁 공기청정기 켜기'));
       expect(texts, contains('자동 루틴'));
       expect(texts, isNot(contains('자동으로 해요')));
       expect(texts.where((t) => t.contains('다음 루틴 · ')), isEmpty, reason: '옛 큰 카드 머리 글');
       final next = _rect(tester, 'idle-next-run');
       final clock = _rect(tester, 'idle-clock');
-      expect(next.top, greaterThanOrEqualTo(clock.bottom), reason: '시계 아래');
-      expect(next.left, closeTo(clock.left, 1), reason: '시계와 같은 왼쪽 선');
-      expect(next.right, lessThan(400), reason: '왼쪽 칸 안');
-      // 다음 루틴 글은 시계 숫자보다 훨씬 작다(강조하지 않는다).
-      expect(next.height, lessThan(clock.height * 1.5));
+      expect(next.top, greaterThanOrEqualTo(clock.bottom), reason: '위 줄 아래');
+      expect(next.left, greaterThan(400), reason: '오른쪽 줄 칸');
+      expect(next.right, lessThanOrEqualTo(800));
       expect(tester.takeException(), isNull);
     });
 
@@ -134,7 +127,7 @@ void main() {
               next: const KioskNextRun(
                   name: '아침 공기청정기 끄기', dayLabel: '내일', hhmm: '07:00', modeLabel: '승인 후 실행')));
       final texts = _texts(tester);
-      expect(texts, contains('내일 오전 7:00 · 아침 공기청정기 끄기'));
+      expect(texts.map((t) => t.replaceAll('\n', ' · ')), contains('내일 오전 7:00 · 아침 공기청정기 끄기'));
       expect(texts, contains('물어볼 루틴'));
       expect(texts, isNot(contains('자동 루틴')));
     });
@@ -150,19 +143,20 @@ void main() {
     for (final spacing in [0.0, 2.1, 3.0]) {
       for (final tip in [null, _rainTip]) {
         for (final air in [null, _air('VERY_BAD')]) {
-          testWidgets('보통 글씨 글자마다 +$spacing, 안내 ${tip != null}, 나쁜 공기 ${air != null} — 예보와 다음 루틴이 다 보인다',
+          testWidgets('보통 글씨 글자마다 +$spacing, 안내 ${tip != null}, 나쁜 공기 ${air != null} — 오른쪽 줄이 다 보인다',
               (tester) async {
             await _pump(tester, _idle(tip: tip, next: _next, air: air), letterSpacing: spacing);
             expect(tester.takeException(), isNull);
-            final hours = find.byKey(const ValueKey('ambient-hours'));
-            expect(hours, findsOneWidget, reason: '오른쪽은 예보가 넉넉히 쓴다');
-            expect(find.descendant(of: hours, matching: find.text('비 70%')), findsOneWidget);
             final tile = _rect(tester, 'strip-air_purifier');
-            expect(tester.getRect(hours).bottom, lessThanOrEqualTo(tile.top));
             final next = _rect(tester, 'idle-next-run');
-            expect(next.bottom, lessThanOrEqualTo(tile.top), reason: '다음 루틴이 가전 줄에 걸리지 않는다');
+            final weather = _rect(tester, 'idle-weather');
+            expect(next.left, greaterThanOrEqualTo(tile.right), reason: '가전 줄과 다른 칸');
+            expect(weather.top, greaterThanOrEqualTo(next.bottom - 1), reason: '다음 루틴 아래 바깥 날씨');
+            expect(weather.bottom, lessThanOrEqualTo(480));
             if (air != null) {
-              expect(_rect(tester, 'idle-air').bottom, lessThanOrEqualTo(next.top));
+              final a = _rect(tester, 'idle-air');
+              expect(a.top, greaterThanOrEqualTo(weather.bottom - 1));
+              expect(a.bottom, lessThanOrEqualTo(480));
             }
           });
         }
@@ -171,16 +165,17 @@ void main() {
 
     for (final spacing in [0.0, 2.1]) {
       for (final air in [null, _air('BAD')]) {
-        testWidgets('큰 글씨(1.22) 글자마다 +$spacing, 날씨 안내, 나쁜 공기 ${air != null} — 다음 루틴 줄이 가전 줄 위에서 끝난다',
+        testWidgets('큰 글씨(1.22) 글자마다 +$spacing, 날씨 안내, 나쁜 공기 ${air != null} — 다음 루틴 줄이 화면 안',
             (tester) async {
           await _pump(tester, _idle(tip: _rainTip, next: _next, air: air), scale: 1.22, letterSpacing: spacing);
           expect(tester.takeException(), isNull);
           final next = _rect(tester, 'idle-next-run');
           final tile = _rect(tester, 'strip-air_purifier');
-          expect(next.bottom, lessThanOrEqualTo(tile.top));
+          expect(next.left, greaterThanOrEqualTo(tile.right));
+          expect(next.bottom, lessThanOrEqualTo(480));
           expect(next.top, greaterThanOrEqualTo(_rect(tester, 'idle-clock').bottom));
           if (air != null) expect(find.byKey(const ValueKey('idle-air')), findsOneWidget);
-          expect(find.byKey(const ValueKey('ambient-tip')), findsOneWidget, reason: '날씨 안내는 그대로');
+          expect(find.byKey(const ValueKey('idle-weather')), findsOneWidget, reason: '날씨 안내는 그대로');
         });
       }
     }

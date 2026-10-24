@@ -27,13 +27,36 @@ void main() {
         ),
       ),
     ));
-    final hours = find.byKey(const ValueKey('ambient-hours'));
-    expect(find.descendant(of: hours, matching: find.byIcon(Icons.nightlight)), findsNWidgets(2));
-    expect(find.descendant(of: hours, matching: find.byIcon(Icons.wb_sunny)), findsOneWidget);
-    // 지금 날씨는 예보 줄 첫 칸 '지금'(사용자 요청 10/18) — 밤이면 달. 22:30의 지금 칸은 0시(90분 뒤) 값을 쓴다.
-    final now = find.byKey(const ValueKey('ambient-hour-0'));
-    expect(find.descendant(of: now, matching: find.text('지금')), findsOneWidget);
+    // 시안 B(10/24): 예보 칸 줄 대신 오른쪽 '바깥 날씨' 줄 하나 — 지금 날씨가 밤이면 해가 아니라 달.
+    // 22:30의 지금은 0시(90분 뒤) 칸 값을 쓴다(옛 서버 대체 규칙).
+    final now = find.byKey(const ValueKey('idle-weather-now'));
+    expect(find.descendant(of: now, matching: find.text('16° 맑음', findRichText: true)), findsOneWidget);
     expect(find.descendant(of: now, matching: find.byIcon(Icons.nightlight)), findsOneWidget);
+    expect(find.descendant(of: now, matching: find.byIcon(Icons.wb_sunny)), findsNothing);
     expect(find.byKey(const ValueKey('idle-outside')), findsNothing);
+  });
+
+  testWidgets('맑음: 낮의 바깥 날씨는 해', (tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: KioskIdleView(
+          now: DateTime(2026, 10, 16, 14, 30),
+          connected: true,
+          appliances: [kMicrowaveAppliance],
+          ambient: const AmbientInfo(greeting: '좋은 오후예요.', weatherSource: 'kma', hourly: [
+            AmbientHour(label: '15시', icon: 'clear', temp: 20),
+          ]),
+          onSelectAppliance: (_) {},
+          onOpenConnection: (_) {},
+          onDndGesture: () {},
+        ),
+      ),
+    ));
+    final now = find.byKey(const ValueKey('idle-weather-now'));
+    expect(find.descendant(of: now, matching: find.byIcon(Icons.wb_sunny)), findsOneWidget);
+    expect(find.descendant(of: now, matching: find.byIcon(Icons.nightlight)), findsNothing);
   });
 }

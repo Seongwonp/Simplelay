@@ -301,7 +301,9 @@ void main() {
       expect(find.text('다음 루틴 · 자동으로 해요'), findsNothing);
       final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       final rect = tester.getRect(line);
-      expect(rect.bottom, lessThanOrEqualTo(strip.top), reason: '가전 줄 위');
+      // 시안 B(10/24): 다음 루틴은 오른쪽 줄 칸 — 가전 줄과 다른 칸, 화면 안.
+      expect(rect.left, greaterThanOrEqualTo(strip.right), reason: '가전 줄과 다른 칸');
+      expect(rect.bottom, lessThanOrEqualTo(480));
       expect(rect.top, greaterThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('idle-clock'))).bottom),
           reason: '시계 아래');
     });

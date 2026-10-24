@@ -353,17 +353,16 @@ void main() {
       final action = tester.getRect(
           find.descendant(of: find.byKey(const ValueKey('idle-air-action')), matching: find.byType(Text)));
       final clock = tester.getRect(find.byKey(const ValueKey('idle-clock')));
-      final tip = tester.getRect(find.byKey(const ValueKey('ambient-tip')));
-      expect(action.left, lessThan(tip.left), reason: '왼쪽 열');
       expect(action.left, closeTo(head.left, 4), reason: '공기 글과 같은 글 선');
       expect(action.top, greaterThanOrEqualTo(head.bottom - 1));
       expect(action.top - head.bottom, lessThan(24), reason: '바로 아래');
       expect(action.top, greaterThan(clock.bottom));
+      // 시안 B(10/24): 오른쪽 줄 칸 — 다음 자동 실행이 위, 공기질이 그 아래. 가전 줄과 다른 칸이고 다 보인다.
       final next = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
-      expect(next.top, greaterThanOrEqualTo(action.bottom - 1), reason: '다음 루틴은 그 아래');
-      // 다 보인다(스크롤 아래로 잘리지 않는다) — 가전 줄 위.
+      expect(next.bottom, lessThanOrEqualTo(head.top + 1), reason: '다음 루틴은 공기질 줄 위');
       final strip = tester.getRect(find.byKey(const ValueKey('strip-air_purifier')));
-      expect(next.bottom, lessThanOrEqualTo(strip.top + 1));
+      expect(action.left, greaterThanOrEqualTo(strip.right));
+      expect(action.bottom, lessThanOrEqualTo(1080 - 48));
       expect(tester.takeException(), isNull);
     });
   });
@@ -455,7 +454,10 @@ void main() {
           ));
       final skip = _rectOfText(tester, '오늘은 건너뛰기');
       final strip = tester.getRect(find.byKey(const ValueKey('strip-air_purifier')));
-      expect(strip.top - skip.bottom, greaterThanOrEqualTo(KioskSpace.sm * _scale - 1));
+      // 시안 B(10/24): 건너뛰기는 오른쪽 줄 칸 — 가전 줄과 다른 칸, 간격 토큰 이상 떨어져 있고 화면 안.
+      expect(skip.left - strip.right, greaterThanOrEqualTo(KioskSpace.sm * _scale - 1));
+      expect(skip.bottom, lessThanOrEqualTo(1080 - 48));
+      expect(find.text('오늘은 건너뛰기').hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -472,20 +474,22 @@ void main() {
               AmbientHour(label: '15시', icon: 'rain', temp: 17, pop: 70, precip: true),
             ],
           )));
+      // 시안 B(10/24): 알림은 따로 선 줄, 바깥 날씨는 제 줄 — 날씨 줄이 알림을 품지 않는다.
       expect(find.byKey(const ValueKey('ambient-tip')), findsOneWidget);
-      expect(find.byKey(const ValueKey('ambient-hours')), findsOneWidget);
+      expect(find.byKey(const ValueKey('idle-weather')), findsOneWidget);
       expect(
-          find.descendant(of: find.byKey(const ValueKey('ambient-tip')), matching: find.byKey(const ValueKey('ambient-hours'))),
+          find.descendant(of: find.byKey(const ValueKey('idle-weather')), matching: find.byKey(const ValueKey('ambient-tip'))),
           findsNothing);
-      final tip = tester.getRect(find.byKey(const ValueKey('ambient-tip')));
-      final hours = tester.getRect(find.byKey(const ValueKey('ambient-hours')));
-      expect(hours.top, greaterThanOrEqualTo(tip.bottom));
+      expect(
+          find.descendant(of: find.byKey(const ValueKey('ambient-tip')), matching: find.byKey(const ValueKey('idle-weather'))),
+          findsNothing);
     });
 
-    testWidgets('날씨 안내는 지금처럼 예보 줄을 카드 안에 품는다', (tester) async {
+    // 시안 B(10/24): 날씨 안내 문장은 '바깥 날씨' 줄 안 아래 작은 줄.
+    testWidgets('날씨 안내는 바깥 날씨 줄 안에 있다', (tester) async {
       await _pump15(tester, _idle());
       expect(
-          find.descendant(of: find.byKey(const ValueKey('ambient-tip')), matching: find.byKey(const ValueKey('ambient-hours'))),
+          find.descendant(of: find.byKey(const ValueKey('idle-weather')), matching: find.byKey(const ValueKey('idle-weather-advice'))),
           findsOneWidget);
     });
 

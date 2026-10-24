@@ -67,16 +67,6 @@ Future<void> _pumpView(WidgetTester tester, Widget child, {double scale = 1.0, d
   await tester.pump(const Duration(milliseconds: 300));
 }
 
-double _fontOf(WidgetTester tester, Finder text) {
-  final rich = tester.widget<RichText>(find.descendant(of: text, matching: find.byType(RichText)).first);
-  var size = rich.text.style?.fontSize;
-  rich.text.visitChildren((s) {
-    size ??= s.style?.fontSize;
-    return size == null;
-  });
-  return size!;
-}
-
 // ── 1. 연습 대기 ───────────────────────────────────────────
 KioskHoldView _hold({String mode = 'mock', VoidCallback? onClose}) => KioskHoldView(
       appliance: kMicrowaveAppliance,
@@ -368,30 +358,18 @@ void main() {
   });
 
   group('4. 1~2 m 가독', () {
-    testWidgets('예보 강수확률은 기온과 같은 크기', (tester) async {
-      for (final tip in [null, _rainTip]) {
-        await _pumpView(tester, _idle(tip: tip));
-        final hours = find.byKey(const ValueKey('ambient-hours'));
-        final pop = find.descendant(of: hours, matching: find.text('비 70%'));
-        final temp = find.descendant(of: hours, matching: find.text('17°'));
-        expect(_fontOf(tester, pop), greaterThanOrEqualTo(_fontOf(tester, temp)), reason: 'tip=$tip');
-      }
-    });
-
     // 실패널 글꼴은 시험 글꼴보다 넓다 — 글자마다 넓힌 조건(본문 21의 약 10%·약 15%)에서도 다음 루틴 카드와 예보가 함께 보인다.
     for (final spacing in [2.1, 3.0]) {
-      testWidgets('넓은 글꼴(글자마다 +$spacing) + 날씨 안내 + 다음 루틴 + 공기 — 예보 줄이 보인다', (tester) async {
+      // 시안 B(10/24): 오른쪽 줄 칸 — 다음 자동 실행 · 바깥 날씨(안내 문장) · 공기질이 겹치지 않고, 가전 줄과 다른 칸.
+      testWidgets('넓은 글꼴(글자마다 +$spacing) + 날씨 안내 + 다음 루틴 + 공기 — 오른쪽 줄이 다 보인다', (tester) async {
         await _pumpView(tester, _idle(tip: _rainTip, next: _nextRun, air: _normalAir), letterSpacing: spacing);
-        final hours = find.byKey(const ValueKey('ambient-hours'));
-        expect(hours, findsOneWidget);
-        expect(find.descendant(of: hours, matching: find.text('비 70%')), findsOneWidget);
-        final h = tester.getRect(hours);
+        final weather = tester.getRect(find.byKey(const ValueKey('idle-weather')));
         final next = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
-        // 다음 루틴은 시계 아래 왼쪽 칸(사용자 결정 10/18) — 예보와 다른 칸이라 겹치지 않는다.
-        expect(next.right, lessThanOrEqualTo(h.left), reason: '예보와 다음 루틴이 겹치지 않는다');
+        expect(next.bottom, lessThanOrEqualTo(weather.top), reason: '다음 루틴과 날씨 줄이 겹치지 않는다');
+        expect(find.byKey(const ValueKey('idle-weather-advice')), findsOneWidget, reason: '날씨 안내는 그대로');
         final tile = tester.getRect(find.text('공기청정기').last);
-        expect(next.bottom, lessThanOrEqualTo(tile.top), reason: '다음 루틴이 가전 줄에 걸리지 않는다');
-        expect(find.byKey(const ValueKey('ambient-tip')), findsOneWidget, reason: '날씨 안내는 그대로');
+        expect(next.left, greaterThanOrEqualTo(tile.right), reason: '가전 줄과 다른 칸');
+        expect(weather.bottom, lessThanOrEqualTo(480));
         expect(tester.takeException(), isNull);
       });
     }
@@ -404,7 +382,8 @@ void main() {
               air: const KioskAirReading(applianceId: 'air_purifier', grade: 'VERY_BAD', pm25: 120, power: 'on')),
           scale: 1.22);
       final rich = find.descendant(of: find.byKey(const ValueKey('idle-air-headline')), matching: find.byType(RichText));
-      expect(_sameLine(tester, rich, '나빠요'), isTrue, reason: "'나빠 / 요'로 꺾이지 않는다");
+      // 시안 B(10/24): 공기질 줄의 값은 가전이 매긴 등급 말('매우 나쁨').
+      expect(_sameLine(tester, rich, '나쁨'), isTrue, reason: "'나 / 쁨'으로 꺾이지 않는다");
       expect(tester.takeException(), isNull);
     });
 

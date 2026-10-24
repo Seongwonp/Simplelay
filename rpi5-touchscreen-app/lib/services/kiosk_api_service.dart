@@ -9,6 +9,7 @@ import '../models/ambient.dart';
 import '../models/appliance.dart';
 import '../models/auto_run.dart';
 import '../models/estop.dart';
+import '../models/kiosk_history.dart';
 import '../models/learning_status.dart';
 import '../models/scenario_run.dart';
 import '../models/thinq.dart';
@@ -968,6 +969,46 @@ class KioskApiService {
       final body = jsonDecode(utf8.decode(res.bodyBytes));
       if (body is! List || body.isEmpty || body.first is! Map<String, dynamic>) return null;
       return KioskNextRun.fromJson(body.first as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /routines/next — 가까운 시각 루틴 여러 회차('자동 실행' 탭, 시안 B 10/24). 읽기만 한다.
+  /// 실패·옛 서버면 null(화면은 '불러오지 못했어요'), 없으면 빈 목록. 이상한 항목은 그 하나만 뺀다.
+  Future<List<KioskNextRun>?> nextRoutines({int limit = 10}) async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/routines/next', queryParameters: {'limit': '$limit'}))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is! List) return null;
+      return [
+        for (final item in body)
+          if (item is Map<String, dynamic>)
+            if (KioskNextRun.fromJson(item) case final run?) run,
+      ];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /history — 최근 실행 기록('기록' 탭, 시안 B 10/24, 폰 기록 화면과 같은 경로). 읽기만 한다.
+  /// 실패·옛 서버면 null, 없으면 빈 목록. 이상한 항목은 그 하나만 뺀다.
+  Future<List<KioskHistoryEntry>?> history({int limit = 20}) async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/history', queryParameters: {'limit': '$limit'}))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is! List) return null;
+      return [
+        for (final item in body)
+          if (item is Map<String, dynamic>)
+            if (KioskHistoryEntry.fromJson(item) case final entry?) entry,
+      ];
     } catch (_) {
       return null;
     }

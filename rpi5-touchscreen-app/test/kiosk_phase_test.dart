@@ -22,6 +22,7 @@ import 'package:simplelay_touchscreen/services/kiosk_event_stream.dart';
 import 'package:simplelay_touchscreen/services/kiosk_settings_store.dart';
 import 'package:simplelay_touchscreen/services/kiosk_tts_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
+import 'package:simplelay_touchscreen/models/kiosk_history.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
@@ -277,6 +278,28 @@ class FakeKioskApi implements KioskApiService {
   Future<KioskNextRun?> nextRoutine() async {
     nextRunCalls++;
     return nextRun;
+  }
+
+  /// '자동 실행' 탭 목록(시안 B 10/24). null이면 [nextRun] 하나(없으면 빈 목록).
+  List<KioskNextRun>? upcoming;
+  bool upcomingFails = false;
+  int upcomingCalls = 0;
+
+  @override
+  Future<List<KioskNextRun>?> nextRoutines({int limit = 10}) async {
+    upcomingCalls++;
+    if (upcomingFails) return null;
+    return upcoming ?? [if (nextRun != null) nextRun!];
+  }
+
+  /// '기록' 탭 목록(시안 B 10/24). null이면 못 불러옴.
+  List<KioskHistoryEntry>? historyEntries = const [];
+  int historyCalls = 0;
+
+  @override
+  Future<List<KioskHistoryEntry>?> history({int limit = 20}) async {
+    historyCalls++;
+    return historyEntries;
   }
 
   /// POST /routines/next/skip·unskip(2026-10-18). 기본은 서버처럼 그 회차의 skipped만 뒤집어 돌려준다.

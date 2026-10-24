@@ -227,10 +227,15 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('지금은 쓸 수 없어요.*$kTileUnusablePress')), findsOneWidget);
     });
 
-    testWidgets('큰 글씨에서는 카드를 두지 않는다(시계·다음 루틴 자리)', (tester) async {
+    // 시안 B 홈(10/24): 큰 시계 칸이 위 줄로 올라가 큰 글씨에서도 카드 자리가 있다 — 가전 줄 하한을 지킬 때만 둔다.
+    testWidgets('큰 글씨에서도 카드는 가전 줄을 밀어내지 않을 때만(잘리지 않는다)', (tester) async {
       await _pumpView(tester, _idle(routines: const [_morning], onRoutine: (_) {}), scale: 1.22);
       expect(tester.takeException(), isNull);
-      expect(find.byKey(const ValueKey('idle-featured')), findsNothing);
+      final card = find.byKey(const ValueKey('idle-featured'));
+      expect(card, findsOneWidget);
+      expect(tester.getRect(card).bottom, lessThanOrEqualTo(480));
+      final tile = tester.getRect(find.byKey(const ValueKey('tile-icon-microwave')));
+      expect(tile.top, greaterThanOrEqualTo(tester.getRect(card).bottom));
     });
 
     testWidgets('키오스크에서 누르면 확인 카드(승인)로 간다 — 실행 요청은 없다', (tester) async {

@@ -506,37 +506,36 @@ void main() {
       expect(all, contains('7:08'));
       expect(all.where((t) => t.startsWith('오전 7:00 · ') || t.startsWith('오전 7:00\n')), hasLength(1));
       expect(all.join('\n'), isNot(contains('07:00')));
-      expect(find.text('오후 3시'), findsOneWidget);
-      expect(find.text('15시'), findsNothing);
+      // 시안 B(10/24): 예보 칸 대신 '바깥 날씨' 줄의 비 소식 — 시각은 오전/오후.
+      expect(all.any((t) => t.contains('오후 3시')), isTrue, reason: '$all');
+      expect(all.any((t) => t.contains('15시')), isFalse);
     });
 
     testWidgets("예보에 기온과 비 확률이 섞이면 비 확률은 '비 70%'", (tester) async {
-      await _pump(tester, _idle());
-      expect(find.text('비 70%'), findsOneWidget);
+      // 시안 B(10/24): 날씨 안내 문장이 없으면 '바깥 날씨' 줄 아래 비 소식('오후 3시 비 70%') — 숫자만 두지 않는다.
+      await _pump(tester, _idle(ambient: AmbientInfo(greeting: _ambient.greeting, weatherSource: 'mock', hourly: _ambient.hourly)));
+      final all = _allTexts(tester);
+      expect(all.where((t) => t.contains('비 70%')), hasLength(1), reason: '$all');
       expect(find.text('70%'), findsNothing);
     });
 
-    testWidgets('가전 4개는 한 줄에 4개, 장 넘김 없음', (tester) async {
+    // 시안 B(10/24): 한 장에 3개(큰 그림 칸) — 넷째부터는 좁은 장 넘김.
+    testWidgets('가전 4개는 한 장에 3개 + 좁은 장 넘김', (tester) async {
       await _pump(tester, _idle());
-      for (final id in ['air_purifier', 'microwave', 'induction', 'washer']) {
+      for (final id in ['air_purifier', 'microwave', 'induction']) {
         expect(find.byKey(ValueKey('strip-$id')), findsOneWidget, reason: id);
       }
-      expect(find.byKey(const ValueKey('strip-page')), findsNothing);
+      expect(find.byKey(const ValueKey('strip-washer')), findsNothing);
+      expect(find.byKey(const ValueKey('strip-next')), findsOneWidget);
     });
 
     testWidgets('안내·예보 아래와 타일 사이 빈 띠가 크지 않다(타일이 남은 자리를 쓴다)', (tester) async {
       await _pump(tester, _underEstop(_idle()));
-      // 가운데 두 칸 중 더 긴 쪽의 끝(오른쪽 예보 · 왼쪽 시계 아래 줄)과 타일 위 사이 — 두 칸 모두 비는 띠.
+      // 시안 B(10/24): 가전 줄은 위 줄(시계) 바로 아래에서 시작한다 — 사이에 빈 띠가 없다.
       final tileTop = tester.getRect(find.byKey(const ValueKey('strip-microwave'))).top;
-      final hoursBottom = tester.getRect(find.byKey(const ValueKey('ambient-hours'))).bottom;
-      // 왼쪽 칸(시계·온습도) 글의 끝 — 위 비상 띠·날짜 줄(위 140 안)은 빼고 타일 위까지.
-      final leftBottom = tester
-          .widgetList<RichText>(find.byType(RichText))
-          .map((w) => tester.getRect(find.byWidget(w)))
-          .where((r) => r.left < 300 && r.top > 140 && r.bottom <= tileTop)
-          .fold<double>(0, (m, r) => r.bottom > m ? r.bottom : m);
-      final contentBottom = hoursBottom > leftBottom ? hoursBottom : leftBottom;
-      expect(tileTop - contentBottom, lessThan(40));
+      final clockBottom = tester.getRect(find.byKey(const ValueKey('idle-clock'))).bottom;
+      expect(tileTop - clockBottom, lessThan(40));
+      expect(tileTop, greaterThanOrEqualTo(clockBottom));
     });
 
     // 날짜 옆 온도계·물방울 아이콘이 '실내'를 대신한다(사용자 요청 10/20) — 화면 읽기는 '실내 온도'로 읽는다.

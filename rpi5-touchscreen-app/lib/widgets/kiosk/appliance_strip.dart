@@ -460,13 +460,15 @@ class _StripItemState extends State<_StripItem> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(children: [
+                      // 좁은 칸(한 장 3개·장 넘김, 시안 B 10/24)에서는 그림이 문제 표시 자리를 넘지 않게 칸 폭에 맞춘다.
+                      LayoutBuilder(builder: (context, row) => Row(children: [
                         // 폰 홈과 같은 가전 그림(시안 B 10/24) — 밝기 규칙(켜짐 밝게·꺼짐 흐리게)은 선 색이 말한다.
                         KioskApplianceArt(
                             key: ValueKey('tile-icon-${a.id}'),
                             category: a.category,
                             fallbackIcon: a.icon,
-                            size: artSize,
+                            size: math.max(0.0, math.min(artSize,
+                                row.maxWidth - (issue != null ? KioskTileMarkButton.hit - KioskSpace.sm : 0))),
                             color: fg,
                             paper: widget.running ? KioskColors.surface2 : KioskColors.surface),
                         // 연습 가전(서버 이름 표기 '(연습)')은 '연습' 배지 그대로(정직성) — 문제 표시가 있으면 그 왼쪽.
@@ -484,17 +486,23 @@ class _StripItemState extends State<_StripItem> {
                         ),
                         // 문제 표시 자리(오른쪽 위)를 비워 둔다.
                         if (issue != null) const SizedBox(width: KioskTileMarkButton.hit - KioskSpace.sm),
-                      ]),
+                      ])),
                       const Spacer(),
-                      Text(
-                        a.tileName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: widget.labelSize,
-                            height: 1.15,
-                            fontWeight: FontWeight.w700,
-                            color: fg),
+                      // 좁은 칸(한 장 3개 + 장 넘김, 시안 B 10/24)에서 조금 넘치는 이름은 말줄임 대신 통째로 살짝 줄인다
+                      // (이름을 줄여 말하지 않는다 — 평가 4차 10/18).
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          a.tileName,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: TextStyle(
+                              fontSize: widget.labelSize,
+                              height: 1.15,
+                              fontWeight: FontWeight.w700,
+                              color: fg),
+                        ),
                       ),
                       // 'LG 가전'은 오른쪽 위 배지가 아니라 이름 아래 작은 글자(10/19 — 오른쪽 위는 문제 표시 자리).
                       if (a.isThinq && !a.isPractice)

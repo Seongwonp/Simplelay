@@ -262,9 +262,10 @@ void main() {
           final button = skipped ? _unskip : _skip;
           final r = tester.getRect(button);
           final tile = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
-          expect(r.bottom, lessThanOrEqualTo(tile.top), reason: '가전 줄 위');
+          // 시안 B(10/24): 오른쪽 줄 칸 — 가전 줄과 다른 칸, 실패 안내까지 화면 안.
+          expect(r.left, greaterThanOrEqualTo(tile.right), reason: '가전 줄과 다른 칸');
           expect(r.height, greaterThanOrEqualTo(48));
-          expect(tester.getRect(find.byKey(const ValueKey('idle-next-run'))).bottom, lessThanOrEqualTo(tile.top),
+          expect(tester.getRect(find.byKey(const ValueKey('idle-next-run'))).bottom, lessThanOrEqualTo(480),
               reason: '실패 안내까지 잘리지 않는다');
           await tester.tap(button);
           expect(taps, hasLength(1));
@@ -375,14 +376,15 @@ void main() {
           expect(tester.takeException(), isNull);
           final tile = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
           final line = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
-          expect(line.bottom, lessThanOrEqualTo(tile.top + 0.5), reason: '다음 루틴 줄이 가전 줄 위에서 끝난다');
-          expect(tester.getRect(find.byKey(const ValueKey('idle-air'))).bottom, lessThanOrEqualTo(line.top));
+          // 시안 B(10/24): 오른쪽 줄 칸 — 다음 루틴이 맨 위, 공기질은 그 아래. 단추는 화면(1080 − 가장자리 48) 안.
+          expect(line.left, greaterThanOrEqualTo(tile.right), reason: '가전 줄과 다른 칸');
+          expect(tester.getRect(find.byKey(const ValueKey('idle-air'))).top, greaterThanOrEqualTo(line.bottom - 1));
           final button = skipped ? _unskip : _skip;
-          expect(tester.getRect(button).bottom, lessThanOrEqualTo(tile.top + 0.5));
+          expect(tester.getRect(button).bottom, lessThanOrEqualTo(1080 - 48));
           await tester.tap(button);
           expect(taps, hasLength(1));
           if (scale == 1.0) {
-            expect(find.byKey(const ValueKey('ambient-hours')), findsOneWidget, reason: '보통 글씨에서는 예보도 보인다');
+            expect(find.byKey(const ValueKey('idle-weather')), findsOneWidget, reason: '바깥 날씨 줄도 보인다');
             // 루틴 이름이 가운데서 꺾여 '켜기'만 홀로 남지 않는다(줄을 바꾸면 시각 뒤에서).
             final para = tester.renderObject<RenderParagraph>(find.descendant(
                 of: find.byKey(const ValueKey('idle-next-run-text')), matching: find.byType(RichText)));

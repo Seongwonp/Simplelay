@@ -75,8 +75,9 @@ void main() {
     await _pump(tester, temperature: 23.4, humidity: 58);
 
     expect(find.text('9월 13일 일요일'), findsOneWidget);
+    // 시안 B(10/24): 시계는 위 줄 안 '오전 9:05'(그림 30px 반쪽) — 위 줄에서 가장 큰 글자.
     final clock = tester.widget<Text>(find.text('9:05'));
-    expect(clock.style!.fontSize, greaterThan(80));
+    expect(clock.style!.fontSize, greaterThanOrEqualTo(30));
     // 온도·습도는 날짜 옆 두 조각 — 온도계 '23°' · 물방울 '58%'(사용자 요청 10/20).
     expect(find.text('23°'), findsOneWidget);
     expect(find.text('58%'), findsOneWidget);
@@ -123,10 +124,11 @@ void main() {
         expect(find.text('24°'), findsOneWidget);
         expect(find.text('57%'), findsOneWidget);
         expect(find.textContaining('습도'), findsNothing);
-        // 날짜 오른쪽(같은 줄) 또는 날짜 바로 아래(줄이 모자랄 때) — 어느 쪽이든 시계보다 위.
+        // 날짜 오른쪽(같은 줄) 또는 날짜 바로 아래(줄이 모자랄 때) — 시안 B(10/24)는 시계와 같은 위 줄, 시계 오른쪽.
         final clock = rectOf(tester, find.text('9:05'));
         for (final r in [temp, hum, thermo, drop]) {
-          expect(r.bottom, lessThanOrEqualTo(clock.top));
+          expect(r.left, greaterThanOrEqualTo(clock.right));
+          expect(r.bottom, lessThanOrEqualTo(64.5), reason: '위 줄(여백 4 + 높이 60) 안');
           expect(r.top, greaterThanOrEqualTo(0));
         }
         final sameLine = (temp.center.dy - date.center.dy).abs() < 2;
@@ -160,14 +162,16 @@ void main() {
       expect(hum.right, lessThanOrEqualTo(dnd.left));
       final menu = rectOf(tester, find.byKey(const ValueKey('idle-menu')));
       expect(menu.right, lessThanOrEqualTo(800));
-      // 위 줄 안에 있다(잘리지 않는다).
-      expect(hum.bottom, lessThanOrEqualTo(rectOf(tester, find.text('9:05')).top));
+      // 위 줄 안에 있다(잘리지 않는다) — 시안 B(10/24) 시계 오른쪽, 위 줄(여백 4 + 높이 60) 안.
+      expect(hum.bottom, lessThanOrEqualTo(64.5));
+      expect(temp.left, greaterThanOrEqualTo(rectOf(tester, find.text('9:05')).right));
     });
   });
 
   testWidgets('허브에 못 닿으면 인사말만 — 서버와 같은 시간대 규칙', (tester) async {
     await _pump(tester, now: DateTime(2026, 9, 13, 19, 0));
-    expect(find.text('편안한 저녁 보내세요'), findsOneWidget);
+    // 시안 B(10/24): 처음 화면에 인사말 줄은 두지 않는다(오른쪽은 다음 자동 실행·바깥 날씨·공기질 줄). 규칙만 남는다.
+    expect(find.text('편안한 저녁 보내세요'), findsNothing);
     expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 7)), '좋은 아침이에요.');
     expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 13)), '좋은 오후예요.');
     expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 23)), '편안한 밤 보내세요.');

@@ -193,11 +193,8 @@ void main() {
       _expectFullyVisible(tester, find.text('전자레인지'));
       _expectFullyVisible(tester, find.text(_tipShown));
       _expectFullyVisible(tester, find.text('58%'));
-      // 보통 글씨에서는 안내와 예보 4칸을 함께 보인다(UI 확정 §3-1).
-      // 예보 칸 이름은 오전/오후, 비 칸은 '비 70%'(평가 4차 10/18).
-      for (final label in ['오전 9시', '오후 12시', '오후 3시', '오후 6시', '16°', '비 70%']) {
-        _expectFullyVisible(tester, find.text(label));
-      }
+      // 시안 B(10/24): 예보 칸 대신 오른쪽 '바깥 날씨' 줄 — 안내와 함께 다 보인다.
+      _expectFullyVisible(tester, find.byKey(const ValueKey('idle-weather')), isText: false);
       _expectFullyVisible(tester, find.byKey(const ValueKey('idle-menu')),
           isText: false);
       _expectFullyVisible(tester, find.byKey(const ValueKey('idle-status-chip')),

@@ -156,70 +156,31 @@ KioskStatus _hovering({
 void main() {
   // ── 평소 ──────────────────────────────────────────────────────────────
   group('평소', () {
-    testWidgets('인사말·날씨 한 줄·예보 4칸을 서버 값 그대로 보인다', (tester) async {
+    // 시안 B(10/24): 처음 화면은 인사말·예보 4칸 대신 오른쪽 '바깥 날씨' 줄 — 서버 안내 문장을 그대로, 지어내지 않는다.
+    testWidgets('바깥 날씨 줄에 서버 안내를 그대로 보인다', (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..ambientResult = _ambient;
       await _pump(tester, api);
 
       expect(find.byType(KioskIdleView), findsOneWidget);
-      // 안내는 한 번에 하나 — 안내 카드가 있으면 인사말은 접는다(UI 확정 §3-1).
       expect(find.text('좋은 아침이에요'), findsNothing);
       expect(find.text('오후 3시부터 비 예보가 있어요. 우산 챙기세요'), findsOneWidget);
-      // 보통 글씨에서는 안내와 예보 4칸을 함께 보인다(10/5 사용자 결정).
-      expect(find.byKey(const ValueKey('ambient-hours')), findsOneWidget);
-      // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기). 지금 시각에 가까운 칸(±90분)은
-      // 첫 칸 '지금'이 된다(사용자 요청 10/18) — 이 시험은 실제 시계를 쓰므로 둘 중 하나로 본다.
-      {
-        final shown = ['오전 9시', '오후 12시', '오후 3시', '오후 6시']
-            .where((l) => find.text(l).evaluate().isNotEmpty)
-            .length;
-        final now = find.text('지금').evaluate().length;
-        expect(now, lessThanOrEqualTo(1));
-        expect(shown + now, 4, reason: '4칸');
-        expect(shown, greaterThanOrEqualTo(3));
-      }
-
-      // 안내가 없으면 인사말과 예보 4칸을 서버 값 그대로 보인다.
-      api.ambientResult = AmbientInfo(
-          greeting: _ambient.greeting,
-          // 비 확률이 높은 칸이 있으면 인사말을 뺀다(평가 14차 10/18) — 여기서는 비 소식 없는 예보로 인사말을 본다.
-          hourly: [
-            for (final h in _ambient.hourly)
-              AmbientHour(label: h.label, hour: h.hour, icon: h.icon == 'rain' ? 'cloudy' : h.icon, temp: h.temp),
-          ],
-          weatherSource: _ambient.weatherSource);
-      await tester.pumpWidget(const SizedBox.shrink());
-      await _pump(tester, api);
-      expect(find.text('좋은 아침이에요'), findsOneWidget);
-      // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기). 지금 시각에 가까운 칸(±90분)은
-      // 첫 칸 '지금'이 된다(사용자 요청 10/18) — 이 시험은 실제 시계를 쓰므로 둘 중 하나로 본다.
-      {
-        final shown = ['오전 9시', '오후 12시', '오후 3시', '오후 6시']
-            .where((l) => find.text(l).evaluate().isNotEmpty)
-            .length;
-        final now = find.text('지금').evaluate().length;
-        expect(now, lessThanOrEqualTo(1));
-        expect(shown + now, 4, reason: '4칸');
-        expect(shown, greaterThanOrEqualTo(3));
-      }
-      // 강수확률 칸은 다른 시험(kiosk_idle_next_line_test '비 70%')이 본다 — 여기는 비 소식 없는 예보(평가 14차 10/18).
       expect(
-          find.descendant(of: find.byKey(const ValueKey('ambient-hours')), matching: find.text('16°')),
+          find.descendant(of: find.byKey(const ValueKey('idle-weather')), matching: find.byKey(const ValueKey('idle-weather-advice'))),
           findsOneWidget);
       // 고정 명령 버튼은 없다
       expect(find.text('즉석밥'), findsNothing);
     });
 
-    testWidgets('예보가 없으면 인사말만 — 안내·예보를 지어내지 않는다', (tester) async {
+    testWidgets('날씨가 없으면 바깥 날씨 줄도 없다 — 안내·예보를 지어내지 않는다', (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..ambientResult = const AmbientInfo(greeting: '편안한 저녁이에요.');
       await _pump(tester, api);
 
-      expect(find.text('편안한 저녁이에요'), findsOneWidget);
       expect(find.byKey(const ValueKey('ambient-tip')), findsNothing);
-      expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
+      expect(find.byKey(const ValueKey('idle-weather')), findsNothing);
     });
 
     testWidgets('연결이 모두 정상이면 "!" 배지가 없다', (tester) async {
@@ -309,11 +270,13 @@ void main() {
 
     // 이름(전자레인지·거실 선풍기)을 줄이지 않으려고 보통 글씨는 한 장에 3개(10/5).
     // 평가 5차(10/18): 넓은 장 넘김 칸 때문에 3개만 들어가 오른쪽이 비었다 — 한 장에 4개 + 좁은 장 넘김(쪽 번호 아래 화살표 하나).
-    testWidgets('한 번에 4개, 화살표로 넘기고 마지막 장에서는 이전 화살표 하나', (tester) async {
+    // 시안 B(10/24): 한 장에 3개(큰 그림 칸).
+    testWidgets('한 번에 3개, 화살표로 넘기고 마지막 장에서는 이전 화살표 하나', (tester) async {
       final api = FakeKioskApi()..applianceList = _six;
       await _pump(tester, api);
 
-      for (final id in ['microwave', 'washer', 'fan', 'rice']) {
+      expect(find.byKey(const ValueKey('strip-rice')), findsNothing);
+      for (final id in ['microwave', 'washer', 'fan']) {
         expect(find.byKey(ValueKey('strip-$id')), findsOneWidget, reason: id);
       }
       expect(find.byKey(const ValueKey('strip-aircon')), findsNothing);
@@ -323,6 +286,7 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('strip-next')));
       await _settle(tester);
+      expect(find.byKey(const ValueKey('strip-rice')), findsOneWidget);
       expect(find.byKey(const ValueKey('strip-aircon')), findsOneWidget);
       expect(find.byKey(const ValueKey('strip-intercom')), findsOneWidget);
       expect(find.byKey(const ValueKey('strip-microwave')), findsNothing);

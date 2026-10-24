@@ -589,11 +589,14 @@ void main() {
             onDndGesture: () {},
           ),
           textScale: 1.22);
-      expect(find.byKey(const ValueKey('ambient-tip')), findsNothing, reason: '따로 선 노란 테 안내 카드가 없다');
+      // 시안 B(10/24): 경고 띠는 연결 문제 한 줄 하나뿐 — 확인 필요 안내는 띠가 아니라 테·면 없는 '확인 필요' 줄로 한 번.
       final bar = find.byKey(const ValueKey('idle-status-chip'));
       expect(bar, findsOneWidget);
-      expect(find.descendant(of: bar, matching: _plain('인덕션 버튼 누르기가 중간에 멈췄어요', contains: true)),
-          findsOneWidget);
+      expect(find.descendant(of: bar, matching: _plain('인덕션 버튼 누르기가 중간에 멈췄어요', contains: true)), findsNothing);
+      final tip = find.byKey(const ValueKey('ambient-tip'));
+      expect(tip, findsOneWidget);
+      expect(find.descendant(of: tip, matching: find.byType(DecoratedBox)), findsNothing, reason: '따로 선 노란 테 카드가 없다');
+      expect(_plain('인덕션 버튼 누르기가 중간에 멈췄어요', contains: true), findsOneWidget);
       // 해결 방법 단추는 그대로 하나.
       expect(find.byKey(const ValueKey('idle-problem-help')), findsOneWidget);
     });

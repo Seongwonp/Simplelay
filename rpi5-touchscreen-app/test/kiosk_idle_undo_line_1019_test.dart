@@ -60,11 +60,15 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(_undo, findsOneWidget);
       expect(_head, findsOneWidget);
-      // 같은 줄(가운데 높이가 같다), 그 말 오른쪽.
-      expect((tester.getCenter(_undo).dy - tester.getCenter(_head).dy).abs(), lessThan(4));
-      expect(tester.getTopLeft(_undo).dx, greaterThan(tester.getTopRight(_head).dx));
-      // 시각·이름 줄보다 위 — 그 아래 혼자 떨어지지 않는다. 이름은 잘리지 않는다.
-      expect(tester.getBottomLeft(_undo).dy, lessThanOrEqualTo(tester.getTopLeft(_line).dy + 1));
+      // 시안 B(10/24): 다음 루틴은 오른쪽 좁은 줄 칸 — 머리말 옆 자리가 있으면 그 옆(같은 줄, 그 말 오른쪽),
+      // 모자라면 종전 규칙대로 시각·이름 줄 바로 아래. 어느 쪽이든 머리말과 줄 사이에 혼자 떨어지지 않는다.
+      final onHead = (tester.getCenter(_undo).dy - tester.getCenter(_head).dy).abs() < 4;
+      if (onHead) {
+        expect(tester.getTopLeft(_undo).dx, greaterThan(tester.getTopRight(_head).dx));
+        expect(tester.getBottomLeft(_undo).dy, lessThanOrEqualTo(tester.getTopLeft(_line).dy + 1));
+      } else {
+        expect(tester.getTopLeft(_undo).dy, greaterThanOrEqualTo(tester.getBottomLeft(_line).dy - 1));
+      }
       final para = tester.renderObject<RenderParagraph>(find.descendant(of: _line, matching: find.byType(RichText)));
       expect(para.didExceedMaxLines, isFalse);
       // 작은 회색 굵은 글자 그대로.

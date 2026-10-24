@@ -143,8 +143,8 @@ void main() {
       final texts = _texts(tester);
       expect(texts, isNot(contains('자동으로 해요')));
       expect(texts, contains('자동 루틴'));
-      // 좁으면 시각 뒤에서 줄을 바꾼다 — 어느 쪽이든 시각은 분까지.
-      expect(texts.map((t) => t.replaceAll('\n', ' · ')), contains('오후 10:00 · 저녁 공기청정기 켜기'));
+      // 시안 B(10/24): 오른쪽 좁은 줄 칸 — '오후 10:00'(굵게) 뒤 이름(작게)을 이어 쓰고 넘치면 줄을 바꾼다. 시각은 분까지.
+      expect(texts.any((t) => t.startsWith('오후 10:00') && t.endsWith('저녁 공기청정기 켜기')), isTrue, reason: '$texts');
       expect(tester.takeException(), isNull);
     });
 
@@ -204,7 +204,10 @@ void main() {
               scale: scale, letterSpacing: spacing);
           expect(tester.takeException(), isNull);
           final tile = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
-          expect(tester.getRect(find.byKey(const ValueKey('idle-next-run'))).bottom, lessThanOrEqualTo(tile.top));
+          // 시안 B(10/24): 다음 루틴은 오른쪽 줄 칸 — 가전 줄과 다른 칸이고 화면 안.
+          final line = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
+          expect(line.left, greaterThanOrEqualTo(tile.right));
+          expect(line.bottom, lessThanOrEqualTo(480));
           expect(_texts(tester), contains('자동 루틴'));
           final b = skipped ? _unskip : _skip;
           expect(tester.getRect(b).height, greaterThanOrEqualTo(48));
@@ -216,45 +219,23 @@ void main() {
   });
 
   group('3·4. 날씨 — 지금 칸은 예보 줄 맨 앞, 칸 높이 같게, 어구 줄바꿈', () {
-    testWidgets("날짜 옆 날씨는 없고 예보 첫 칸이 '지금'(지금 + 3칸)", (tester) async {
+    // 시안 B(10/24): 예보 칸 줄 대신 오른쪽 '바깥 날씨' 줄 — 서버 '지금'만 지금 날씨로(지어내지 않는다).
+    testWidgets("날짜 옆 날씨는 없고 '바깥 날씨' 줄에 서버 '지금' 값", (tester) async {
       await _pumpView(tester, _idle(), size: const Size(800, 480));
       expect(find.byKey(const ValueKey('idle-outside')), findsNothing);
-      final hours = find.byKey(const ValueKey('ambient-hours'));
-      expect(hours, findsOneWidget);
-      final first = find.byKey(const ValueKey('ambient-hour-0'));
-      expect(find.descendant(of: first, matching: find.text('지금')), findsOneWidget);
-      expect(find.descendant(of: first, matching: find.text('21°')), findsOneWidget);
-      expect(find.byKey(const ValueKey('ambient-hour-3')), findsOneWidget);
-      expect(find.byKey(const ValueKey('ambient-hour-4')), findsNothing, reason: '4칸까지');
-      expect(find.text('오후 3시'), findsOneWidget);
-      expect(find.text('밤 12시'), findsNothing, reason: '지금 + 3칸');
-      // 날짜 줄에는 기온이 없다.
+      final now = find.byKey(const ValueKey('idle-weather-now'));
+      expect(now, findsOneWidget);
+      expect(find.descendant(of: now, matching: find.textContaining('21°', findRichText: true)), findsWidgets);
+      expect(find.descendant(of: now, matching: find.byKey(const ValueKey('weather-rain-cloud'))), findsOneWidget);
+      // 날짜 줄에는 바깥 기온이 없다.
       final date = tester.getRect(find.text('10월 18일 일요일'));
-      for (final t in find.text('21°').evaluate()) {
-        expect(tester.getRect(find.byWidget(t.widget)).top, greaterThan(date.bottom));
-      }
+      expect(tester.getRect(now).top, greaterThan(date.bottom));
     });
 
-    testWidgets('지금 칸이 없으면 예보 4칸만', (tester) async {
+    testWidgets("서버 '지금'이 없으면 지금 날씨 줄을 두지 않는다(날씨 안내는 그대로)", (tester) async {
       await _pumpView(tester, _idle(ambient: _ambient(withNow: false)));
-      expect(find.text('지금'), findsNothing);
-      expect(find.byKey(const ValueKey('ambient-hour-3')), findsOneWidget);
-      expect(find.text('밤 12시'), findsOneWidget, reason: "자정은 '오전 12시'가 아니라 '밤 12시'");
-      expect(find.text('오전 12시'), findsNothing);
-    });
-
-    testWidgets("'비 70%'는 그 칸 안 기온 아래, 칸 높이는 모두 같다", (tester) async {
-      await _pumpView(tester, _idle(ambient: _ambient(withNow: false)));
-      final cell0 = find.byKey(const ValueKey('ambient-hour-0'));
-      expect(find.descendant(of: cell0, matching: find.text('비 70%')), findsOneWidget);
-      final temp = tester.getRect(find.descendant(of: cell0, matching: find.text('21°')));
-      final pop = tester.getRect(find.descendant(of: cell0, matching: find.text('비 70%')));
-      expect(pop.top, greaterThanOrEqualTo(temp.bottom - 1));
-      final h0 = tester.getRect(cell0);
-      expect(pop.bottom, lessThanOrEqualTo(h0.bottom + 0.5), reason: '칸 안');
-      for (var i = 1; i < 4; i++) {
-        expect(tester.getRect(find.byKey(ValueKey('ambient-hour-$i'))).height, closeTo(h0.height, 0.5));
-      }
+      expect(find.byKey(const ValueKey('idle-weather-now')), findsNothing);
+      expect(find.byKey(const ValueKey('idle-weather-advice')), findsOneWidget);
     });
 
     testWidgets("날씨 안내는 '나갈 때'를 가르지 않는다(1920x1080·실제 글꼴)", (tester) async {
@@ -280,7 +261,8 @@ void main() {
         double dy(int i) => para.getOffsetForCaret(TextPosition(offset: i), Rect.zero).dy;
         expect(dy(a), closeTo(dy(b), 1), reason: '배율 $scale: $drawn');
         final tile = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
-        expect(tester.getRect(find.byKey(const ValueKey('idle-next-run'))).bottom, lessThanOrEqualTo(tile.top));
+        // 시안 B(10/24): 다음 루틴은 오른쪽 줄 칸 — 가전 줄과 다른 칸.
+        expect(tester.getRect(find.byKey(const ValueKey('idle-next-run'))).left, greaterThanOrEqualTo(tile.right));
       }
     });
 
@@ -430,7 +412,8 @@ void main() {
 /// 날씨 안내 문장의 문단(아이콘 글자 문단은 뺀다).
 RenderParagraph _tipParagraph(WidgetTester tester) {
   final f = find.descendant(
-      of: find.byKey(const ValueKey('ambient-tip')),
+      // 시안 B(10/24): 날씨 안내는 '바깥 날씨' 줄 아래 작은 줄.
+      of: find.byKey(const ValueKey('idle-weather')),
       matching: find.byWidgetPredicate((w) => w is RichText && w.text.toPlainText().contains('우')));
   return tester.renderObject<RenderParagraph>(f.first);
 }

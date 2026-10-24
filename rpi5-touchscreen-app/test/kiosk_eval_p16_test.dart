@@ -150,7 +150,9 @@ void main() {
     }
   });
 
-  group('2. 자동 루틴 본 줄은 한 줄', () {
+  // 시안 B(10/24): 다음 루틴은 오른쪽 좁은 줄 칸 — 첫 줄은 늘 시각 하나('오후 10:00'), 이름은 그 아래(시각 뒤에서만 줄을 바꾼다).
+  // 16차의 뜻(실패널과 골든이 서로 다른 자리에서 꺾이지 않게)은 '줄바꿈 자리가 늘 시각 뒤'로 지킨다.
+  group('2. 자동 루틴 줄 — 첫 줄은 시각 하나', () {
     for (final (panel, scale) in [(true, 1.0), (false, 1.0), (false, 1.22)]) {
       for (final name in ['저녁 공기청정기 켜기', '저녁마다 거실 공기청정기를 강풍으로 켜고 인덕션 확인하기']) {
         testWidgets('panel=$panel scale=$scale $name', (t) async {
@@ -158,11 +160,12 @@ void main() {
           final f = find.byKey(const ValueKey('idle-next-run-text'));
           expect(f, findsOneWidget);
           final rt = t.widget<RichText>(find.descendant(of: f, matching: find.byType(RichText)));
-          expect(rt.text.toPlainText(), isNot(contains('\n')));
+          final plain = rt.text.toPlainText();
+          expect(plain.split('\n').first, '오후 10:00');
+          expect(plain.split('\n'), hasLength(2), reason: '시각 뒤에서 한 번만 줄을 바꾼다');
           final h = t.getSize(f).height;
           final line = KioskType.body * 1.25 * scale * (panel ? 2.05 : 1.0);
-          expect(h, lessThan(line * 1.5), reason: '높이 $h — 한 줄($line)보다 큼');
-          expect(rt.text.toPlainText(), startsWith('오후 10:00'));
+          expect(h, lessThan(line * 3.2), reason: '높이 $h — 시각 한 줄 + 이름 두 줄까지');
         });
       }
     }

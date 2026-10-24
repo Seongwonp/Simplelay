@@ -30,7 +30,11 @@ import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/auto_run_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/history_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_tab_bar.dart';
+import 'package:simplelay_touchscreen/models/kiosk_history.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/past_result_line.dart';
@@ -165,7 +169,11 @@ final _intercom = _served('intercom', '인터폰', 'intercom', custom: true);
 final _fanAppliance = _served('fan', '선풍기', 'other');
 
 /// 평소 화면 — 가전 다섯(4개씩 넘기기), 세탁기 동작 중.
-KioskIdleView _idle({
+/// kiosk_screen과 같은 짜임 — 화면 아래 탭 줄(시안 B 10/24). 조용한 시간 화면에는 두지 않는다.
+Widget _tabbed(Widget child, {KioskTab tab = KioskTab.home}) =>
+    Column(children: [Expanded(child: child), KioskTabBar(current: tab, onSelect: (_) {})]);
+
+Widget _idle({
   List<ConnectionItem> connections = _okConnections,
   Set<String> attention = const {},
   AmbientInfo ambient = _ambient,
@@ -180,8 +188,8 @@ KioskIdleView _idle({
   String? quietUntil,
   bool quietDim = false,
   List<KioskRoutine>? routines,
-}) =>
-    KioskIdleView(
+}) {
+  final view = KioskIdleView(
       routines: routines,
       onRoutine: routines == null ? null : (_) {},
       // 7:38 — 예보 첫 칸(9시)이 지금 ±90분 안이라 날짜 옆에 바깥 날씨가 붙는다(사용자 요청 10/18).
@@ -208,6 +216,8 @@ KioskIdleView _idle({
       onOpenConnection: (_) {},
       onDndGesture: () {},
     );
+  return quietDim ? view : _tabbed(view);
+}
 
 /// ThinQ 공기청정기 상세(2026-10-16) — 상태는 모의 값(연습 표시).
 /// 다음 루틴 — 서버 /routines/next 항목 꼴(건너뛰기 필드 포함, 2026-10-18).
@@ -362,7 +372,7 @@ void main() {
     await _shoot(
       t,
       'idle_empty',
-      KioskIdleView(
+      _tabbed(KioskIdleView(
         now: DateTime(2026, 9, 30, 18, 56),
         connected: true,
         connections: _okConnections,
@@ -370,7 +380,7 @@ void main() {
         onSelectAppliance: (_) {},
         onOpenConnection: (_) {},
         onDndGesture: () {},
-      ),
+      )),
     );
   });
 
@@ -378,7 +388,7 @@ void main() {
     await _shoot(
       t,
       'idle_disconnected',
-      KioskIdleView(
+      _tabbed(KioskIdleView(
         now: DateTime(2026, 9, 30, 18, 56),
         connected: false,
         connections: const [
@@ -389,7 +399,7 @@ void main() {
         onSelectAppliance: (_) {},
         onOpenConnection: (_) {},
         onDndGesture: () {},
-      ),
+      )),
     );
   });
 
@@ -1261,6 +1271,76 @@ void main() {
               ]));
     });
   }
+
+  // 시안 B(10/24) 아래 탭 '자동 실행' — 정해진 시각 회차(읽기만)와 처음 화면과 같은 '오늘은 건너뛰기'.
+  testWidgets('15인치 미리보기 — 자동 실행 탭', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_tab_auto',
+        _tabbed(
+            KioskAutoRunView(
+              runs: [
+                _nextRun(),
+                const KioskNextRun(
+                  name: '아침 공기청정기 끄기',
+                  dayLabel: '내일',
+                  hhmm: '07:00',
+                  modeLabel: '자동 실행',
+                  auto: true,
+                  routineId: 'rt-morning',
+                  at: '2026-10-01T07:00:00+09:00',
+                  skipped: true,
+                  skipLabel: '내일은 건너뛰어요',
+                  skipActionLabel: '내일은 건너뛰기',
+                ),
+                const KioskNextRun(
+                  name: '저녁 약 알림',
+                  dayLabel: '내일',
+                  hhmm: '19:30',
+                  modeLabel: '알림만',
+                  routineId: 'rt-pill',
+                  at: '2026-10-01T19:30:00+09:00',
+                  skipActionLabel: '내일은 건너뛰기',
+                ),
+              ],
+              onToggleSkip: (_) {},
+            ),
+            tab: KioskTab.auto));
+  });
+
+  // 시안 B(10/24) 아래 탭 '기록' — 최근 결과(읽기만). 확인한 것만 '완료', 보고만 받은 것은 '확인 못 함'.
+  testWidgets('15인치 미리보기 — 기록 탭', (t) async {
+    KioskHistoryEntry entry(String id, int h, int m,
+            {String? purpose, String status = 'succeeded', String? outcome, String route = 'physical',
+            String confirmation = 'press_confirmed', String mode = 'real', List<String> buttons = const []}) =>
+        KioskHistoryEntry.fromJson({
+          'job_id': id,
+          'finished_at': '2026-09-30T${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:00+09:00',
+          'status': status,
+          if (purpose != null) 'purpose': purpose,
+          if (outcome != null) 'outcome': outcome,
+          'route': route,
+          'confirmation': confirmation,
+          'execution_mode': mode,
+          'appliance_name': '전자레인지',
+          'buttons': [for (final b in buttons) {'button': b, 'success': true, 'attempts': 1}],
+        })!;
+    await _shoot15(
+        t,
+        'kiosk15_tab_history',
+        _tabbed(
+            KioskHistoryView(
+              now: DateTime(2026, 9, 30, 15, 20),
+              entries: [
+                entry('j1', 15, 12, buttons: ['30초', '시작']),
+                entry('j2', 14, 2, purpose: "자동 실행 · '저녁 공기청정기 켜기' 루틴", route: 'thinq', confirmation: 'state_confirmed'),
+                entry('j3', 12, 40, purpose: '즉석밥 데워줘', confirmation: 'reported'),
+                entry('j4', 9, 5, purpose: '인덕션 꺼줘', status: 'stopped', outcome: 'stopped', confirmation: 'none'),
+                entry('j5', 8, 30, purpose: '공기청정기 켜줘', status: 'failed', outcome: 'failed', route: 'thinq', confirmation: 'none'),
+              ],
+            ),
+            tab: KioskTab.history));
+  });
 
   // 시안 B ②(10/24) — 내 가전: 저장된 동작이 먼저 큰 칸, 마지막 칸 '버튼 직접 고르기'.
   testWidgets('15인치 미리보기 — 내 가전, 저장된 동작 먼저', (t) async {

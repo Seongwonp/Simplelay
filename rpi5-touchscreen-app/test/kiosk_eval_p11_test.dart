@@ -167,26 +167,23 @@ KioskHoldView _practiceHold({bool stopRequested = false}) => KioskHoldView(
     );
 
 void main() {
-  group('1. 예보 칸은 모두 아이콘 + 기온, 강수확률은 작은 둘째 줄', () {
+  // 시안 B(10/24): 예보 4칸 줄 대신 오른쪽 '바깥 날씨' 줄 — 지금 아이콘 + 기온, 그 아래 가까운 비 소식('오후 3시 비 70%').
+  group('1. 바깥 날씨 줄 — 아이콘 + 기온, 비 소식은 아래 작은 줄', () {
     for (final (name, tip) in [
-      ('안내 카드 없음', null),
-      ('안내 카드 아래(좁은 꼴)', const AmbientTip(kind: 'routine', text: '약 드실 시간이에요', icon: 'notice')),
+      ('안내 없음', null),
+      ('알림 안내와 함께', const AmbientTip(kind: 'routine', text: '약 드실 시간이에요', icon: 'notice')),
     ]) {
       testWidgets(name, (tester) async {
         await _pumpView(tester, _idle(tip: tip));
-        final hours = find.byKey(const ValueKey('ambient-hours'));
-        expect(hours, findsOneWidget);
-        expect(find.descendant(of: hours, matching: _weatherIcon), findsNWidgets(4), reason: '비 칸에도 아이콘');
-        for (final t in ['16°', '18°', '17°', '15°']) {
-          expect(find.descendant(of: hours, matching: find.text(t)), findsOneWidget, reason: '$t — 비 칸에도 기온');
-        }
-        final pop = find.descendant(of: hours, matching: find.text('비 70%'));
-        expect(pop, findsOneWidget);
-        // 평가 12차(10/18): 기온보다 작으면 1~2 m에서 안 읽혔다 — 기온과 같은 크기(더 크지는 않게).
-        expect(_fontOf(tester, pop), lessThanOrEqualTo(_fontOf(tester, find.descendant(of: hours, matching: find.text('17°')))),
-            reason: '강수확률은 기온보다 크지 않은 둘째 줄');
-        expect(tester.getRect(pop).top, greaterThanOrEqualTo(tester.getRect(find.text('17°')).bottom - 1),
-            reason: '기온 아래 줄');
+        final row = find.byKey(const ValueKey('idle-weather'));
+        expect(row, findsOneWidget);
+        final now = find.byKey(const ValueKey('idle-weather-now'));
+        expect(find.descendant(of: now, matching: _weatherIcon), findsOneWidget);
+        expect(find.descendant(of: now, matching: find.textContaining('16°', findRichText: true)), findsWidgets);
+        final pop = find.byKey(const ValueKey('idle-weather-advice'));
+        expect(tester.widget<Text>(pop).textSpan!.toPlainText().replaceAll('⁠', '').replaceAll(' ', ' '),
+            '오후 3시 비 70%');
+        expect(tester.getRect(pop).top, greaterThanOrEqualTo(tester.getRect(now).bottom - 1), reason: '기온 아래 줄');
         expect(tester.takeException(), isNull);
       });
     }
