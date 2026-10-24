@@ -548,20 +548,13 @@ class _ButtonGrid extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(_cellGap),
               child: btn == null
-                  // 버튼이 없는 자리 — 테두리 없이 흐린 '버튼 없음'(출시 검토 10/18 — 점선 칸이 고장 난 단추처럼 보였다).
-                  // 칸 자리는 남겨 실제 가전 버튼 자리와 같게 둔다.
-                  ? ExcludeSemantics(
-                      child: SizedBox(
-                        key: ValueKey('manual-empty-$col-$row'),
-                        width: cellSize.width,
-                        height: cellSize.height,
-                        child: Center(
-                          child: Text(kManualNoButton,
-                              maxLines: 1,
-                              softWrap: false,
-                              style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
-                        ),
-                      ),
+                  // 버튼이 없는 자리 — 빈 칸(폰과 같다). 점선 칸(출시 검토 10/18)도, 흐린 '버튼 없음' 글자(첫 사용 평가 3차
+                  // 10/24 — 칸마다 되풀이돼 단추처럼 읽혔다)도 두지 않는다. 칸 자리는 남겨 실제 가전 버튼 자리와 같게 둔다.
+                  // 화면 읽기에는 원래 말하지 않던 자리다(낭독 없음).
+                  ? SizedBox(
+                      key: ValueKey('manual-empty-$col-$row'),
+                      width: cellSize.width,
+                      height: cellSize.height,
                     )
                   : _ButtonCell(
                       key: ValueKey('manual-cell-${btn.label}'),
@@ -666,5 +659,3 @@ class _ButtonCell extends StatelessWidget {
   }
 }
 
-/// 버튼이 없는 자리 글자(출시 검토 10/18).
-const kManualNoButton = '버튼 없음';

@@ -2,7 +2,7 @@
 //
 // 1. 연습의 확인 필요(연습 실패)는 노란색이 아니라 연습 색(청록) — 제목 색과 위 띠 모두.
 // 2. 날씨 예보 칸 — 비 %가 없는 날은 칸을 내용에 맞춰 줄이고, 칸끼리는 늘 같은 높이.
-//    직접 누르기 판의 버튼 없는 자리는 점선 칸이 아니라 테두리 없는 흐린 '버튼 없음'.
+//    직접 누르기 판의 버튼 없는 자리는 점선 칸이 아니라 빈 칸(10/24 — 흐린 '버튼 없음' 글자도 뺐다).
 // 3. 실행 중 — '누를 순서'를 상태 제목 바로 아래로 올리고 크게(동그라미 60px 이상), 버튼판 위 안내는 한 줄.
 // 4. '지금 못 써요'는 비상 버튼이든 누름 장치 끊김이든 같은 모양(빨강·느낌표).
 import 'package:flutter/material.dart';
@@ -179,13 +179,15 @@ void main() {
     expect(dry.first, lessThan(wet.first - 10), reason: '비 % 줄 자리를 비워 두지 않는다');
   });
 
-  testWidgets("2. 직접 누르기 판의 버튼 없는 자리 — 점선 없이 흐린 '버튼 없음'", (tester) async {
+  // 첫 사용 평가 3차(10/24): 흐린 '버튼 없음' 글자도 칸마다 되풀이돼 단추처럼 읽혔다 — 폰처럼 빈 칸(자리만 남긴다).
+  testWidgets('2. 직접 누르기 판의 버튼 없는 자리 — 점선도 글자도 없는 빈 칸', (tester) async {
     await _pump(
         tester,
         KioskManualView(appliance: kMicrowaveAppliance, onExecute: (_) {}, onCancel: () {}));
     final empty = find.byKey(const ValueKey('manual-empty-2-1'));
     expect(empty, findsOneWidget);
-    expect(find.descendant(of: empty, matching: find.text(kManualNoButton)), findsOneWidget);
+    expect(find.descendant(of: empty, matching: find.byType(Text)), findsNothing);
+    expect(find.text('버튼 없음'), findsNothing);
     expect(find.descendant(of: empty, matching: find.byType(CustomPaint)), findsNothing);
   });
 
