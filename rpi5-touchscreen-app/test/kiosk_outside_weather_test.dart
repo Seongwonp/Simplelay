@@ -129,6 +129,14 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('바깥 날씨, 14도, 흐림')), findsOneWidget);
     });
 
+    testWidgets("지금 칸이 없으면 가장 가까운 예보를 '시각 예보'로 붙여 보인다 — 날씨 줄이 사라지지 않는다(10/24 실패널 밤 11시)", (tester) async {
+      await _pump(tester, _idle(DateTime(2026, 10, 18, 7, 8), _amb(_hours)));
+      expect(find.byKey(const ValueKey('idle-weather-now')), findsNothing);
+      final row = find.byKey(const ValueKey('idle-weather-forecast'));
+      expect(row, findsOneWidget);
+      expect(find.descendant(of: row, matching: find.textContaining('예보')), findsOneWidget);
+    });
+
     testWidgets('지금 칸이 없으면 지금 날씨를 지어내지 않는다', (tester) async {
       await _pump(tester, _idle(DateTime(2026, 10, 18, 7, 8), _amb(_hours)));
       expect(find.byKey(const ValueKey('idle-weather-now')), findsNothing);

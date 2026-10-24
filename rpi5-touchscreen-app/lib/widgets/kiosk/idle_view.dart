@@ -309,6 +309,10 @@ class KioskIdleView extends StatelessWidget {
 
     // 오른쪽 칸 줄들(시안 B 10/24) — 값이 있는 줄만. 순서: 알림 · 다음 자동 실행 · 바깥 날씨 · 공기질.
     final nowSlot = outsideNowSlot(amb, now);
+    // 서버에 '지금' 칸이 없으면(밤 11시처럼 지난 정시 칸이 없을 때 — 10/24 실패널에서 날씨 줄이 통째로 사라졌다) 가장 가까운
+    // 예보 칸을 **그 시각을 붙여** 보인다. '지금'으로 꾸미지 않는다.
+    final shownWeather = nowSlot ??
+        amb?.hourly.where((h) => h.temp != null).firstOrNull;
     final rainSlot = forecastSlots(amb, now)
         .where((s) => !s.isNow && (s.hour.precip || s.hour.icon == 'rain' || s.hour.icon == 'snow' || (s.hour.pop ?? 0) >= 60))
         .firstOrNull;
@@ -337,13 +341,14 @@ class KioskIdleView extends StatelessWidget {
               notice: nextRunNotice,
               onToggle: onToggleNextRunSkip),
         ),
-      if (nowSlot != null || weatherAdvice != null)
+      if (shownWeather != null || weatherAdvice != null)
         KioskSideRow(
           key: const ValueKey('idle-weather'),
           label: '바깥 날씨',
           child: _WeatherLine(
-            now: nowSlot,
-            night: _nightHour(now.hour),
+            now: shownWeather,
+            at: nowSlot == null && shownWeather != null ? hourLabel12(shownWeather.label) : null,
+            night: _nightHour(nowSlot == null && shownWeather != null ? (shownWeather.slotHour ?? now.hour) : now.hour),
             advice: weatherAdvice,
             adviceIsTip: weatherTip != null,
           ),
@@ -570,9 +575,12 @@ class _NoticeLine extends StatelessWidget {
 
 /// '바깥 날씨' 줄 — 지금 칸(서버 '지금'만, [outsideNowSlot])의 아이콘·기온·날씨 말, 아래 작은 줄은 날씨 안내 또는 가까운 비 소식.
 class _WeatherLine extends StatelessWidget {
-  const _WeatherLine({this.now, required this.night, this.advice, this.adviceIsTip = false});
+  const _WeatherLine({this.now, this.at, required this.night, this.advice, this.adviceIsTip = false});
 
   final AmbientHour? now;
+
+  /// [now]가 '지금'이 아니라 예보 칸이면 그 시각('오전 12시') — 값 뒤에 '· 오전 12시 예보'로 붙인다.
+  final String? at;
   final bool night;
   final String? advice;
 
@@ -585,6 +593,7 @@ class _WeatherLine extends StatelessWidget {
     final word = n == null ? '' : _weatherWord(n.icon);
     final spoken = [
       '바깥 날씨',
+      if (at != null) '$at 예보',
       if (n?.temp != null) '${n!.temp}도',
       if (word.isNotEmpty) word,
       if (advice case final a?) a,
@@ -595,7 +604,7 @@ class _WeatherLine extends StatelessWidget {
       excludeSemantics: true,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         if (n != null)
-          Row(key: const ValueKey('idle-weather-now'), children: [
+          Row(key: ValueKey(at == null ? 'idle-weather-now' : 'idle-weather-forecast'), children: [
             _WeatherIcon(n.icon, night: night, size: 24, color: KioskColors.ink),
             const SizedBox(width: 6),
             Flexible(
@@ -604,6 +613,8 @@ class _WeatherLine extends StatelessWidget {
                   if (n.temp != null) TextSpan(text: '${n.temp}°'),
                   if (word.isNotEmpty)
                     TextSpan(text: '${n.temp != null ? ' ' : ''}$word', style: const TextStyle(fontWeight: FontWeight.w500)),
+                  if (at != null)
+                    TextSpan(text: ' · $at 예보', style: KioskSideRow.smallStyle.copyWith(color: KioskColors.muted)),
                 ]),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

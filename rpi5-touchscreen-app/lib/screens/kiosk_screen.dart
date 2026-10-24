@@ -1019,9 +1019,10 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _holdDue(KioskStatus st) {
     if (!_holdActive(st.holdState)) {
       _leftPracticeHold = null;
+      _holdJob = null;
       return false;
     }
-    final key = _practiceHoldKey(st);
+    final key = _practiceHoldName(st);
     return key == null || key != _leftPracticeHold;
   }
 
@@ -1502,15 +1503,27 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   /// 연습 대기 하나를 가리키는 값 — 연습(mock)일 때만. 실제 대기는 null이라 언제나 다시 띄운다(정지가 닿아야 한다).
-  static String? _practiceHoldKey(KioskStatus st) => st.holdExecutionMode == 'mock'
-      ? '${st.holdApplianceId}|${st.lastJobId}'
-      : null;
+  static String? _practiceHoldKey(KioskStatus st) => st.holdExecutionMode == 'mock' ? (st.holdApplianceId ?? '') : null;
+
+  /// 지금 연습 대기를 만든 실행 번호 — 대기 중인 **그 가전의** 실행일 때만 바꾼다(10/24 실패널: 대기 중 공기청정기를 켜자
+  /// 마지막 실행 번호가 바뀌어 닫은 연습 대기가 새 대기로 읽혀 다시 떴다). 대기가 끝나면 [_holdDue]가 지운다.
+  String? _holdJob;
+
+  /// 연습 대기의 이름(가전 | 그 가전의 실행 번호). 같은 가전의 새 실행이면 새 대기라 다시 보인다.
+  String? _practiceHoldName(KioskStatus st) {
+    final app = _practiceHoldKey(st);
+    if (app == null) return null;
+    if (st.lastApplianceId != null && st.lastApplianceId == st.holdApplianceId && st.lastJobId != null) {
+      _holdJob = st.lastJobId;
+    }
+    return '$app|${_holdJob ?? ''}';
+  }
 
   /// 연습 대기에서 '처음 화면으로'(평가 12차 10/18) — 정지를 보내지 않고 평소 화면으로. 실제 가전은 움직이지 않았다.
   void _leavePracticeHold() {
     final st = _hold;
     if (st == null) return;
-    _leftPracticeHold = _practiceHoldKey(st);
+    _leftPracticeHold = _practiceHoldName(st);
     _toIdle();
   }
 
@@ -1650,9 +1663,11 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 시험: '연습이 끝났어요' → 처음 화면 → 대기 화면이 다시 떴다). 실제 실행의 대기는 그대로 뜬다 — 정지 버튼이 닿아야 한다.
   void _leavePracticeResult() {
     if (_phase != KioskPhase.done || _executionMode != 'mock') return;
-    final job = _activeJobId;
     final appliance = _execApplianceId;
-    if (job != null && appliance != null) _leftPracticeHold = '$appliance|$job';
+    final job = _activeJobId;
+    if (appliance == null || job == null) return;
+    _holdJob = job;
+    _leftPracticeHold = '$appliance|$job';
   }
 
   void _toIdle() {

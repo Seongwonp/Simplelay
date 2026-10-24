@@ -152,6 +152,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(KioskHoldView), findsNothing);
     expect(find.byType(KioskIdleView), findsOneWidget);
+    // 대기 중 다른 실행(공기청정기 켜기)으로 마지막 실행 번호가 바뀌어도 닫은 연습 대기는 다시 뜨지 않는다(10/24 실패널).
+    api.statusResult = const KioskStatus(
+      running: false,
+      lastJobId: 'job-air',
+      lastStatus: 'succeeded',
+      lastExecutionMode: 'real',
+      lastOutcome: 'success',
+      holdState: 'hovering_stop',
+      holdApplianceId: 'microwave',
+      holdStopButton: '취소',
+      holdExecutionMode: 'mock',
+    );
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(KioskHoldView), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }
