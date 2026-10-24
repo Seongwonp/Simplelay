@@ -285,3 +285,21 @@ def test_cli_rejects_bad_listen_and_logs_to_stdout(capsys):
         assert "(no client)" in stream.getvalue()
     finally:
         front.close()
+
+
+def test_simulated_board_hold_uses_a_mock_appliance_that_ends():
+    """10/24 실패널: 모의 보드의 연습 대기가 실물처럼 최대 대기 시간(30분)까지 남아 키오스크를 다시 켤 때마다 대기가 떴다.
+    모의 보드면 대기의 가전 확인은 모의 가전(정해진 시간 뒤 꺼짐)이다."""
+    import rpi4.act_main as act_main
+    from rpi4.services.stop_hold import MockApplianceRun
+
+    class _SimBoard:
+        execution_mode = ExecutionMode.MOCK
+
+    board = _SimBoard()
+    hardware = act_main._build_hold(board, board)
+
+    class _Plan:
+        stop_presses = 1
+
+    assert isinstance(hardware.probe_factory(_Plan()), MockApplianceRun)

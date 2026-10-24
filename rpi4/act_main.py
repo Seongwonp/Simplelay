@@ -753,11 +753,25 @@ def _build_hold(grbl: object, raw_grbl: object, outlet=None, binder=None):
     (2026-10-07 평가 H3 — 전에는 늘 전자레인지 채널). 채널이 없는 대상은 '모름'(정지 미확인)."""
     from rpi.controller.mock import MockGrblClient as _Mock
 
+    from rpi.controller.models import ExecutionMode
+
     from .services.stop_hold import mock_hold_hardware, real_hold_hardware
 
     if isinstance(raw_grbl, _Mock):
         log.info("stop hold: MOCK motion + mock appliance (SIMPLELAY_HOLD_MOCK_*)")
         return mock_hold_hardware()
+    if getattr(raw_grbl, "execution_mode", None) is ExecutionMode.MOCK:
+        # 모의 보드(SIMPLELAY_MOTION_SIMULATED, 10/24): 움직임은 모의 보드로 보내고 가전은 모의 가전 — 연습 대기가 실물처럼
+        # 최대 대기 시간(30분)까지 남아 키오스크를 다시 켤 때마다 '연습이 끝났어요' 대기가 떴다. 모의 가전이 끝나면 대기도 끝난다.
+        from .services.stop_hold import MockApplianceRun
+
+        try:
+            run_s = float(os.getenv("SIMPLELAY_HOLD_MOCK_RUN_S", "") or 30.0)
+        except ValueError:
+            run_s = 30.0
+        log.info("stop hold: simulated motion board + mock appliance (%.0f s)", run_s)
+        return real_hold_hardware(grbl, raw_grbl, probe_factory=lambda plan: MockApplianceRun(
+            run_s, honors_stop=True, presses_needed=plan.stop_presses))
     if outlet is not None:
         from rpi.verifier.power_tail import TailConfig
 
