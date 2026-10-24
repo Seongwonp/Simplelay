@@ -488,7 +488,8 @@ class KioskIdleView extends StatelessWidget {
                         sizeLabel: featured.$1.sizeLabelWith({for (final a in list!) a.id: a.displayName}),
                         blockedReason: featured.$3,
                         onRun: () => onRoutine!(featured.$1),
-                        onHelp: () => selectTile(featured.$2),
+                        // 막힌 가전의 안내(코드 검토 10/24) — 루틴 첫 가전은 쓸 수 있을 수 있다.
+                        onHelp: () => selectTile(featured.$4 ?? featured.$2),
                       ),
                       if (tip != null) const SizedBox(height: _Idle.hoursGap),
                     ],

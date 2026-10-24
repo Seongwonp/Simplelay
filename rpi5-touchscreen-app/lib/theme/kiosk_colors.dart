@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 /// 키오스크 색 한 벌. 밝은 화면(기본)·어두운 화면(시안 B 10/24, 폰 팔레트)과 고대비(사용자 결정 10/18) 세 벌이 있다.
@@ -222,7 +223,39 @@ class KioskColors {
 
   static bool get quietNight => _night;
 
-  static void _apply() => _p = _hc ? contrast : (_dark || _night ? dark : light);
+  static void _apply() {
+    _p = _hc ? contrast : (_dark || _night ? dark : light);
+    _listenable.value = _p;
+  }
+
+  static final ValueNotifier<KioskPalette> _listenable = ValueNotifier<KioskPalette>(standard);
+
+  /// 색 한 벌이 바뀌면 알린다 — 앱 테마(대화 창·알림 줄이 쓰는 색)가 따라 바뀌게(코드 검토 10/24).
+  /// 듣는 쪽은 그리는 도중에 바뀔 수 있으니(조용한 시간 어둡게는 build 안에서 바뀐다) 다음 프레임에 다시 그린다.
+  static ValueListenable<KioskPalette> get listenable => _listenable;
+
+  /// Material 기본 색(스위치 바탕·구분선·대화 창 면)을 지금 색 한 벌(밝은·어두운 화면·고대비)에 맞춘 테마.
+  /// 앱 테마([base] 없음)와 키오스크 화면 안쪽 테마가 같은 규칙을 쓴다.
+  static ThemeData theme([ThemeData? base]) {
+    base ??= ThemeData(brightness: brightness);
+    final scheme = ColorScheme.fromSeed(seedColor: primary, brightness: brightness).copyWith(
+      surface: surface,
+      onSurface: ink,
+      onSurfaceVariant: highContrast ? ink : muted,
+      outline: border,
+      outlineVariant: border,
+      primary: primary,
+      onPrimary: onAccent,
+    );
+    return base.copyWith(
+      brightness: brightness,
+      scaffoldBackgroundColor: bg,
+      dividerColor: border,
+      colorScheme: scheme,
+      textTheme: base.textTheme.apply(bodyColor: ink, displayColor: ink),
+      iconTheme: base.iconTheme.copyWith(color: ink),
+    );
+  }
 
   /// 지금 쓰는 색 한 벌.
   static KioskPalette get palette => _p;

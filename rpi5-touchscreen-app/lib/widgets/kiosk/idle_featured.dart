@@ -51,10 +51,11 @@ class KioskFeaturedAction extends StatelessWidget {
   ///
   /// [issueOf]는 가전 줄 '!'와 같은 판정([kioskTileIssue]). 가전이 모두 지금 쓸 수 있는 루틴을 먼저 고른다. 그런 루틴이
   /// 없으면 첫 후보를 돌려주고 셋째 값에 그 '!' 문장(이유)을 싣는다 — 화면은 '실행하기'를 흐리게 그린다(첫 사용 평가 10/24).
-  static (KioskRoutine, ApplianceMap, String?)? pick(List<KioskRoutine>? routines, List<ApplianceMap>? appliances,
+  /// 넷째 값은 그 이유가 붙은 가전 — '해결 방법 보기'가 그 가전의 안내를 연다(코드 검토 10/24).
+  static (KioskRoutine, ApplianceMap, String?, ApplianceMap?)? pick(List<KioskRoutine>? routines, List<ApplianceMap>? appliances,
       {KioskTileIssue? Function(ApplianceMap a)? issueOf}) {
     if (routines == null || appliances == null) return null;
-    (KioskRoutine, ApplianceMap, String?)? firstBlocked;
+    (KioskRoutine, ApplianceMap, String?, ApplianceMap?)? firstBlocked;
     for (final r in routines) {
       if (!r.enabled || r.mode != 'approve' || r.timeTriggered) continue;
       final present = [
@@ -62,15 +63,17 @@ class KioskFeaturedAction extends StatelessWidget {
       ];
       if (present.isEmpty) continue;
       String? why;
+      ApplianceMap? blockedBy;
       for (final a in present) {
         final issue = issueOf?.call(a);
         if (issue != null && issue.mark == KioskTileMark.unusable) {
           why = issue.text;
+          blockedBy = a;
           break;
         }
       }
-      if (why == null) return (r, present.first, null);
-      firstBlocked ??= (r, present.first, why);
+      if (why == null) return (r, present.first, null, null);
+      firstBlocked ??= (r, present.first, why, blockedBy);
     }
     return firstBlocked;
   }

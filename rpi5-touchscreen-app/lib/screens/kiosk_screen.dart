@@ -470,6 +470,7 @@ class _KioskScreenState extends State<KioskScreen> {
     KioskColors.setDarkMode(false);
     KioskColors.setQuietNight(false);
     _doneReturnTimer?.cancel();
+    _doneHoldGrace?.cancel();
     _nextRunNoticeTimer?.cancel();
     _holdReturnTimer?.cancel();
     _stopFollowTimer?.cancel();
@@ -870,7 +871,7 @@ class _KioskScreenState extends State<KioskScreen> {
       } else if (_phase == KioskPhase.done) {
         await _pollDone();
       } else if (_phase == KioskPhase.manual) {
-        await _pollEstopOnly();
+        await _pollManual();
       }
     } finally {
       _pollInFlight = false;
@@ -893,14 +894,9 @@ class _KioskScreenState extends State<KioskScreen> {
       _followPendingStop(st);
       // 버튼을 다 누른 뒤 가전이 돌아가는 중 — 동작 중 화면(정지 버튼 대기).
       // 제안보다 먼저 본다: 안내는 한 번에 하나다.
-      if (_holdActive(st.holdState)) {
-        final key = _practiceHoldKey(st);
-        if (key == null || key != _leftPracticeHold) {
-          _toHold(st);
-          return;
-        }
-      } else {
-        _leftPracticeHold = null;
+      if (_holdDue(st)) {
+        _toHold(st);
+        return;
       }
       _trackAutoRun(st);
       if (_catchMissedResult(st)) return;
@@ -915,6 +911,30 @@ class _KioskScreenState extends State<KioskScreen> {
         _toSuggestion(next);
       }
     } catch (_) {}
+  }
+
+  /// 정지 대기(동작 중 화면)로 갈 차례인가 — 평소·결과·조작판 화면이 같은 규칙을 쓴다(코드 검토 10/24: 연속 조작으로 결과·조작판에
+  /// 머무는 동안 대기 화면이 끝내 뜨지 않았다). 연습 대기에서 사람이 나간 것은 다시 띄우지 않는다. 대기가 없으면 나간 기록을 지운다.
+  bool _holdDue(KioskStatus st) {
+    if (!_holdActive(st.holdState)) {
+      _leftPracticeHold = null;
+      return false;
+    }
+    final key = _practiceHoldKey(st);
+    return key == null || key != _leftPracticeHold;
+  }
+
+  /// 조작판 화면 — 비상 멈춤 걸림과 정지 대기를 본다(코드 검토 10/24). 대기는 사람이 조작판을 쓰는 중에도 띄운다: 정지 버튼이
+  /// 닿아야 한다(평소 화면과 같은 규칙). 스스로 뜬 제안은 종전처럼 조작판을 빼앗지 않는다 — 서버에 남아 처음 화면에서 뜬다.
+  Future<void> _pollManual() async {
+    try {
+      final st = await _api.status();
+      if (!mounted || _phase != KioskPhase.manual) return;
+      _trackEstop(st);
+      if (_holdDue(st)) _toHold(st);
+    } catch (_) {
+      // 통신 실패는 걸림이 풀렸다는 증거가 아니다 — 마지막 값을 유지한다.
+    }
   }
 
   /// 제안·수동 조작 화면에서도 비상 멈춤 걸림을 따라간다(2026-10-15) — 경고 띠가 모든 화면에 보이려면
@@ -1199,9 +1219,20 @@ class _KioskScreenState extends State<KioskScreen> {
         return;
       }
       _followPendingStop(st);
+      // 정지 대기(코드 검토 10/24) — 연속 조작·사람 확인·실패 결과는 저절로 닫히지 않아 평소 화면의 대기 판정에 닿지 못했다.
+      // 결과를 읽을 시간(종전 자동 복귀 길이)이 지나면 평소 화면과 같은 규칙으로 정지 대기 화면으로 간다.
+      // 스스로 뜬 제안은 결과 화면을 빼앗지 않는다(종전과 같음) — 서버에 남아 처음 화면으로 가면 뜬다.
+      if (_doneHoldGrace?.isActive != true && _holdDue(st)) {
+        _rememberPastResult();
+        _toHold(st);
+        return;
+      }
       _catchMissedResult(st);
     } catch (_) {}
   }
+
+  /// 결과를 읽을 시간 — 끝나기 전에는 결과 화면에서 정지 대기 화면으로 가지 않는다([_pollDone]).
+  Timer? _doneHoldGrace;
 
   /// 자동 실행(허용 규칙) 결과 한 줄(2026-10-14, C2). 새 job일 때 한 번만 보이고 말한다. 첫 조회 때 이미 있던 결과는
   /// 알리지 않는다. 평소·완료 화면 위에만 그린다 — 실행·동작 중 화면의 정지 버튼·상태를 가리지 않는다.
@@ -1478,17 +1509,22 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 결과 화면의 '이 가전 계속 조작' — 같은 가전 조작판으로 **돌아가기만** 한다(직전 명령을 다시 보내지 않는다).
   /// 최신 설치 목록에서 다시 찾고, 없으면(그사이 삭제) 가전 고르기로 — 다른 가전으로 메우지 않는다.
-  void _continueSameAppliance() => _toManualAfterResult(pickOther: false);
+  void _continueSameAppliance() {
+    _toManualAfterResult(pickOther: false);
+  }
 
   /// 결과 화면의 '다른 가전 고르기'.
-  void _pickOtherAppliance() => _toManualAfterResult(pickOther: true);
+  void _pickOtherAppliance() {
+    _toManualAfterResult(pickOther: true);
+  }
 
-  void _toManualAfterResult({required bool pickOther}) {
-    if (_phase != KioskPhase.done) return;
+  /// 조작판으로 갔으면 true. 본체에 닿지 않아 연결 창만 열었으면 false(결과 화면 그대로).
+  bool _toManualAfterResult({required bool pickOther}) {
+    if (_phase != KioskPhase.done) return false;
     // 본체에 닿지 않으면 조작판을 열지 않는다(처음 화면 가전 줄과 같은 규칙) — 무엇이 안 되는지 말하는 연결 창.
     if (!_health.ok) {
       setState(() => _openConnectionId = 'network');
-      return;
+      return false;
     }
     final id = _continueApplianceId;
     final target = pickOther || id == null ? null : _findIn(_appliances, id);
@@ -1505,11 +1541,13 @@ class _KioskScreenState extends State<KioskScreen> {
     });
     _persistSettings();
     _fetchRoutines();
+    return true;
   }
 
   void _toIdle() {
     _rememberPastResult();
     _continueApplianceId = null;
+    _routineCard = null;
     _holdReturnTimer?.cancel();
     _holdReturnTimer = null;
     _doneReturnTimer?.cancel();
@@ -1867,6 +1905,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneRemaining = null;
     _doneAt = DateTime.now();
     _doneAnswered = false;
+    _doneHoldGrace?.cancel();
+    _doneHoldGrace = Timer(_largeText ? KioskTimings.doneReturnLarge : _doneReturnDuration, () {});
     setState(() {
       _phase = KioskPhase.done;
       _doneSuccess = success;
@@ -1935,6 +1975,7 @@ class _KioskScreenState extends State<KioskScreen> {
     final thinqOnly = isSingleThinqCommand([for (final c in suggestion.commands) c.route]);
     _beginAdmission();
     final fromRoutine = _routineCard;
+    _routineCard = null; // 한 번 쓰면 끝 — 같은 카드가 나중에 스스로 떠도 이 조작판으로 돌아가지 않는다(코드 검토 10/24)
     _toExecuting(label,
         applianceId: suggestion.applianceId,
         thinqOnly: thinqOnly,
@@ -2285,23 +2326,8 @@ class _KioskScreenState extends State<KioskScreen> {
     }
     // Material 기본 색(스위치 바탕·구분선·대화 창 면)도 지금 색 한 벌(밝은·어두운 화면·고대비)을 따른다
     // (고대비 사용자 결정 10/18, 밝은·어두운 화면 시안 B 10/24).
-    final scheme = ColorScheme.fromSeed(seedColor: KioskColors.primary, brightness: KioskColors.brightness).copyWith(
-      surface: KioskColors.surface,
-      onSurface: KioskColors.ink,
-      onSurfaceVariant: KioskColors.highContrast ? KioskColors.ink : KioskColors.muted,
-      outline: KioskColors.border,
-      outlineVariant: KioskColors.border,
-      primary: KioskColors.primary,
-      onPrimary: KioskColors.onAccent,
-    );
-    final theme = base.copyWith(
-      brightness: KioskColors.brightness,
-      scaffoldBackgroundColor: KioskColors.bg,
-      dividerColor: KioskColors.border,
-      colorScheme: scheme,
-      textTheme: base.textTheme.apply(bodyColor: KioskColors.ink, displayColor: KioskColors.ink),
-      iconTheme: base.iconTheme.copyWith(color: KioskColors.ink),
-    );
+    // 앱 테마(대화 창이 쓰는 색, main.dart)와 같은 규칙이다.
+    final theme = KioskColors.theme(base);
     return MediaQuery(
       data: media.copyWith(
         textScaler: TextScaler.linear(_largeText ? 1.22 : 1.0),
@@ -2517,7 +2543,8 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 결과 화면 '가전을 보고 알려 주세요'에 사람이 답했다(휴리스틱 평가 10/18). 답은 본체에 적는다(POST /acks, 2026-10-19 —
   /// 예전에는 키오스크 안에만 기억해 폰에는 여전히 못 한 일이었다). 답했으니 처음 화면 '지난 일' 줄은 남기지 않는다.
   void _onDoneChecked(bool worked) {
-    if (_phase != KioskPhase.done) return;
+    // 한 결과에 답은 한 번(코드 검토 10/24) — 두 번 누르면 기록·본체 답이 두 번 적혔다.
+    if (_phase != KioskPhase.done || _doneAnswered) return;
     final view = _doneView();
     final name = actionName(_doneLabel);
     _personChecks.add(KioskPersonCheck(
@@ -2529,11 +2556,9 @@ class _KioskScreenState extends State<KioskScreen> {
     if (_personChecks.length > kPersonCheckKeep) _personChecks.removeAt(0);
     if (_activeJobId != null) _ack(_activeJobId, worked ? 'moved' : 'not_moved');
     _doneAnswered = true;
-    // 직접 고른 가전이면 답한 뒤 그 조작판으로(R7) — 처음 화면을 강제하지 않는다.
-    if (_continueApplianceId != null) {
-      _continueSameAppliance();
-      return;
-    }
+    // 직접 고른 가전이면 답한 뒤 그 조작판으로(R7) — 처음 화면을 강제하지 않는다. 본체에 닿지 않아 조작판을 열 수 없으면
+    // 종전처럼 처음 화면으로(코드 검토 10/24 — 답한 물음이 결과 화면에 남아 있었다). 연결 창은 그대로 열려 있다.
+    if (_continueApplianceId != null && _toManualAfterResult(pickOther: false)) return;
     _toIdle();
   }
 

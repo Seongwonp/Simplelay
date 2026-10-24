@@ -228,10 +228,11 @@ class KioskStopButton extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: _labelInset),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                // 색을 빼도 다른 단추와 구분되게 — 두꺼운 흰 테두리(세 화면 같은 두께).
-                // 못 누를 때는 흐린 테두리 — 흰 테두리가 남으면 누를 수 있는 것처럼 보였다(UI 평가 4차 10/17).
+                // 색을 빼도 다른 단추와 구분되게 — 두꺼운 테두리(세 화면 같은 두께). 바탕과 대비되는 글자색(ink): 밝은 화면은
+                // 짙은 테두리, 어두운 화면·고대비는 밝은 테두리(코드 검토 10/24 — 흰 테두리는 밝은 바탕에서 보이지 않았다).
+                // 못 누를 때는 흐린 테두리 — 진한 테두리가 남으면 누를 수 있는 것처럼 보였다(UI 평가 4차 10/17).
                 side: BorderSide(
-                    color: onPressed == null ? KioskColors.border : Colors.white,
+                    color: onPressed == null ? KioskColors.border : KioskColors.ink,
                     width: KioskSizes.stopBorder),
               ),
             ),

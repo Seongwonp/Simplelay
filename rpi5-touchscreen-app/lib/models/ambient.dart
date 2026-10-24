@@ -389,11 +389,13 @@ class KioskRoutine {
         final args = s['args'];
         thinq.add(KioskThinqStep(
           applianceId: id is String ? id : null,
-          action: s['action'] as String?,
+          action: s['action'] is String ? s['action'] as String : null,
           args: args is Map<String, dynamic> ? args : const {},
         ));
       }
     }
+    // 모양이 다른 trigger(맵이 아님)는 시각 예약으로 보지 않는다 — 형 변환으로 목록 읽기 전체가 깨지지 않게(코드 검토 10/24).
+    final trigger = json['trigger'];
     return KioskRoutine(
       id: json['id'] as String,
       name: json['name'] as String? ?? '',
@@ -403,7 +405,7 @@ class KioskRoutine {
       thinqSteps: thinq,
       mode: json['mode'] as String? ?? 'approve',
       enabled: json['enabled'] as bool? ?? true,
-      timeTriggered: (json['trigger'] as Map<String, dynamic>?)?['kind'] == 'time',
+      timeTriggered: trigger is Map && trigger['kind'] == 'time',
     );
   }
 }
