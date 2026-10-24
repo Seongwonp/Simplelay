@@ -183,8 +183,9 @@ class TouchBridgeMotionClient(GrblClient):
             return reason
         if not self.homed:
             return "누름 장치의 좌표 기준이 아직 설정되지 않았어요"
-        if self._stopped.is_set():
-            return "누름 장치의 중단 요청이 남아 있어요"
+        # 지난 정지의 표시는 준비 거절 이유가 아니다(10/24 모의 보드 시험) — 실행을 시작시키는 쪽이 reset_stop으로 지운다
+        # (ActExecutor._begin_execute). 여기서 거절하면 정지·개발자 세션 종료 한 번 뒤로 일반 실행이 늘 막혔다.
+        # 보드는 정지 뒤에도 원점을 유지한다(HOMED는 보드가 말한다). 정지 뒤 원점 강제는 운영 정책 단계에서 정한다.
         return None
 
     def _allocate(self) -> tuple[int, str]:

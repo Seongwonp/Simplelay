@@ -116,6 +116,20 @@ def test_stop_mid_move_over_socket_reports_stopped_and_leaves_a_partial_position
     assert 0 < x < 150 and y == 0
 
 
+def test_after_a_stop_the_next_run_is_not_refused_and_can_press_again(rig):
+    """10/24 모의 보드 시험: 정지(개발자 세션 종료 포함) 한 번 뒤로 '중단 요청이 남아 있어요'로 일반 실행이 늘 거절됐다.
+    지난 정지 표시는 준비 거절 이유가 아니고, 새 실행을 시작시키는 쪽의 reset_stop이 지운다."""
+    r = rig(homed=True)
+    client = r.open()
+    client.connect()
+    assert client.request_stop()
+    client.confirm_stop(ack_timeout_s=1.0)
+    assert client.not_ready_reason() is None
+    client.reset_stop()  # ActExecutor._begin_execute가 하는 일
+    client.press(PressCommand("start", x_mm=10.0, y_mm=10.0))
+    assert r.states("press")[-1] == "COMPLETED"
+
+
 def test_bot_failure_and_stall_injection_reach_the_adapter_unchanged(rig):
     r = rig(faults=Faults(press_fail="BOT_BUSY", stall_on_move=2), homed=True)
     client = r.open()
