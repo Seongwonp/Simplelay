@@ -1032,7 +1032,12 @@ class _KioskScreenState extends State<KioskScreen> {
       return false;
     }
     final key = _practiceHoldName(st);
-    return key == null || key != _leftPracticeHold;
+    if (key == null) return true; // 실제 대기 — 정지 버튼이 닿아야 한다
+    // 연습 대기는 결과 화면·조작판을 덮지 않는다(10/24 실패널, 사용자 지적): 실제 가전이 없어 꺼야 할 것이 없는데
+    // '연습을 마쳤어요' 뒤에 '연습이 끝났어요 · 취소 위에서 기다리는 중'이 또 떴다. 처음 화면에서만(닫은 대기는 빼고) 보인다.
+    // 사람이 확인해야 하는 대기(구동부 이상 등)는 어디서든 보인다.
+    if (_phase != KioskPhase.idle && !_holdNeedsPerson(st)) return false;
+    return key != _leftPracticeHold;
   }
 
   /// 조작판 화면 — 비상 멈춤 걸림과 정지 대기를 본다(코드 검토 10/24). 대기는 사람이 조작판을 쓰는 중에도 띄운다: 정지 버튼이

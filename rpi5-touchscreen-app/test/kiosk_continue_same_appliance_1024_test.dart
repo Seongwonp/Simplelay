@@ -169,4 +169,35 @@ void main() {
     expect(find.byType(KioskHoldView), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('연습 대기는 연습 결과 화면을 덮지 않는다(10/24 실패널: 연습을 마쳤어요 뒤 대기 화면이 또 덮음)', (tester) async {
+    final api = await _pumpKiosk(tester);
+    await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('해동'));
+    await tester.pump();
+    await tester.tap(find.text('누르기'));
+    await tester.pump();
+    api.statusResult = const KioskStatus(
+      running: false,
+      lastJobId: 'job-1',
+      lastStatus: 'succeeded',
+      lastExecutionMode: 'mock',
+      lastOutcome: 'success',
+      lastApplianceId: 'microwave',
+      holdState: 'hovering_stop',
+      holdApplianceId: 'microwave',
+      holdStopButton: '취소',
+      holdExecutionMode: 'mock',
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskDoneView), findsOneWidget);
+    await tester.pump(const Duration(seconds: 25)); // 종전 결과 유예(10초·큰 글씨 20초)를 넘겨도
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(KioskHoldView), findsNothing);
+    expect(find.byType(KioskDoneView), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
