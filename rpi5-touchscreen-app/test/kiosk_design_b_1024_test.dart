@@ -15,6 +15,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart' show k
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/help_guide.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/idle_featured.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
@@ -194,11 +195,36 @@ void main() {
           ));
       final card = find.byKey(const ValueKey('idle-featured'));
       expect(find.descendant(of: card, matching: find.text('실행하기')), findsNothing);
-      expect(find.descendant(of: card, matching: find.text('해결 방법 보기')), findsOneWidget);
+      // 첫 사용 평가 4차(10/24): 위 연결 문제 띠와 카드에 같은 '해결 방법 보기'가 둘 — 띠가 있으면 카드는 되풀이하지 않는다.
+      expect(find.descendant(of: card, matching: find.text('해결 방법 보기')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('지금은 쓸 수 없어요')), findsOneWidget);
+      expect(find.text('해결 방법 보기'), findsOneWidget);
+      // 읽을 때는 이유까지 그대로.
+      expect(find.bySemanticsLabel(RegExp('지금은 쓸 수 없어요.*$kTileUnusablePress')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('idle-featured-run')));
       await tester.pump();
       expect(tapped, isEmpty);
       expect(opened, ['press']);
+    });
+
+    testWidgets("위 띠가 '해결 방법 보기'를 보이지 않을 때만 막힌 카드가 그 단추를 그린다", (tester) async {
+      Future<void> pump(bool inBanner) => _pumpView(
+          tester,
+          KioskFeaturedAction(
+            routine: _morning,
+            appliance: kMicrowaveAppliance,
+            sizeLabel: '',
+            onRun: () {},
+            blockedReason: kTileUnusablePress,
+            onHelp: () {},
+            helpInBanner: inBanner,
+          ));
+      await pump(false);
+      expect(find.text('해결 방법 보기'), findsOneWidget);
+      await pump(true);
+      expect(find.text('해결 방법 보기'), findsNothing);
+      expect(find.text('지금은 쓸 수 없어요'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('지금은 쓸 수 없어요.*$kTileUnusablePress')), findsOneWidget);
     });
 
     testWidgets('큰 글씨에서는 카드를 두지 않는다(시계·다음 루틴 자리)', (tester) async {

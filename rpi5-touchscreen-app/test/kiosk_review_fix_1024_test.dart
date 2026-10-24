@@ -208,8 +208,9 @@ void main() {
       ),
     ));
     await tester.pump(const Duration(milliseconds: 300));
+    // 위 연결 문제 띠가 '해결 방법 보기'를 보이므로 카드는 되풀이하지 않는다(첫 사용 평가 4차 10/24) — 카드를 누르면 같은 안내.
     expect(find.descendant(of: find.byKey(const ValueKey('idle-featured')), matching: find.text('해결 방법 보기')),
-        findsOneWidget);
+        findsNothing);
     await tester.tap(find.byKey(const ValueKey('idle-featured-run')));
     await tester.pump();
     expect(selected, isEmpty, reason: '쓸 수 있는 공기청정기 조작판을 열지 않는다');

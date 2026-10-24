@@ -22,7 +22,12 @@ class KioskFeaturedAction extends StatelessWidget {
     required this.onRun,
     this.blockedReason,
     this.onHelp,
+    this.helpInBanner = false,
   });
+
+  /// 위 안내 띠가 이미 '해결 방법 보기'를 보이고 있나(연결 문제 띠). 그러면 막힌 카드는 같은 단추를 되풀이하지 않고
+  /// '지금은 쓸 수 없어요'만 적는다 — 카드를 누르면 여전히 [onHelp](같은 안내)를 연다(첫 사용 평가 4차 10/24: 같은 단추 둘).
+  final bool helpInBanner;
 
   final KioskRoutine routine;
   final ApplianceMap appliance;
@@ -128,7 +133,7 @@ class KioskFeaturedAction extends StatelessWidget {
                         children: [
                           // 막힌 카드는 단추가 넓어(해결 방법 보기) 글 자리가 좁다 — 제목 한 줄, '지금은 쓸 수 없어요'는 두 줄까지(실패널 10/24).
                           Text(routine.name,
-                              maxLines: blocked == null ? 2 : 1,
+                              maxLines: blocked == null || helpInBanner ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: KioskType.body, height: 1.2, fontWeight: FontWeight.w700, color: KioskColors.ink)),
@@ -156,7 +161,7 @@ class KioskFeaturedAction extends StatelessWidget {
                             style: TextStyle(
                                 fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.onAccent)),
                       )
-                    else if (onHelp != null)
+                    else if (onHelp != null && !helpInBanner)
                       Container(
                         padding: const EdgeInsets.only(left: KioskSpace.sm, right: KioskSpace.xs, top: 6, bottom: 6),
                         decoration: BoxDecoration(

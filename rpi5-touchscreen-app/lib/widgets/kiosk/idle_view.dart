@@ -490,6 +490,8 @@ class KioskIdleView extends StatelessWidget {
                         onRun: () => onRoutine!(featured.$1),
                         // 막힌 가전의 안내(코드 검토 10/24) — 루틴 첫 가전은 쓸 수 있을 수 있다.
                         onHelp: () => selectTile(featured.$4 ?? featured.$2),
+                        // 연결 문제 띠가 이미 '해결 방법 보기'를 보인다 — 카드는 되풀이하지 않는다(첫 사용 평가 4차 10/24).
+                        helpInBanner: connProblem,
                       ),
                       if (tip != null) const SizedBox(height: _Idle.hoursGap),
                     ],
