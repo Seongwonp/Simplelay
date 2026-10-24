@@ -332,6 +332,9 @@ class _RoutineRow extends StatelessWidget {
                 children: [
                   nextMark,
                   if (n != null && n.canSkip) SkipNextControl(next: n),
+                  // 언제 다시 하는지(2026-10-24 사용자 평가) — 본체가 그다음 회차를 줄 때만. 옛 본체면 없다.
+                  if (n?.afterSkipText case final after?)
+                    Text(after, key: Key('routine-after-skip-$key'), style: lineStyle),
                 ],
               ),
             ),

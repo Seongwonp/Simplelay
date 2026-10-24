@@ -5,6 +5,8 @@
 /// 것은 저장·편집·보여 주기용 모양뿐이다.
 library;
 
+import 'clock_text.dart';
+
 /// 요일 이름(0=월 … 6=일). 서버 `WEEKDAY_LABELS`와 같다.
 const kWeekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -410,7 +412,24 @@ class RoutineNextRun {
     this.skipped = false,
     this.skipLabel,
     this.skipActionLabel = '',
+    this.afterSkipAtText = '',
+    this.afterSkipDayLabel = '',
   });
+
+  /// 건너뛴 회차 다음 회차의 본체 시각 원문(서버 `next_after_skip_at`, 2026-10-24). 옛 본체·건너뛰지 않음이면 빈 문자열.
+  final String afterSkipAtText;
+
+  /// 그 회차의 날짜 말('내일'·'○요일'·'다음 주 ○요일', 서버 `next_after_skip_day_label`). 폰이 날짜 말을 만들지 않는다.
+  final String afterSkipDayLabel;
+
+  /// 건너뛴 줄에 덧붙일 '다음은 내일 오후 10:00'(2026-10-24 사용자 평가 — 언제 다시 하는지 몰랐다).
+  /// 시각은 [clock]과 같이 본체 벽시계 그대로. 본체가 값을 주지 않았으면 null(지어내지 않는다).
+  String? get afterSkipText {
+    if (!skipped || afterSkipDayLabel.isEmpty) return null;
+    final m = RegExp(r'T(\d{2}):(\d{2})').firstMatch(afterSkipAtText);
+    if (m == null || DateTime.tryParse(afterSkipAtText) == null) return null;
+    return '다음은 $afterSkipDayLabel ${ampmClock('${m[1]}:${m[2]}')}';
+  }
 
   /// '오늘은 건너뛰기'로 이 회차 한 번만 하지 않는다(서버 `skipped`, 2026-10-18). 옛 서버는 false.
   final bool skipped;
@@ -483,6 +502,9 @@ class RoutineNextRun {
         skipped: json['skipped'] == true,
         skipLabel: json['skip_label'] as String?,
         skipActionLabel: json['skip_action_label'] as String? ?? '',
+        afterSkipAtText: json['next_after_skip_at'] is String ? json['next_after_skip_at'] as String : '',
+        afterSkipDayLabel:
+            json['next_after_skip_day_label'] is String ? json['next_after_skip_day_label'] as String : '',
       );
 }
 

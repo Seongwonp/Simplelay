@@ -69,6 +69,15 @@ def test_connection_items_name_the_parts_by_the_glossary():
     assert "'다시 확인하기'" in network_item("up", "failed").fixes[-1]
 
 
+def test_press_link_down_says_what_to_check_not_that_it_fixes_itself():
+    # 2026-10-24 사용자 평가: 누름 장치를 오래 꺼 둬도 '다시 연결하는 중이에요'라 저절로 고쳐질 것처럼 읽혔다.
+    # 끊긴 뒤 얼마나 지났는지 본체가 알지 못하므로(재연결 시각 정보 없음) 늘 확인할 것을 말한다.
+    assert ACT_LINK_DOWN_REASON == "누름 장치와 연결되지 않았어요. 누름 장치 전원과 연결을 확인해 주세요."
+    down = press_item("uart", "down")
+    assert "다시 연결하는 중" not in down.message
+    assert "확인" in down.message or down.fixes
+
+
 def test_estop_sentences_say_the_red_button_is_pressed():
     assert ESTOP_LATCHED_REASON.startswith("비상 버튼이 눌려 있어요")
     # 폰·키오스크가 제목('비상 버튼이 눌려 있어요')을 따로 보인다 — RPi4 문장은 할 일만(제목 되풀이 금지).

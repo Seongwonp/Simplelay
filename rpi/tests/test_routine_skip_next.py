@@ -123,6 +123,31 @@ def test_skipping_a_card_routine_shows_no_card_that_time(api, clock, hub):
     assert any(s["scenario_id"].startswith(f"routine:{routine['id']}") for s in _routine_cards(api))
 
 
+def test_skipped_item_also_says_the_occurrence_after_it(api, clock, hub):
+    # 2026-10-24 사용자 평가: '오늘은 건너뛰어요'만으로는 언제 다시 하는지 몰랐다 — 건너뛴 회차 다음 회차를 덧붙인다.
+    _routine(api)
+    item = _next(api)
+    assert "next_after_skip_at" not in item  # 건너뛰지 않은 회차에는 없다(덧붙인 선택 필드)
+    body = _skip(api, item).json()
+    shown = _next(api)
+    for got in (body, shown):
+        assert got["skipped"] is True
+        assert got["next_after_skip_at"] == (AT_2300 + timedelta(days=1)).isoformat()
+        assert got["next_after_skip_day_label"] == "내일"
+    assert _skip(api, item, "unskip").json().get("next_after_skip_at") is None
+
+
+def test_after_skip_occurrence_in_quiet_hours_is_not_announced(api, clock, hub):
+    # 다음 회차가 조용한 시간이면 그때도 하지 않는다 — '다음은 …'이라고 말하지 않는다(덧붙인 필드를 빼서).
+    _routine(api)
+    item = _next(api)
+    assert _skip(api, item).status_code == 200
+    res = api.put("/quiet-hours", json={"enabled": True, "start": "22:30", "end": "23:30"})
+    assert res.status_code == 200, res.text
+    shown = _next(api)
+    assert shown["skipped"] is True and "next_after_skip_at" not in shown
+
+
 def test_skip_tomorrow_says_tomorrow(api, clock, hub):
     _routine(api)
     _move(clock, hub, AT_2300 + timedelta(minutes=30))

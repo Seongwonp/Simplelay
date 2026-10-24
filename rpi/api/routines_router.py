@@ -95,7 +95,9 @@ def next_routines(limit: int = Query(3, ge=1, le=10)) -> list[dict]:
     표시 말 '조용한 시간이라 건너뛰었어요'를 붙인다(UI 평가 8차 10/17: 규칙 카드는 '건너뛰어요'인데 이 카드는 '실행'이라 했다).
     폰·키오스크는 ``mode_label``을 그대로 보인다.
 
-    한 번 건너뛰기(2026-10-18): 항목마다 ``skipped``·``skip_label``·``skip_action_label`` — ``POST /routines/next/skip``."""
+    한 번 건너뛰기(2026-10-18): 항목마다 ``skipped``·``skip_label``·``skip_action_label`` — ``POST /routines/next/skip``.
+    건너뛴 항목에는 선택 필드 ``next_after_skip_at``·``next_after_skip_day_label``(그다음 회차, 2026-10-24)을 더한다 —
+    그 회차도 조용한 시간이면 붙이지 않는다."""
     return _with_quiet(get_routine_engine().next_runs(limit=limit))
 
 
@@ -120,6 +122,14 @@ def _with_quiet(items: list[dict]) -> list[dict]:
         if window_contains(quiet["start"], quiet["end"], at):
             item["quiet_skip"] = True
             item["mode_label"] = "조용한 시간이라 건너뛰었어요"
+        # 건너뛴 회차 다음 회차도 조용한 시간이면 그때도 하지 않는다 — '다음은 …'이라고 말하지 않게 뺀다.
+        try:
+            after = datetime.fromisoformat(item["next_after_skip_at"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if window_contains(quiet["start"], quiet["end"], after):
+            item.pop("next_after_skip_at", None)
+            item.pop("next_after_skip_day_label", None)
     return items
 
 

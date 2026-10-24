@@ -109,7 +109,7 @@ void main() {
   // 끊겨도 버튼판이 눌리는 판으로 보였고, 누른 뒤에야 '누름 장치와 연결되지 않았어요' 알림이 떴다. 홈 타일 '!'와
   // 같은 근거(본체 목록의 같은 id 판정)로 미리 막는다.
   testWidgets('본체 목록이 누름 장치 끊김을 말하면 저장된 가전이어도 버튼판을 막고 이유를 적는다', (tester) async {
-    const reason = '누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.';
+    const reason = '누름 장치와 연결되지 않았어요. 누름 장치 전원과 연결을 확인해 주세요.';
     var executed = 0;
     final api = RpiApiService(
       'http://rpi5.local:8000',

@@ -110,6 +110,14 @@ def _day_label(when: datetime, now: datetime) -> str:
     return f"{_WEEKDAYS[when.weekday()]}요일"
 
 
+def _after_skip_day_label(when: datetime, now: datetime) -> str:
+    """건너뛴 회차 다음 회차의 날짜 말. 매주 루틴은 7일 뒤일 수 있다 — 오늘과 같은 요일 이름만으로는 오늘로 읽혀
+    '다음 주 ○요일'로 가른다."""
+    if (when.date() - now.date()).days >= 7:
+        return f"다음 주 {_WEEKDAYS[when.weekday()]}요일"
+    return _day_label(when, now)
+
+
 class RoutineEngine:
     def __init__(self, store, suggestions, service, clock, *, care_events=None,
                  presence_machine=None, environment_reader=None, runner=None,
@@ -516,13 +524,21 @@ class RoutineEngine:
                 auto = False
             day = _day_label(when, now)  # 오늘·내일·○요일 — 모두 받침이 있어 '은'
             skipped = _same_instant(_parse_at(skips.get(routine.routine_id)), when)
-            upcoming.append({"routine_id": routine.routine_id, "name": routine.name,
-                             "icon": routine.icon, "at": when.isoformat(),
-                             "when": routine.trigger.describe(), "mode": routine.mode,
-                             "mode_label": "자동 실행" if auto else MODE_LABELS[routine.mode],
-                             "auto": auto, "day_label": day,
-                             "skipped": skipped, "skip_label": f"{day}은 건너뛰어요" if skipped else None,
-                             "skip_action_label": f"{day}은 건너뛰기"})
+            item = {"routine_id": routine.routine_id, "name": routine.name,
+                    "icon": routine.icon, "at": when.isoformat(),
+                    "when": routine.trigger.describe(), "mode": routine.mode,
+                    "mode_label": "자동 실행" if auto else MODE_LABELS[routine.mode],
+                    "auto": auto, "day_label": day,
+                    "skipped": skipped, "skip_label": f"{day}은 건너뛰어요" if skipped else None,
+                    "skip_action_label": f"{day}은 건너뛰기"}
+            if skipped:
+                # 건너뛴 회차 다음 회차(2026-10-24 사용자 평가 — '오늘은 건너뛰어요'만으로는 언제 다시 하는지 몰랐다).
+                # 같은 회차 규칙(_next_occurrence)으로 셈한다. 건너뛴 회차에만 붙는 선택 필드 — 옛 클라이언트는 무시한다.
+                after = self._next_occurrence(routine, when)
+                if after is not None:
+                    item["next_after_skip_at"] = after.isoformat()
+                    item["next_after_skip_day_label"] = _after_skip_day_label(after, now)
+            upcoming.append(item)
         upcoming.sort(key=lambda item: item["at"])
         return upcoming[:limit]
 

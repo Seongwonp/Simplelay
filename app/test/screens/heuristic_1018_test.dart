@@ -386,7 +386,7 @@ void main() {
     // 첫 사용 평가(10/24): 누름 장치(RPi4)가 끊겨 본체가 거절할 루틴인데 시트는 '다음 화면에서 한 번 더 보고 허락하면
     // 시작해요'와 '지금 하기'를 주 단추로 내걸었다. 승인 화면과 같은 판정·같은 이유로 미리 말하고 닫기만 둔다.
     testWidgets('본체가 지금은 실행할 수 없다는 가전의 루틴 — 이유를 말하고 지금 하기를 내걸지 않는다', (tester) async {
-      const reason = '누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.';
+      const reason = '누름 장치와 연결되지 않았어요. 누름 장치 전원과 연결을 확인해 주세요.';
       _raw = [
         _custom('mw', '전자레인지', 'microwave', readiness: 'disconnected', canExecute: false, reasons: const [reason]),
         _air, _pwash, _ind,

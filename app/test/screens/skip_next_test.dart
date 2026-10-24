@@ -376,6 +376,64 @@ void main() {
     semantics.dispose();
   });
 
+  // 2026-10-24 사용자 평가: '오늘은 건너뛰어요'만으로는 언제 다시 하는지 몰랐다 — 본체가 그다음 회차
+  // (`next_after_skip_at`·`next_after_skip_day_label`)를 주면 '다음은 내일 오후 10:00'. 옛 본체(값 없음)면 덧붙이지 않는다.
+  test('건너뛴 회차의 다음 회차 말 — 본체 벽시계 그대로, 값이 없으면 null', () {
+    Map<String, dynamic> base() => {
+          'routine_id': 'rt-1',
+          'name': '저녁',
+          'at': _at,
+          'when': '매일 22:00',
+          'mode_label': '승인 후 실행',
+          'skipped': true,
+          'skip_label': '오늘은 건너뛰어요',
+          'skip_action_label': '오늘은 건너뛰기',
+        };
+    final run = RoutineNextRun.fromJson({
+      ...base(),
+      'next_after_skip_at': '2026-10-19T22:00:00+09:00',
+      'next_after_skip_day_label': '내일',
+    });
+    expect(run.afterSkipText, '다음은 내일 오후 10:00');
+    expect(RoutineNextRun.fromJson(base()).afterSkipText, isNull);
+    // 날짜 말이 없거나 시각이 깨졌으면 지어내지 않는다.
+    expect(RoutineNextRun.fromJson({...base(), 'next_after_skip_at': '2026-10-19T22:00:00+09:00'}).afterSkipText,
+        isNull);
+    expect(RoutineNextRun.fromJson({...base(), 'next_after_skip_at': 'x', 'next_after_skip_day_label': '내일'})
+        .afterSkipText, isNull);
+    // 건너뛰지 않은 회차에는 붙이지 않는다.
+    expect(
+        RoutineNextRun.fromJson({
+          ...base(),
+          'skipped': false,
+          'next_after_skip_at': '2026-10-19T22:00:00+09:00',
+          'next_after_skip_day_label': '내일',
+        }).afterSkipText,
+        isNull);
+  });
+
+  testWidgets("루틴 탭: 건너뛴 줄에 '다음은 내일 오후 10:00', 옛 본체면 없다", (tester) async {
+    _size(tester, width: 390);
+    final hub = _Hub()
+      ..skipped = true
+      ..nextExtra = {'next_after_skip_at': '2026-10-19T22:00:00+09:00', 'next_after_skip_day_label': '내일'};
+    await tester.pumpWidget(_app(hub, '/routines'));
+    await _settle(tester);
+    final after = find.byKey(const Key('routine-after-skip-rt-1'));
+    expect(after, findsOneWidget);
+    expect(tester.widget<Text>(after).data, '다음은 내일 오후 10:00');
+    expect(find.descendant(of: find.byKey(const Key('routine-skip-line-rt-1')), matching: after), findsOneWidget);
+  });
+
+  testWidgets("루틴 탭: 옛 본체(다음 회차 값 없음)면 '다음은 …'을 덧붙이지 않는다", (tester) async {
+    _size(tester, width: 390);
+    final old = _Hub()..skipped = true;
+    await tester.pumpWidget(_app(old, '/routines'));
+    await _settle(tester);
+    expect(find.byKey(const Key('routine-after-skip-rt-1')), findsNothing);
+    expect(find.textContaining('다음은'), findsNothing);
+  });
+
   for (final initial in ['/', '/routines']) {
     testWidgets('큰 글씨(200%)에서도 넘치지 않는다 — $initial', (tester) async {
       _size(tester, width: 360);

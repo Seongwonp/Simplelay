@@ -290,7 +290,7 @@ void main() {
   // 첫 사용 평가(10/24): 누름 장치(RPi4)가 끊겨 본체가 실행을 거절하는데 버튼판은 눌리는 판과 똑같이 보였다 —
   // 눌러 본 뒤에야 알림 줄로 알았다. 화면 자체에 이유 한 줄을 두고, 판은 흐리게·낭독은 '지금은 쓸 수 없어요'.
   testWidgets('누름 장치 연결이 끊기면 버튼판을 흐리게 하고 이유를 화면에 적는다', (tester) async {
-    const reason = '누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.';
+    const reason = '누름 장치와 연결되지 않았어요. 누름 장치 전원과 연결을 확인해 주세요.';
     final server = _Server();
     _tall(tester);
     await tester.pumpWidget(_build(server,
