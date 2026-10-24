@@ -6,6 +6,7 @@ import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'appliance_art.dart';
 import 'appliance_strip.dart' show KioskTileIssue, KioskTileMark;
+import 'idle_top.dart' show kProblemHelpShort;
 import 'kiosk_text.dart';
 
 /// 처음 화면 '무엇을 할까요?' 카드(시안 B 10/24, 폰 홈의 첫 저장 동작 카드와 같은 자리) — 저장된 동작(루틴) 하나.
@@ -20,6 +21,7 @@ class KioskFeaturedAction extends StatelessWidget {
     required this.sizeLabel,
     required this.onRun,
     this.blockedReason,
+    this.onHelp,
   });
 
   final KioskRoutine routine;
@@ -27,9 +29,13 @@ class KioskFeaturedAction extends StatelessWidget {
   final String sizeLabel;
   final VoidCallback onRun;
 
-  /// 지금은 할 수 없는 동작의 이유 한 줄(가전 줄 '!'와 같은 말, [pick]의 셋째 값). 있으면 '실행하기'를 흐리게 그리고, 눌러도
-  /// [onRun]을 부르지 않는다(첫 사용 평가 10/24).
+  /// 지금은 할 수 없는 동작의 이유 한 줄(가전 줄 '!'와 같은 말, [pick]의 셋째 값). 있으면 '실행하기' 대신
+  /// '해결 방법 보기'를 그리고, 눌러도 [onRun]을 부르지 않는다(첫 사용 평가 10/24) — [onHelp]만 부른다.
   final String? blockedReason;
+
+  /// 막혔을 때 '해결 방법 보기'가 여는 안내(가전 줄 '!'를 눌렀을 때와 같은 창 — 누름 장치 끊김이면 그 연결 창). 서버를
+  /// 부르지 않는다(첫 사용 평가 2차 10/24: 흐린 '실행하기'도 눌리는 모양이었다). 없으면 막힌 카드는 눌리지 않는다.
+  final VoidCallback? onHelp;
 
   /// 머리말 + 카드 높이(처음 화면 오른쪽 칸 높이 재기에 쓴다). 글자 배율이 큰 화면에서는 처음 화면이 이 카드를 두지 않는다.
   static const double cardHeight = 96;
@@ -90,8 +96,10 @@ class KioskFeaturedAction extends StatelessWidget {
         const SizedBox(height: headGap),
         Semantics(
           button: true,
-          enabled: blocked == null,
-          label: blocked == null ? '${routine.name}, $spoken, 실행하기' : '${routine.name}, $spoken, 실행하기, $blocked',
+          enabled: blocked == null || onHelp != null,
+          label: blocked == null
+              ? '${routine.name}, $spoken, 실행하기'
+              : '${routine.name}, $spoken, 지금은 쓸 수 없어요, $blocked, $kProblemHelpShort',
           excludeSemantics: true,
           child: Material(
             color: KioskColors.surface,
@@ -102,7 +110,7 @@ class KioskFeaturedAction extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               key: const ValueKey('idle-featured-run'),
-              onTap: blocked == null ? onRun : null,
+              onTap: blocked == null ? onRun : onHelp,
               child: SizedBox(
                 height: cardHeight,
                 child: Padding(
@@ -131,22 +139,34 @@ class KioskFeaturedAction extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: KioskSpace.xs),
-                    // 주 행동 모양(청록 면) — 누르면 확인 카드가 먼저 뜬다.
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md, vertical: KioskSpace.sm),
-                      // 할 수 없으면 채운 면 대신 옅은 테두리·흐린 글자(눌리는 모양이 아니다).
-                      decoration: BoxDecoration(
-                          color: blocked == null ? KioskColors.primary : Colors.transparent,
-                          border: blocked == null ? null : Border.all(color: KioskColors.border),
-                          borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
-                      child: Text('실행하기',
-                          maxLines: 1,
-                          softWrap: false,
-                          style: TextStyle(
-                              fontSize: KioskType.body,
-                              fontWeight: FontWeight.w700,
-                              color: blocked == null ? KioskColors.onAccent : KioskColors.muted)),
-                    ),
+                    // 주 행동 모양(청록 면) — 누르면 확인 카드가 먼저 뜬다. 할 수 없으면 실행 단추 대신 위 안내 띠와 같은
+                    // '해결 방법 보기 ›'(테두리 글자 단추 꼴, 첫 사용 평가 2차 10/24 — 흐린 '실행하기'도 눌리는 모양이었다).
+                    if (blocked == null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md, vertical: KioskSpace.sm),
+                        decoration: BoxDecoration(
+                            color: KioskColors.primary, borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
+                        child: Text('실행하기',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                                fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.onAccent)),
+                      )
+                    else if (onHelp != null)
+                      Container(
+                        padding: const EdgeInsets.only(left: KioskSpace.sm, right: KioskSpace.xs, top: 6, bottom: 6),
+                        decoration: BoxDecoration(
+                            border: Border.all(color: KioskColors.border),
+                            borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text(kProblemHelpShort,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: TextStyle(
+                                  fontSize: KioskType.caption, fontWeight: FontWeight.w700, color: KioskColors.ink)),
+                          Icon(Icons.chevron_right, size: 22, color: KioskColors.muted),
+                        ]),
+                      ),
                   ]),
                 ),
               ),

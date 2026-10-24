@@ -218,7 +218,8 @@ class KioskHoldView extends StatelessWidget {
                 appliance: appliance,
                 current: _mock ? null : pressCell,
                 caution: !_mock,
-                caption: _mock ? kPracticePanelCaption : '실제 가전에서 눌러 주세요',
+                handPress: !_mock,
+                caption: _mock ? kPracticePanelCaption : kHandPressCaption,
                 captionKey: const ValueKey('hold-estop-panel-caption'),
               ),
         band: _band,
@@ -417,7 +418,8 @@ class KioskHoldView extends StatelessWidget {
               appliance: a,
               current: pressCell,
               caution: true,
-              caption: '실제 가전에서 눌러 주세요',
+              handPress: true,
+              caption: kHandPressCaption,
               captionKey: const ValueKey('panel-caption'),
             )
           : KioskPanelPicture(

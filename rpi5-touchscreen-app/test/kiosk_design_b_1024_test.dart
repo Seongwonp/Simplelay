@@ -14,6 +14,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/appliance_art.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart' show kTileUnusablePress;
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/help_guide.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
@@ -167,10 +168,37 @@ void main() {
       expect(card, findsOneWidget);
       // 화면에는 짧게(이유는 위 안내 띠), 읽을 때는 이유까지.
       expect(find.descendant(of: card, matching: find.text('지금은 쓸 수 없어요')), findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp('실행하기.*$kTileUnusablePress')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('지금은 쓸 수 없어요.*$kTileUnusablePress')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('idle-featured-run')), warnIfMissed: false);
       await tester.pump();
       expect(tapped, isEmpty);
+    });
+
+    // 첫 사용 평가 2차(10/24): 흐린 테두리 '실행하기'도 눌리는 모양이었다 — 막히면 '해결 방법 보기'로 바꾸고, 누르면 가전 줄
+    // '!'·위 안내 띠와 같은 연결 창을 연다. 서버(루틴) 콜백은 부르지 않는다.
+    testWidgets("막힌 카드는 '실행하기' 대신 '해결 방법 보기' — 누르면 같은 연결 창, 루틴은 부르지 않는다", (tester) async {
+      final tapped = <String>[];
+      final opened = <String>[];
+      await _pumpView(
+          tester,
+          KioskIdleView(
+            now: DateTime(2026, 10, 24, 15, 12),
+            connected: true,
+            appliances: const [kMicrowaveAppliance],
+            connections: const [ConnectionItem(id: 'press', state: 'error', title: '누름 장치', message: '연결되지 않았어요')],
+            onSelectAppliance: (_) {},
+            onOpenConnection: (c) => opened.add(c.id),
+            onDndGesture: () {},
+            routines: const [_morning],
+            onRoutine: (r) => tapped.add(r.id),
+          ));
+      final card = find.byKey(const ValueKey('idle-featured'));
+      expect(find.descendant(of: card, matching: find.text('실행하기')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('해결 방법 보기')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('idle-featured-run')));
+      await tester.pump();
+      expect(tapped, isEmpty);
+      expect(opened, ['press']);
     });
 
     testWidgets('큰 글씨에서는 카드를 두지 않는다(시계·다음 루틴 자리)', (tester) async {
@@ -203,6 +231,13 @@ void main() {
       expect(api.executeCalls, 0);
       await tester.pumpWidget(const SizedBox.shrink());
     });
+  });
+
+  // 첫 사용 평가 2차(10/24): 키오스크에는 기록·자동 실행 끄기가 없다(설계) — 어디서 하는지 사용 방법이 말한다.
+  test("사용 방법: '기록 보기·자동 실행 끄기는 휴대폰 앱에서' 안내가 있다", () {
+    expect(
+        kHelpPages.any((p) => p.body.contains('기록 보기') && p.body.contains('자동 실행 끄기') && p.body.contains('휴대폰 앱')),
+        isTrue);
   });
 
   group('내 가전 — 저장된 동작 먼저', () {

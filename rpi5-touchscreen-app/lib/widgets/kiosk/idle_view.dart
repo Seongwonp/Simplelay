@@ -251,6 +251,22 @@ class KioskIdleView extends StatelessWidget {
     // 띠 높이는 폭에 따라 다르다(둘째 줄이 한 줄 또는 두 줄) — 바깥 칸의 폭으로 잰다.
     double problemExtraFor(double width) =>
         connProblem && !barInRight ? KioskIdleProblemBar.heightFor(context, also: alsoText, width: width) + KioskSpace.xs : 0.0;
+    // 가전 타일 누름 — 못 쓰는 가전은 조작판 대신 이유를 연다(비상 버튼이면 풀기 안내, 누름 장치 끊김이면 그 연결 창).
+    // 막힌 '무엇을 할까요?' 카드의 '해결 방법 보기'도 같은 길이다(첫 사용 평가 2차 10/24).
+    void selectTile(ApplianceMap a) {
+      if (unavailable.contains(a.id)) {
+        if (estop) {
+          onEstopGuide?.call();
+          return;
+        }
+        if (pressItem != null) {
+          onOpenConnection(pressItem);
+          return;
+        }
+      }
+      onSelectAppliance(a);
+    }
+
     Widget statusChip(_IdleSheets sheets, {bool vertical = false}) => KioskIdleStatusChip(
           vertical: vertical,
           items: connections,
@@ -472,6 +488,7 @@ class KioskIdleView extends StatelessWidget {
                         sizeLabel: featured.$1.sizeLabelWith({for (final a in list!) a.id: a.displayName}),
                         blockedReason: featured.$3,
                         onRun: () => onRoutine!(featured.$1),
+                        onHelp: () => selectTile(featured.$2),
                       ),
                       if (tip != null) const SizedBox(height: _Idle.hoursGap),
                     ],
@@ -509,19 +526,7 @@ class KioskIdleView extends StatelessWidget {
                       // 비상 버튼이면 띠가 빨강, 누름 장치 끊김이면 회색(평가 6차 10/18).
                       unavailableByEstop: estop,
                       // 못 쓰는 가전은 조작판 대신 이유를 연다 — 비상 버튼이면 풀기 안내, 누름 장치 끊김이면 그 연결 창.
-                      onSelect: (a) {
-                        if (unavailable.contains(a.id)) {
-                          if (estop) {
-                            onEstopGuide?.call();
-                            return;
-                          }
-                          if (pressItem != null) {
-                            onOpenConnection(pressItem);
-                            return;
-                          }
-                        }
-                        onSelectAppliance(a);
-                      },
+                      onSelect: selectTile,
                       perPage: perPage,
                       reservePager: pager,
                       compactPager: compactPager,

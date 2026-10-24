@@ -9,6 +9,9 @@ import 'kiosk_text.dart';
 /// 있으면 그림이 없거나(버튼판 없음) 큰 글씨로 줄인 모양에서도 같은 자리에 남긴다(휴리스틱 평가 10/18).
 const kScreenNoPress = '화면은 누르지 않아도 돼요';
 
+/// 사람이 실제 가전을 손으로 누를 때 버튼판 머리말([KioskPanelPicture.handPress], 첫 사용 평가 2차 10/24).
+const kHandPressCaption = '실제 가전의 버튼 위치';
+
 /// 설명 그림(버튼판, §1-6) — **제안·실행·정지 대기·결과** 화면이 같은 자리(오른쪽)에 같은 모양으로 그린다
 /// (화면 구조 개편 10/18 — 이 제품만의 그림을 중심에). 누를 곳 → 누르는 곳 → 누른 곳.
 ///
@@ -30,6 +33,7 @@ class KioskPanelPicture extends StatelessWidget {
     this.compact = false,
     this.order = const {},
     this.pressed = const {},
+    this.handPress = false,
   });
 
   /// 오른쪽 그림 칸 폭 — 실행 계열 화면의 정지 단추 폭과 같다(같은 자리·같은 폭).
@@ -50,6 +54,7 @@ class KioskPanelPicture extends StatelessWidget {
         compact: true,
         order: order,
         pressed: pressed,
+        handPress: handPress,
       );
 
   /// 대상 가전. 모르거나 버튼판이 없으면 '버튼판 그림이 없어요'.
@@ -72,6 +77,11 @@ class KioskPanelPicture extends StatelessWidget {
 
   /// 결과 — 버튼 id → 누름 장치가 눌렀다고 알려 왔는가(true) / 모름(false).
   final Map<String, bool> pressed;
+
+  /// 사람이 **실제 가전**을 손으로 눌러야 하는 때(정지 미확인·비상 버튼 대기) — 화면 단추로 보이지 않게 그린다(첫 사용 평가
+  /// 2차 10/24: '취소 버튼을 손으로 눌러 주세요' 옆 채운 '취소' 칸이 화면에서 누르는 단추처럼 보였다). 칸은 채우지 않고 가전
+  /// 앞면 테두리 하나 안에 글자만, [current]는 채움 대신 주의색 테두리 표시만.
+  final bool handPress;
 
   /// 이 버튼판에서 이름이 **정확히 한 번** 나오는 버튼. 없거나 둘 이상이면 null — 틀린 자리를 가리키지 않는다.
   static ApplianceButton? uniqueButton(ApplianceMap? a, String label) {
@@ -174,7 +184,18 @@ class KioskPanelPicture extends StatelessWidget {
                           ),
                           const SizedBox(height: KioskSpace.xs),
                         ],
-                        Expanded(child: _grid(a!)),
+                        Expanded(
+                            child: handPress
+                                // 가전 앞면처럼 테두리 하나 — 칸마다 면을 두지 않는다.
+                                ? DecoratedBox(
+                                    key: const ValueKey('panel-face'),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: KioskColors.border, width: 2),
+                                    ),
+                                    child: Padding(padding: const EdgeInsets.all(4), child: _grid(a!)),
+                                  )
+                                : _grid(a!)),
                       ],
                     );
                   }),
@@ -270,6 +291,32 @@ class KioskPanelPicture extends StatelessWidget {
     final Color edge = mark == false ? KioskColors.warning : KioskColors.ink;
     // 기다리는 칸 — 채우지 않고 흰 테(굵게)만.
     final rest = on && resting && !caution;
+    if (handPress) {
+      // 실제 가전 그림 — 칸은 글자만, 누를 칸은 주의색 테두리(채우지 않는다).
+      return DecoratedBox(
+        key: on ? const ValueKey('panel-current') : null,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: on ? Border.all(color: KioskColors.warning, width: 3) : null,
+        ),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                button.label,
+                style: TextStyle(
+                  fontSize: KioskType.caption,
+                  fontWeight: on ? FontWeight.w800 : FontWeight.w500,
+                  color: on ? KioskColors.warning : KioskColors.panelText,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final cell = DecoratedBox(
       key: on ? const ValueKey('panel-current') : null,
       decoration: BoxDecoration(

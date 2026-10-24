@@ -3,7 +3,7 @@
 // 1. 결과 화면의 정지 — '멈추는 중이에요'(진행 중 말)를 끝난 화면에 쓰지 않는다. 결과는 '누름 장치가 멈췄어요'(엔코더 확인,
 //    verified) 또는 '누름 장치가 멈췄는지 확인하지 못했어요'(그 밖) 둘뿐. 정지 확인을 아직 기다리는 동안(stopPending)만 진행 상태로
 //    '멈추는 중이에요'를 보이고 처음 화면 단추를 숨긴다.
-// 2. 정지 미확인 대기 — 오른쪽 버튼판은 '실제 가전에서 눌러 주세요' + 취소 칸 주의색. '누름 장치가 … 대신 눌렀어요' 대신
+// 2. 정지 미확인 대기 — 오른쪽 버튼판은 '실제 가전의 버튼 위치'(10/24부터) + 취소 칸 주의색. '누름 장치가 … 대신 눌렀어요' 대신
 //    '누름 장치도 … 눌렀지만 눌렸는지 확인이 안 됐어요'.
 // 3. 결과 화면 보조 단추 — '화면에서 직접 누르기'는 손으로 가전을 누르라는 말과 헷갈렸다 → '누름 장치로 골라 누르기'.
 // 4. 문구 통일 — 잠시 쉬기 설명 하나(새 제안과 자동으로 하는 일), 실행 화면 누를 순서에 머리말·끝낸 칸 이름 자리,
@@ -72,7 +72,7 @@ void main() {
     final all = _texts(tester).join('\n');
     expect(all, contains('연습 중이라 실제 가전은 조작하지 않았어요'));
     expect(all, isNot(contains('취소 버튼을 손으로 눌러 주세요')));
-    expect(all, isNot(contains('실제 가전에서 눌러 주세요')));
+    expect(all, isNot(contains('실제 가전의 버튼 위치')));
     expect(tester.widget<ElevatedButton>(find.byKey(const ValueKey('hold-stop'))).onPressed, isNull);
     expect(tester.takeException(), isNull);
   });
@@ -103,7 +103,7 @@ void main() {
       onStop: () => stops++,
       onClose: _noop,
     ));
-    expect(_texts(tester).join('\n'), contains('실제 가전에서 눌러 주세요'));
+    expect(_texts(tester).join('\n'), contains('실제 가전의 버튼 위치'));
     final picture = find.byKey(const ValueKey('panel-picture'));
     expect(find.descendant(of: picture, matching: find.byType(InkWell)), findsNothing);
     await tester.tap(find.byKey(const ValueKey('hold-stop')));
@@ -169,7 +169,7 @@ void main() {
           ));
       final all = _texts(tester).join('\n');
       expect(all, contains('지금 전자레인지 취소 버튼을 손으로 눌러 주세요'));
-      expect(all, contains('실제 가전에서 눌러 주세요'));
+      expect(all, contains('실제 가전의 버튼 위치'));
       expect(all, isNot(contains(kPanelCaption)));
       expect(all, isNot(contains('대신 눌렀어요')));
       expect(all, contains('취소 버튼이 눌렸는지 확인하지 못했어요'));
@@ -179,6 +179,42 @@ void main() {
       expect(find.byKey(const ValueKey('panel-current')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    // 첫 사용 평가 2차(10/24): '취소 버튼을 손으로 눌러 주세요' 옆 버튼판의 채운 '취소' 칸이 화면 단추처럼 보였다 — 실제 가전
+    // 그림으로: 머리말 '실제 가전의 버튼 위치', 칸은 채우지 않고 누를 칸은 테두리 표시만, 화면 읽기에는 단추로 나오지 않는다.
+    for (final estop in [false, true]) {
+      testWidgets('${estop ? '비상 버튼' : '정지 미확인'}: 버튼판은 실제 가전 그림 — 채운 단추 칸 없음, 단추로 읽히지 않음',
+          (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pump(
+            tester,
+            KioskHoldView(
+              appliance: kMicrowaveAppliance,
+              holdState: 'parked',
+              stopOutcome: estop ? null : 'requested_unconfirmed',
+              estopTitle: estop ? '비상 버튼이 눌려 있어요' : null,
+              stopButton: '취소',
+              executionMode: 'real',
+              elapsed: const Duration(minutes: 1),
+              onStop: _noop,
+              onClose: _noop,
+            ));
+        final all = _texts(tester).join('\n');
+        expect(all, contains('실제 가전의 버튼 위치'));
+        final boxes = tester.widgetList<DecoratedBox>(
+            find.descendant(of: find.byKey(const ValueKey('panel-face')), matching: find.byType(DecoratedBox)));
+        expect(boxes, isNotEmpty);
+        for (final b in boxes) {
+          final d = b.decoration as BoxDecoration;
+          expect(d.color == null || d.color == Colors.transparent, isTrue, reason: '칸을 채우지 않는다(단추 모양 아님)');
+        }
+        final mark = tester.widget<DecoratedBox>(find.byKey(const ValueKey('panel-current')));
+        expect((mark.decoration as BoxDecoration).border, isNotNull, reason: '누를 칸은 테두리 표시');
+        expect(find.bySemanticsLabel('취소'), findsNothing);
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      });
+    }
   });
 
   group('3. 결과 화면 보조 단추 — 누름 장치가 누른다는 말', () {
