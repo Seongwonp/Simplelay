@@ -126,13 +126,14 @@ class KioskFeaturedAction extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // 막힌 카드는 단추가 넓어(해결 방법 보기) 글 자리가 좁다 — 제목 한 줄, '지금은 쓸 수 없어요'는 두 줄까지(실패널 10/24).
                           Text(routine.name,
-                              maxLines: 2,
+                              maxLines: blocked == null ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: KioskType.body, height: 1.2, fontWeight: FontWeight.w700, color: KioskColors.ink)),
                           KioskText(sub,
-                              maxLines: 1,
+                              maxLines: blocked == null ? 1 : 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: KioskType.caption,
