@@ -19,7 +19,12 @@ class _RoutineRow extends StatelessWidget {
     this.switchOn = false,
     this.switchLabel = '',
     this.toggling = false,
+    this.blocked = false,
   });
+
+  /// 본체가 대상 가전을 지금은 실행할 수 없다고 한 루틴(홈 카드와 같은 판정 [routineRunPlan], 첫 사용 평가 3차 10/24) —
+  /// '지금 하기' 옆에 '지금은 쓸 수 없어요', 단추는 흐리게. 눌러도 바로 하지 않는다 — 확인 시트가 막힌 이유를 말한다.
+  final bool blocked;
 
   /// 정해진 시각 루틴의 켜기·끄기(보호자 과업 평가 10/18). null이면 스위치를 두지 않는다.
   final ValueChanged<bool>? onToggle;
@@ -27,7 +32,7 @@ class _RoutineRow extends StatelessWidget {
   /// 스위치의 지금 값 — 자동 규칙이 붙었으면 그 규칙의 켜짐, 아니면 루틴 켜짐.
   final bool switchOn;
 
-  /// 스위치를 읽는 이름('○○ 자동으로 하기' / '○○ 루틴 켜기').
+  /// 스위치를 읽는 이름('○○ 자동 실행 허용' / '○○ 루틴 켜기') — 두 화면이 같은 이름(첫 사용 평가 3차 10/24).
   final String switchLabel;
 
   /// 바꾸는 중 — 두 번 누르지 않게 잠근다.
@@ -235,7 +240,7 @@ class _RoutineRow extends StatelessWidget {
           )
         : run != null
             ? Semantics(
-                label: '${r.name} 지금 하기',
+                label: blocked ? '${r.name} 지금 하기, 지금은 쓸 수 없어요' : '${r.name} 지금 하기',
                 button: true,
                 enabled: !busy,
                 excludeSemantics: true,
@@ -244,14 +249,19 @@ class _RoutineRow extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(kMinTouch, kMinTouch),
                     padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                    side: blocked ? BorderSide(color: context.appBorderFaint) : null,
                   ),
                   onPressed: busy ? null : run,
                   icon: running
                       ? const SizedBox(
                           width: AppSpace.lg, height: AppSpace.lg, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Icon(Icons.play_arrow_rounded, size: AppSpace.xl, color: context.appInk),
+                      : Icon(Icons.play_arrow_rounded,
+                          size: AppSpace.xl, color: blocked ? context.appMuted : context.appInk),
                   label: Text(keepWordsTogether('지금 하기'),
-                      style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appInk)),
+                      style: TextStyle(
+                          fontSize: AppFont.caption,
+                          fontWeight: FontWeight.w700,
+                          color: blocked ? context.appMuted : context.appInk)),
                 ),
               )
             : null;
@@ -294,6 +304,13 @@ class _RoutineRow extends StatelessWidget {
     );
     final actions = [
       if (action != null) action,
+      // 홈 카드와 같은 말·색(첫 사용 평가 3차 10/24). 낭독은 단추 이름이 말한다.
+      if (blocked && run != null && setup == null)
+        ExcludeSemantics(
+          child: Text('지금은 쓸 수 없어요',
+              key: Key('routine-blocked-$key'),
+              style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appWarning)),
+        ),
       if (!inline && switchWidget != null) switchWidget,
     ];
     return Padding(

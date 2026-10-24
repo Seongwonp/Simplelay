@@ -60,10 +60,13 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
         _error = null;
       });
 
-  /// 실행 방식 아래 한 줄 설명.
-  String get _modeNote => _draft.mode == RoutineMode.approve
-      ? '때가 되면 카드로 물어보고, 허락하면 눌러요.'
-      : '알림만 보내요. 가전은 그대로예요.';
+  /// 이 루틴이 지금 묻지 않고 하는(자동 실행을 허용한) 루틴인가 — 본체 /routines/next의 auto.
+  bool get _auto =>
+      _draft.id != null &&
+      (ref.watch(autoRoutineIdsProvider).valueOrNull ?? const <String>{}).contains(_draft.id);
+
+  /// 실행 방식 아래 한 줄 설명([routineModeNote]).
+  String get _modeNote => routineModeNote(_draft, auto: _auto);
 
   static const _autoNote = '처음 물어볼 때 "다음부터도 자동으로"를 고르면 그다음부터는 묻지 않고 해요.';
 
@@ -213,6 +216,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           // 묻지 않고 하게 하는 길(첫 사용자 검토 10/19) — 실행 방식에는 없고 카드에서 고른다. 본체가 자동 규칙으로 받는
           // 모양(시각·물어보고 하기·조건 없음·LG 가전 한 단계, 서버 `_routine_shape_issue`)일 때만 말한다.
           if (_draft.mode == RoutineMode.approve &&
+              !_auto &&
               _draft.trigger.kind == RoutineTriggerKind.time &&
               _draft.conditions.isEmpty &&
               _draft.steps.length == 1 &&
@@ -230,11 +234,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
             contentPadding: EdgeInsets.zero,
             title: const Text('루틴 켜기'),
             // 루틴 종류에 맞는 말(보호자 과업 평가 10/18: 묻지 않고 하는 자동 루틴에도 '묻지 않아요'라고 했다).
-            subtitle: Text(routineEnableNote(
-              _draft,
-              auto: _draft.id != null &&
-                  (ref.watch(autoRoutineIdsProvider).valueOrNull ?? const <String>{}).contains(_draft.id),
-            )),
+            subtitle: Text(routineEnableNote(_draft, auto: _auto)),
             value: _draft.enabled,
             onChanged: (v) => _update(_draft.copyWith(enabled: v)),
           ),
@@ -629,6 +629,16 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
 
   void _snack(String text) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(text)));
+}
+
+/// 실행 방식('물어보고 하기'·'알림만') 아래 한 줄(첫 사용 평가 3차 10/24).
+/// - 자동 실행을 허용한 루틴([auto], 본체 /routines/next) — 묻지 않고 한다(목록의 '자동' 표지와 같은 사실).
+/// - 누르는 단계가 있으면 '허락하면 눌러요', 없으면(LG 가전·알림) '허락하면 해요' — 공기청정기는 누르지 않는다.
+String routineModeNote(Routine r, {required bool auto}) {
+  if (r.mode != RoutineMode.approve) return '알림만 보내요. 가전은 그대로예요.';
+  if (auto) return '자동 실행 허용이 켜져 있어 때가 되면 묻지 않고 해요.';
+  final presses = r.steps.any((s) => s.kind == RoutineStepKind.pressSequence);
+  return presses ? '때가 되면 카드로 물어보고, 허락하면 눌러요.' : '때가 되면 카드로 물어보고, 허락하면 해요.';
 }
 
 /// '루틴 켜기' 스위치 설명 — 끄면 무엇이 안 되는지 루틴 종류대로. 자동(묻지 않고 하는) 루틴은 '하지 않아요',

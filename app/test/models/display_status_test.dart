@@ -472,6 +472,41 @@ void main() {
       expect(notice, contains('누름 장치가 연결되지 않았어요'));
     });
 
+    // 첫 사용 평가 3차(10/24): 실제 본체는 끊김을 `disconnected`가 아니라 `needs_setup` + 연결 끊김 이유로 준다
+    // (실제 `GET /appliances` 모양 그대로). 그때도 인덕션이 '다른 가전 위에 있어요'라고 하면 안 된다.
+    test('실제 본체 모양 — needs_setup + 누름 장치 연결 끊김 이유면 위치 대신 끊김', () {
+      final mw = ApplianceMap.fromJson({
+        'id': 'microwave',
+        'name': '전자레인지',
+        'rows': 4,
+        'cols': 3,
+        'buttons': const [],
+        'is_custom': false,
+        'control_path': 'physical',
+        'can_execute': false,
+        'readiness': 'needs_setup',
+        'readiness_reasons': ['누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.'],
+      });
+      final ind = builtin('induction', reasons: ['누름 장치가 이 가전 위에 없어서 누를 수 없어요']);
+      final hosts = pressDeviceHosts([mw, ind]);
+      expect(hosts!.map((a) => a.id), ['microwave']);
+      expect(pressDeviceDisconnected(hosts), isTrue);
+      expect(tileReasonText(absent, pressHosts: hosts), '누름 장치가 연결되지 않았어요');
+      final t = applianceTileStatus(
+        appliance: _plain,
+        readinessSource: ind,
+        hub: RpiConnectionState.connected,
+        catalog: ServerCatalogStatus.loaded,
+        execution: const ExecutionStatus(),
+        pressHosts: hosts,
+      );
+      expect(t.detail, isNot(contains('다른 가전 위')));
+      expect(t.issue!.text, '지금은 쓸 수 없어요. 누름 장치가 연결되지 않았어요');
+      final notice = pressUnavailableNotice(ind, ind, pressHosts: hosts)!;
+      expect(notice, isNot(contains('위에 있어요')));
+      expect(notice, contains('누름 장치가 연결되지 않았어요'));
+    });
+
     test('기본 가전 모두가 위에 없다고 하면 어느 가전 위에도 없다', () {
       final hosts = pressDeviceHosts(
           [builtin('microwave', reasons: [absent]), builtin('induction', reasons: [absent])]);

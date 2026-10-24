@@ -44,7 +44,7 @@ extension _AutomaticActions on _RoutinesScreenState {
                       },
                       switchOn: routineAutoRule(r, allRules)?.enabled ?? r.enabled,
                       switchLabel: routineAutoRule(r, allRules) != null
-                          ? '${r.name} 자동 실행 허용' : '${r.name} 예약 켜기',
+                          ? '${r.name} 자동 실행 허용' : '${r.name} 루틴 켜기',
                       toggling: _togglingId == r.id,
                       next: next?.routineId == r.id ? next : null,
                       autoRule: routineAutoRule(r, allRules),

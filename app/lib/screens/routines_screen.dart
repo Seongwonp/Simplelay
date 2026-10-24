@@ -13,6 +13,7 @@ import '../providers/appliance_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
+import '../providers/server_appliance_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
@@ -22,6 +23,7 @@ import '../models/quiet_hours.dart';
 import '../theme/app_text.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_candidate_sheet.dart';
+import '../widgets/routine_confirm_sheet.dart' show routineRunPlan;
 import '../widgets/routine_icon.dart';
 import '../widgets/routine_run.dart';
 import '../widgets/row_menu.dart';
@@ -93,6 +95,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     final installed = ref.watch(installedAppliancesProvider);
     final names = {for (final a in installed) a.id: a.name};
     final icons = {for (final a in installed) a.id: a.category};
+    // 대상 가전을 지금은 쓸 수 없는 루틴 — 홈 카드·확인 시트와 같은 판정([routineRunPlan]).
+    final readinessOf = ref.watch(serverApplianceCatalogProvider).readinessFor;
+    bool blockedNow(Routine r) => routineRunPlan(r, installed, readinessOf: readinessOf).blocked != null;
     final executing = switch (ref.watch(executionStatusProvider).phase) {
       ExecutionPhase.waiting || ExecutionPhase.running || ExecutionPhase.retrying => true,
       _ => false,
@@ -258,10 +263,11 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                                   },
                             switchOn: routineAutoRule(r, rules)?.enabled ?? r.enabled,
                             switchLabel: routineAutoRule(r, rules) != null
-                                ? '${r.name} 자동으로 하기'
+                                ? '${r.name} 자동 실행 허용'
                                 : '${r.name} 루틴 켜기',
                             toggling: r.id != null && _togglingId == r.id,
                             running: r.id != null && _runningId == r.id,
+                            blocked: blockedNow(r),
                             next: next != null && r.id != null && next.routineId == r.id ? next : null,
                             auto: r.id != null && autoIds.contains(r.id),
                             autoRule: routineAutoRule(r, rules),
@@ -375,7 +381,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     try {
       final done = await setAutoRuleSwitch(context, api, rule, on);
       if (done && context.mounted) {
-        _say(context, on ? "'${r.name}' 자동으로 하기를 켰어요" : "'${r.name}' 자동으로 하기를 껐어요. 때가 되면 물어볼게요");
+        _say(context, on ? "'${r.name}' 자동 실행을 허용했어요" : "'${r.name}' 자동 실행 허용을 껐어요. 때가 되면 물어볼게요");
       }
     } on RpiApiException catch (e) {
       if (context.mounted) _say(context, e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 봐 주세요.');

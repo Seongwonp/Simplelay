@@ -743,4 +743,58 @@ void main() {
       expect(kPressedAllSentence, contains('집에서 봐 주세요'));
     });
   });
+
+  group('첫 사용 평가 3차(10/24)', () {
+    // 저장한 동작 목록: 대상 가전을 지금은 쓸 수 없는데 '지금 하기'가 멀쩡해 보였다 — 홈 카드와 같은 판정·표시.
+    testWidgets("쓸 수 없는 가전의 루틴 줄은 '지금은 쓸 수 없어요'와 흐린 '지금 하기'", (tester) async {
+      final saved = _raw;
+      _raw = [
+        _custom('mw', '전자레인지', 'microwave',
+            readiness: 'needs_setup',
+            canExecute: false,
+            reasons: const ['누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.']),
+        _air,
+        _pwash,
+        _ind,
+      ];
+      addTearDown(() => _raw = saved);
+      await _pump(tester, const RoutinesScreen());
+      expect(find.byKey(const Key('routine-blocked-r-mw')), findsOneWidget);
+      expect(find.bySemanticsLabel('30초 데우기 지금 하기, 지금은 쓸 수 없어요'), findsOneWidget);
+      // 쓸 수 있는 가전의 줄은 그대로.
+      expect(find.byKey(const Key('routine-blocked-r-air')), findsNothing);
+      expect(find.bySemanticsLabel('공기청정기 켜 두기 지금 하기'), findsOneWidget);
+    });
+
+    // 같은 스위치가 화면마다 '자동 실행 허용'·'자동으로 하기'·'예약 켜기'·'루틴 켜기'로 달랐다.
+    testWidgets("루틴 줄 스위치 이름 — 규칙은 '자동 실행 허용', 루틴 자체는 '루틴 켜기'(두 화면 같게)", (tester) async {
+      await _pump(tester, const RoutinesScreen());
+      expect(find.bySemanticsLabel(RegExp('저녁 공기청정기 켜기 자동 실행 허용')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('아침 공기청정기 끄기 루틴 켜기')), findsOneWidget);
+      await _pump(tester, const RoutinesScreen(automatic: true));
+      expect(find.bySemanticsLabel(RegExp('저녁 공기청정기 켜기 자동 실행 허용')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('아침 공기청정기 끄기 루틴 켜기')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('예약 켜기')), findsNothing);
+    });
+
+    // '물어보고 하기' 아래 '허락하면 눌러요' — 공기청정기(LG 가전)는 누르지 않는다. 자동 실행을 허용한 루틴은 묻지 않는다.
+    testWidgets("누르지 않는 루틴의 실행 방식 설명은 '허락하면 해요'", (tester) async {
+      await _pump(tester, RoutineEditorScreen(initial: Routine.fromJson(_routines[1])));
+      expect(findPlainText('때가 되면 카드로 물어보고, 허락하면 해요.'), findsOneWidget);
+      expect(findPlainText('눌러요', contains: true), findsNothing);
+    });
+
+    testWidgets('누르는 루틴은 그대로 허락하면 눌러요', (tester) async {
+      await _pump(tester, RoutineEditorScreen(initial: Routine.fromJson(_routines[0])));
+      expect(findPlainText('때가 되면 카드로 물어보고, 허락하면 눌러요.'), findsOneWidget);
+    });
+
+    testWidgets("자동 실행을 허용한 루틴은 '물어보고'라고 하지 않고 묻지 않고 한다고 말한다", (tester) async {
+      await _pump(tester, RoutineEditorScreen(initial: Routine.fromJson(_routines[3])));
+      final note = tester.widget<Text>(find.byKey(const Key('routine-mode-note')));
+      expect(note.semanticsLabel, isNot(contains('물어보고')));
+      expect(note.semanticsLabel, contains('묻지 않고'));
+      expect(note.semanticsLabel, contains('자동 실행 허용'));
+    });
+  });
 }

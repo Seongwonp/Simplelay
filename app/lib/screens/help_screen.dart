@@ -25,7 +25,7 @@ class HelpScreen extends StatelessWidget {
     (
       Icons.front_hand_outlined,
       '멈추는 방법',
-      '하는 중에는 화면 아래 실행 줄의 정지를 누르세요. 말로 "멈춰"라고 해도 되고, 본체 화면의 빨간 정지 버튼을 눌러도 돼요.',
+      '하는 중에는 화면 아래 실행 줄의 정지를 누르세요. 말로 “멈춰”라고 해도 되고, 본체 화면의 빨간 정지 버튼을 눌러도 돼요.',
     ),
     (
       Icons.science_outlined,

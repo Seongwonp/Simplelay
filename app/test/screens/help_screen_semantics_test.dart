@@ -23,4 +23,11 @@ void main() {
     }
     handle.dispose();
   });
+  // 첫 사용 평가 3차(10/24): 에뮬레이터 접근성 덤프에 '멈추는 방법'이 있었지만, 본문의 곧은 큰따옴표("멈춰") 때문에
+  // 그 줄만 content-desc='…'(작은따옴표)로 적혀 content-desc="…"로 찾는 도구가 놓쳤다. 안내 글에는 곧은 큰따옴표를 쓰지 않는다.
+  test('사용 방법 글에는 곧은 큰따옴표가 없다', () {
+    for (final (_, title, body) in HelpScreen.sections) {
+      expect(title.contains('"') || body.contains('"'), isFalse, reason: title);
+    }
+  });
 }

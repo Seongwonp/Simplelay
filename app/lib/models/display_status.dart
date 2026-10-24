@@ -150,10 +150,19 @@ List<ApplianceMap>? pressDeviceHosts(Iterable<ApplianceMap> serverBuiltins) {
   ];
 }
 
-/// 누름 장치가 끊겼다 — 누름 장치가 올라가 있는 가전([pressDeviceHosts])이 모두 본체 판정 '연결 안 됨'(`disconnected`).
-/// 그때 '다른 가전 위에 있어요'는 맞지 않는다(첫 사용 평가 2차 10/24) — 위치 대신 끊긴 것을 말한다. 모르면 false.
+/// 본체가 누름 장치(RPi4) 연결이 끊겼을 때 주는 이유의 앞부분(서버 `ACT_LINK_DOWN_REASON`의 첫 문장, 뒤 문장은 판마다 다름).
+const kActLinkDownReasonPrefix = '누름 장치와 연결되지 않았어요';
+
+/// 누름 장치가 끊겼다 — 누름 장치가 올라가 있는 가전([pressDeviceHosts])이 모두 본체 판정 '연결 안 됨'(`disconnected`)이거나
+/// 누름 장치 연결 끊김 이유([kActLinkDownReasonPrefix])를 받았다. 실제 본체는 끊김을 `needs_setup` + 그 이유로 준다
+/// (첫 사용 평가 3차 10/24, 실제 `GET /appliances`). 그때 '다른 가전 위에 있어요'는 맞지 않는다 — 위치 대신 끊긴 것을
+/// 말한다. 모르면 false.
 bool pressDeviceDisconnected(List<ApplianceMap>? hosts) =>
-    hosts != null && hosts.isNotEmpty && hosts.every((h) => h.readiness == 'disconnected');
+    hosts != null &&
+    hosts.isNotEmpty &&
+    hosts.every((h) =>
+        h.readiness == 'disconnected' ||
+        h.readinessReasons.any((r) => r.trim().startsWith(kActLinkDownReasonPrefix)));
 
 /// 누름 장치가 끊겼을 때 위치 대신 쓰는 말([pressDeviceDisconnected]).
 const kPressDeviceDisconnectedText = '누름 장치가 연결되지 않았어요';
