@@ -141,6 +141,13 @@ class _Step:
     device_id: str | None = None
 
 
+def _press_units(step: "_Step") -> int:
+    """진행바에서 이 명령이 차지하는 단계 수 — 누름 명령은 버튼 수, ThinQ 명령은 1."""
+    if step.command.route is ControlRoute.THINQ:
+        return 1
+    return max(1, len(step.command.buttons))
+
+
 #: 비상정지가 걸려 있을 때 ThinQ 명령을 받지·보내지 않는 사유(2026-10-15 검토 H1).
 THINQ_ESTOP_REASON = "비상 버튼이 눌려 있어 하지 않았어요. 버튼을 풀고 해제한 뒤 다시 해 주세요."
 
@@ -420,8 +427,10 @@ class CommandExecutionMixin:
             raise UnknownIntentError("실행할 명령이 없어요")
         first = steps[0]
         # ``on_admitted``: 게이트를 통과했을 때만, 첫 구간을 보내기 전에(검토 10/19 C — 루틴 맨 앞 안내).
-        job_id = self._begin_run(len(steps), first.controller, first.command.target_id, approval_guard,
-                                 on_admitted=on_admitted)
+        # 진행바 전체 단계 = 실제 누름 수(누름 명령은 버튼 수, ThinQ 명령은 1 — 2026-10-25). 예전에는 명령 수라 버튼 두 번인
+        # 명령 하나가 '1단계'였다.
+        job_id = self._begin_run(sum(_press_units(s) for s in steps), first.controller, first.command.target_id,
+                                 approval_guard, on_admitted=on_admitted)
         try:
             with self._lock:
                 self._current_route = first.command.route
@@ -474,6 +483,10 @@ class CommandExecutionMixin:
                     self._current_route = command.route
                     if not sent_real:
                         self._execution_mode = _thinq_mode(step.controller, command.target_id)
+                    # 완료 단계 수를 앞 명령의 누름 수에서 이어 센다(장치 진행은 명령마다 0부터) — 앞 명령의 진행은 지운다.
+                    self._current_steps_offset = sum(_press_units(s) for s in steps[:index])
+                    if index and self._progress_tracker is not None:
+                        self._progress_tracker.clear()
                 self._step_suffix = f"{index + 1}" if multi else None
             if stop or halted:
                 skipped = CommandResult(

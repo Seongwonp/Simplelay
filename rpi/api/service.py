@@ -320,6 +320,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         self._execution_mode = ExecutionMode.UNKNOWN
         self._last_execution_mode = ExecutionMode.UNKNOWN
         self._current_total_steps: int | None = None
+        # 여러 명령 실행에서 앞 명령들의 누름 수(완료 단계 수를 이어 세는 데 쓴다, 2026-10-25).
+        self._current_steps_offset = 0
         self._progress_tracker = progress_tracker
         # 사용자 정의 가전의 버튼 어휘로 즉석에서 LlmIntentResolver를 만들 때 씀
         # (execute_purpose_for_appliance). None이면 그 경로는 막힌다 -- 서버가
@@ -823,6 +825,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             self._execution_mode = _mode_of(controller)
             self._current_appliance_id = appliance_id
             self._current_total_steps = total_steps
+            self._current_steps_offset = 0
             self._current_started_at = self._clock.now()
             if controller is not None:
                 reset_stop = getattr(controller, "reset_stop", None)
@@ -854,6 +857,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             self._current_job_id = None
             self._current_appliance_id = None
             self._current_total_steps = None
+            self._current_steps_offset = 0
             self._current_started_at = None
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
@@ -873,6 +877,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             self._current_job_id = None
             self._current_appliance_id = None
             self._current_total_steps = None
+            self._current_steps_offset = 0
             if self._last_job_id:
                 # 이 실행의 공개 결과를 끝나는 바로 그 잠금 안에서 번호별로 남긴다(검토 10/19).
                 _keep_bounded(self._job_results, self._last_job_id, self._snapshot_locked(False, None))
@@ -1634,6 +1639,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             return self._snapshot_locked(ready, progress)
 
     def _snapshot_locked(self, ready: bool, progress) -> StatusSnapshot:
+        if progress is not None and self._current_steps_offset:
+            progress = replace(progress, completed_steps=progress.completed_steps + self._current_steps_offset)
         return StatusSnapshot(
             self._running,
             ready,
