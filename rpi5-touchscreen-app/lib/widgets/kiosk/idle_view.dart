@@ -12,6 +12,7 @@ import 'connection_status.dart';
 import 'dnd_overlay.dart' show kDndCarriedScopeText, kDndName, kDndScopeText;
 import 'help_guide.dart';
 import 'idle_featured.dart';
+import 'kiosk_tab_bar.dart';
 import 'idle_side_rows.dart';
 import 'idle_top.dart';
 import '../../theme/kiosk_tokens.dart';
@@ -1635,6 +1636,8 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
     final restSub = dnd != null ? '켜져 있어요. ${v._dndRemaining(dnd)} 남았어요. $scope' : scope;
     return Stack(children: [
       body,
+      // 메뉴·연결·사용 방법 창이 떠 있으면 아래 탭을 숨긴다(실패널 10/24 — 탭이 창 위에 밝게 남고 창의 마지막 줄이 잘렸다).
+      const KioskTabBarSuppress(),
       Positioned.fill(
         child: _sheet == _Sheet.help
             // 사용 방법 세 장(휴리스틱 평가 10/18).

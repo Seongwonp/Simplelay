@@ -476,7 +476,7 @@ class KioskIdleMenuButton extends StatelessWidget {
             width: 60,
             height: 60,
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.settings, size: 28, color: KioskColors.primary),
+              Icon(Icons.menu, size: 28, color: KioskColors.primary),
               // 아이콘 아래 작은 이름은 남긴다(평가 10/18 — 아이콘만으로는 뜻을 몰랐다).
               Text('메뉴',
                   maxLines: 1,

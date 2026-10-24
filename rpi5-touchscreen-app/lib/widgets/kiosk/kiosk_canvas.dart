@@ -35,7 +35,14 @@ import '../../theme/kiosk_colors.dart';
 /// 바탕을 [quietBg]로 칠하고, 글자 위에 반투명 막을 얹지 않는다(막을 덮으면 날짜·'메뉴'·건너뛰기 글자 대비가 2.5~3:1로
 /// 떨어졌다). 글자 밝기는 처음 화면이 대비 4.5:1 하한을 지키며 낮춘다([kQuietTextOpacity]).
 class KioskCanvas extends StatelessWidget {
-  const KioskCanvas({super.key, required this.child, this.dim = false});
+  const KioskCanvas({super.key, required this.child, this.dim = false, this.scrim = false});
+
+  /// 화면 안에 창(메뉴·설정·확인 창)이 떠 있다 — 가장자리 여백 띠도 창의 막과 같이 어둡게 한다(실패널 10/24: 막이 캔버스
+  /// 안쪽만 덮어 가장자리 띠가 밝게 남았다). 창들의 막과 같은 짙기([scrimAlpha]).
+  final bool scrim;
+
+  /// 화면 안 창들의 막 짙기(검정 0.6 — idle_top·manual_view·help_guide·connection_status와 같은 값).
+  static const double scrimAlpha = 0.6;
 
   /// 조용한 시간이라 패널 전체를 어둡게 하나(kiosk_screen의 판정 — 처음 화면에서만).
   final bool dim;
@@ -71,7 +78,9 @@ class KioskCanvas extends StatelessWidget {
         // 조용한 시간이면 패널 전체 바탕(가장자리 여백까지)을 어둡게 — 글자 위 막이 아니다.
         ColoredBox(
           key: dim ? const ValueKey('kiosk-panel-dim') : null,
-          color: dim ? quietBg : KioskColors.bg,
+          color: scrim
+              ? Color.alphaBlend(Colors.black.withValues(alpha: scrimAlpha), dim ? quietBg : KioskColors.bg)
+              : (dim ? quietBg : KioskColors.bg),
         ),
         // SizedBox.expand로 **꽉 찬 제약**을 줘야 FittedBox가 확대한다.
         // Center처럼 느슨한 제약을 주면 FittedBox가 자식 크기(800x480)로

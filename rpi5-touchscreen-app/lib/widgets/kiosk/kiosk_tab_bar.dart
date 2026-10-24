@@ -41,7 +41,7 @@ class KioskTabBar extends StatelessWidget {
         key: const ValueKey('kiosk-tab-bar'),
         height: height,
         decoration: BoxDecoration(
-          color: KioskColors.surface,
+          color: KioskColors.bg,
           border: Border(top: BorderSide(color: KioskColors.border)),
         ),
         child: Row(children: [

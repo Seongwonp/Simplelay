@@ -816,7 +816,8 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 아래 탭 줄을 둘까 — 평소 화면(조용한 시간으로 어둡지 않을 때)·가전 고르기·가전 조작에서만. 제안·확인·누르는 중·결과·
   /// 정지 대기에서는 두지 않는다(정지·승인이 앞선다). 화면 안 확인 창은 [_tabSuppress]가 따로 가린다.
-  bool get _showTabs => !_estopConfirming && ((_phase == KioskPhase.idle && !_quietDim) || _phase == KioskPhase.manual);
+  bool get _showTabs =>
+      !_estopConfirming && !_showSettings && !_showDnd && _openConnectionId == null && ((_phase == KioskPhase.idle && !_quietDim) || _phase == KioskPhase.manual);
 
   /// 지금 탭 — 가전 고르기·조작 화면은 '가전'.
   KioskTab get _currentTab => _phase == KioskPhase.manual ? KioskTab.appliances : _homeTab;
@@ -2429,7 +2430,17 @@ class _KioskScreenState extends State<KioskScreen> {
       data: media.copyWith(
         textScaler: TextScaler.linear(_largeText ? 1.22 : 1.0),
       ),
-      child: Theme(data: theme, child: KioskCanvas(dim: _quietDim, child: _buildScaffold())),
+      child: Theme(
+          data: theme,
+          // 화면 안 창이 떠 있으면 가장자리 띠도 어둡게(실패널 10/24).
+          child: ValueListenableBuilder<int>(
+            valueListenable: _tabSuppress,
+            builder: (context, suppressed, _) => KioskCanvas(
+              dim: _quietDim,
+              scrim: suppressed > 0 || _showSettings || _showDnd || _openConnectionId != null || _estopConfirming,
+              child: _buildScaffold(),
+            ),
+          )),
     );
   }
 
