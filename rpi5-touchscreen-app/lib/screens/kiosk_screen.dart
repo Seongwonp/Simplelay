@@ -2877,7 +2877,10 @@ class _KioskScreenState extends State<KioskScreen> {
           onThinqAccepted: _onThinqAccepted,
         );
       case KioskPhase.suggestion:
-        final suggestion = _currentSuggestion!;
+        // 승인 직후 카드를 내린 한 프레임(실행 화면으로 넘어가기 전)에도 무너지지 않게 — 예전에는 그 사이 오류가 나면 화면이
+        // 회색으로 멈췄다(10/24 웹 점검).
+        final suggestion = _currentSuggestion;
+        if (suggestion == null) return ColoredBox(key: const ValueKey('suggestion-closing'), color: KioskColors.bg);
         final targetId = suggestion.applianceId;
         return KioskSuggestionView(
           key: const ValueKey('suggestion'),

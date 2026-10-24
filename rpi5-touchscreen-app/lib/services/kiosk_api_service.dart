@@ -543,7 +543,7 @@ class KioskJobAccepted {
 /// 같은 번호를 다시 보내도 본체는 한 번만 접수하고, 응답을 잃으면 [KioskApiService.jobByRequest]로 그 실행 번호를 찾는다.
 String newKioskRequestId() {
   final rand = Random();
-  final tail = List.generate(2, (_) => rand.nextInt(1 << 32).toRadixString(36)).join();
+  final tail = List.generate(2, (_) => rand.nextInt(0x7fffffff).toRadixString(36)).join();
   return 'kiosk-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-$tail';
 }
 
