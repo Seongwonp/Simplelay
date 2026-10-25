@@ -89,3 +89,39 @@ def test_same_sentence_is_made_once(monkeypatch):
     for _ in range(2):
         assert c.post("/tts", json={"text": "공기청정기를 켤까요?"}).status_code == 200
     assert len(calls) == 1
+
+
+def test_speech_is_made_while_the_chime_plays(monkeypatch):
+    """키오스크는 딩동과 말을 따로 보낸다 — 말은 받자마자 만들기 시작해 딩동 뒤에 기다리지 않는다(10/25)."""
+    import threading
+
+    chime_playing = threading.Event()
+    release = threading.Event()
+    made_during_chime = []
+    played = []
+
+    def fake_play(data):
+        if data[:4] == b"RIFF" and not played:  # 딩동
+            chime_playing.set()
+            release.wait(5)
+        played.append(data[:4])
+
+    def fake_run(cmd, **kw):
+        made_during_chime.append(chime_playing.is_set() and not release.is_set())
+        return subprocess.CompletedProcess(cmd, 0, stdout=b"SPEE", stderr=b"")
+
+    monkeypatch.setattr(mod, "_play_wav", fake_play)
+    monkeypatch.setattr(mod.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    c = _client()
+    assert c.post("/tts/play", json={"chime": True}).status_code == 202
+    assert chime_playing.wait(5)
+    assert c.post("/tts/play", json={"text": "공기청정기를 지금 켤까요?"}).status_code == 202
+    for _ in range(100):
+        if made_during_chime:
+            break
+        threading.Event().wait(0.02)
+    assert made_during_chime == [True]
+    release.set()
+    mod._play_queue.join()
+    assert played == [b"RIFF", b"SPEE"]

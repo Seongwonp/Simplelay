@@ -61,10 +61,28 @@ def _load_engine():
         return _engine
 
 
+#: 만든 음성을 보드에 남겨 두는 곳 — 재시작한 뒤에도 같은 문장은 바로 나온다(목소리 모델이 있을 때만).
+TTS_CACHE_DIR = os.path.normpath(os.path.join(TTS_MODEL_DIR, "..", "tts-cache"))
+
+
+def _disk_path(text: str) -> str:
+    import hashlib
+
+    key = hashlib.sha256(f"{TTS_VOICE}|{TTS_STEPS}|{text}".encode("utf-8")).hexdigest()[:32]
+    return os.path.join(TTS_CACHE_DIR, key + ".wav")
+
+
 def synthesize_wav(text: str) -> bytes | None:
     """문장 → wav. 같은 문장은 기억해 둔 것을 쓴다(안내 문장은 몇 가지가 반복된다)."""
     if text in _cache:
         return _cache[text]
+    if os.path.isdir(TTS_MODEL_DIR):
+        try:
+            with open(_disk_path(text), "rb") as f:
+                _cache[text] = f.read()
+                return _cache[text]
+        except OSError:
+            pass
     data: bytes | None = None
     engine = _load_engine()
     if engine is not None:
@@ -81,6 +99,15 @@ def synthesize_wav(text: str) -> bytes | None:
                 os.unlink(path)
         except Exception:  # noqa: BLE001
             data = None
+        if data is not None:
+            try:
+                os.makedirs(TTS_CACHE_DIR, exist_ok=True)
+                tmp = _disk_path(text) + ".tmp"
+                with open(tmp, "wb") as f:
+                    f.write(data)
+                os.replace(tmp, _disk_path(text))
+            except OSError:
+                pass
     if data is None and shutil.which("espeak-ng") is not None:
         try:
             out = subprocess.run(espeak_command(text), capture_output=True, timeout=TTS_TIMEOUT_S)
@@ -157,7 +184,7 @@ class TtsPlayRequest(BaseModel):
     chime: bool = False
 
 
-_play_queue: "queue.Queue[tuple[bool, str | None]] | None" = None
+_play_queue: "queue.Queue[tuple[bool, threading.Thread | None, dict]] | None" = None
 _play_lock = threading.Lock()
 #: 쌓인 안내가 이보다 많으면 새 것은 버린다(소리가 한참 밀려 나오지 않게).
 MAX_QUEUED = 4
@@ -180,16 +207,10 @@ def _play_wav(data: bytes) -> None:
             pass
 
 
-def _worker(q: "queue.Queue[tuple[bool, str | None]]") -> None:
+def _worker(q: "queue.Queue[tuple[bool, threading.Thread | None, dict]]") -> None:
     while True:
-        chime_first, text = q.get()
+        chime_first, maker, result = q.get()
         try:
-            # 알림음이 울리는 동안 말을 미리 만든다(보드에서 한 문장 약 3초) — 알림음 뒤 기다림을 줄인다.
-            result: dict[str, bytes | None] = {}
-            maker = None
-            if text:
-                maker = threading.Thread(target=lambda: result.update(wav=synthesize_wav(text)), daemon=True)
-                maker.start()
             if chime_first:
                 _play_wav(_chime_bytes())
             if maker is not None:
@@ -210,7 +231,14 @@ def _enqueue(chime_first: bool, text: str | None) -> bool:
             threading.Thread(target=_worker, args=(_play_queue,), daemon=True, name="tts-play").start()
         if _play_queue.qsize() >= MAX_QUEUED:
             return False
-        _play_queue.put((chime_first, text))
+        # 말은 받자마자 만들기 시작한다(보드에서 한 문장 약 3초) — 키오스크는 딩동과 말을 따로 보내므로, 차례가 올 때
+        # 만들면 딩동이 끝난 뒤 3초를 더 기다렸다(10/25 사용자 '좀 늦게 나온다'). 재생 순서는 줄이 지킨다.
+        result: dict = {}
+        maker = None
+        if text:
+            maker = threading.Thread(target=lambda: result.update(wav=synthesize_wav(text)), daemon=True)
+            maker.start()
+        _play_queue.put((chime_first, maker, result))
         return True
 
 
