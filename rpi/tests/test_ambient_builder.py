@@ -237,3 +237,18 @@ def test_weather_tip_and_today_range_are_kept_even_when_attention_wins():
     assert out["weather_tip"]["kind"] == "rain" and "우산" in out["weather_tip"]["text"]
     assert out["today"] == {"high": 31, "low": 19}
     assert build_ambient(_at(9, 10), _snap(), [], CFG)["today"] is None
+
+
+def test_outdoor_humidity_is_parsed_and_old_cache_still_loads():
+    """10/26 — 기상청 예보의 습도(REH)도 받는다(환기 권유용). 습도 칸이 없던 옛 저장본도 그대로 읽힌다."""
+    import json
+
+    body = {"response": {"header": {"resultCode": "00"}, "body": {"items": {"item": [
+        {"baseDate": "20260930", "baseTime": "0800", "category": c, "fcstDate": "20260930", "fcstTime": "0900", "fcstValue": v}
+        for c, v in (("TMP", "21"), ("POP", "10"), ("PTY", "0"), ("SKY", "1"), ("REH", "45"))]}}}}
+    f = kma.parse_response(200, json.dumps(body).encode(), source="kma", fetched_at=_at(8, 20).astimezone(timezone.utc))
+    assert f.slots[0].reh == 45
+    assert kma.Forecast.from_json(f.to_json()).slots[0].reh == 45
+    old = json.loads(f.to_json())
+    old["slots"] = [row[:5] for row in old["slots"]]
+    assert kma.Forecast.from_json(json.dumps(old)).slots[0].reh is None

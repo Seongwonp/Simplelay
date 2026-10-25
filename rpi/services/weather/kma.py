@@ -2,7 +2,7 @@
 
 쓰는 것은 ``getVilageFcst``(단기예보) 하나다. 3시간 간격 예보 발표
 (02·05·08·11·14·17·20·23시, 발표 뒤 약 10분부터 조회 가능)에서
-TMP(기온 ℃)·POP(강수확률 %)·PTY(강수형태)·SKY(하늘상태)만 시간별로 모은다.
+TMP(기온 ℃)·POP(강수확률 %)·PTY(강수형태)·SKY(하늘상태)·REH(습도 %, 10/26 — 환기 권유)만 시간별로 모은다.
 키오스크의 안내 한 줄과 예보 4칸에는 이것으로 충분하다. 초단기예보
 (``getUltraSrtFcst``, 매시 30분 발표·6시간 앞)는 '지금 비' 정확도를 높일 때
 붙일 자리로 남겨 둔다.
@@ -88,6 +88,8 @@ class HourlyForecast:
     pop: int | None = None
     pty: int | None = None
     sky: int | None = None
+    #: 바깥 습도 %(REH). 옛 저장본·모의 예보에는 없다(None).
+    reh: int | None = None
 
     @property
     def precipitation(self) -> str | None:
@@ -128,7 +130,7 @@ class Forecast:
                 "fetched_at": self.fetched_at.isoformat(),
                 "base": self.base,
                 "slots": [
-                    [s.at.isoformat(), s.tmp, s.pop, s.pty, s.sky] for s in self.slots
+                    [s.at.isoformat(), s.tmp, s.pop, s.pty, s.sky, s.reh] for s in self.slots
                 ],
             },
             ensure_ascii=False,
@@ -142,8 +144,9 @@ class Forecast:
             fetched_at=datetime.fromisoformat(doc["fetched_at"]),
             base=str(doc["base"]),
             slots=tuple(
-                HourlyForecast(datetime.fromisoformat(at), tmp, pop, pty, sky)
-                for at, tmp, pop, pty, sky in doc["slots"]
+                # 옛 저장본은 다섯 칸(습도 없음) — 그대로 읽는다.
+                HourlyForecast(datetime.fromisoformat(row[0]), *row[1:5], row[5] if len(row) > 5 else None)
+                for row in doc["slots"]
             ),
         )
 
@@ -282,7 +285,7 @@ def parse_response(status: int, body: bytes, *, source: str, fetched_at: datetim
         if not isinstance(item, dict):
             continue
         cat = item.get("category")
-        if cat not in ("TMP", "POP", "PTY", "SKY"):
+        if cat not in ("TMP", "POP", "PTY", "SKY", "REH"):
             continue
         try:
             at = datetime.strptime(
@@ -307,6 +310,7 @@ def parse_response(status: int, body: bytes, *, source: str, fetched_at: datetim
             pop=_int(values.get("POP")),
             pty=_int(values.get("PTY")),
             sky=_int(values.get("SKY")),
+            reh=_int(values.get("REH")),
         )
         for at, values in sorted(grouped.items())
     )
