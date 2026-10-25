@@ -159,6 +159,10 @@ log = logging.getLogger(__name__)
 # 루프가 그동안 멈춰 ``/stop`` 요청 자체가 처리되지 않는다(2026-10-14 HIGH 재확인 H-R2). async로 두려면 ``asyncio.to_thread``.
 router = APIRouter()
 
+from .intent_router import router as intent_router
+router.include_router(intent_router)
+
+
 
 def _to_steps(result: ExecutionResult) -> list[ButtonStep]:
     return [
