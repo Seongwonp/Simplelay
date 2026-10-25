@@ -1187,6 +1187,9 @@ class RoomPresenceResponse(BaseModel):
     last_seen_at: datetime | None = None
     arrived_at: datetime | None = None  # 마지막으로 '돌아온' 시각 — 키오스크 인사·깨우기
     greeting: str | None = None  # 그 돌아옴에 건넬 인사 한 줄(외출 뒤 저녁이면 하루 위로)
+    #: 인사 뒤에 이어 말할 날씨 한 줄(10/26 사용자 — '좋은 아침이에요. 오늘 비 예보가 있어요…'). 특보 안내가 먼저, 없으면 비·눈·더위·추위 안내.
+    #: 키오스크는 인사 알약에는 [greeting]만 띄우고 소리로는 둘을 이어 읽는다. 인사가 없으면 늘 None.
+    greeting_weather: str | None = None
     changed_at: datetime | None = None
     dim_after_s: float | None = None
     away_after_s: float | None = None

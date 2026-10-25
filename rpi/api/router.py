@@ -1577,6 +1577,28 @@ async def presence(
     )
 
 
+def _greeting_weather_line() -> str | None:
+    """돌아온 사람에게 이어 말할 날씨 한 줄 — 특보 안내가 먼저, 없으면 예보 안내(비·눈·더위·추위). 날씨를 못 받으면 None."""
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    from rpi.api.ambient_router import get_weather_service  # noqa: PLC0415
+    from rpi.services.weather import weather_tip  # noqa: PLC0415
+
+    try:
+        weather = get_weather_service()
+        now = datetime.now(timezone.utc)
+        warnings = weather.warnings(now)
+        if warnings:
+            return warnings[0]["advice"]
+        snap = weather.snapshot(now)
+        if snap.usable and snap.forecast is not None:
+            tip = weather_tip(snap.forecast.slots, now, weather.config)
+            return tip["text"] if tip else None
+    except Exception:  # noqa: BLE001 - 날씨는 인사의 덧말 — 못 받으면 인사만 한다
+        return None
+    return None
+
+
 @router.get("/presence/room", response_model=RoomPresenceResponse)
 def room_presence() -> RoomPresenceResponse:
     # 방 안 사람 감지(온디바이스 카메라) 판단 — 키오스크 화면 절전·깨우기, 집 모형 표시가 읽는다(읽기만).
@@ -1589,6 +1611,7 @@ def room_presence() -> RoomPresenceResponse:
     if room is None:
         return RoomPresenceResponse(enabled=False, state="unknown")
     snap = room.snapshot()
+    greet = snap.greet and snap.arrived_at is not None
 
     def at(ts):
         return None if ts is None else datetime.fromtimestamp(ts, tz=timezone.utc)
@@ -1601,8 +1624,8 @@ def room_presence() -> RoomPresenceResponse:
         last_seen_at=at(snap.last_seen_at),
         arrived_at=at(snap.arrived_at),
         # 오래 비웠다 돌아온 때만(몇 시간에 한 번) 인사 — 잠깐 자리 비움은 화면만 켠다.
-        greeting=greeting_for(datetime.fromtimestamp(snap.arrived_at).astimezone(), resident_name())
-        if snap.greet and snap.arrived_at is not None else None,
+        greeting=greeting_for(datetime.fromtimestamp(snap.arrived_at).astimezone(), resident_name()) if greet else None,
+        greeting_weather=_greeting_weather_line() if greet else None,
         changed_at=at(snap.changed_at),
         dim_after_s=room.dim_after_s,
         away_after_s=room.away_after_s,

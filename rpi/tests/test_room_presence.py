@@ -250,3 +250,42 @@ def test_profile_name_is_cleaned_and_kept_on_the_hub(monkeypatch):
     assert client.get("/profile").json() == {"name": "성원"}
     assert client.put("/profile", json={"name": "가" * 11}).status_code == 422
     assert client.put("/profile", json={"name": None}).json() == {"name": None}
+
+
+def test_greeting_weather_line_prefers_warning_then_forecast_tip(monkeypatch):
+    """10/26 사용자 — 돌아왔을 때 인사 뒤에 날씨 한 줄('오늘 비 예보가 있어요. 우산 챙기세요'). 특보가 먼저."""
+    import rpi.api.ambient_router as amb
+    from rpi.api.router import _greeting_weather_line
+
+    class _Svc:
+        def __init__(self, warnings, snap):
+            self._w, self._s = warnings, snap
+            self.config = None
+
+        def warnings(self, now):
+            return self._w
+
+        def snapshot(self, now):
+            return self._s
+
+    class _Snap:
+        usable = True
+
+        class forecast:
+            slots = ()
+
+    warn = [{"advice": "바람이 강해요. 외출할 때 조심하세요."}]
+    monkeypatch.setattr(amb, "get_weather_service", lambda: _Svc(warn, _Snap()))
+    assert _greeting_weather_line() == "바람이 강해요. 외출할 때 조심하세요."
+    import rpi.services.weather as w
+    monkeypatch.setattr(w, "weather_tip", lambda *a: {"text": "오후 3시부터 비 예보가 있어요. 우산 챙기세요."})
+    monkeypatch.setattr(amb, "get_weather_service", lambda: _Svc([], _Snap()))
+    assert _greeting_weather_line() == "오후 3시부터 비 예보가 있어요. 우산 챙기세요."
+    monkeypatch.setattr(w, "weather_tip", lambda *a: None)
+    assert _greeting_weather_line() is None
+
+    def boom():
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(amb, "get_weather_service", boom)
+    assert _greeting_weather_line() is None
