@@ -493,8 +493,9 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           Switch(
             value: value,
             activeTrackColor: KioskColors.primary.withValues(alpha: 0.5),
-            activeThumbColor: KioskColors.primary,
-            inactiveThumbColor: KioskColors.muted,
+            // thumbColor — 보드 빌드 환경의 Flutter에는 activeThumbColor가 없다(10/26 빌드 실패). 두 판 모두 되는 속성.
+            thumbColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected) ? KioskColors.primary : KioskColors.muted),
             inactiveTrackColor: KioskColors.surface,
             trackOutlineColor: WidgetStateProperty.resolveWith(
                 (states) => states.contains(WidgetState.selected) ? Colors.transparent : KioskColors.muted),
