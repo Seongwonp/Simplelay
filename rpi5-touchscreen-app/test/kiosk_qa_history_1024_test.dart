@@ -40,7 +40,7 @@ void main() {
 void helpMain() {
   test("사용 방법 — 기록은 키오스크 '기록' 탭에서, 첫 장은 아래 탭을 말한다", () {
     final last = kHelpPages.last.body;
-    expect(last, contains('기록 탭'));
+    expect(last, contains("화면 아래 '기록'"));
     expect(last, isNot(contains('기록 보기')));
     expect(last, contains('자동 실행 끄기'));
     expect(kHelpPages.first.body, contains('화면 아래 단추'));

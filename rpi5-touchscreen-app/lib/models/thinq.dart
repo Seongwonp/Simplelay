@@ -211,15 +211,20 @@ List<ThinqStateRow> thinqStateRows(Map<String, dynamic> state) {
 
   final rows = <ThinqStateRow>[];
   final op = state['operation'];
+  var off = false;
   if (op is Map) {
     final key = op.keys.map((k) => k.toString()).where((k) => k.endsWith('OperationMode')).firstOrNull;
-    if (key != null && op[key] != null) rows.add(ThinqStateRow('전원', word(_power, op[key])));
+    if (key != null && op[key] != null) {
+      rows.add(ThinqStateRow('전원', word(_power, op[key])));
+      off = op[key].toString() == 'POWER_OFF';
+    }
   }
   final job = at('airPurifierJobMode', 'currentJobMode');
   // '모드 청정'은 뜻을 몰랐다(평가 4차 10/18) — 키오스크에서는 바꿀 수도 없는 값이라 줄을 두지 않는다. 다른 모드만
   // 쉬운 말로('잘 때'·'조용히'), 기본 청정은 말하지 않는다.
   if (job != null && job.toString() != 'CLEAN' && _jobMode.containsKey(job.toString())) {
-    rows.add(ThinqStateRow('지금', word(_jobMode, job)));
+    // 꺼져 있으면 '지금 잘 때 운전'이 켜져 있는 것처럼 읽혔다(10/25 실패널 점검) — 켤 때 쓸 모드라는 뜻으로.
+    rows.add(ThinqStateRow(off ? '운전 모드' : '지금', word(_jobMode, job)));
   }
   final wind = at('airFlow', 'windStrengthDetail') ?? at('airFlow', 'windStrength');
   if (wind != null) rows.add(ThinqStateRow('바람 세기', word(_wind, wind)));

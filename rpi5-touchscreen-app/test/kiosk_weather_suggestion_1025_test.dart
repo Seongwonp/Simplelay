@@ -8,11 +8,13 @@ import 'package:http/testing.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/kiosk_time.dart';
+import 'package:simplelay_touchscreen/models/thinq.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_tab_bar.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/weather_detail_sheet.dart';
 
 import 'kiosk_phase_test.dart' show FakeKioskApi, FakeTts, FakeEventStream;
 
@@ -349,5 +351,21 @@ void main() {
         {'mute': false},
       ]);
     });
+  });
+
+  test('예보 받은 시각 — 본체가 UTC로 보내도 한국 시각으로(10/25 실패널: 11시 10분이 2시 10분으로 보였다)', () {
+    expect(KioskWeatherDetailSheet.fetchedLine('2026-10-25T02:10:33.120000+00:00'), '오전 11시 10분에 받은 예보');
+    expect(KioskWeatherDetailSheet.fetchedLine('2026-10-25T15:05:00+09:00'), '오후 3시 5분에 받은 예보');
+    expect(KioskWeatherDetailSheet.fetchedLine('엉뚱한 값'), isNull);
+  });
+
+  test("꺼진 공기청정기의 모드는 '지금'이 아니라 '운전 모드'(10/25 실패널: 꺼져 있는데 '지금 잘 때 운전')", () {
+    Map<String, dynamic> st(String power) => {
+          'operation': {'airPurifierOperationMode': power},
+          'airPurifierJobMode': {'currentJobMode': 'SLEEP'},
+        };
+    String? label(List<ThinqStateRow> rows) => rows.where((r) => r.value == '잘 때 운전').map((r) => r.label).firstOrNull;
+    expect(label(thinqStateRows(st('POWER_OFF'))), '운전 모드');
+    expect(label(thinqStateRows(st('POWER_ON'))), '지금');
   });
 }

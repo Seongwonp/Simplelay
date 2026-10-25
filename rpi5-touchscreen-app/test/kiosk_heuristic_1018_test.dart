@@ -6,7 +6,7 @@
 //    확실한 실패는 다시 하는 것이 안전할 때만 '한 번 더 하기'가 주. 버튼 누름 보고만(C)도 같은 흐름 — 자동으로 닫지 않는다.
 // 2. 비상 띠 전체가 누르는 자리, '푸는 방법 보기'는 보조 단추 높이·본문 글자. 문제 칩 둘째 줄 본문 글자. 가전 타일 상태 본문 글자.
 // 3. '멈추는 중'에 돌아가는 표시와 기다림 상한(kiosk_screen이 실제로 끊는 시간).
-// 4. 직접 누르기 — 빈 칸은 점선, 판 위 '○○ 버튼 배치와 같아요', 확인 창 '누름 장치가 ○○ □□ 버튼을 눌러요'.
+// 4. 직접 누르기 — 빈 칸은 점선, 판 위 '실제 ○○ 버튼과 같은 배치예요', 확인 창 '누름 장치가 ○○ □□ 버튼을 눌러요'.
 // 5. 메뉴의 '사용 방법' 세 장.
 // 6. LG 가전 타일에 누름 장치의 손가락 '준비됐어요'를 쓰지 않는다. 연습 가전은 연습 색.
 // 7. 누름 장치 실행 화면은 그림이 없거나 큰 글씨여도 '화면은 누르지 않아도 돼요'.
@@ -450,7 +450,7 @@ void main() {
           KioskManualView(appliance: _microwave, onExecute: (_) {}, onCancel: () {}));
       // 2x2 판에 버튼 셋 — 빈 자리 하나(0,1).
       expect(find.byKey(const ValueKey('manual-empty-0-1')), findsOneWidget);
-      expect(_plain(tester, find.byKey(const ValueKey('manual-layout-note'))), '전자레인지 버튼 배치와 같아요');
+      expect(_plain(tester, find.byKey(const ValueKey('manual-layout-note'))), '실제 전자레인지 버튼과 같은 배치예요');
       await tester.tap(find.byKey(const ValueKey('manual-cell-즉석밥')));
       await tester.pump();
       expect(_plain(tester, find.byKey(const ValueKey('manual-press-note'))),

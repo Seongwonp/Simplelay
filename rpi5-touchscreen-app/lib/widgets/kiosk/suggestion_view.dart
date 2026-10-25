@@ -64,7 +64,10 @@ class KioskSuggestionView extends StatelessWidget {
   String get questionText {
     final name = suggestion.routineName;
     if (startedByUser && name != null && name.isNotEmpty) return '${withObject(name)} 할까요?';
-    return suggestion.isScenario ? suggestion.purpose : '${actionName(suggestion.purpose)},\n지금 할까요?';
+    if (suggestion.isScenario) return suggestion.purpose;
+    // '즉석밥 데우기,\n지금 할까요?'의 쉼표가 어색했다(10/25 실패널 점검) — '-기'로 끝나면 '…를 지금 할까요?'(음성 안내와 같은 문장).
+    final action = actionName(suggestion.purpose);
+    return action.endsWith('기') ? '${withObject(action)}\n지금 할까요?' : '$action,\n지금 할까요?';
   }
 
   /// 화면을 만졌다(접근성 감사 10/18 — 시간 제한 조절) — 화면이 남은 시간을 처음으로 되돌린다. 단추 동작은 그대로 지나간다.

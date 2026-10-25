@@ -33,14 +33,15 @@ class KioskWeatherDetailSheet extends StatelessWidget {
 
   static const String title = '날씨';
 
-  /// 예보 받은 시각 — '오후 3시 5분에 받은 예보'. 본체 시각 원문의 시·분(본체 벽시계 그대로). 모르면 null.
+  /// 예보 받은 시각 — '오후 3시 5분에 받은 예보'. 본체는 UTC(+00:00)로 보낸다 — 한국 시각으로 바꿔 쓴다(10/25 실패널
+  /// 점검: 오전 11시 10분을 '오전 2시 10분'으로 보였다). 시간대가 없으면 원문 시·분 그대로. 모르면 null.
   static String? fetchedLine(String? fetchedAt) {
     if (fetchedAt == null) return null;
-    final m = RegExp(r'T(\d{2}):(\d{2})').firstMatch(fetchedAt);
-    if (m == null) return null;
-    final h = int.parse(m[1]!), mi = int.parse(m[2]!);
-    if (h > 23 || mi > 59) return null;
-    return '${spokenTime(h, mi)}에 받은 예보';
+    final parsed = DateTime.tryParse(fetchedAt);
+    if (parsed == null) return null;
+    final hasZone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(fetchedAt.trim());
+    final at = hasZone ? parsed.toUtc().add(const Duration(hours: 9)) : parsed;
+    return '${spokenTime(at.hour, at.minute)}에 받은 예보';
   }
 
   @override

@@ -584,7 +584,7 @@ class _ButtonGrid extends StatelessWidget {
 }
 
 /// 버튼판 위 한 줄 — '전자레인지 버튼 자리 그대로예요'(휴리스틱 평가 10/18).
-String manualLayoutNote(String applianceName) => '$applianceName 버튼 배치와 같아요';
+String manualLayoutNote(String applianceName) => '실제 $applianceName 버튼과 같은 배치예요';
 
 /// 누르기 확인 창의 한 줄 — '누르면 누름 장치가 전자레인지 즉석밥 버튼을 눌러요'.
 String manualPressNote(String applianceName, String buttonLabel) =>

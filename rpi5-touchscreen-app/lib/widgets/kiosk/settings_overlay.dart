@@ -462,10 +462,15 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
               ],
             ),
           ),
+          // 꺼진 스위치도 또렷하게(10/25 실패널 점검 — 회색 손잡이가 바탕에 묻혀 꺼짐인지 안 보였다).
           Switch(
             value: value,
             activeTrackColor: KioskColors.primary.withValues(alpha: 0.5),
-            activeColor: KioskColors.primary,
+            activeThumbColor: KioskColors.primary,
+            inactiveThumbColor: KioskColors.muted,
+            inactiveTrackColor: KioskColors.surface,
+            trackOutlineColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected) ? Colors.transparent : KioskColors.muted),
             onChanged: onChanged,
           ),
         ],

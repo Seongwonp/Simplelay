@@ -271,7 +271,7 @@ void main() {
   // 아래 '기록' 탭에 있다(QA 10/24).
   test("사용 방법: '자동 실행 끄기는 휴대폰 앱에서, 최근 기록은 기록 탭에서' 안내가 있다", () {
     expect(
-        kHelpPages.any((p) => p.body.contains('기록 탭') && p.body.contains('자동 실행 끄기') && p.body.contains('휴대폰 앱')),
+        kHelpPages.any((p) => p.body.contains("화면 아래 '기록'") && p.body.contains('자동 실행 끄기') && p.body.contains('휴대폰 앱')),
         isTrue);
   });
 
