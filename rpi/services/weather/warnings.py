@@ -5,7 +5,7 @@
 예외·로그에 URL을 넣지 않는다(kma.py와 같은 규칙).
 
 지역은 허브 위치(폰 앱이 저장한 위경도)에서 가장 가까운 행정동의 시군구 특보구역으로 정한다 — 표는
-``data/warn_zones.json``(기상청 공개 자료로 ``rpi.tools.build_warn_zones``가 만든다). env로 구역을 직접 줄 수도 있다.
+``warn_zones.json``(기상청 공개 자료로 ``rpi.tools.build_warn_zones``가 만든다). env로 구역을 직접 줄 수도 있다.
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ LEVELS = {0: "주의보", 1: "경보", 2: "중대경보"}
 ACTIVE_COMMANDS = {1, 3, 6, 7}
 
 
-ZONES_FILE = Path(__file__).with_name("data") / "warn_zones.json"
+ZONES_FILE = Path(__file__).with_name("warn_zones.json")
 
 
 @lru_cache(maxsize=1)

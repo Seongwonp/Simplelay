@@ -1,7 +1,7 @@
 """기상특보 구역 표 만들기(2026-10-25) — 허브 위치 → 특보구역코드.
 
 기상청 공개 자료 두 개(공공데이터포털 활용가이드, 공공누리 제1유형 — 출처: 기상청)를 읽어
-``rpi/services/weather/data/warn_zones.json``을 만든다:
+``rpi/services/weather/warn_zones.json``을 만든다:
   - 단기예보 조회서비스 활용가이드의 '격자_위경도' 엑셀: 행정동마다 시도·시군구·위경도
   - 기상특보 조회서비스 활용가이드의 '특보구역코드안내' 엑셀: 특보구역 계층(REG_ID·REG_UP·REG_NAME)
 
@@ -21,7 +21,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parents[1] / "services" / "weather" / "data" / "warn_zones.json"
+OUT = Path(__file__).resolve().parents[1] / "services" / "weather" / "warn_zones.json"
 
 SIDO_ALIASES = {"강원특별자치도": "강원도", "전북특별자치도": "전북자치도", "제주특별자치도": "제주도"}
 SEPARATE = ("산지", "산간", "도서", "낙월면", "위도면", "옥도면", "어청도", "여서도")
