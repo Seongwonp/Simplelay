@@ -24,7 +24,7 @@ class _FakePhotoService extends PhotoService {
   final File? _photo;
 
   @override
-  Future<File?> takePhoto() async => _photo;
+  Future<File?> takePhoto({bool fromGallery = false}) async => _photo;
 
   // 실제 파일 입출력은 위젯 테스트의 가짜 시계에서 끝나지 않는다.
   @override

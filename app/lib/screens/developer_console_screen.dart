@@ -654,6 +654,10 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
               children: [
                 _CommandButton(
                     '상태', canCommand ? () => _command('status') : null),
+                // 원점(10/25 — 서버는 home을 받는데 화면에 단추가 없었다). 본체 설정에 따라 벽 찾기 또는
+                // '지금 자리를 원점으로'(HW 담당 Z 명령) — 조그·누르기는 원점이 잡힌 뒤에만 된다.
+                _CommandButton(
+                    '원점', canCommand ? () => _command('home') : null),
                 _CommandButton(
                     '센서 읽기', canCommand ? () => _command('sensor read') : null),
               ],

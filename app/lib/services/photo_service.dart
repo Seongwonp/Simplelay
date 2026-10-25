@@ -14,9 +14,10 @@ class PhotoService {
   ///
   /// 긴 변을 2048px로 제한한다 — 버튼 글씨를 읽기에 충분하고, 사진 인식으로
   /// 보낼 때 업로드가 수 MB로 커지지 않는다.
-  Future<File?> takePhoto() async {
+  Future<File?> takePhoto({bool fromGallery = false}) async {
+    // 사진첩에서 고르기(2026-10-25) — 미리 찍어 둔 버튼판 사진을 쓴다(카메라가 없는 기기·다시 맞추기).
     final file = await _picker.pickImage(
-      source: ImageSource.camera,
+      source: fromGallery ? ImageSource.gallery : ImageSource.camera,
       imageQuality: 85,
       maxWidth: 2048,
       maxHeight: 2048,

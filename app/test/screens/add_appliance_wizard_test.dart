@@ -37,8 +37,14 @@ class _SwitchableConnection extends FixedRpiConnection {
 
 /// 카메라 없이 사진 한 장을 돌려준다. 크기는 1000x800으로 정해 둔다.
 class _FakePhoto extends PhotoService {
+  /// 마지막 사진을 사진첩에서 골랐나(10/25).
+  bool? fromGallery;
+
   @override
-  Future<File?> takePhoto() async => File('panel.jpg');
+  Future<File?> takePhoto({bool fromGallery = false}) async {
+    this.fromGallery = fromGallery;
+    return File('panel.jpg');
+  }
 
   @override
   Future<Uint8List> readBytes(File file) async => Uint8List(0);
@@ -302,6 +308,21 @@ String _title(WidgetTester tester) =>
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  // 10/25: 미리 찍어 둔 버튼판 사진을 쓴다(카메라 없는 기기·다시 맞추기) — 사진첩에서 골라도 같은 단계로 간다.
+  testWidgets('사진첩에서 고른 사진으로도 시작한다', (tester) async {
+    final server = _Server();
+    final photo = _FakePhoto();
+    _tall(tester);
+    await tester.pumpWidget(_build(server, photo: photo));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-pick-photo')));
+    await _settle(tester);
+    expect(photo.fromGallery, isTrue);
+    expect(find.byKey(const Key('wizard-photo')), findsOneWidget);
+  });
 
   testWidgets('다섯 단계를 이전/다음으로 오가며 등록하고 확인 주행까지 간다',
       (tester) async {

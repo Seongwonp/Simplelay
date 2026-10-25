@@ -300,9 +300,9 @@ class _AddApplianceWizardScreenState
 
   // ── ① 사진 ────────────────────────────────────────────────────────────
 
-  Future<void> _takePhoto() async {
+  Future<void> _takePhoto({bool fromGallery = false}) async {
     final service = ref.read(photoServiceProvider);
-    final photo = await service.takePhoto();
+    final photo = await service.takePhoto(fromGallery: fromGallery);
     if (photo == null || !mounted) return;
     final size = await service.imageSize(photo);
     if (!mounted) return;
@@ -865,12 +865,21 @@ class _AddApplianceWizardScreenState
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: context.appBorderSubtle),
             ),
-            child: FilledButton.icon(
-              key: const Key('wizard-take-photo'),
-              onPressed: _takePhoto,
-              icon: const Icon(Icons.photo_camera_outlined),
-              label: const Text('사진 찍기'),
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              FilledButton.icon(
+                key: const Key('wizard-take-photo'),
+                onPressed: _takePhoto,
+                icon: const Icon(Icons.photo_camera_outlined),
+                label: const Text('사진 찍기'),
+              ),
+              const SizedBox(height: AppSpace.sm),
+              TextButton.icon(
+                key: const Key('wizard-pick-photo'),
+                onPressed: () => _takePhoto(fromGallery: true),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('사진첩에서 고르기'),
+              ),
+            ]),
           )
         else ...[
           _photoPanel(label: '찍은 버튼판 사진'),
