@@ -9,6 +9,16 @@ import 'kiosk_settings_backend_io.dart'
 
 import '../widgets/kiosk/kiosk_timings.dart';
 
+/// 화면 밝기 고르기(2026-10-26) — 밝게·어둡게·자동(방 밝기를 따른다). 새로 설치하면 자동.
+enum KioskScreenTone { light, dark, auto }
+
+KioskScreenTone? _toneFromJson(Object? raw) => switch (raw) {
+      'light' => KioskScreenTone.light,
+      'dark' => KioskScreenTone.dark,
+      'auto' => KioskScreenTone.auto,
+      _ => null,
+    };
+
 /// 키오스크 로컬 설정 스냅샷 — 음성 안내·큰 글씨·고대비·마지막 선택 가전.
 ///
 /// 그동안 세션 한정(메모리)이라 정전·재부팅·앱 재시작마다 고령 사용자가
@@ -20,7 +30,7 @@ class KioskSettings {
     this.muted = false,
     this.largeText = false,
     this.highContrast = false,
-    this.darkMode = false,
+    this.screenTone = KioskScreenTone.auto,
     this.applianceId,
     this.countdownSeconds = KioskTimings.countdownSeconds,
   });
@@ -34,8 +44,11 @@ class KioskSettings {
   /// 고대비(사용자 결정 10/18) — 큰 글씨와 같은 파일에 같은 방식으로 저장한다.
   final bool highContrast;
 
-  /// 어두운 화면(시안 B 10/24) — 기본은 밝은 화면. 고대비와 따로 저장한다(고대비를 끄면 고른 밝기로).
-  final bool darkMode;
+  /// 화면 밝기(10/26 — 밝게·어둡게·자동, 기본 자동). 고대비와 따로 저장한다(고대비를 끄면 고른 밝기로).
+  final KioskScreenTone screenTone;
+
+  /// 늘 어둡게를 골랐는가(옛 '어두운 화면' 켜짐과 같은 뜻).
+  bool get darkMode => screenTone == KioskScreenTone.dark;
 
   /// 제안 카드가 자동으로 닫히기까지의 시간(초).
   final int countdownSeconds;
@@ -48,7 +61,7 @@ class KioskSettings {
     bool? muted,
     bool? largeText,
     bool? highContrast,
-    bool? darkMode,
+    KioskScreenTone? screenTone,
     String? applianceId,
     int? countdownSeconds,
   }) =>
@@ -57,7 +70,7 @@ class KioskSettings {
         muted: muted ?? this.muted,
         largeText: largeText ?? this.largeText,
         highContrast: highContrast ?? this.highContrast,
-        darkMode: darkMode ?? this.darkMode,
+        screenTone: screenTone ?? this.screenTone,
         applianceId: applianceId ?? this.applianceId,
         countdownSeconds: countdownSeconds ?? this.countdownSeconds,
       );
@@ -71,7 +84,9 @@ class KioskSettings {
             json['large_text'] is bool ? json['large_text'] as bool : false,
         highContrast:
             json['high_contrast'] is bool ? json['high_contrast'] as bool : false,
-        darkMode: json['dark_mode'] is bool ? json['dark_mode'] as bool : false,
+        // 옛 '어두운 화면' 스위치(dark_mode)에서 옮긴다 — 켜 둔 집은 어둡게, 꺼 둔 집은 자동(10/26).
+        screenTone: _toneFromJson(json['screen_tone']) ??
+            (json['dark_mode'] == true ? KioskScreenTone.dark : KioskScreenTone.auto),
         applianceId: json['appliance_id'] is String
             ? json['appliance_id'] as String
             : null,
@@ -88,6 +103,8 @@ class KioskSettings {
         'muted': muted,
         'large_text': largeText,
         'high_contrast': highContrast,
+        'screen_tone': screenTone.name,
+        // 옛 판으로 되돌려도 어둡게 고른 것은 남게 함께 적는다.
         'dark_mode': darkMode,
         'appliance_id': applianceId,
         'countdown_seconds': countdownSeconds,

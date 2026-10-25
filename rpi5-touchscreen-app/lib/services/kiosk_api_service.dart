@@ -662,6 +662,73 @@ class RoomPresenceInfo {
   final bool cameraEnabled;
 }
 
+/// 휴대폰에서 알아들은 말의 확인 질문(GET /intent/proposals, 2026-10-26). 본체가 정한 닫힌 목록의 동작만 담는다.
+/// 키오스크·폰 중 먼저 정한 쪽만 실행한다 — 본체는 정하기만 하고 실행하지 않는다.
+class KioskIntentProposal {
+  const KioskIntentProposal({
+    required this.id,
+    required this.question,
+    required this.label,
+    required this.kind,
+    this.applianceId,
+    this.buttons = const [],
+    this.action,
+    this.args = const {},
+    this.routineId,
+    this.fingerprint,
+  });
+
+  final String id, question, label, kind;
+  final String? applianceId, action, routineId, fingerprint;
+  final List<String> buttons;
+  final Map<String, Object> args;
+
+  static bool _identifier(Object? s) => s is String && s.isNotEmpty && s.length <= 64 && !s.contains('/');
+
+  /// 모양이 맞지 않으면 null — 화면에 띄우지 않는다(모르는 동작을 지어내지 않는다).
+  static KioskIntentProposal? tryParse(Object? raw) {
+    if (raw is! Map) return null;
+    final id = raw['id'], question = raw['question'], label = raw['label'], action = raw['action'];
+    if (!_identifier(id) || question is! String || question.trim().isEmpty || label is! String || action is! Map) {
+      return null;
+    }
+    final kind = action['kind'];
+    final aid = action['appliance_id'];
+    final buttons = action['buttons'];
+    final args = action['args'];
+    if (kind == 'buttons' &&
+        _identifier(aid) &&
+        buttons is List &&
+        buttons.isNotEmpty &&
+        buttons.every((b) => b is String && b.trim().isNotEmpty)) {
+      return KioskIntentProposal(
+          id: id as String, question: question, label: label, kind: 'buttons',
+          applianceId: aid as String, buttons: buttons.cast<String>());
+    }
+    if (kind == 'thinq' &&
+        _identifier(aid) &&
+        action['action'] is String &&
+        args is Map &&
+        args.isNotEmpty &&
+        args.entries.every((e) => e.key is String && e.value is String)) {
+      return KioskIntentProposal(
+          id: id as String, question: question, label: label, kind: 'thinq',
+          applianceId: aid as String, action: action['action'] as String,
+          args: {for (final e in args.entries) e.key as String: e.value as Object});
+    }
+    if (kind == 'routine' &&
+        _identifier(action['routine_id']) &&
+        action['fingerprint'] is String &&
+        RegExp(r'^[a-f0-9]{64}$').hasMatch(action['fingerprint'] as String)) {
+      return KioskIntentProposal(
+          id: id as String, question: question, label: label, kind: 'routine',
+          routineId: action['routine_id'] as String, fingerprint: action['fingerprint'] as String);
+    }
+    // 모르는 종류 — 질문은 보이되 키오스크에서 보낼 길이 없다('휴대폰에서 정해 주세요').
+    return KioskIntentProposal(id: id as String, question: question, label: label, kind: kind is String ? kind : '');
+  }
+}
+
 class NodeInfo {
   const NodeInfo({required this.applianceId, required this.baseUrl});
 
@@ -1386,23 +1453,53 @@ class KioskApiService {
   }
 
   /// GET /presence/room — 방 안 사람 감지(온디바이스 카메라, 2026-10-25). 감지기가 없거나 실패·옛 서버면 null(절전 없음).
-  Future<RoomPresenceInfo?> roomPresence() async {
+  Future<RoomPresenceInfo?> roomPresence() async => (await roomReading()).$1;
+
+  /// GET /presence/room 한 번으로 사람 감지와 방 밝기(10/26 — 'dark'·'light'·'unknown')를 함께 읽는다.
+  /// 사람 감지가 꺼져 있어도 밝기는 따로 올 수 있다. 실패·옛 서버면 (null, 'unknown').
+  Future<(RoomPresenceInfo?, String)> roomReading() async {
     try {
       final res = await _client.get(_base.replace(path: '/presence/room')).timeout(_timeout);
-      if (res.statusCode != 200) return null;
+      if (res.statusCode != 200) return (null, 'unknown');
       final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      if (body['enabled'] != true) return null;
-      return RoomPresenceInfo(
+      final lightRaw = body['light'];
+      final lightState = lightRaw is Map ? lightRaw['state'] : null;
+      final light = lightState == 'dark' || lightState == 'light' ? lightState as String : 'unknown';
+      if (body['enabled'] != true) return (null, light);
+      return (RoomPresenceInfo(
         state: body['state'] as String? ?? 'unknown',
         sleepScreen: body['sleep_screen'] == true,
         arrivedAt: DateTime.tryParse(body['arrived_at'] as String? ?? ''),
         greeting: body['greeting'] as String?,
         greetingWeather: body['greeting_weather'] as String?,
         cameraEnabled: body['camera_enabled'] != false,
-      );
+      ), light);
     } catch (_) {
-      return null;
+      return (null, 'unknown');
     }
+  }
+
+  /// GET /intent/proposals — 휴대폰에서 말해 아직 정하지 않은 확인 질문(60초). 실패·옛 서버(404)면 빈 목록.
+  Future<List<KioskIntentProposal>> intentProposals() async {
+    try {
+      final res = await _client.get(_base.replace(path: '/intent/proposals')).timeout(_timeout);
+      if (res.statusCode != 200) return const [];
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is! List) return const [];
+      return body.map(KioskIntentProposal.tryParse).whereType<KioskIntentProposal>().toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// POST /intent/proposals/{id}/resolve — 먼저 정한 쪽만 된다. 폰이 먼저 정했거나 시간이 지났으면 409([KioskApiException]).
+  /// 본체는 실행하지 않는다 — '네'를 이긴 키오스크가 기존 실행 경로로 보낸다.
+  Future<void> resolveIntentProposal(String id, {required bool yes}) async {
+    final res = await _client
+        .post(_base.replace(path: '/intent/proposals/$id/resolve'),
+            body: jsonEncode({'result': yes ? 'yes' : 'no'}), headers: _jsonHeaders)
+        .timeout(_timeout);
+    _ensureOk(res);
   }
 
   /// POST /presence/room/camera — 사람 감지 카메라 켜기·끄기(2026-10-25). 바뀐 판단, 실패면 null.

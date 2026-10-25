@@ -42,6 +42,7 @@ import '../widgets/kiosk/kiosk_timings.dart';
 import '../widgets/kiosk/manual_view.dart';
 import '../widgets/kiosk/past_result_line.dart';
 import '../widgets/kiosk/suggestion_view.dart';
+import '../widgets/kiosk/voice_proposal_view.dart';
 import '../widgets/kiosk/settings_overlay.dart';
 import '../widgets/kiosk/top_progress_bar.dart';
 import '../widgets/kiosk/room_sleep.dart';
@@ -140,8 +141,18 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 고대비(사용자 결정 10/18) — 큰 글씨와 같은 파일에 저장. 색 토큰([KioskColors])을 바꾸고 화면 전체를 다시 그린다.
   bool _highContrast = false;
 
-  /// 어두운 화면(시안 B 10/24, 설정 '어두운 화면'). 기본은 밝은 화면.
-  bool _darkMode = false;
+  /// 화면 밝기(10/26 — 밝게·어둡게·자동). 자동은 본체가 정한 방 밝기([_roomDark])를 따른다(새로 설치하면 자동).
+  KioskScreenTone _tone = KioskScreenTone.auto;
+
+  /// 자동일 때 마지막으로 따른 방 밝기 — 본체가 '모름'이면 바꾸지 않는다(깜빡이지 않게, 본체가 이미 30초 평균·문턱 두 개로 거른다).
+  bool _roomDark = false;
+
+  bool get _darkMode => _tone == KioskScreenTone.dark || (_tone == KioskScreenTone.auto && _roomDark);
+
+  // 휴대폰에서 말한 내용의 확인 질문(10/26) — 처음 화면에서만 띄운다. 먼저 정한 쪽(폰·키오스크)만 실행한다.
+  KioskIntentProposal? _voiceProposal;
+  final Set<String> _seenVoiceProposals = {};
+  bool _voiceBusy = false;
 
   /// 조용한 시간에 화면을 만져 잠시 평소 밝기다([kQuietWakeDuration] 뒤 다시 어둡게).
   bool _quietAwake = false;
@@ -429,7 +440,7 @@ class _KioskScreenState extends State<KioskScreen> {
       muted: _tts.muted,
       largeText: _largeText,
       highContrast: _highContrast,
-      darkMode: _darkMode,
+      screenTone: _tone,
       applianceId: _currentAppliance.id,
       countdownSeconds: _countdownSeconds,
     ));
@@ -447,7 +458,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _tts.muted = saved.muted;
       _largeText = saved.largeText;
       _highContrast = saved.highContrast;
-      _darkMode = saved.darkMode;
+      _tone = saved.screenTone;
       _countdownSeconds = saved.countdownSeconds;
       var restored = false;
       for (final a in kAppliances) {
@@ -552,8 +563,9 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   Future<void> _fetchRoom() async {
-    final room = await _api.roomPresence();
+    final (room, light) = await _api.roomReading();
     if (!mounted) return;
+    _followRoomLight(light);
     final arrived = room?.arrivedAt;
     // 처음 읽은 돌아옴은 방금(15초 안) 일어났을 때만 새 돌아옴이다(Codex 검토 10/25 — 첫 복귀 인사가 빠졌다).
     // 화면이 다시 켜진 뒤 오래된 돌아옴에 또 인사하지 않는다.
@@ -589,7 +601,7 @@ class _KioskScreenState extends State<KioskScreen> {
   bool get _roomSleeping {
     final room = _room;
     if (room == null || !room.sleepScreen) return false;
-    if (_phase != KioskPhase.idle || _overlayOpen || _showEstop || _alert.active) return false;
+    if (_phase != KioskPhase.idle || _overlayOpen || _showEstop || _alert.active || _voiceProposal != null) return false;
     final wake = _touchWakeUntil;
     return wake == null || DateTime.now().isAfter(wake);
   }
@@ -1084,6 +1096,9 @@ class _KioskScreenState extends State<KioskScreen> {
       _trackAutoRun(st);
       if (_catchMissedResult(st)) return;
     } catch (_) {}
+    // 휴대폰에서 말한 확인 질문(10/26) — 방금 사람이 말한 것이라 스스로 뜬 제안보다 먼저 보인다.
+    await _pollVoiceProposals();
+    if (!mounted || _phase != KioskPhase.idle || _voiceProposal != null) return;
     try {
       final list = await _api.suggestions();
       if (!mounted || _phase != KioskPhase.idle) return;
@@ -1094,6 +1109,131 @@ class _KioskScreenState extends State<KioskScreen> {
         _toSuggestion(next);
       }
     } catch (_) {}
+  }
+
+  /// 휴대폰 말 확인 질문을 읽는다. 폰에서 정했거나 시간이 지나 목록에서 빠지면 내린다. 새 질문이면 알림음 뒤 질문을 읽는다.
+  Future<void> _pollVoiceProposals() async {
+    final list = await _api.intentProposals();
+    if (!mounted || _voiceBusy) return;
+    final current = _voiceProposal;
+    if (current != null && list.any((p) => p.id == current.id)) return;
+    final next = list.where((p) => !_seenVoiceProposals.contains(p.id)).lastOrNull;
+    if (next == null) {
+      if (current != null) setState(() => _voiceProposal = null);
+      return;
+    }
+    _seenVoiceProposals.add(next.id);
+    if (_seenVoiceProposals.length > 64) _seenVoiceProposals.remove(_seenVoiceProposals.first);
+    setState(() => _voiceProposal = next);
+    if (_health.speakGeneral) {
+      _tts.announce(_voiceCanRun(next) ? "${next.question} 하시려면 화면의 '네'를 눌러 주세요." : next.question);
+    }
+  }
+
+  /// 키오스크에서 보낼 길이 있는 동작인가 — 누름(이 본체가 아는 가전)·LG 가전 명령·저장한 루틴.
+  bool _voiceCanRun(KioskIntentProposal p) => switch (p.kind) {
+        'buttons' => p.applianceId != null && _findIn(_appliances, p.applianceId!) != null,
+        'thinq' => p.applianceId != null && p.action != null,
+        'routine' => p.routineId != null && p.fingerprint != null,
+        _ => false,
+      };
+
+  /// 확인 질문의 '네'·'아니요' — 본체에 먼저 정한다(폰과 둘 중 한쪽만). '네'를 이겼을 때만 기존 실행 경로로 보낸다.
+  Future<void> _onVoiceAnswer(bool yes) async {
+    final p = _voiceProposal;
+    if (p == null || _voiceBusy || (yes && (_admitting || !_voiceCanRun(p)))) return;
+    setState(() => _voiceBusy = true);
+    void close() => setState(() {
+          _voiceBusy = false;
+          _voiceProposal = null;
+        });
+    try {
+      await _api.resolveIntentProposal(p.id, yes: yes);
+    } on KioskApiException catch (e) {
+      if (!mounted) return;
+      close();
+      if (yes) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.statusCode == 409 ? '휴대폰에서 이미 정했어요' : '시간이 지났어요. 휴대폰에서 다시 말해 주세요.')));
+      }
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      if (!yes) {
+        close(); // 아니요는 못 보내도 내린다 — 본체 질문은 60초 뒤 저절로 사라진다.
+        return;
+      }
+      setState(() => _voiceBusy = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('본체에 보내지 못했어요. 다시 눌러 주세요.')));
+      return;
+    }
+    if (!mounted) return;
+    close();
+    if (!yes || _phase != KioskPhase.idle) return;
+    switch (p.kind) {
+      case 'buttons':
+      case 'thinq':
+        await _runVoiceDirect(p);
+      case 'routine':
+        await _runVoiceRoutine(p);
+    }
+  }
+
+  /// 누름·LG 가전 명령 — 조작판에서 고른 것과 같은 접수 경로(요청 번호·응답 잃음·정지). '다시 시도'는 두지 않는다(다시 말해야 한다).
+  Future<void> _runVoiceDirect(KioskIntentProposal p) async {
+    if (_admitting) return;
+    final aid = p.applianceId!;
+    final thinq = p.kind == 'thinq';
+    _beginAdmission();
+    _toExecuting(p.label,
+        applianceId: aid,
+        thinqOnly: thinq,
+        thinqActionText: thinq ? p.label : null,
+        continueApplianceId: _findIn(_appliances, aid) == null ? null : aid);
+    _execPlanButtons = !thinq && p.buttons.length > 1 ? List.unmodifiable(p.buttons) : null;
+    final gen = _admitGen;
+    _accepting = true;
+    _retryAction = null;
+    try {
+      final accepted = thinq
+          ? await _api.thinqCommand(aid, p.action!, p.args, clientRequestId: _admitRequestId)
+          : await _api.executeButtons(p.buttons, applianceId: aid, clientRequestId: _admitRequestId);
+      if (gen != _admitGen) return;
+      _accepting = false;
+      _activeJobId = accepted.jobId;
+      _stopIfAskedWhileAccepting();
+    } catch (e) {
+      if (gen != _admitGen) return;
+      _accepting = false;
+      if (!mounted || _phase != KioskPhase.executing) return;
+      if (e is! KioskApiException || e.statusCode >= 500) {
+        _admissionLost();
+        return;
+      }
+      _stopWhileAccepting = false;
+      _toDone(false, p.label, reason: KioskFailureReason.serverLost);
+    }
+  }
+
+  /// 저장한 루틴 — 카드를 만들고(실행 없음) 휴대폰이 본 내용과 같은지(지문) 확인한 뒤 그 카드를 승인 경로로. 폰과 같은 규칙.
+  Future<void> _runVoiceRoutine(KioskIntentProposal p) async {
+    try {
+      final result = await _api.triggerRoutine(p.routineId!);
+      if (!mounted || _phase != KioskPhase.idle) return;
+      final card = result.suggestion;
+      if (card == null || card.scenarioId != 'routine:${p.routineId}@${p.fingerprint!.substring(0, 12)}') {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('동작 내용이 바뀌었어요. 휴대폰에서 다시 말해 주세요.')));
+        return;
+      }
+      _shownSuggestionIds.add(card.id);
+      await _onApprove(suggestion: card);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('동작을 불러오지 못했어요. 휴대폰에서 다시 말해 주세요.')));
+    }
   }
 
   /// 정지 대기(동작 중 화면)로 갈 차례인가 — 평소·결과·조작판 화면이 같은 규칙을 쓴다(코드 검토 10/24: 연속 조작으로 결과·조작판에
@@ -1687,11 +1827,24 @@ class _KioskScreenState extends State<KioskScreen> {
     _repaintAll();
   }
 
-  /// 밝은·어두운 화면을 고른다(시안 B 10/24) — 고대비와 같은 방식으로 다시 그리고 저장한다.
-  void _setDarkMode(bool on) {
-    setState(() => _darkMode = on);
-    KioskColors.setDarkMode(on);
+  /// 화면 밝기를 고른다(10/26 — 밝게·어둡게·자동) — 고대비와 같은 방식으로 다시 그리고 저장한다.
+  void _setScreenTone(KioskScreenTone tone) {
+    setState(() => _tone = tone);
+    KioskColors.setDarkMode(_darkMode);
     _repaintAll();
+  }
+
+  /// 자동일 때 방 밝기를 따른다. '모름'(카메라 꺼짐·감지기 멈춤·옛 본체)이면 지금 밝기 그대로. 바뀔 때만 다시 그린다(저장 안 함).
+  void _followRoomLight(String light) {
+    if (light != 'dark' && light != 'light') return;
+    final dark = light == 'dark';
+    if (dark == _roomDark) return;
+    final before = _darkMode;
+    _roomDark = dark;
+    if (_darkMode == before) return;
+    setState(() {});
+    KioskColors.setDarkMode(_darkMode);
+    _rebuildAll();
   }
 
   void _repaintAll() {
@@ -2782,8 +2935,8 @@ class _KioskScreenState extends State<KioskScreen> {
                           },
                           highContrastEnabled: _highContrast,
                           onHighContrastChanged: _setHighContrast,
-                          darkModeEnabled: _darkMode,
-                          onDarkModeChanged: _setDarkMode,
+                          screenTone: _tone,
+                          onScreenToneChanged: _setScreenTone,
                           countdownSeconds: _countdownSeconds,
                           onCountdownChanged: (seconds) {
                             setState(() => _countdownSeconds = seconds);
@@ -2986,6 +3139,16 @@ class _KioskScreenState extends State<KioskScreen> {
   Widget _buildScreen() {
     switch (_phase) {
       case KioskPhase.idle:
+        // 휴대폰에서 말한 확인 질문(10/26) — 처음 화면에서만. 실행·대기·결과 화면은 가리지 않는다.
+        if (_voiceProposal case final p?) {
+          return KioskVoiceProposalView(
+            key: ValueKey('voice-proposal-${p.id}'),
+            proposal: p,
+            busy: _voiceBusy,
+            onReject: () => _onVoiceAnswer(false),
+            onApprove: _voiceCanRun(p) ? () => _onVoiceAnswer(true) : null,
+          );
+        }
         // '자동 실행'·'기록' 탭(시안 B 10/24) — 읽기만 하는 화면. 조용한 시간으로 어두우면 처음 화면(큰 시계)이 앞선다.
         if (!_quietDim && _homeTab == KioskTab.auto) {
           return Listener(

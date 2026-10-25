@@ -87,7 +87,7 @@ void main() {
       expect(KioskColors.bg, KioskColors.dark.bg);
     });
 
-    testWidgets("설정 '어두운 화면' — 켜면 바로 어두운 색, 같은 파일에 저장, 다시 켜도 유지", (tester) async {
+    testWidgets("설정 '화면 밝기' 어둡게 — 고르면 바로 어두운 색, 같은 파일에 저장, 다시 켜도 유지", (tester) async {
       final dir = Directory.systemTemp.createTempSync('kiosk-dark');
       addTearDown(() => dir.deleteSync(recursive: true));
       final store = KioskSettingsStore(path: '${dir.path}/settings.json');
@@ -96,11 +96,11 @@ void main() {
       expect(tester.widget<Scaffold>(find.byType(Scaffold).first).backgroundColor, KioskColors.light.bg);
       await tapIdleMenuItem(tester, 'settings-entry');
       await tester.pump();
-      final row = find.byKey(const ValueKey('settings-dark-mode'));
+      final row = find.byKey(const ValueKey('settings-screen-tone'));
       expect(row, findsOneWidget);
       await tester.ensureVisible(row);
       await tester.pump();
-      await tester.tap(find.descendant(of: row, matching: find.byType(Switch)));
+      await tester.tap(find.byKey(const ValueKey('settings-tone-dark')));
       await tester.pump();
       expect(KioskColors.darkMode, isTrue);
       // 설정 창이 떠 있어 바탕은 어두운 팔레트 위에 창 막 색(10/24 — 가장자리까지 같은 막).

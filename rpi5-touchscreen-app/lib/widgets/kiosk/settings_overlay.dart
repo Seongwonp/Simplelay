@@ -5,6 +5,7 @@ import '../../theme/kiosk_tokens.dart';
 import '../../models/appliance.dart';
 import '../../models/kiosk_time.dart';
 import '../../services/kiosk_api_service.dart';
+import '../../services/kiosk_settings_store.dart' show KioskScreenTone;
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_timings.dart';
 import 'kiosk_text.dart';
@@ -27,8 +28,8 @@ class KioskSettingsOverlay extends StatefulWidget {
     this.onLargeTextChanged,
     this.highContrastEnabled = false,
     this.onHighContrastChanged,
-    this.darkModeEnabled = false,
-    this.onDarkModeChanged,
+    this.screenTone = KioskScreenTone.auto,
+    this.onScreenToneChanged,
     this.countdownSeconds = KioskTimings.countdownSeconds,
     this.onCountdownChanged,
     this.quietSchedule,
@@ -58,9 +59,9 @@ class KioskSettingsOverlay extends StatefulWidget {
   final bool highContrastEnabled;
   final ValueChanged<bool>? onHighContrastChanged;
 
-  /// 어두운 화면 켜짐 여부 + 토글 콜백(시안 B 10/24). 기본은 밝은 화면.
-  final bool darkModeEnabled;
-  final ValueChanged<bool>? onDarkModeChanged;
+  /// 화면 밝기 — 밝게·어둡게·자동(10/26, 기본 자동: 방이 어두우면 어둡게) + 고르기 콜백.
+  final KioskScreenTone screenTone;
+  final ValueChanged<KioskScreenTone>? onScreenToneChanged;
 
   /// 제안 카드 자동 닫힘 시간(초) + 변경 콜백
   final int countdownSeconds;
@@ -374,15 +375,8 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
             onChanged: widget.onHighContrastChanged,
           ),
           const SizedBox(height: 4),
-          // 밝은·어두운 화면(시안 B 10/24) — 같은 파일에 저장된다. 고대비를 켜면 고대비가 우선한다.
-          _toggleRow(
-            key: const ValueKey('settings-dark-mode'),
-            icon: Icons.dark_mode_outlined,
-            title: '어두운 화면',
-            subtitle: '끄면 밝은 화면으로 보여 줘요',
-            value: widget.darkModeEnabled,
-            onChanged: widget.onDarkModeChanged,
-          ),
+          // 화면 밝기(10/26 — 옛 '어두운 화면' 스위치를 세 가지로). 같은 파일에 저장된다. 고대비를 켜면 고대비가 우선한다.
+          _buildToneRow(),
           // 카메라 끄기(가이드라인 '전체 제어', 10/25) — 끄면 본체가 카메라를 열지 않는다. 사진은 켜 있을 때도 남기지 않는다.
           if (_camera case final camera?) ...[
             const SizedBox(height: 4),
@@ -402,6 +396,61 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
 
   /// 제안 카드가 얼마나 오래 떠 있을지 — 걸어와서 읽고 판단할 시간이
   /// 사람마다 다르므로 고를 수 있어야 한다.
+  static const _toneChoices = [
+    (KioskScreenTone.light, '밝게'),
+    (KioskScreenTone.dark, '어둡게'),
+    (KioskScreenTone.auto, '자동'),
+  ];
+
+  /// 화면 밝기 고르기 — 제안 표시 시간과 같은 모양의 세 칸. 자동은 방 불이 꺼지면 어둡게, 켜지면 밝게.
+  Widget _buildToneRow() => Row(
+        key: const ValueKey('settings-screen-tone'),
+        children: [
+          Icon(Icons.dark_mode_outlined, color: KioskColors.muted, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('화면 밝기', style: TextStyle(fontSize: KioskType.caption, color: KioskColors.ink)),
+                Text('자동은 방 불을 끄면 어둡게 보여 줘요',
+                    style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+              ],
+            ),
+          ),
+          for (final (tone, label) in _toneChoices)
+            Padding(
+              padding: const EdgeInsets.only(left: 6),
+              child: SizedBox(
+                height: 44,
+                child: Semantics(
+                  selected: tone == widget.screenTone,
+                  child: OutlinedButton(
+                    key: ValueKey('settings-tone-${tone.name}'),
+                    onPressed: widget.onScreenToneChanged == null ? null : () => widget.onScreenToneChanged!(tone),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tone == widget.screenTone ? KioskColors.primary : KioskColors.muted,
+                      backgroundColor: tone == widget.screenTone ? KioskColors.primary.withValues(alpha: 0.14) : null,
+                      side: BorderSide(
+                        color: tone == widget.screenTone
+                            ? KioskColors.primary.withValues(alpha: 0.6)
+                            : KioskColors.border,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(label,
+                        style: TextStyle(
+                          fontSize: KioskType.caption,
+                          fontWeight: tone == widget.screenTone ? FontWeight.w600 : FontWeight.w400,
+                        )),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+
   Widget _buildCountdownRow() => Row(
         children: [
           Icon(Icons.timer_outlined, color: KioskColors.muted, size: 18),

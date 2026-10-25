@@ -38,6 +38,22 @@ class FakeKioskApi implements KioskApiService {
   @override
   Future<RoomPresenceInfo?> roomPresence() async => room;
   RoomPresenceInfo? room;
+  // 방 밝기(10/26) — 'dark'·'light'·'unknown'. 기본은 모름(화면 밝기를 바꾸지 않는다).
+  String roomLight = 'unknown';
+  @override
+  Future<(RoomPresenceInfo?, String)> roomReading() async => (room, roomLight);
+  // 휴대폰에서 말한 확인 질문(10/26). 기본은 없음.
+  List<KioskIntentProposal> voiceProposals = [];
+  final voiceResolves = <(String, bool)>[];
+  Object? voiceResolveError;
+  @override
+  Future<List<KioskIntentProposal>> intentProposals() async => voiceProposals;
+  @override
+  Future<void> resolveIntentProposal(String id, {required bool yes}) async {
+    voiceResolves.add((id, yes));
+    if (voiceResolveError != null) throw voiceResolveError!;
+    voiceProposals = voiceProposals.where((p) => p.id != id).toList();
+  }
   @override
   Future<RoomPresenceInfo?> setRoomCamera(bool enabled) async => null;
   @override
