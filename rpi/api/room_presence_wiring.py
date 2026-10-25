@@ -109,6 +109,7 @@ def get_room_presence() -> RoomPresence | None:
         away_after_s=_float_env("SIMPLELAY_ROOM_AWAY_SECONDS", 3600.0),
         arrive_frames=int(_float_env("SIMPLELAY_ROOM_ARRIVE_FRAMES", 3)),
         greet_gap_s=_float_env("SIMPLELAY_ROOM_GREET_GAP_SECONDS", 3 * 3600.0),
+        greet_after_s=_float_env("SIMPLELAY_ROOM_GREET_AFTER_SECONDS", 3 * 3600.0),
     )
 
 

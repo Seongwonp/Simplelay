@@ -49,6 +49,7 @@ class RoomPresence:
         away_after_s: float = 3600.0,
         stale_s: float = 20.0,
         greet_gap_s: float = 3 * 3600.0,
+        greet_after_s: float = 3 * 3600.0,
     ) -> None:
         self._now = now
         self.arrive_frames = max(1, arrive_frames)
@@ -56,6 +57,8 @@ class RoomPresence:
         self.away_after_s = max(away_after_s, dim_after_s)
         self.stale_s = stale_s
         self.greet_gap_s = greet_gap_s
+        #: 이만큼 넘게 안 보이다 돌아왔을 때만 인사한다(10/26 사용자 — 3시간 이상, 짧게 비운 건 화면만 켜고 말하지 않는다).
+        self.greet_after_s = greet_after_s
         self._greet = False
         self._last_greet: float | None = None
         self._lock = threading.Lock()
@@ -93,13 +96,18 @@ class RoomPresence:
             if persons > 0:
                 self._streak += 1
                 if self._state == PRESENT or self._streak >= self.arrive_frames:
+                    gone = None if self._last_seen is None else now - self._last_seen  # 마지막으로 본 뒤 얼마나
                     self._last_seen = now
                     if self._state in (IDLE, AWAY):
                         self._arrived = now
                         self._arrived_from = self._state
                         # 잠깐 자리 비움에서 돌아오면 화면만 켜고 말하지 않는다(10/25 사용자 — 찍힐 때마다 인사는 이상하다).
-                        self._greet = self._state == AWAY and (
-                            self._last_greet is None or now - self._last_greet >= self.greet_gap_s)
+                        # 3시간 이상 안 보이다 돌아왔을 때만(10/26) — 켜진 뒤 처음 보인 사람(얼마나 비웠는지 모름)도 인사하지 않는다.
+                        self._greet = (
+                            self._state == AWAY
+                            and gone is not None
+                            and gone >= self.greet_after_s
+                            and (self._last_greet is None or now - self._last_greet >= self.greet_gap_s))
                         if self._greet:
                             self._last_greet = now
                     self._set(PRESENT, now)
@@ -132,24 +140,19 @@ class RoomPresence:
 
 
 def greeting_for(when, name: str | None = None) -> str:
-    """오래 비웠다 돌아왔을 때 한 줄 인사(10/25 사용자 표). 평일 저녁은 하루를 위로하고, 주말·일요일 저녁은 따로.
+    """3시간 넘게 비웠다 돌아왔을 때 한 줄 인사(10/26 다시 씀 — 집에 돌아온 사람에게 하는 말, 짧고 담백하게).
 
-    ``when``은 돌아온 시각(지역 시각 datetime). 이름이 있으면 앞에 '○○님,'."""
+    밤사이 안 보이다 아침에 보이면 아침 인사, 그 밖에는 '다녀오셨어요'에 때에 맞는 한마디. 질문·감탄은 두지 않는다
+    (대답을 바라는 말처럼 들렸다). ``when``은 돌아온 시각(지역 시각 datetime). 이름이 있으면 앞에 '○○님,'."""
     hour = when.hour
-    weekend = when.weekday() >= 5
     if 5 <= hour < 10:
-        line = "좋은 주말 아침이에요." if weekend else "좋은 아침이에요."
+        line = "좋은 아침이에요."
     elif 10 <= hour < 17:
-        line = "주말 잘 보내고 계세요?" if weekend else "어서 오세요."
-    elif 17 <= hour < 23:
-        if when.weekday() == 6:
-            line = "내일부터 또 한 주예요. 오늘은 푹 쉬세요."
-        elif weekend:
-            line = "즐거운 주말 보내셨어요? 편히 쉬세요."
-        else:
-            line = "오늘 하루도 고생 많으셨어요!"
+        line = "다녀오셨어요."
+    elif 17 <= hour < 22:
+        line = "다녀오셨어요. 편안한 저녁 보내세요." if when.weekday() >= 5 else "다녀오셨어요. 오늘도 수고 많으셨어요."
     else:
-        line = "늦었네요. 푹 쉬세요." if weekend else "늦게까지 고생 많으셨어요. 푹 쉬세요."
+        line = "늦게 오셨네요. 편히 쉬세요."
     return f"{name}님, {line}" if name else line
 
 

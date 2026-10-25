@@ -123,22 +123,23 @@ def test_room_route_reports_off_without_detector(monkeypatch):
 
 
 def test_greeting_table_weekday_weekend_and_name():
-    """10/25 사용자 표 — 평일 저녁은 하루 위로, 주말·일요일 저녁은 따로, 이름은 앞에."""
+    """10/26 다시 쓴 인사 — '다녀오셨어요'에 때에 맞는 한마디, 아침은 아침 인사, 이름은 앞에."""
     from datetime import datetime
 
     from rpi.services.room_presence import greeting_for
 
-    assert greeting_for(datetime(2026, 10, 26, 19, 0), "성원") == "성원님, 오늘 하루도 고생 많으셨어요!"  # 월
-    assert greeting_for(datetime(2026, 10, 24, 19, 0)) == "즐거운 주말 보내셨어요? 편히 쉬세요."  # 토
-    assert greeting_for(datetime(2026, 10, 25, 19, 0)) == "내일부터 또 한 주예요. 오늘은 푹 쉬세요."  # 일
+    assert greeting_for(datetime(2026, 10, 26, 19, 0), "성원") == "성원님, 다녀오셨어요. 오늘도 수고 많으셨어요."  # 월
+    assert greeting_for(datetime(2026, 10, 25, 19, 0)) == "다녀오셨어요. 편안한 저녁 보내세요."  # 일
+    assert greeting_for(datetime(2026, 10, 26, 14, 0)) == "다녀오셨어요."
     assert greeting_for(datetime(2026, 10, 26, 8, 0)) == "좋은 아침이에요."
-    assert greeting_for(datetime(2026, 10, 26, 23, 30)) == "늦게까지 고생 많으셨어요. 푹 쉬세요."
+    assert greeting_for(datetime(2026, 10, 26, 23, 30)) == "늦게 오셨네요. 편히 쉬세요."
 
 
 def test_greets_only_after_a_long_absence_and_not_again_within_the_gap():
     """찍힐 때마다 인사하지 않는다(10/25 사용자) — 잠깐 자리 비움은 조용히, 외출 뒤에도 몇 시간에 한 번."""
     clock = _Clock()
-    room = RoomPresence(now=clock, arrive_frames=3, dim_after_s=60, away_after_s=600, stale_s=20, greet_gap_s=3600)
+    room = RoomPresence(now=clock, arrive_frames=3, dim_after_s=60, away_after_s=600, stale_s=20, greet_gap_s=3600,
+                        greet_after_s=600)
     feed = _Feed(room, clock)
     for _ in range(3):
         feed.frame(1)
@@ -155,6 +156,23 @@ def test_greets_only_after_a_long_absence_and_not_again_within_the_gap():
     for _ in range(3):
         feed.frame(1)
     assert room.snapshot().greet is False, "한 시간 안에 또 인사하지 않는다"
+
+
+def test_no_greeting_unless_gone_for_three_hours():
+    """10/26 사용자 — 3시간 이상 안 보이다 돌아왔을 때만 인사. 1시간 외출(자리 비움 판정은 지났어도)은 화면만 켠다."""
+    clock = _Clock()
+    room = RoomPresence(now=clock, arrive_frames=3, dim_after_s=600, away_after_s=3600, stale_s=20)
+    feed = _Feed(room, clock)
+    for _ in range(3):
+        feed.frame(1)
+    feed.frame(0, advance=3700)          # 1시간 남짓 — 외출 판정은 지났다
+    for _ in range(3):
+        feed.frame(1)
+    assert room.snapshot().greet is False
+    feed.frame(0, advance=3 * 3600 + 60)  # 3시간 넘게
+    for _ in range(3):
+        feed.frame(1)
+    assert room.snapshot().greet is True
 
 
 def test_arrival_remembers_where_it_came_back_from():
