@@ -128,6 +128,7 @@ from .schemas import (
     ReviseSuggestionRequest,
     PresenceRequest,
     PresenceResponse,
+    RoomLightView,
     RoomPresenceResponse,
     RoomCameraRequest,
     ProfileRequest,
@@ -1680,8 +1681,9 @@ def room_presence() -> RoomPresenceResponse:
     from rpi.services.room_presence import AWAY, IDLE, greeting_for  # noqa: PLC0415
 
     room = get_room_presence()
+    light = _room_light_view()
     if room is None:
-        return RoomPresenceResponse(enabled=False, state="unknown")
+        return RoomPresenceResponse(enabled=False, state="unknown", light=light)
     snap = room.snapshot()
     greet = snap.greet and snap.arrived_at is not None
 
@@ -1702,7 +1704,18 @@ def room_presence() -> RoomPresenceResponse:
         dim_after_s=room.dim_after_s,
         away_after_s=room.away_after_s,
         camera_enabled=camera_enabled(),
+        light=light,
     )
+
+
+def _room_light_view() -> RoomLightView:
+    from rpi.api.room_presence_wiring import get_room_light  # noqa: PLC0415
+
+    light = get_room_light()
+    if light is None:
+        return RoomLightView()
+    snap = light.snapshot()
+    return RoomLightView(state=snap.state, level=snap.level)
 
 
 @router.get("/profile", response_model=ProfileResponse)

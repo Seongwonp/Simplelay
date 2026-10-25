@@ -167,3 +167,63 @@ def start_room_presence_poller() -> None:
 
 def stop_room_presence_poller() -> None:
     _stop.set()
+
+
+# ── 방 밝기(2026-10-26) — SIMPLELAY_ROOM_LIGHT_FILE이 있을 때만. 사람 감지와 따로 도는 가벼운 데몬 스레드. ──
+
+_light_stop = threading.Event()
+_light_thread: threading.Thread | None = None
+
+
+def room_light_path() -> str | None:
+    return os.environ.get("SIMPLELAY_ROOM_LIGHT_FILE", "").strip() or None
+
+
+@lru_cache(maxsize=1)
+def get_room_light():
+    from rpi.services.room_light import RoomLight  # noqa: PLC0415
+
+    if room_light_path() is None:
+        return None
+    return RoomLight(
+        dark_below=_float_env("SIMPLELAY_ROOM_DARK_BELOW", 115.0),
+        light_above=_float_env("SIMPLELAY_ROOM_LIGHT_ABOVE", 135.0),
+    )
+
+
+def poll_room_light_once(path: str) -> str | None:
+    """한 번 읽어 넣는다. 판단이 바뀌면 한 줄만 남긴다(밤새 문턱 맞추기용 — 영상은 남기지 않는다)."""
+    from rpi.services.room_light import read_level  # noqa: PLC0415
+
+    light = get_room_light()
+    if light is None:
+        return None
+    level = read_level(path, stale_s=light.stale_s)
+    changed = light.observe(level)
+    if changed is not None:
+        log.info("room light → %s (mean=%s)", changed, light.snapshot().level)
+    return changed
+
+
+def _light_loop(path: str) -> None:
+    while not _light_stop.is_set():
+        try:
+            poll_room_light_once(path)
+        except Exception:  # noqa: BLE001
+            log.exception("room light poll failed")
+        _light_stop.wait(POLL_SECONDS)
+
+
+def start_room_light_poller() -> None:
+    global _light_thread
+    path = room_light_path()
+    if path is None or (_light_thread is not None and _light_thread.is_alive()):
+        return
+    _light_stop.clear()
+    _light_thread = threading.Thread(target=_light_loop, args=(path,), daemon=True, name="simplelay-room-light")
+    _light_thread.start()
+    log.info("room light on: %s", path)
+
+
+def stop_room_light_poller() -> None:
+    _light_stop.set()

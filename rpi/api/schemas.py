@@ -1177,6 +1177,13 @@ class PresenceResponse(BaseModel):
     updated_at: datetime | None = None
 
 
+class RoomLightView(BaseModel):
+    """방 밝기 판단(2026-10-26) — 키오스크 '자동' 화면 밝기. 감지 파일이 없거나 20초 넘게 안 바뀌면 unknown."""
+
+    state: str = "unknown"  # dark | light | unknown
+    level: int | None = None  # 30초 평균 밝기(0~255), 모르면 None
+
+
 class RoomPresenceResponse(BaseModel):
     """GET /presence/room — 방 안 사람 감지(카메라) 판단(2026-10-25). 감지기가 꺼져 있으면 enabled=false."""
 
@@ -1194,6 +1201,7 @@ class RoomPresenceResponse(BaseModel):
     dim_after_s: float | None = None
     away_after_s: float | None = None
     camera_enabled: bool = False  # 사용자가 끈 동안은 본체가 카메라를 열지 않는다
+    light: RoomLightView = RoomLightView()  # 방 밝기(사람 감지와 따로 켠다) — 옛 클라이언트는 무시
 
 
 class ProfileRequest(BaseModel):

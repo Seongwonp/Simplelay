@@ -1,10 +1,13 @@
 """Read-only intent proposal endpoint; no executor is called here."""
 import asyncio
 
-from fastapi import APIRouter, Depends
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from rpi.intent.llm_intent import LlmIntentConfig, build_choices, understand, unknown
+from rpi.intent.proposals import ProposalConflict, get_proposal_store
 from rpi.routines.wiring import get_routine_store
 from .deps import get_service, get_appliance_registry, get_node_registry, builtin_appliances_visible
 from .readiness_view import readiness_view
@@ -50,4 +53,46 @@ async def intent_understand(body: UnderstandRequest, service=Depends(get_service
     config = LlmIntentConfig.from_env()
     if not config.url:
         return unknown('off')
-    return await asyncio.to_thread(_propose, body.text, config, service, registry, nodes)
+    result = await asyncio.to_thread(_propose, body.text, config, service, registry, nodes)
+    if result.get('understood') and result.get('action'):
+        # 키오스크도 같은 질문을 띄울 수 있게 60초 동안 둔다. 실행은 하지 않는다(먼저 고른 클라이언트가 실행).
+        proposal = get_proposal_store().add(result['question'], result['label'], result['action'])
+        result = {**result, 'proposal_id': proposal.id}
+    return result
+
+
+def _view(p):
+    return {'id': p.id, 'question': p.question, 'label': p.label, 'action': p.action,
+            'created_at': p.created_at, 'state': p.state}
+
+
+class ResolveRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    result: Literal['yes', 'no']
+
+
+@router.get('/intent/proposals')
+def intent_proposals():
+    """아직 정하지 않은(60초 안) 휴대폰 말 확인 질문. 읽기만 한다."""
+    return [_view(p) for p in get_proposal_store().pending()]
+
+
+@router.get('/intent/proposals/{proposal_id}')
+def intent_proposal(proposal_id: str):
+    """폰 확인 창이 상태를 본다(pending·yes·no·expired·replaced). 없으면 404."""
+    p = get_proposal_store().get(proposal_id)
+    if p is None:
+        raise HTTPException(status_code=404, detail='이미 지난 질문이에요.')
+    return _view(p)
+
+
+@router.post('/intent/proposals/{proposal_id}/resolve')
+def intent_proposal_resolve(proposal_id: str, body: ResolveRequest):
+    """먼저 고른 쪽 한 번만(원자적). 서버는 실행하지 않는다 — 'yes'를 이긴 클라이언트가 action을 기존 경로로 보낸다."""
+    try:
+        p = get_proposal_store().resolve(proposal_id, body.result)
+    except KeyError:
+        raise HTTPException(status_code=404, detail='이미 지난 질문이에요.') from None
+    except ProposalConflict:
+        raise HTTPException(status_code=409, detail='다른 곳에서 이미 정했어요.') from None
+    return _view(p)
