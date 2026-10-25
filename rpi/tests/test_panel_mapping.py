@@ -210,3 +210,17 @@ def test_verify_pass_on_the_local_mock_controller(client):
     assert doc["state"] == "done" and doc["route"] == "local_mock"
     assert [(s["button"], s["status"]) for s in doc["steps"]] == [("즉석밥", "reached"), ("취소", "reached"),
                                                                   ("기다리는 자리", "reached")]
+
+
+def test_y_up_gantry_maps_the_photo_bottom_left_to_origin(monkeypatch):
+    """HW 담당 원본 펌웨어(10/25): 원점 좌하단, +Y 위, 음수 좌표 거절. 사진에서 짚는 순서는 그대로(왼쪽 위부터)인데
+    Y만 뒤집혀야 한다 — 그렇지 않으면 위아래가 바뀐 버튼을 누른다."""
+    monkeypatch.setenv("SIMPLELAY_FRAME_Y_UP", "1")
+    frame = frame_config(300, 200)
+    assert frame.y_up is True
+    result = compute_mapping(data(frame=frame))
+    # 사진 아래쪽(종전 y=150)은 바닥에서 50 mm 위 — 위로 커지는 Y
+    assert result.buttons_mm["BT-05"] == pytest.approx((250, 50), abs=0.01)
+    assert result.park_mm == pytest.approx((20, 15), abs=0.01)
+    monkeypatch.delenv("SIMPLELAY_FRAME_Y_UP")
+    assert frame_config(300, 200).y_up is False

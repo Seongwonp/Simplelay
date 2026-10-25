@@ -57,10 +57,14 @@ class FrameConfig:
     origin_x_mm: float = 0.0
     origin_y_mm: float = 0.0
     source: str = "none"  # request | env | none
+    #: 갠트리 Y가 위로 커지는가(2026-10-25, HW 담당 원본 펌웨어 — 원점 좌하단, +Y 위, 음수 좌표 거절). 참이면 사진의
+    #: 왼쪽 아래 모서리가 원점, 왼쪽 위가 (0, H)다. 거짓(기본)이면 종전처럼 왼쪽 위가 원점, 아래로 Y가 커진다.
+    y_up: bool = False
 
     def as_dict(self) -> dict:
         return {"frame_w_mm": self.width_mm, "frame_h_mm": self.height_mm,
-                "origin_x_mm": self.origin_x_mm, "origin_y_mm": self.origin_y_mm, "source": self.source}
+                "origin_x_mm": self.origin_x_mm, "origin_y_mm": self.origin_y_mm, "source": self.source,
+                "y_up": self.y_up}
 
 
 def _env_number(env: Mapping[str, str], name: str) -> float | None:
@@ -79,12 +83,13 @@ def frame_config(width_mm: float | None = None, height_mm: float | None = None,
     src = os.environ if env is None else env
     ox = _env_number(src, "SIMPLELAY_FRAME_ORIGIN_X_MM") or 0.0
     oy = _env_number(src, "SIMPLELAY_FRAME_ORIGIN_Y_MM") or 0.0
+    y_up = src.get("SIMPLELAY_FRAME_Y_UP", "").strip().lower() in ("1", "true", "yes")
     if width_mm is not None and height_mm is not None:
-        return FrameConfig(float(width_mm), float(height_mm), ox, oy, "request")
+        return FrameConfig(float(width_mm), float(height_mm), ox, oy, "request", y_up)
     w, h = _env_number(src, "SIMPLELAY_FRAME_W_MM"), _env_number(src, "SIMPLELAY_FRAME_H_MM")
     if w is not None and h is not None:
-        return FrameConfig(w, h, ox, oy, "env")
-    return FrameConfig(None, None, ox, oy, "none")
+        return FrameConfig(w, h, ox, oy, "env", y_up)
+    return FrameConfig(None, None, ox, oy, "none", y_up)
 
 
 @dataclass(frozen=True)
@@ -188,7 +193,9 @@ def compute_mapping(data: MappingInput) -> MappingResult:
         raise MappingRejected("사진 크기를 읽지 못했어요 — 사진을 다시 찍어 주세요")
     quality = check_corners(data.corners_px, data.photo_w, data.photo_h, frame)
     w, h, ox, oy = frame.width_mm, frame.height_mm, frame.origin_x_mm, frame.origin_y_mm
-    targets = [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)]
+    # 짚는 순서는 늘 사진의 왼쪽 위부터 시계 방향. Y가 위로 커지는 갠트리면 왼쪽 위 모서리가 (0, H)다.
+    targets = ([(ox, oy + h), (ox + w, oy + h), (ox + w, oy), (ox, oy)] if frame.y_up
+               else [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)])
     pairs = [PointPair(src, dst) for src, dst in zip(data.corners_px, targets)]
     extra = [PointPair(src, dst) for src, dst in data.extra_points]
     try:
