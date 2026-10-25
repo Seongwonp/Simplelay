@@ -109,3 +109,52 @@ def test_existing_alias_opt_out_still_hides_canonical_habit():
                                         suppression_store=store)
     assert service.create_suggestions() == ()
     assert service.learning_status()['routines'][0]['muted'] is True
+
+
+def test_learning_shows_the_actual_days_used_as_the_reason():
+    """'왜 습관인가' 근거(2026-10-25) — 실제로 쓴 날을 최근 5일까지 오래된 날부터 보인다."""
+    from datetime import datetime, timedelta, timezone
+
+    from rpi.intent import InMemoryUsageLog, PatternConfig, PatternDetector, TimeBand, UsageOutcome, UsageRecord
+    from rpi.intent.mock import FixedClock
+    from rpi.intent.models import ExecutionMode, UsageSource
+    from datetime import time as dtime
+
+    kst = timezone(timedelta(hours=9))
+    records = [
+        UsageRecord(datetime(2026, 10, d, 19, 0, tzinfo=kst), "공기청정기 켜기", UsageOutcome.SUCCEEDED,
+                    "air_purifier", execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT)
+        for d in (18, 20, 21, 22, 23, 24)
+    ]
+    detector = PatternDetector(
+        InMemoryUsageLog(tuple(records)), FixedClock(datetime(2026, 10, 25, 19, 30, tzinfo=kst)),
+        PatternConfig(minimum_occurrences=3, time_bands=(TimeBand("저녁", dtime(17), dtime(21)),)),
+    )
+    (routine,) = detector.learning_status()["routines"]
+    assert routine["recent_days"] == ["2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24"]
+
+
+def test_habit_card_waits_until_ten_minutes_before_the_usual_time():
+    """시간대 시작(17시)이 아니라 평소 시각(쓴 시각의 가운데 값) 10분 전부터 묻는다(2026-10-25)."""
+    from datetime import datetime, time as dtime, timedelta, timezone
+
+    from rpi.intent import InMemoryUsageLog, PatternConfig, PatternDetector, TimeBand, UsageOutcome, UsageRecord
+    from rpi.intent.mock import FixedClock
+    from rpi.intent.models import ExecutionMode, UsageSource
+
+    kst = timezone(timedelta(hours=9))
+    records = tuple(
+        UsageRecord(datetime(2026, 10, d, 19, m, tzinfo=kst), "공기청정기 켜기", UsageOutcome.SUCCEEDED,
+                    "air_purifier", execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT)
+        for d, m in ((20, 25), (21, 30), (22, 35), (23, 30))
+    )
+    config = PatternConfig(minimum_occurrences=3, ask_lead_minutes=10,
+                           time_bands=(TimeBand("저녁", dtime(17), dtime(21)),))
+
+    def at(h, m):
+        return PatternDetector(InMemoryUsageLog(records),
+                               FixedClock(datetime(2026, 10, 25, h, m, tzinfo=kst)), config).candidates()
+
+    assert at(17, 0) == ()
+    assert at(19, 19) == ()
+    assert len(at(19, 20)) == 1  # 평소 19:30의 10분 전

@@ -156,11 +156,15 @@ async def lifespan(app: FastAPI):
     # (환경 변수만 읽음 — 싱글턴 생성·ThinQ 조회는 그 스레드 안에서). 이벤트 루프·공유 풀을 쓰지 않는다.
     from rpi.api.air_quality_wiring import start_air_quality_poller, stop_air_quality_poller
     start_air_quality_poller()
+    # 방 안 사람 감지(온디바이스 카메라, 2026-10-25) — SIMPLELAY_ROOM_PRESENCE_FILE이 있을 때만 전용 데몬 스레드.
+    from rpi.api.room_presence_wiring import start_room_presence_poller, stop_room_presence_poller
+    start_room_presence_poller()
     try:
         yield
     finally:
         # 표시만 하고 기다리지 않는다 — 판독이 멈춰 있어도 종료가 늦지 않게.
         stop_air_quality_poller()
+        stop_room_presence_poller()
         refresh_task.cancel()
         routine_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

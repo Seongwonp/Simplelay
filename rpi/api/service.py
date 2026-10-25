@@ -664,7 +664,23 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
     def submit_buttons(
         self, buttons: tuple[str, ...], appliance_id: str | None = None
     ) -> str:
-        return self._submit(tuple(buttons), appliance_id, purpose=None)
+        # 버튼 직접 실행도 등록된 기능과 순서가 **정확히 같으면** 그 기능 이름으로 학습한다(2026-10-25 — 키오스크·폰
+        # 버튼 조작이 학습에서 통째로 빠져 습관이 쌓이지 않았다). 일치가 없거나 둘 이상이면 예전처럼 남기지 않는다.
+        return self._submit(tuple(buttons), appliance_id, purpose=None,
+                            learning_purpose=self._purpose_for_sequence(tuple(buttons), appliance_id))
+
+    def _purpose_for_sequence(self, buttons: tuple[str, ...], appliance_id: str | None) -> str | None:
+        try:
+            options = self.revision_options(appliance_id)
+        except Exception:  # noqa: BLE001 — 이름을 못 찾아도 실행은 그대로
+            return None
+        appliance = self._appliance_registry.get(appliance_id) if self._appliance_registry and appliance_id else None
+        registered = {name for name, _ in appliance.functions} if appliance is not None else set()
+        hits = [name for name, steps in options.items() if tuple(steps) == buttons]
+        # 가전이 스스로 등록한 기능 이름이 기본 규칙 이름보다 먼저다(_function_sequence와 같은 순서).
+        own = [name for name in hits if name in registered]
+        hits = own or hits
+        return hits[0] if len(hits) == 1 else None
 
     def _submit(
         self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None,
@@ -1116,8 +1132,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 # Motion already succeeded. Keep the in-memory block and report
                 # persistence trouble without changing the physical outcome.
                 log.exception("completed action persistence failed")
-        # purpose가 없는 실행(직접 버튼 시퀀스)은 의도적으로 학습 로그에서 제외
-        if purpose is not None and self._usage_log is not None:
+        # purpose가 없는 직접 버튼 실행은 등록된 기능과 정확히 같을 때만(learning_purpose) 학습 로그에 남긴다.
+        if (purpose is not None or learning_purpose) and self._usage_log is not None:
             outcome = (
                 UsageOutcome.SUCCEEDED
                 if self._last_result.status is ExecutionStatus.SUCCEEDED and not stopped_by_user

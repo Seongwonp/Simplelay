@@ -127,6 +127,10 @@ from .schemas import (
     ReviseSuggestionRequest,
     PresenceRequest,
     PresenceResponse,
+    RoomPresenceResponse,
+    RoomCameraRequest,
+    ProfileRequest,
+    ProfileResponse,
     SensorResponse,
     SettingSavedResponse,
     StatusResponse,
@@ -1339,9 +1343,11 @@ async def list_suggestions(
 ) -> list[SuggestionResponse]:
     pending = await asyncio.to_thread(svc.pending)
     offers = await asyncio.to_thread(_auto_rule_offers, pending)
+    adopts = await asyncio.to_thread(_adopt_offers, pending)
     return [
         SuggestionResponse(
             auto_rule_offer=offers.get(s.suggestion_id),
+            adopt_offer=adopts.get(s.suggestion_id),
             is_demo=s.is_demo or s.time_band == "데모",
             id=s.suggestion_id,
             purpose=s.purpose,
@@ -1357,6 +1363,28 @@ async def list_suggestions(
         )
         for s in pending
     ]
+
+
+def adopt_offer_for(draft: dict) -> dict:
+    auto = bool(draft.get("steps")) and draft["steps"][0].get("kind") == "thinq_command"
+    return {"candidate_key": draft["key"], "ask_time": draft["ask_time"], "auto": auto,
+            "routine_name": draft.get("suggested_name"), "evidence": draft.get("evidence")}
+
+
+def _adopt_offers(pending) -> dict[str, dict]:
+    """습관 카드별 '매일 이 시간에' 저장 내용. 시나리오·루틴·데모 카드는 아니다. 실패는 단추 없음(목록은 그대로)."""
+    habits = [s for s in pending if not s.scenario_id and not s.routine_id and not s.is_demo and s.appliance_id]
+    if not habits:
+        return {}
+    try:
+        from rpi.routines.wiring import get_routine_candidates  # noqa: PLC0415
+
+        candidates = get_routine_candidates()
+        return {s.suggestion_id: adopt_offer_for(draft) for s in habits
+                if (draft := candidates.for_habit(s.purpose, s.appliance_id)) is not None}
+    except Exception:  # noqa: BLE001
+        log.exception("adopt offers failed")
+        return {}
 
 
 def _auto_rule_offers(pending) -> dict[str, dict]:
@@ -1547,6 +1575,68 @@ async def presence(
     return PresenceResponse(
         present=state.present, source=state.source, updated_at=state.updated_at
     )
+
+
+@router.get("/presence/room", response_model=RoomPresenceResponse)
+def room_presence() -> RoomPresenceResponse:
+    # 방 안 사람 감지(온디바이스 카메라) 판단 — 키오스크 화면 절전·깨우기, 집 모형 표시가 읽는다(읽기만).
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    from rpi.api.room_presence_wiring import camera_enabled, get_room_presence, resident_name  # noqa: PLC0415
+    from rpi.services.room_presence import AWAY, IDLE, greeting_for  # noqa: PLC0415
+
+    room = get_room_presence()
+    if room is None:
+        return RoomPresenceResponse(enabled=False, state="unknown")
+    snap = room.snapshot()
+
+    def at(ts):
+        return None if ts is None else datetime.fromtimestamp(ts, tz=timezone.utc)
+
+    return RoomPresenceResponse(
+        enabled=True,
+        state=snap.state,
+        persons=snap.persons,
+        sleep_screen=snap.state in (IDLE, AWAY),
+        last_seen_at=at(snap.last_seen_at),
+        arrived_at=at(snap.arrived_at),
+        # 오래 비웠다 돌아온 때만(몇 시간에 한 번) 인사 — 잠깐 자리 비움은 화면만 켠다.
+        greeting=greeting_for(datetime.fromtimestamp(snap.arrived_at).astimezone(), resident_name())
+        if snap.greet and snap.arrived_at is not None else None,
+        changed_at=at(snap.changed_at),
+        dim_after_s=room.dim_after_s,
+        away_after_s=room.away_after_s,
+        camera_enabled=camera_enabled(),
+    )
+
+
+@router.get("/profile", response_model=ProfileResponse)
+def get_profile() -> ProfileResponse:
+    from rpi.api.room_presence_wiring import resident_name  # noqa: PLC0415
+
+    return ProfileResponse(name=resident_name())
+
+
+@router.put("/profile", response_model=ProfileResponse)
+def put_profile(body: ProfileRequest) -> ProfileResponse:
+    # 인사에 부를 이름 — 폰 앱 처음 연결·설정에서 정한다. 허브 DB에만 남고 밖으로 보내지 않는다.
+    from rpi.api.room_presence_wiring import set_resident_name  # noqa: PLC0415
+
+    try:
+        return ProfileResponse(name=set_resident_name(body.name))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/presence/room/camera", response_model=RoomPresenceResponse)
+def room_camera(body: RoomCameraRequest) -> RoomPresenceResponse:
+    # 카메라 끄기(전체 제어) — 본체 감지기는 표시 파일을 보고 카메라를 닫는다. 감지기가 없는 구성이면 409.
+    from rpi.api.room_presence_wiring import get_room_presence, set_camera_enabled  # noqa: PLC0415
+
+    if get_room_presence() is None:
+        raise HTTPException(status_code=409, detail="사람 감지 카메라가 설치되지 않았어요.")
+    set_camera_enabled(body.enabled)
+    return room_presence()
 
 
 @router.get("/history", response_model=list[HistoryEntryResponse])

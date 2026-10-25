@@ -41,14 +41,32 @@ class PatternDetector:
         if not matching_bands:
             return ()
 
+        band = matching_bands[0]
+        counts, days, minutes = self._tally(now)
+        lead = self._config.ask_lead_minutes
+        now_minute = now.hour * 60 + now.minute
+        start, end = band.start.replace(tzinfo=None), band.end.replace(tzinfo=None)
+        if start > end and now.time().replace(tzinfo=None) < end:
+            now_minute += 24 * 60  # 자정을 넘는 시간대 — 기록과 같은 축(_tally)으로 잰다
+
+        def due(c) -> bool:
+            if lead is None:
+                return True
+            values = sorted(minutes[(c.purpose, c.appliance_id, c.time_band)])
+            usual = values[(len(values) - 1) // 2]
+            return now_minute >= usual - lead
+
         return tuple(
-            c for c in self._evidence(now)
-            if c.time_band == matching_bands[0].name
+            c for c in self._candidates_from(counts, days)
+            if c.time_band == band.name
             and c.occurrences >= self._config.minimum_occurrences
             and c.distinct_days >= self._config.minimum_days
+            and due(c)
         )
 
     def learning_status(self) -> dict:
+        now = self._clock.now()
+        counts, days, _ = self._tally(now)
         return {
             "window_days": self._config.window_days,
             "minimum_days": self._config.minimum_days,
@@ -64,8 +82,13 @@ class PatternDetector:
                         c.distinct_days >= self._config.minimum_days
                         and c.occurrences >= self._config.minimum_occurrences
                     ),
+                    # 왜 습관인지 보이는 근거 — 실제로 쓴 날(최근 5일, 오래된 날부터)(2026-10-25, 가이드라인 '이유 설명').
+                    "recent_days": [
+                        d.isoformat()
+                        for d in sorted(days[(c.purpose, c.appliance_id, c.time_band)])[-5:]
+                    ],
                 }
-                for c in self._evidence(self._clock.now())
+                for c in self._candidates_from(counts, days)
             ],
         }
 

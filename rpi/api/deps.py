@@ -56,11 +56,16 @@ from .service import SimpleLayService
 
 _clock = SystemClock()
 
+# 시간대는 하루를 빈틈없이 덮는다(2026-10-25 — 10~11시·14~17시가 비어 그 시간의 사용이 습관으로 잡히지 않았다.
+# 결선 시연도 오후다). 아침은 11시까지, 오후 14~17시를 더했다.
 _PATTERN_CONFIG = PatternConfig(
     minimum_occurrences=3,
+    # 평소 시각 10분 전부터 묻는다(저녁 습관을 5시에 묻지 않게, 10/25 사용자).
+    ask_lead_minutes=10,
     time_bands=(
-        TimeBand("아침", time(6, 0), time(10, 0)),
+        TimeBand("아침", time(6, 0), time(11, 0)),
         TimeBand("점심", time(11, 0), time(14, 0)),
+        TimeBand("오후", time(14, 0), time(17, 0)),
         TimeBand("저녁", time(17, 0), time(21, 0)),
         TimeBand("야간", time(21, 0), time(6, 0)),
     ),

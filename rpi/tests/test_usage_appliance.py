@@ -276,3 +276,76 @@ def test_existing_db_without_the_column_is_migrated(tmp_path):
         assert [r.appliance_id for r in log.records()] == [None, "microwave"]
     finally:
         db.close()
+
+
+# ── 버튼 직접 실행: 등록된 기능과 순서가 정확히 같으면 그 이름으로 학습(2026-10-25) ──
+
+
+def _fan_registry():
+    from rpi.services.appliance_registry import ApplianceButtonDef, ApplianceDef
+
+    fan = ApplianceDef(
+        appliance_id="custom_fan", name="거실 선풍기", rows=1, cols=2,
+        buttons=(ApplianceButtonDef("F-01", "전원", 0, 0), ApplianceButtonDef("F-02", "약풍", 0, 1)),
+        is_custom=True,
+        functions=(("선풍기 약하게", ("전원", "약풍")),),
+    )
+
+    class _Registry:
+        def get(self, appliance_id):
+            return fan if appliance_id == "custom_fan" else None
+
+    return _Registry()
+
+
+def _fan_service(log):
+    return SimpleLayService(
+        RuleBasedIntentResolver(),
+        ClosedLoopController(
+            MockGrblClient(), MockVerifier([True] * 10), MockAlertSink(), MockSafetyController(),
+            retry_waiter=MockRetryWaiter(),
+        ),
+        usage_log=log,
+        clock=FixedClock(_at(23)),
+        appliance_registry=_fan_registry(),
+    )
+
+
+def _wait_for(log):
+    for _ in range(200):
+        if log.records():
+            return
+        sleep(0.01)
+
+
+def test_button_run_matching_a_registered_function_is_learned_under_its_name():
+    """키오스크·폰 버튼 조작은 /execute-buttons만 탄다 — 예전에는 학습에서 통째로 빠져 습관이 쌓이지 않았다."""
+    log = InMemoryUsageLog()
+    svc = _fan_service(log)
+
+    svc.submit_buttons(("전원", "약풍"), appliance_id="custom_fan")
+    _wait_for(log)
+
+    (record,) = log.records()
+    assert record.purpose == "선풍기 약하게"
+    assert record.appliance_id == "custom_fan"
+    assert record.source is UsageSource.DIRECT
+
+
+def test_button_run_not_matching_any_function_stays_out_of_the_usage_log():
+    log = InMemoryUsageLog()
+    svc = _fan_service(log)
+
+    svc.submit_buttons(("약풍",), appliance_id="custom_fan")
+    sleep(0.3)
+
+    assert log.records() == ()
+
+
+def test_production_time_bands_cover_the_whole_day():
+    """10~11시·14~17시 빈칸이 있으면 그 시간의 사용은 습관이 되지 않는다(2026-10-25, 결선 시연 15:40)."""
+    from rpi.api.deps import _PATTERN_CONFIG
+
+    for minute in range(0, 24 * 60, 5):
+        at = time(minute // 60, minute % 60)
+        assert any(band.contains(at) for band in _PATTERN_CONFIG.time_bands), at

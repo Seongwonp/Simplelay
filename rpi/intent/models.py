@@ -67,6 +67,9 @@ class PatternConfig:
     time_bands: tuple[TimeBand, ...]
     window_days: int = 28
     minimum_days: int = 3
+    #: 습관 카드를 시간대 시작이 아니라 **평소 시각(쓴 시각의 가운데 값) 이만큼 전**부터 묻는다(2026-10-25). None이면
+    #: 종전처럼 시간대 시작부터.
+    ask_lead_minutes: int | None = None
 
     def __post_init__(self) -> None:
         if self.minimum_occurrences < 1:

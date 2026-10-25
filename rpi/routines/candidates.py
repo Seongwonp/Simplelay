@@ -120,6 +120,15 @@ class RoutineCandidates:
             drafts.append(draft)
         return drafts
 
+    def for_habit(self, purpose: str, appliance_id: str | None) -> dict | None:
+        """습관 카드(같은 목적·가전)에서 바로 루틴으로 저장할 수 있는 초안(2026-10-25 — 묻기에서 맡기기로 가는 다리).
+        목록과 같은 거름(이미 저장·거절·같은 루틴)을 거친다. 없으면 None."""
+        if not appliance_id:
+            return None
+        wanted = purpose.strip()
+        return next((d for d in self.list()
+                     if d.get("purpose") == wanted and d.get("appliance_id") == appliance_id), None)
+
     # ── 저장 ──────────────────────────────────────────────────────────────
     def save(self, key: str, body: dict):
         if not isinstance(body, dict):
@@ -205,6 +214,7 @@ class RoutineCandidates:
             drafts[key] = {
                 "_strength": strength,
                 "key": key,
+                "purpose": candidate.purpose,
                 "appliance_id": candidate.appliance_id,
                 "appliance_name": appliance.name,
                 "buttons": list(buttons),
@@ -262,6 +272,7 @@ class RoutineCandidates:
         drafts[key] = {
             "_strength": strength,
             "key": key,
+            "purpose": candidate.purpose,
             "appliance_id": candidate.appliance_id,
             "appliance_name": name,
             "buttons": [f"{cap.label} {value_label}"],

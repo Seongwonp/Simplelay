@@ -842,6 +842,18 @@ class AutoRuleEngine:
             return ROUTINE_CHANGED_REASON
         return None
 
+    def routine_offer(self, routine) -> AutoRule | None:
+        """방금 저장한 시각 루틴의 허용 내용(습관 카드에서 '매일 이 시간에 알아서', 2026-10-25). 모양 검사·낮은 위험 표는
+        카드의 시각 허용([_time_offer])과 같다 — 카드 명령 대조만 없다(카드가 아니라 루틴 자신이 근거)."""
+        if self._routine_shape_issue(routine) is not None:
+            return None
+        step = routine.steps[0]
+        draft = self._draft(routine.scenario_key(), "", TIME_EVENT, step.appliance_id, step.action, dict(step.args))
+        if draft is None:
+            return None
+        return replace(draft, condition_kind=CONDITION_KIND_TIME, condition_routine_id=routine.routine_id,
+                       condition_days=tuple(routine.trigger.days), condition_time=routine.trigger.time)
+
     def _time_offer(self, scenario_id: str, command) -> AutoRule | None:
         """시각 루틴 카드의 허용 내용. 카드 명령이 지금 루틴의 그 한 단계와 같을 때만."""
         key = parse_scenario_key(scenario_id)

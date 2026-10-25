@@ -851,6 +851,9 @@ class SuggestionResponse(BaseModel):
     #: '다음부터도 자동으로'를 고를 수 있는 카드(2026-10-13, v4 가열 종료 감지 → 공기청정기)면
     #: {condition_text, action_text, fingerprint}. 물리 누름이 있거나 대상이 아니면 null — 화면에 버튼이 없다.
     auto_rule_offer: dict | None = None
+    #: 습관 카드에서 바로 루틴으로(2026-10-25): {candidate_key, ask_time, auto, routine_name, evidence}. auto=true면
+    #: '매일 이 시간에 알아서 하기'(낮은 위험 LG 가전 동작), false면 '매일 이 시간에 물어보기'(물리 누름)로 저장한다.
+    adopt_offer: dict | None = None
 
 
 class ApproveResponse(BaseModel):
@@ -1174,6 +1177,38 @@ class PresenceResponse(BaseModel):
     updated_at: datetime | None = None
 
 
+class RoomPresenceResponse(BaseModel):
+    """GET /presence/room — 방 안 사람 감지(카메라) 판단(2026-10-25). 감지기가 꺼져 있으면 enabled=false."""
+
+    enabled: bool
+    state: str  # unknown | present | idle(자리 비움) | away(외출로 봄)
+    persons: int = 0
+    sleep_screen: bool = False  # 키오스크 화면을 어둡게 해도 되는가(자리 비움·외출)
+    last_seen_at: datetime | None = None
+    arrived_at: datetime | None = None  # 마지막으로 '돌아온' 시각 — 키오스크 인사·깨우기
+    greeting: str | None = None  # 그 돌아옴에 건넬 인사 한 줄(외출 뒤 저녁이면 하루 위로)
+    changed_at: datetime | None = None
+    dim_after_s: float | None = None
+    away_after_s: float | None = None
+    camera_enabled: bool = False  # 사용자가 끈 동안은 본체가 카메라를 열지 않는다
+
+
+class ProfileRequest(BaseModel):
+    """PUT /profile — 인사에 부를 이름(10자까지, 비우면 이름 없이). 허브에만 남는다(2026-10-25)."""
+
+    name: str | None = None
+
+
+class ProfileResponse(BaseModel):
+    name: str | None = None
+
+
+class RoomCameraRequest(BaseModel):
+    """POST /presence/room/camera — 사람 감지 카메라 켜기·끄기(2026-10-25)."""
+
+    enabled: bool
+
+
 class DndRequest(BaseModel):
     duration_minutes: int
 
@@ -1278,6 +1313,7 @@ class LearningRoutineResponse(BaseModel):
     distinct_days: int
     established: bool
     muted: bool
+    recent_days: list[str] = []  # 실제로 쓴 날(ISO 날짜, 최근 5일) — 화면이 '왜 습관인지' 근거로 보인다
 
 
 class LearningStatusResponse(BaseModel):

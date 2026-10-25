@@ -359,6 +359,70 @@ async def approve_and_allow(suggestion_id: str, request: Request, body: dict = B
     return result
 
 
+@router.post("/suggestions/{suggestion_id}/approve-and-adopt")
+async def approve_and_adopt(suggestion_id: str, body: dict = Body(...)) -> dict:
+    """습관 카드에서 '이번에 하고, 매일 이 시간에'(2026-10-25 — 묻기에서 맡기기로 가는 다리).
+
+    본문 ``candidate_key``는 카드의 ``adopt_offer.candidate_key`` 그대로 — 지금 초안과 다르면 409(실행·저장 둘 다 안 함).
+    이번 실행은 종전 승인 경로로 제출하고, 초안을 '매일 그 시각에 물어보기' 루틴으로 저장한다. 낮은 위험 LG 가전 동작이면
+    그 루틴을 자동 실행으로 맡긴다(시각 규칙 — 조용한 시간·비상정지·지문 검사는 종전 그대로). 물리 누름은 묻기까지만.
+    응답은 실행(``job_id``)과 저장(``adopt``)·맡기기(``auto_allow``) 결과를 나눠 돌려준다 — 실행은 됐는데 저장이 안 될 수 있다."""
+    from rpi.intent.rules import UnknownIntentError  # noqa: PLC0415
+    from rpi.intent.suggestions import UnknownSuggestionError  # noqa: PLC0415
+    from rpi.routines.auto_rules import AutoRuleError  # noqa: PLC0415
+    from rpi.routines.candidates import CandidateError  # noqa: PLC0415
+    from rpi.routines.wiring import get_auto_rule_engine, get_routine_candidates  # noqa: PLC0415
+
+    from .deps import build_off_loop, get_suggestion_service  # noqa: PLC0415
+
+    await build_off_loop(get_suggestion_service)
+    svc = get_suggestion_service()
+    engine = await asyncio.to_thread(get_auto_rule_engine)
+    start_generation = engine.generation()
+
+    def once() -> dict:
+        suggestion = next((s for s in svc.pending() if s.suggestion_id == suggestion_id), None)
+        if suggestion is None:
+            raise HTTPException(status_code=404, detail="suggestion not found")
+        candidates = get_routine_candidates()
+        draft = candidates.for_habit(suggestion.purpose, suggestion.appliance_id)
+        if draft is None or body.get("candidate_key") != draft["key"]:
+            raise HTTPException(status_code=409, detail="저장할 내용이 바뀌었어요 — 다시 확인하고 눌러 주세요")
+        try:
+            job_id = svc.approve_submit(suggestion_id)
+        except UnknownSuggestionError as exc:
+            raise HTTPException(status_code=404, detail="suggestion not found") from exc
+        except UnknownIntentError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        try:
+            routine = candidates.save(draft["key"], {"run": "ask_at_time", "name": draft.get("suggested_name")})
+        except CandidateError as exc:
+            return {"job_id": job_id, "routine_id": None, "adopt": {"ok": False, "reason": exc.message},
+                    "auto_allow": None}
+        result = {"job_id": job_id, "routine_id": routine.routine_id, "adopt": {"ok": True, "reason": None},
+                  "auto_allow": None}
+        if adopt_auto(draft):
+            offer = engine.routine_offer(routine)
+            if offer is None:
+                result["auto_allow"] = {"ok": False, "reason": "이 동작은 자동으로 맡길 수 없어요 — 매일 물어볼게요"}
+            else:
+                try:
+                    engine.allow_from_offer(offer, start_generation)
+                    result["auto_allow"] = {"ok": True, "reason": None}
+                except AutoRuleError as exc:
+                    result["auto_allow"] = {"ok": False, "reason": exc.message}
+        return result
+
+    return await asyncio.to_thread(once)
+
+
+def adopt_auto(draft: dict) -> bool:
+    steps = draft.get("steps") or []
+    return bool(steps) and steps[0].get("kind") == "thinq_command"
+
+
 def _rule_by_key(engine, rule_key: tuple):
     scenario_id, target_appliance_id, action = rule_key
     return next((r for r in engine.store.list() if r.scenario_id == scenario_id
