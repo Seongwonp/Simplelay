@@ -18,6 +18,7 @@ class _RoutineRow extends StatelessWidget {
     this.onToggle,
     this.switchOn = false,
     this.switchLabel = '',
+    this.switchNote,
     this.toggling = false,
     this.blocked = false,
   });
@@ -32,8 +33,11 @@ class _RoutineRow extends StatelessWidget {
   /// 스위치의 지금 값 — 자동 규칙이 붙었으면 그 규칙의 켜짐, 아니면 루틴 켜짐.
   final bool switchOn;
 
-  /// 스위치를 읽는 이름('○○ 자동 실행 허용' / '○○ 루틴 켜기') — 두 화면이 같은 이름(첫 사용 평가 3차 10/24).
+  /// 스위치를 읽는 이름('○○ 자동 실행', [autoRunSwitchLabel]) — 두 화면이 같은 이름(용어 통일 2026-10-25).
   final String switchLabel;
+
+  /// 스위치 아래 한 줄 — 지금 값으로 실제 무엇이 되는지([autoRunSwitchNote]). null이면 두지 않는다.
+  final String? switchNote;
 
   /// 바꾸는 중 — 두 번 누르지 않게 잠근다.
   final bool toggling;
@@ -119,7 +123,7 @@ class _RoutineRow extends StatelessWidget {
             key: autoKey,
             label: autoOn ? '자동' : '자동 꺼짐',
             semanticLabel: autoOn
-                ? '자동 루틴${onAuto != null ? ', 눌러서 끄고 켜기' : ''}'
+                ? '자동 실행 켜짐${onAuto != null ? ', 눌러서 끄고 켜기' : ''}'
                 : '자동 꺼짐${onAuto != null ? ', 눌러서 켜기' : ''}',
             accent: autoOn && !skipping,
             muted: !autoOn || skipping,
@@ -178,6 +182,13 @@ class _RoutineRow extends StatelessWidget {
             key: Key('routine-line-box-$key'),
             padding: const EdgeInsets.only(top: AppSpace.xs),
             child: lineText,
+          ),
+        // '자동 실행' 스위치가 지금 값으로 실제 무엇을 하는지 한 줄(용어·스위치 통일 2026-10-25).
+        if (switchNote case final note? when onToggle != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpace.xs),
+            child: Text(keepWordsTogether(note),
+                key: Key('routine-switch-note-$key'), semanticsLabel: note, style: lineStyle),
           ),
       ],
     );
@@ -388,9 +399,19 @@ class _RoutineRow extends StatelessWidget {
 
 /// 자동 규칙 스위치 한 번 — 끄기는 바로, 켜기는 늘 확인 시트(서버가 준 조건·동작을 보여 주고 그 지문으로만 켠다).
 /// 실제로 바꿨으면 true, 취소했거나 켤 수 없으면 false(까닭은 알림으로 말한다). 루틴 줄 스위치와 '자동 규칙' 탭이 함께 쓴다.
-Future<bool> setAutoRuleSwitch(BuildContext context, RpiApiService api, AutoRule rule, bool on) async {
+///
+/// [routine]을 주면 루틴 줄의 '자동 실행' 스위치 하나로 두 값을 함께 맞춘다(용어·스위치 통일 2026-10-25, 사용자 승인 —
+/// '실행 허용'과 '루틴 켜기'를 따로 두면 켰는데 안 도는 상태가 생겼다):
+/// - 끄기: 자동 규칙을 먼저 끄고(보내기 전 자동 실행을 막는다) 루틴도 끈다 → 시간이 돼도 하지 않는다(묻지도 않는다).
+/// - 켜기: 확인 시트에서 허락한 뒤에만, 꺼진 루틴을 켜고 같은 지문으로 규칙을 켠다. 규칙 켜기가 실패하면 방금 켠 루틴을
+///   다시 끈다(묻는 루틴으로 남지 않게). 허락은 늘 사용자가 시트에서 직접 한다 — 서버의 허용 검사(지문·낮은 위험 표·
+///   조용한 시간·비상정지)는 그대로다.
+Future<bool> setAutoRuleSwitch(BuildContext context, RpiApiService api, AutoRule rule, bool on,
+    {Routine? routine}) async {
+  final routineId = routine?.id;
   if (!on) {
     await api.setAutoRuleEnabled(rule.id, false);
+    if (routine != null && routineId != null && routine.enabled) await api.setRoutineEnabled(routineId, false);
     return true;
   }
   final fp = rule.fingerprint;
@@ -408,7 +429,20 @@ Future<bool> setAutoRuleSwitch(BuildContext context, RpiApiService api, AutoRule
     confirmLabel: '허락하기',
   );
   if (!ok) return false;
-  await api.setAutoRuleEnabled(rule.id, true, fingerprint: fp);
+  final turnRoutineOn = routine != null && routineId != null && !routine.enabled;
+  if (turnRoutineOn) await api.setRoutineEnabled(routineId, true);
+  try {
+    await api.setAutoRuleEnabled(rule.id, true, fingerprint: fp);
+  } catch (_) {
+    if (turnRoutineOn) {
+      try {
+        await api.setRoutineEnabled(routineId, false);
+      } catch (_) {
+        // 되돌리기 실패 — 목록을 다시 받으면 실제 상태가 보인다. 원래 오류를 말한다.
+      }
+    }
+    rethrow;
+  }
   return true;
 }
 

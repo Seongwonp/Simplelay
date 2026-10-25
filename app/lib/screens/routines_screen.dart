@@ -141,7 +141,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                 ButtonSegment(value: 0, label: _SegmentLabel('내 루틴', selected: _segment == 0)),
                 // 평가 14차(10/18): 폰 '자동으로 해요'·'자동'·'자동으로 하기'가 섞였다 — 표시는 '자동', 이 탭은 루틴이 아닌
                 // 규칙만 둔다. 이름은 '자동으로 하기'(문구 기준 R9 10/19 — '자동 규칙'·'자동 루틴'을 하나로).
-                ButtonSegment(value: 1, label: _SegmentLabel('자동으로 하기', selected: _segment == 1)),
+                ButtonSegment(value: 1, label: _SegmentLabel('자동 실행', selected: _segment == 1)),
               ],
               selected: {_segment},
               showSelectedIcon: false,
@@ -154,7 +154,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       _Note(rules.isEmpty
                           // 언제 묻는지와 무엇만 되는지를 함께(첫 사용자 검토 10/19 — '할까요? 카드'로는 길을 찾지 못했다).
                           // 버튼 누르기는 본체가 자동 규칙으로 받지 않는다.
-                          ? '아직 "자동으로 하기"가 없어요. "할까요?" 하고 물어볼 때 "다음부터도 자동으로"를 고르면 생겨요. '
+                          ? '아직 자동 실행이 없어요. "할까요?" 하고 물어볼 때 "다음부터도 자동으로"를 고르면 생겨요. '
                               'LG 가전 일만 이렇게 할 수 있어요.'
                           // 시각 루틴 규칙만 있으면 어디서 끄는지 말한다(끄는 길을 잃지 않게).
                           : "정해진 시각 루틴은 '내 루틴'에서 '자동'을 눌러 켜고 꺼요."),
@@ -261,10 +261,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                                     final rule? => (on) => _toggleRule(context, r, rule, on),
                                     null => (on) => _toggleRoutine(context, r, on),
                                   },
-                            switchOn: routineAutoRule(r, rules)?.enabled ?? r.enabled,
-                            switchLabel: routineAutoRule(r, rules) != null
-                                ? '${r.name} 자동 실행 허용'
-                                : '${r.name} 루틴 켜기',
+                            switchOn: autoRunSwitchOn(r, routineAutoRule(r, rules)),
+                            switchLabel: autoRunSwitchLabel(r),
+                            switchNote: autoRunSwitchNote(r, routineAutoRule(r, rules)),
                             toggling: r.id != null && _togglingId == r.id,
                             running: r.id != null && _runningId == r.id,
                             blocked: blockedNow(r),
@@ -319,7 +318,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('자동으로 하기', style: AppText.title),
+                Text('자동 실행', style: AppText.title),
                 const SizedBox(height: AppSpace.xs),
                 Text(keepWordsTogether('켜 두면 정해진 시각에 묻지 않고 해요.'),
                     style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
@@ -372,16 +371,16 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
   void _say(BuildContext context, String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
-  /// 규칙이 붙은 시각 루틴의 스위치 — 끄면 바로, 켜면 확인 시트([setAutoRuleSwitch]). 끈 뒤에는 때가 되면 물어본다
-  /// (자동 실행을 못 하면 본체는 카드로 묻는다 — 루틴 엔진 `_auto_time`).
+  /// 규칙이 붙은 시각 루틴의 '자동 실행' 스위치 — 끄면 바로(규칙과 루틴을 함께 끈다), 켜면 확인 시트 뒤 둘 다 켠다
+  /// ([setAutoRuleSwitch]의 `routine`). 묻고 하는 방식은 루틴 상세(편집)의 '실행 방식'에 남는다.
   Future<void> _toggleRule(BuildContext context, Routine r, AutoRule rule, bool on) async {
     final api = ref.read(rpiApiServiceProvider);
     if (api == null || _togglingId != null) return;
     setState(() => _togglingId = r.id);
     try {
-      final done = await setAutoRuleSwitch(context, api, rule, on);
+      final done = await setAutoRuleSwitch(context, api, rule, on, routine: r);
       if (done && context.mounted) {
-        _say(context, on ? "'${r.name}' 자동 실행을 허용했어요" : "'${r.name}' 자동 실행 허용을 껐어요. 때가 되면 물어볼게요");
+        _say(context, on ? "'${r.name}' 자동 실행을 켰어요" : "'${r.name}' 자동 실행을 껐어요. 시간이 돼도 하지 않아요");
       }
     } on RpiApiException catch (e) {
       if (context.mounted) _say(context, e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 봐 주세요.');
@@ -390,6 +389,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     } finally {
       if (mounted) setState(() => _togglingId = null);
       _ruleChanged();
+      ref.invalidate(routinesProvider);
+      ref.invalidate(nextRoutineProvider);
+      ref.invalidate(autoRoutineIdsProvider);
     }
   }
 

@@ -4,7 +4,7 @@
 //    '전자레인지 · 누를 버튼 2개'). 오른쪽 '지금 하기 >'는 모든 줄에서 이름 줄 같은 높이. '다음' 배지는 그 한 줄 끝.
 //    홈에서 '자동으로 해요'인 루틴은 목록에도 같은 표시(근거: 본체 /routines/next의 auto).
 // 2. 자동으로 하기 탭: 머리 안내는 낱말 단위 줄바꿈('자 / 동' 방지). 사용자가 끈 규칙은 짧은 '꺼 둠' 표시
-//    (예전 긴 '자동으로 하기를 꺼 두셨어요' 배지는 두지 않는다).
+//    (예전 긴 '자동 실행을 꺼 두셨어요' 배지는 두지 않는다).
 // 3. 기록: '루틴 · 허락하고 실행' → '루틴 · 물어보고'. '직접' → '사람이 직접'(폰·본체 화면·말을 가를 자료가
 //    기록에 없다 — 사람이 시작했다는 것까지만). '봐 주세요' 배지 줄에는 까닭 한 줄(결과 문장 그대로).
 // 4. 홈 가전 칸: 자리 확인 보조 줄과 '준비됐어요'가 엇갈리지 않게 — 보조 줄이 있으면 띠가 그 한 문장.
@@ -130,7 +130,7 @@ final _rules = [
     'condition_text': '전자레인지가 데우기를 멈추면',
     'action_text': '공기청정기 바람을 세게 해요',
     'enabled': false,
-    'disabled_reason': '자동으로 하기를 꺼 두셨어요.',
+    'disabled_reason': '자동 실행을 꺼 두셨어요.',
     'fingerprint': 'fp',
   },
   {
@@ -337,7 +337,7 @@ void main() {
   group('2. 자동으로 하기 탭', () {
     testWidgets('머리 안내는 낱말 중간에서 꺾이지 않는다', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await tester.pumpAndSettle();
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
       expect(intro.data, contains('허$kWordJoiner용$kWordJoiner한'));
@@ -346,11 +346,11 @@ void main() {
     // 평가 11차(10/18): '꺼 둠'도 스위치와 같은 뜻이라 두지 않는다(eval11_phone_test 2).
     testWidgets("사용자가 끈 규칙은 스위치만 — 긴 문장 배지·'꺼 둠' 없음", (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('auto-rule-paused-ar-heat')), findsNothing);
       expect(findPlainText('꺼 둠'), findsNothing);
-      expect(findPlainText('자동으로 하기를 꺼 두셨어요', contains: true), findsNothing);
+      expect(findPlainText('자동 실행을 꺼 두셨어요', contains: true), findsNothing);
       // 다른 까닭으로 꺼진 규칙은 그 까닭 배지 그대로 — 시각 루틴 규칙은 루틴 줄 '자동 꺼짐'에서 연다(평가 14차 10/18).
       await tester.tap(findPlainText('내 루틴'));
       await tester.pumpAndSettle();

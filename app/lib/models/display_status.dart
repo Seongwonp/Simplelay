@@ -129,14 +129,14 @@ const kSetupNeededText = '설정이 필요해요';
 const kThinqUncheckedText = '확인 전이에요';
 
 /// 본체가 누름 장치 위치 때문에 거절한 이유(서버 `GANTRY_ABSENT_REASON`과 같은 문장).
-const kGantryAbsentReason = '누름 장치가 이 가전 위에 없어서 누를 수 없어요';
+const kGantryAbsentReason = '누름 장치가 이 가전에 달려 있지 않아요';
 
 /// 누름 장치를 올릴 수 있는 기본 가전(서버 `BUILTIN_APPLIANCES`와 같은 id).
 const kPressDeviceBuiltinIds = {'microwave', 'induction'};
 
 /// 누름 장치가 지금 올라가 있는 기본 가전 — 본체가 준 기본 가전의 준비 판정으로만 안다(새 API 없이, 검토 10/19).
 ///
-/// 판정을 받은 기본 가전 가운데 '누름 장치가 이 가전 위에 없어서…'가 아닌 것이 그 자리다. null은 판정을 받은 기본 가전이
+/// 판정을 받은 기본 가전 가운데 [kGantryAbsentReason]가 아닌 것이 그 자리다. null은 판정을 받은 기본 가전이
 /// 없어 모른다, 빈 목록은 어느 가전 위에도 없다(본체의 누름 장치 대상 목록이 비었다).
 List<ApplianceMap>? pressDeviceHosts(Iterable<ApplianceMap> serverBuiltins) {
   final known = [
@@ -177,7 +177,7 @@ String tileReasonText(String reason, {List<ApplianceMap>? pressHosts}) {
   if (t.startsWith(kGantryAbsentReason)) {
     if (pressDeviceDisconnected(pressHosts)) return kPressDeviceDisconnectedText;
     return switch (pressHosts) {
-      null => '누름 장치가 이 가전 위에 없어요',
+      null => '누름 장치가 이 가전에 달려 있지 않아요',
       [] => '누름 장치가 어느 가전 위에도 없어요',
       _ => '누름 장치가 다른 가전 위에 있어요',
     };
@@ -190,7 +190,7 @@ String tileReasonText(String reason, {List<ApplianceMap>? pressHosts}) {
 /// 해당하지 않으면 null.
 ///
 /// 근거는 본체가 이미 주는 것뿐이다(새 API 없이): 같은 id의 서버 판정([source])과 [pressDeviceHosts].
-/// - 기본 가전: 이유가 '누름 장치가 이 가전 위에 없어서…'.
+/// - 기본 가전: 이유가 [kGantryAbsentReason].
 /// - 사용자 등록 가전: 연결 안 됨(`disconnected`)·이유 없음, 또는 '아직 기기와 연결되지 않았어요' — 본체에 누를 장치가
 ///   물려 있지 않다(실행하면 412). 예전에는 이 폰 저장분에 판정이 없어 '누를까요?'를 물은 뒤에야 거절됐다.
 String? pressUnavailableNotice(ApplianceMap a, ApplianceMap? source, {List<ApplianceMap>? pressHosts}) {
@@ -210,7 +210,7 @@ String? pressUnavailableNotice(ApplianceMap a, ApplianceMap? source, {List<Appli
     [final h, ...] => ' 누름 장치는 지금 ${applianceDisplayLine(h)} 위에 있어요.',
   };
   return gantry
-      ? '누름 장치가 이 가전 위에 없어서 지금은 누를 수 없어요.$where '
+      ? '누름 장치가 이 가전에 달려 있지 않아 지금은 누를 수 없어요.$where '
           '이 가전을 누르게 하려면 설치하는 분께 누름 장치를 옮기고 본체 설정을 바꿔 달라고 부탁해 주세요.'
       : '이 가전에는 아직 누름 장치가 연결되지 않아 지금은 누를 수 없어요.$where '
           '설치하는 분께 이 가전의 누름 장치 연결을 부탁해 주세요.';

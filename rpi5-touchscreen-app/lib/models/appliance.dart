@@ -27,7 +27,7 @@ class ApplianceButton {
 }
 
 /// 본체가 누름 장치 위치 때문에 거절한 이유(서버 `GANTRY_ABSENT_REASON`과 같은 문장, 폰 `kGantryAbsentReason`과 같다).
-const kGantryAbsentReason = '이 가전에는 누름 장치가 설치되어 있지 않아 누를 수 없어요';
+const kGantryAbsentReason = '누름 장치가 이 가전에 달려 있지 않아요';
 
 class ApplianceMap {
   const ApplianceMap({

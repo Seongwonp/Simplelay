@@ -99,7 +99,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
           return Align(alignment: Alignment.centerLeft, child: TextButton.icon(
             key: const Key('home-routines-more'),
             onPressed: () => context.push('/routines'),
-            icon: const Icon(Icons.bookmark_outline), label: const Text('저장한 동작 전체'),
+            icon: const Icon(Icons.bookmark_outline), label: const Text('루틴 전체'),
           ));
         }
         // 준비된 루틴이 먼저, 설정이 필요한 루틴은 뒤.
@@ -147,7 +147,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
                       onPressed: () => context.push('/routines'),
                       style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Flexible(child: Text('저장한 동작 전체', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))),
+                        Flexible(child: Text('루틴 전체', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))),
                         Icon(Icons.chevron_right, size: 20, color: context.appMuted),
                       ]),
                     ),

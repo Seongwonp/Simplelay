@@ -158,7 +158,7 @@ final _mw = _served('microwave', '전자레인지', 'microwave', buttons: kMicro
 final _ind = _served('induction', '인덕션', 'induction',
     buttons: kInductionAppliance.buttons,
     readiness: 'needs_setup',
-    reasons: const ['이 가전에는 누름 장치가 설치되어 있지 않아 누를 수 없어요']);
+    reasons: const ['누름 장치가 이 가전에 달려 있지 않아요']);
 final _washer = _served('washer', '세탁기', 'washing_machine');
 
 /// 휴대폰 앱에서 등록하고 사진 위 버튼 자리를 아직 맞추지 않은 가전 — 폰과 같이 '설정이 필요해요'.

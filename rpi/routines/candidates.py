@@ -40,7 +40,7 @@ DECLINE_DAYS = 14
 DECISIONS_SETTING = "routine_candidate_decisions"
 ISSUED_SETTING = "routine_candidate_issued"
 RUN_CHOICES = ("manual", "ask_at_time")
-SAVE_NOTICE = "저장만으로는 실행하지 않아요. 실행은 매번 승인을 받아요. 자동으로 하기는 켜지지 않아요."
+SAVE_NOTICE = "저장만으로는 실행하지 않아요. 실행은 매번 승인을 받아요. 자동 실행은 켜지지 않아요."
 
 
 class CandidateError(Exception):

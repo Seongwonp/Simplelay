@@ -429,12 +429,12 @@ void main() {
       expect(all, contains('즉석밥 데우기'));
     });
 
-    // 사용자 결정(10/18): '자동으로 해요' 대신 작은 머리말 '자동 루틴'.
-    testWidgets('다음 루틴의 자동 계열 이름은 머리말 자동 루틴', (tester) async {
+    // 사용자 결정(10/18): '자동으로 해요' 대신 작은 머리말 '자동 실행'.
+    testWidgets('다음 루틴의 자동 계열 이름은 머리말 자동 실행', (tester) async {
       await _pump(tester, _idle(next: _next));
       final all = _allTexts(tester).join('\n');
-      expect(all, isNot(contains('자동 실행')));
-      expect(all, contains('자동 루틴'));
+      expect(all, isNot(contains('자동 루틴')));
+      expect(all, contains('자동 실행'));
       expect(all, isNot(contains('자동으로 해요')));
     });
   });

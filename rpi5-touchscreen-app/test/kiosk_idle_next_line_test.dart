@@ -2,7 +2,7 @@
 //
 // 1. 공기 줄은 공기가 나쁠 때(나쁨·매우 나쁨)만. 평소(좋음·보통)·공기청정기 없는 집은 줄이 없다. 공기청정기 전원은 가전
 //    타일이 말하므로 공기 줄에서 뺀다.
-// 2. 다음 루틴은 시계 아래 담담한 줄(작은 머리말 '자동 루틴' + '오후 10:00 · 저녁 공기청정기 켜기' — 10/18 갱신). 오른쪽 큰 카드는 없다.
+// 2. 다음 루틴은 시계 아래 담담한 줄(작은 머리말 '자동 실행' + '오후 10:00 · 저녁 공기청정기 켜기' — 10/18 갱신). 오른쪽 큰 카드는 없다.
 //    오른쪽은 날씨 안내 + 예보가 넉넉히 쓴다 — 실패널 넓은 글꼴(글자마다 넓힌 조건)에서도 예보가 보인다.
 // 3. 큰 글씨·넓은 글꼴에서도 다음 루틴 줄이 잘리지 않는다(가전 줄 위에서 끝난다).
 import 'package:flutter/material.dart';
@@ -105,11 +105,11 @@ void main() {
 
   // 시안 B(10/24): 다음 루틴은 오른쪽 줄 칸 맨 위 — 머리말 + 시각 줄 + 이름 줄. 큰 카드는 없다.
   group('2. 다음 루틴은 오른쪽 줄 칸', () {
-    testWidgets("머리말 '자동 루틴' + '오후 10:00' / '저녁 공기청정기 켜기', 큰 카드는 없다", (tester) async {
+    testWidgets("머리말 '자동 실행' + '오후 10:00' / '저녁 공기청정기 켜기', 큰 카드는 없다", (tester) async {
       await _pump(tester, _idle(next: _next, air: _air('NORMAL')));
       final texts = _texts(tester);
       expect(texts.map((t) => t.replaceAll('\n', ' · ')), contains('오후 10:00 · 저녁 공기청정기 켜기'));
-      expect(texts, contains('자동 루틴'));
+      expect(texts, contains('자동 실행'));
       expect(texts, isNot(contains('자동으로 해요')));
       expect(texts.where((t) => t.contains('다음 루틴 · ')), isEmpty, reason: '옛 큰 카드 머리 글');
       final next = _rect(tester, 'idle-next-run');
@@ -129,7 +129,7 @@ void main() {
       final texts = _texts(tester);
       expect(texts.map((t) => t.replaceAll('\n', ' · ')), contains('내일 오전 7:00 · 아침 공기청정기 끄기'));
       expect(texts, contains('물어볼 루틴'));
-      expect(texts, isNot(contains('자동 루틴')));
+      expect(texts, isNot(contains('자동 실행')));
     });
 
     testWidgets('다음 루틴이 없으면 줄도 없다', (tester) async {

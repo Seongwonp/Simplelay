@@ -6,7 +6,7 @@
 // 3. 기록 실패 줄을 펼치면 다음 행동 — LG 가전 거절은 '○○ 상태 보기', 보내지 못한(안 누른) 루틴은 '다시 해 보기'(확인 시트),
 //    눌렸는지 모르면 다시 누르기 단추 없이 집에서 확인하라는 안내(R1).
 // 4. 연습 가전: 이름에서 '(연습)'을 빼고 '연습' 표지, 띠는 연습 색. LG 가전 띠는 손 아이콘 '준비됐어요' 대신 '확인 전이에요'.
-// 5. 타일 원인은 짧게 말줄임 없이('누름 장치가 이 가전 위에 없어요' — 어디 있는지는 아는 만큼만, 10/19), 띠는 키오스크와 같은 '설정이 필요해요'.
+// 5. 타일 원인은 짧게 말줄임 없이('누름 장치가 이 가전에 달려 있지 않아요' — 어디 있는지는 아는 만큼만, 10/19), 띠는 키오스크와 같은 '설정이 필요해요'.
 // 6. 설정 '사용 방법' — 누름 장치·LG 가전·멈추는 방법·연습·보호자 알림.
 // 7. 마이크 옆 '말로 하기' 글자, 본체 끊김은 설정 위 배너 한 번(줄은 '못 불러왔어요'), ⋮ 메뉴 읽는 이름에 항목.
 // A. 정해진 시각 루틴 줄에 켜기·끄기 스위치(규칙이 있으면 규칙, 없으면 루틴), '지금 하기'는 따로 작은 단추, 끈 뒤 알림.
@@ -39,7 +39,7 @@ import 'package:simplelay/theme/app_colors.dart';
 
 import '../helpers/test_helpers.dart';
 
-const _gantryAbsent = '누름 장치가 이 가전 위에 없어서 누를 수 없어요';
+const _gantryAbsent = '누름 장치가 이 가전에 달려 있지 않아요';
 
 Map<String, dynamic> _custom(String id, String name, String category,
         {String readiness = 'operable', bool canExecute = true, List<String> reasons = const []}) =>
@@ -618,9 +618,9 @@ void main() {
   group('5. 타일 원인은 짧게, 말줄임 없이', () {
     // 사용자 결정(10/19): 원인은 타일 글자가 아니라 '!' 표시 문장의 둘째 마디(짧게).
     // 검토 10/19: 이 시험의 가전은 기본 가전 판정이 아니라 누름 장치가 어디 있는지 모른다 — 짐작하지 않는다.
-    testWidgets("인덕션 — '!' 표시 '지금은 쓸 수 없어요. 누름 장치가 이 가전 위에 없어요'", (tester) async {
+    testWidgets("인덕션 — '!' 표시 '지금은 쓸 수 없어요. 누름 장치가 이 가전에 달려 있지 않아요'", (tester) async {
       await _pump(tester, const HomeScreen(), size: const Size(360, 3000));
-      expect(tileMarkText(tester, 'ind'), '지금은 쓸 수 없어요. 누름 장치가 이 가전 위에 없어요');
+      expect(tileMarkText(tester, 'ind'), '지금은 쓸 수 없어요. 누름 장치가 이 가전에 달려 있지 않아요');
       expect(tileMarkIcon(tester, 'ind'), Icons.priority_high_rounded);
       final card = find.byKey(const Key('appliance-card-ind'));
       expect(_in(card, findPlainText(_gantryAbsent, contains: true)), findsNothing);
@@ -635,7 +635,7 @@ void main() {
         execution: const ExecutionStatus(),
       );
       expect(s.text, '설정이 필요해요');
-      expect(tileReasonText(_gantryAbsent), '누름 장치가 이 가전 위에 없어요');
+      expect(tileReasonText(_gantryAbsent), '누름 장치가 이 가전에 달려 있지 않아요');
     });
   });
 
@@ -668,7 +668,7 @@ void main() {
 
     testWidgets('⋮ 메뉴는 읽는 이름에 안의 항목을 말한다', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await _settle(tester);
       final menu = tester.widget<Semantics>(find
           .ancestor(of: find.byKey(const Key('auto-rule-menu-ar-s')), matching: find.byType(Semantics))
@@ -679,18 +679,53 @@ void main() {
   });
 
   group('A. 정해진 시각 루틴 줄에서 바로 끄고 켜기', () {
-    testWidgets('규칙이 붙은 루틴은 규칙 스위치 — 끄면 바로, 알림과 표시', (tester) async {
+    // 용어·스위치 통일(2026-10-25, 사용자 승인): 루틴마다 '자동 실행' 스위치 하나 + 아래 한 줄. 끄면 규칙과 루틴을 함께
+    // 끈다(규칙 먼저) — 시간이 돼도 하지 않는다. 예전에는 규칙만 꺼져 루틴은 묻는 채로 남았다.
+    testWidgets("규칙이 붙은 루틴은 '자동 실행' 스위치 하나 — 끄면 규칙 먼저, 루틴도 끈다", (tester) async {
       await _pump(tester, const RoutinesScreen());
       final sw = find.byKey(const Key('routine-switch-rt-eve'));
       expect(tester.widget<Switch>(sw).value, isTrue);
+      expect(tester.widget<Text>(find.byKey(const Key('routine-switch-note-rt-eve'))).semanticsLabel,
+          '매일 오후 10:00에 묻지 않고 공기청정기를 켜요');
       await tester.tap(sw);
       await _settle(tester);
-      expect(_calls.where((c) => c.contains('/routines/auto-rules/ar-t/enable') && c.contains('"enabled":false')),
-          hasLength(1));
+      final ruleOff = _calls.indexWhere(
+          (c) => c.contains('/routines/auto-rules/ar-t/enable') && c.contains('"enabled":false'));
+      final routineOff =
+          _calls.indexWhere((c) => c.contains('/routines/rt-eve/enable') && c.contains('"enabled":false'));
+      expect(ruleOff, isNonNegative);
+      expect(routineOff, greaterThan(ruleOff));
       expect(findPlainText('껐어요', contains: true), findsWidgets);
     });
 
-    testWidgets('규칙이 없는 시각 루틴은 루틴 켜기 스위치', (tester) async {
+    testWidgets("꺼진 규칙 루틴을 켜면 허락 시트 뒤에만 루틴과 규칙을 함께 켠다 — 꺼짐 한 줄 '시간이 돼도 하지 않아요'",
+        (tester) async {
+      _rules[0]['enabled'] = false;
+      _routines[3]['enabled'] = false;
+      addTearDown(() {
+        _rules[0]['enabled'] = true;
+        _routines[3]['enabled'] = true;
+      });
+      await _pump(tester, const RoutinesScreen());
+      final sw = find.byKey(const Key('routine-switch-rt-eve'));
+      expect(tester.widget<Switch>(sw).value, isFalse);
+      expect(tester.widget<Text>(find.byKey(const Key('routine-switch-note-rt-eve'))).semanticsLabel,
+          '시간이 돼도 하지 않아요');
+      await tester.tap(sw);
+      await _settle(tester);
+      // 허락 전에는 아무것도 바꾸지 않는다.
+      expect(_calls.where((c) => c.contains('/enable')), isEmpty);
+      await tester.tap(find.text('허락하기'));
+      await _settle(tester);
+      final routineOn =
+          _calls.indexWhere((c) => c.contains('/routines/rt-eve/enable') && c.contains('"enabled":true'));
+      final ruleOn = _calls.indexWhere((c) =>
+          c.contains('/routines/auto-rules/ar-t/enable') && c.contains('"enabled":true') && c.contains('fp-t'));
+      expect(routineOn, isNonNegative);
+      expect(ruleOn, greaterThan(routineOn));
+    });
+
+    testWidgets('규칙이 없는 시각 루틴도 같은 자동 실행 스위치(루틴 자체를 끄고 켠다)', (tester) async {
       await _pump(tester, const RoutinesScreen());
       final sw = find.byKey(const Key('routine-switch-rt-morn'));
       expect(tester.widget<Switch>(sw).value, isTrue);
@@ -800,14 +835,19 @@ void main() {
     });
 
     // 같은 스위치가 화면마다 '자동 실행 허용'·'자동으로 하기'·'예약 켜기'·'루틴 켜기'로 달랐다.
-    testWidgets("루틴 줄 스위치 이름 — 규칙은 '자동 실행 허용', 루틴 자체는 '루틴 켜기'(두 화면 같게)", (tester) async {
+    // 용어 통일(2026-10-25): 루틴마다 '자동 실행' 하나 — '실행 허용'·'루틴 켜기'로 나누지 않는다(두 화면 같게).
+    testWidgets("루틴 줄 스위치 이름은 '자동 실행' 하나(두 화면 같게)", (tester) async {
       await _pump(tester, const RoutinesScreen());
-      expect(find.bySemanticsLabel(RegExp('저녁 공기청정기 켜기 자동 실행 허용')), findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp('아침 공기청정기 끄기 루틴 켜기')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('저녁 공기청정기 켜기 자동 실행')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('아침 공기청정기 끄기 자동 실행')), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('routine-switch-note-rt-morn'))).semanticsLabel,
+          '시간이 되면 먼저 물어봐요');
       await _pump(tester, const RoutinesScreen(automatic: true));
-      expect(find.bySemanticsLabel(RegExp('저녁 공기청정기 켜기 자동 실행 허용')), findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp('아침 공기청정기 끄기 루틴 켜기')), findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp('예약 켜기')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('저녁 공기청정기 켜기 자동 실행')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('아침 공기청정기 끄기 자동 실행')), findsOneWidget);
+      for (final old in ['예약 켜기', '실행 허용', '루틴 켜기']) {
+        expect(find.bySemanticsLabel(RegExp(old)), findsNothing, reason: old);
+      }
     });
 
     // '물어보고 하기' 아래 '허락하면 눌러요' — 공기청정기(LG 가전)는 누르지 않는다. 자동 실행을 허용한 루틴은 묻지 않는다.
@@ -827,7 +867,7 @@ void main() {
       final note = tester.widget<Text>(find.byKey(const Key('routine-mode-note')));
       expect(note.semanticsLabel, isNot(contains('물어보고')));
       expect(note.semanticsLabel, contains('묻지 않고'));
-      expect(note.semanticsLabel, contains('자동 실행 허용'));
+      expect(note.semanticsLabel, contains('자동 실행이 켜져 있어'));
     });
 
     // 첫 사용 평가 4차 10/24: 자동 실행 허용이 켜진 루틴에서 칸은 '물어보고 하기'가 골라진 채, 설명은 '묻지 않고 해요'였다.

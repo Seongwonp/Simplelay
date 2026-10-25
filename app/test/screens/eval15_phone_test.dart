@@ -284,7 +284,7 @@ void main() {
   group('2. 자동 규칙 탭 — 내 루틴과 같은 목록 문법', () {
     testWidgets('규칙 줄은 그림자 카드가 아니고, 줄 사이 구분선', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await _settle(tester);
       final row = find.byKey(const Key('auto-rule-ar-s'));
       expect(row, findsOneWidget);
@@ -297,7 +297,7 @@ void main() {
 
     testWidgets('안내는 번역투 명사문이 아니라 쉬운 말', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await _settle(tester);
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text'))).semanticsLabel!;
       expect(intro, isNot(contains('허락한 일.')));

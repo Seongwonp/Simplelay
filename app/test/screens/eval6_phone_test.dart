@@ -2,7 +2,7 @@
 //
 // A. 루틴 목록: '지금 하기'는 줄 오른쪽 단추 하나(홈 '지금 하기 >'와 같은 모양). 위 '다음: …' 한 줄은 없애고
 //    다음에 할 루틴 줄에 '다음' 배지. 정해진 시각 줄도 왼쪽은 가전 아이콘 — 왼쪽 열이 맞는다.
-// B. 끈 자동으로 하기: '지금은 안 해요' + '자동으로 하기를 꺼 두셨어요' 같은 말 두 번 → 한 줄.
+// B. 끈 자동으로 하기: '지금은 안 해요' + '자동 실행을 꺼 두셨어요' 같은 말 두 번 → 한 줄.
 // C. 조용한 시간이 꺼져 있으면 규칙 카드에 '켜면 …' 경고를 늘 굵게 두지 않는다(실제로 건너뛸 때만 눈에 띄게).
 // D. 기록 배지: 같은 '됐어요'에 ✓와 ⓘ를 섞지 않는다(이미 그 설정도 같은 ✓, 차이는 펼친 문장에서).
 // E. 낱말: '시험 이동' → '자리 확인', '가전 목록 새로 받기' → '가전 다시 불러오기'.
@@ -149,7 +149,7 @@ RpiApiService _api({required bool quietEnabled}) => RpiApiService(
         if (path == '/routines/auto-rules') {
           return json([
             _rule('ar-on', '저녁 공기청정기 켜기', enabled: true, time: '22:00'),
-            _rule('ar-off', '데우기 멈추면 공기청정기', enabled: false, reason: '자동으로 하기를 꺼 두셨어요.'),
+            _rule('ar-off', '데우기 멈추면 공기청정기', enabled: false, reason: '자동 실행을 꺼 두셨어요.'),
           ]);
         }
         if (path == '/quiet-hours') {
@@ -225,7 +225,7 @@ Future<void> _pump(WidgetTester tester, Widget screen,
 }
 
 Future<void> _openRules(WidgetTester tester) async {
-  await tester.tap(findPlainText('자동으로 하기'));
+  await tester.tap(findPlainText('자동 실행'));
   for (var i = 0; i < 16; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
@@ -310,7 +310,7 @@ void main() {
       await _pump(tester, const RoutinesScreen());
       await _openRules(tester);
       final card = find.byKey(const Key('auto-rule-ar-off'));
-      expect(find.descendant(of: card, matching: findPlainText('자동으로 하기를 꺼 두셨어요', contains: true)),
+      expect(find.descendant(of: card, matching: findPlainText('자동 실행을 꺼 두셨어요', contains: true)),
           findsNothing);
       expect(find.byKey(const Key('auto-rule-switch-ar-off')), findsOneWidget);
       expect(find.descendant(of: card, matching: findPlainText('지금은 안 해요', contains: true)), findsNothing);

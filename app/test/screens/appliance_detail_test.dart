@@ -270,7 +270,7 @@ void main() {
           appliances: [
             _hubItem('microwave', '전자레인지', custom: false),
             _hubItem('induction', '인덕션',
-                custom: false, readiness: 'needs_setup', reasons: const ['누름 장치가 이 가전 위에 없어서 누를 수 없어요']),
+                custom: false, readiness: 'needs_setup', reasons: const ['누름 장치가 이 가전에 달려 있지 않아요']),
           ],
           customAppliances: [_hubItem('custom_1', '전자레인지', custom: true, readiness: 'disconnected')],
         )));

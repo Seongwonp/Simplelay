@@ -133,7 +133,7 @@ final _rules = [
     'condition_text': '전자레인지가 데우기를 멈추면',
     'action_text': '공기청정기 바람을 세게 해요',
     'enabled': false,
-    'disabled_reason': '자동으로 하기를 꺼 두셨어요.',
+    'disabled_reason': '자동 실행을 꺼 두셨어요.',
     'fingerprint': 'fp',
   },
   {
@@ -310,7 +310,7 @@ void main() {
   group('2. 자동으로 하기 탭', () {
     testWidgets("스위치와 같은 뜻인 '자동으로 해요'·'꺼 둠'은 없다, 다른 까닭은 그대로", (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await tester.pumpAndSettle();
       expect(_in(find.byKey(const Key('auto-rule-ar-eve')), findPlainText('자동으로 해요')), findsNothing);
       expect(findPlainText('꺼 둠'), findsNothing);

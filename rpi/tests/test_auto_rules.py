@@ -485,7 +485,7 @@ def test_rule_turned_off_after_the_start_gate_is_rechecked_right_before_sending(
     monkeypatch.setattr(service, "_begin_run", off_after_gate)
     _inject(api, inputs=("power",))
     run = _wait_run(api, lambda r: r["outcome"] == "blocked" and r.get("status"))
-    assert run["reason"] == "자동으로 하기가 꺼져서 하지 않았어요."
+    assert run["reason"] == "자동 실행이 꺼져서 하지 않았어요."
     assert run["receipt"] == "not_dispatched"
     assert len(_controls()) == sent
     notices = " / ".join(run["notices"])

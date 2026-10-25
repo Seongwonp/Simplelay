@@ -290,6 +290,9 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byKey(const ValueKey('routine-morning')), findsOneWidget);
       expect(find.byKey(const ValueKey('manual-pick-buttons')), findsOneWidget);
+      // 용어 통일(2026-10-25): 기능 이름은 '루틴'·'자동 실행' 둘만 — '저장된 동작 N개'가 아니라 '루틴 N개'.
+      expect(find.text('루틴 1개'), findsOneWidget);
+      expect(find.textContaining('저장된 동작'), findsNothing);
       expect(find.text('해동'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('routine-morning')));
       expect(ran, ['morning']);

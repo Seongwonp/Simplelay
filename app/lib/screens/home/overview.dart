@@ -129,7 +129,7 @@ class _NextUp extends StatelessWidget {
         // 평가 14차(10/18): 칩 '자동으로 해요'와 루틴 줄 '자동'·탭 '자동으로 하기'가 섞였다 → 루틴 줄과 같은 짧은 '자동'(칩 아님).
         : n.auto
             ? Semantics(
-                label: '자동 루틴, 묻지 않고 해요',
+                label: '자동 실행, 묻지 않고 해요',
                 excludeSemantics: true,
                 child: Text('자동',
                     key: const Key('home-next-auto'),

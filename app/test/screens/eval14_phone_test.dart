@@ -326,8 +326,8 @@ void main() {
     testWidgets("탭 이름은 '자동으로 하기', 시각 루틴 규칙은 탭에 따로 없다", (tester) async {
       await _pump(tester, const RoutinesScreen(), _Hub());
       // 탭 이름 하나만 — 시각 루틴의 '자동으로 하기' 창은 열리지 않았다.
-      expect(findPlainText('자동으로 하기'), findsOneWidget);
-      await tester.tap(findPlainText('자동으로 하기'));
+      expect(findPlainText('자동 실행'), findsOneWidget);
+      await tester.tap(findPlainText('자동 실행'));
       await _settle(tester);
       expect(find.byKey(const Key('auto-rule-ar-s')), findsOneWidget);
       expect(find.byKey(const Key('auto-rule-ar-t')), findsNothing);
@@ -352,7 +352,7 @@ void main() {
     testWidgets('루틴에 닿지 않는 시각 규칙은 탭에 남는다(끄는 길을 잃지 않게)', (tester) async {
       final hub = _Hub()..rules = [_rule('ar-x', '자동 실행', time: '06:00')];
       await _pump(tester, const RoutinesScreen(), hub);
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await _settle(tester);
       expect(find.byKey(const Key('auto-rule-switch-ar-x')), findsOneWidget);
     });
@@ -379,7 +379,7 @@ void main() {
 
     testWidgets('규칙 카드에 순환 아이콘이 없고, 이름을 되풀이하는 설명도 없다', (tester) async {
       await _pump(tester, const RoutinesScreen(), _Hub());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await _settle(tester);
       final card = find.byKey(const Key('auto-rule-ar-s'));
       expect(_in(card, find.byIcon(AppIcons.auto)), findsNothing);

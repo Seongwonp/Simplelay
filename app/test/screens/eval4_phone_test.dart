@@ -280,10 +280,11 @@ void main() {
 
   group('D. 이름 통일', () {
     // 평가 14차(10/18): 홈 표시도 루틴 줄과 같은 짧은 '자동'(칩 '자동으로 해요' 없음).
-    testWidgets('루틴 탭에 "자동 실행" 말이 없고(다음은 그 줄의 배지, 평가 6차), 홈 표시는 "자동"', (tester) async {
+    testWidgets('루틴 탭의 "자동 실행"은 탭 이름 하나뿐(다음은 그 줄의 배지, 평가 6차), 홈 표시는 "자동"', (tester) async {
       await _pump(tester, const RoutinesScreen(), width: 400, scale: 1.0);
       expect(find.byKey(const Key('routine-next-badge-r-air')), findsOneWidget);
-      expect(findPlainText('자동 실행', contains: true), findsNothing);
+      // 용어 통일(2026-10-25): 탭 이름이 '자동 실행'이다 — 그 밖의 줄에는 섞지 않는다.
+      expect(findPlainText('자동 실행', contains: true), findsOneWidget);
 
       await _pump(tester, const HomeScreen(), width: 400, scale: 1.0);
       expect(findPlainText('자동으로 해요'), findsNothing);

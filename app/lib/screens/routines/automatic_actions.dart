@@ -23,7 +23,7 @@ extension _AutomaticActions on _RoutinesScreenState {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(AppSpace.xl),
           children: [
-            const _Note('시간이나 조건에 맞춰 할 일을 관리해요. 스위치는 가전 전원이 아니라 실행 허용이에요.'),
+            const _Note('시간이나 조건에 맞춰 할 일을 관리해요. 스위치는 가전 전원이 아니라 자동 실행을 켜고 꺼요.'),
             Text('정해진 시간', style: AppText.title),
             ...list.when(
               loading: () => const [Center(child: CircularProgressIndicator())],
@@ -42,9 +42,9 @@ extension _AutomaticActions on _RoutinesScreenState {
                         final rule? => (on) => _toggleRule(context, r, rule, on),
                         null => (on) => _toggleRoutine(context, r, on),
                       },
-                      switchOn: routineAutoRule(r, allRules)?.enabled ?? r.enabled,
-                      switchLabel: routineAutoRule(r, allRules) != null
-                          ? '${r.name} 자동 실행 허용' : '${r.name} 루틴 켜기',
+                      switchOn: autoRunSwitchOn(r, routineAutoRule(r, allRules)),
+                      switchLabel: autoRunSwitchLabel(r),
+                      switchNote: autoRunSwitchNote(r, routineAutoRule(r, allRules)),
                       toggling: _togglingId == r.id,
                       next: next?.routineId == r.id ? next : null,
                       autoRule: routineAutoRule(r, allRules),
@@ -73,7 +73,7 @@ extension _AutomaticActions on _RoutinesScreenState {
             ),
             const SizedBox(height: AppSpace.xl),
             OutlinedButton.icon(onPressed: () => context.push('/routines'),
-              icon: const Icon(Icons.bookmark_outline), label: const Text('저장한 동작 전체')),
+              icon: const Icon(Icons.bookmark_outline), label: const Text('루틴 전체')),
           ],
         ),
       ),

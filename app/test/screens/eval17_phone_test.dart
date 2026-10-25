@@ -310,7 +310,7 @@ void main() {
       await tester.tapAt(p);
       await _settle(tester);
       // 탭 이름과 열린 창 제목이 같은 이름(문구 기준 R9 10/19).
-      expect(findPlainText('자동으로 하기'), findsNWidgets(2));
+      expect(findPlainText('자동 실행'), findsNWidgets(2));
     });
   });
 
@@ -440,7 +440,7 @@ void main() {
   group('6. 말', () {
     testWidgets('자동 조건과 시각 루틴을 바꿀 위치를 안내한다', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await _settle(tester);
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
       expect(intro.semanticsLabel, "허용한 조건에 맞으면 묻지 않고 실행해요. 정해진 시각의 루틴은 '내 루틴'에서 바꿔요.");

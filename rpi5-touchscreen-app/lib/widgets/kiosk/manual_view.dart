@@ -156,7 +156,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                             ],
                           ),
                           if (showActions)
-                            Text('저장된 동작 ${routines.length}개',
+                            Text('루틴 ${routines.length}개',
                                 key: const ValueKey('manual-actions-count'),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

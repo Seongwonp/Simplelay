@@ -197,7 +197,7 @@ Future<void> _settle(WidgetTester tester) async {
 
 /// 루틴 탭의 [자동으로 하기] 쪽을 연다(2026-10-18 세그먼트).
 Future<void> _openRules(WidgetTester tester) async {
-  await tester.tap(findPlainText('자동으로 하기'));
+  await tester.tap(findPlainText('자동 실행'));
   await _settle(tester);
 }
 

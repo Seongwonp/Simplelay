@@ -259,7 +259,7 @@ class _CareEventCard extends StatelessWidget {
             context.appWarning,
             '멈춘 루틴'
           ),
-        'auto_rule' => (AppIcons.auto, context.appInk, '자동으로 하기'),
+        'auto_rule' => (AppIcons.auto, context.appInk, '자동 실행'),
         'routine_notice' || 'routine_announce' => (
             AppIcons.notify,
             context.appInk,

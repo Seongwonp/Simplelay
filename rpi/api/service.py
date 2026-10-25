@@ -143,7 +143,7 @@ ESTOP_UNKNOWN_REASON = "비상 버튼 상태를 확인하는 중이에요. 잠�
 ACT_LINK_DOWN_REASON = "누름 장치와 연결되지 않았어요. 누름 장치 전원과 연결을 확인해 주세요."
 #: 누름 장치(로컬 갠트리)가 올라가 있지 않은 기본 가전(2026-10-18). 갠트리는 1대이고 ``SIMPLELAY_GANTRY_APPLIANCES``에
 #: 든 기본 가전 위에만 있다 — 나머지 기본 가전은 '설정이 필요해요'로 보이고 실행을 거절한다.
-GANTRY_ABSENT_REASON = "누름 장치가 이 가전 위에 없어서 누를 수 없어요"
+GANTRY_ABSENT_REASON = "누름 장치가 이 가전에 달려 있지 않아요"
 
 
 def _check_approved(buttons, approved_buttons) -> None:

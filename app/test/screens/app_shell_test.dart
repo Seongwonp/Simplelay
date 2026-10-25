@@ -201,6 +201,8 @@ void main() {
     await tester.pump();
     expect(container.read(executionStatusProvider).phase, ExecutionPhase.idle, reason: '폰이 시작한 실행이 아니다');
     expect(find.byKey(const Key('shell-stop')), findsOneWidget);
+    // 용어 통일(2026-10-25, 사용자 승인): "다른 곳에서 시작한 동작 진행 중 · [정지]".
+    expect(find.text('다른 곳에서 시작한 동작 진행 중'), findsOneWidget);
     await tester.tap(find.byKey(const Key('shell-stop')));
     await tester.pump();
     await tester.pump();

@@ -6,7 +6,7 @@
 // B. 큰 글씨에서 위 탭 '자동으로 하기'가 두 줄로 꺾여 위아래가 잘렸다 → 한 줄, 탭 안에 다 보인다.
 // C. 폰이 만드는 시각은 모두 '오전 7:00'·'오후 10:04' 꼴 — 기록·조용한 시간·잠시 쉬기·LG 가전 읽은 시각·자동으로 하기
 //    문장(서버 '매일 밤 10시에'는 그 규칙의 condition_time과 정확히 맞을 때만 바꾼다).
-// D. 자동으로 하기: 사용자가 끈 규칙은 스위치만(배지 '자동으로 하기를 꺼 두셨어요' 없음), 다른 까닭으로 꺼진 규칙은 배지 유지.
+// D. 자동으로 하기: 사용자가 끈 규칙은 스위치만(배지 '자동 실행을 꺼 두셨어요' 없음), 다른 까닭으로 꺼진 규칙은 배지 유지.
 //    탭 머리에 이 목록이 무엇인지 한 줄.
 import 'dart:convert';
 import 'dart:io';
@@ -95,7 +95,7 @@ final _routines = [
   },
 ];
 
-const _userOff = '자동으로 하기를 꺼 두셨어요.';
+const _userOff = '자동 실행을 꺼 두셨어요.';
 const _estopOff = '비상 정지로 꺼졌어요. 다시 허락해 주세요.';
 
 final _rules = [
@@ -302,7 +302,7 @@ void main() {
     testWidgets("200%에서 '자동으로 하기'은 한 줄이고 탭 안에 다 보인다", (tester) async {
       await _pump(tester, const RoutinesScreen(), scale: 2.0);
       final seg = find.byType(SegmentedButton<int>);
-      for (final label in ['내 루틴', '자동으로 하기']) {
+      for (final label in ['내 루틴', '자동 실행']) {
         final t = findPlainText(label);
         expect(t, findsOneWidget);
         expect(_lines(tester, t), 1, reason: '$label ${tester.getSize(t)}');
@@ -369,11 +369,11 @@ void main() {
   group('D. 자동으로 하기 탭', () {
     testWidgets('사용자가 끈 규칙은 스위치만 — 다른 까닭으로 꺼진 규칙은 배지 유지', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('auto-rule-switch-ar-heat')), findsOneWidget);
       expect(find.byKey(const Key('auto-rule-off-ar-heat')), findsNothing);
-      expect(findPlainText('자동으로 하기를 꺼 두셨어요', contains: true), findsNothing);
+      expect(findPlainText('자동 실행을 꺼 두셨어요', contains: true), findsNothing);
       // 시각 루틴의 규칙(비상 정지로 꺼짐)은 루틴 줄 '자동 꺼짐'에서(평가 14차 10/18).
       expect(find.byKey(const Key('auto-rule-ar-estop')), findsNothing);
       await tester.tap(findPlainText('내 루틴'));
@@ -386,7 +386,7 @@ void main() {
 
     testWidgets('탭 머리에 이 목록이 무엇인지 한 줄', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await tester.pumpAndSettle();
       final intro = find.byKey(const Key('auto-rules-intro'));
       expect(intro, findsOneWidget);

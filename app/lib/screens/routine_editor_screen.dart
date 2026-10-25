@@ -644,7 +644,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
 /// - 누르는 단계가 있으면 '허락하면 눌러요', 없으면(LG 가전·알림) '허락하면 해요' — 공기청정기는 누르지 않는다.
 String routineModeNote(Routine r, {required bool auto}) {
   if (r.mode != RoutineMode.approve) return '알림만 보내요. 가전은 그대로예요.';
-  if (auto) return '자동 실행 허용이 켜져 있어 지금은 묻지 않고 해요. 자동 실행 탭에서 끌 수 있어요.';
+  if (auto) return '자동 실행이 켜져 있어 지금은 묻지 않고 해요. 자동 실행 탭에서 끌 수 있어요.';
   final presses = r.steps.any((s) => s.kind == RoutineStepKind.pressSequence);
   return presses ? '때가 되면 카드로 물어보고, 허락하면 눌러요.' : '때가 되면 카드로 물어보고, 허락하면 해요.';
 }

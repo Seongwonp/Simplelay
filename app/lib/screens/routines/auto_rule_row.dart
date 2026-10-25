@@ -68,7 +68,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
 
   Future<void> _delete(RpiApiService api) async {
     final ok = await confirmDelete(context,
-        title: "이 '자동으로 하기'를 지울까요?",
+        title: '이 자동 실행을 지울까요?',
         body: autoRuleSentence(widget.rule));
     if (ok) await api.deleteAutoRule(widget.rule.id);
   }

@@ -136,3 +136,18 @@ def test_execute_without_appliance_id_still_runs_when_microwave_is_on_the_gantry
     client = _client(monkeypatch, None)
     ok = client.post("/execute", json={"text": "즉석밥 데워줘"})
     assert ok.status_code == 200, ok.text
+
+
+def test_phone_and_kiosk_match_the_server_gantry_sentence():
+    """폰·키오스크는 이 문장을 글자 그대로 비교한다(``kGantryAbsentReason``) — 서버와 같아야 인덕션 안내가 뜬다
+    (2026-10-25 용어 통일: "누름 장치가 이 가전에 달려 있지 않아요", 서버·폰·키오스크 같은 커밋)."""
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    assert GANTRY_ABSENT_REASON == "누름 장치가 이 가전에 달려 있지 않아요"
+    for rel in ("app/lib/models/display_status.dart", "rpi5-touchscreen-app/lib/models/appliance.dart"):
+        text = (root / rel).read_text(encoding="utf-8")
+        m = re.search(r"const kGantryAbsentReason = '([^']*)';", text)
+        assert m is not None, rel
+        assert m.group(1) == GANTRY_ABSENT_REASON, rel

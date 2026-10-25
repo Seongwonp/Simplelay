@@ -712,7 +712,7 @@ void main() {
       final seg = find.byType(SegmentedButton<int>);
       expect(seg, findsOneWidget);
       expect(find.descendant(of: seg, matching: findPlainText('내 루틴')), findsOneWidget);
-      expect(find.descendant(of: seg, matching: findPlainText('자동으로 하기')), findsOneWidget);
+      expect(find.descendant(of: seg, matching: findPlainText('자동 실행')), findsOneWidget);
       expect(find.text('예시 루틴'), findsNothing, reason: '세그먼트에 예시 루틴을 두지 않는다');
       expect(find.textContaining('추천'), findsNothing);
 
@@ -748,10 +748,10 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_build(_Server()));
     await _settle(tester);
-    await tester.tap(findPlainText('자동으로 하기'));
+    await tester.tap(findPlainText('자동 실행'));
     await _settle(tester);
     expect(
-        findPlainText('아직 "자동으로 하기"가 없어요. "할까요?" 하고 물어볼 때 "다음부터도 자동으로"를 고르면 생겨요. '
+        findPlainText('아직 자동 실행이 없어요. "할까요?" 하고 물어볼 때 "다음부터도 자동으로"를 고르면 생겨요. '
             'LG 가전 일만 이렇게 할 수 있어요.'),
         findsOneWidget);
   });
@@ -793,7 +793,7 @@ void main() {
       expect(tester.getSize(find.byKey(const Key('candidate-save-hc-1'))).height,
           greaterThanOrEqualTo(48));
       // 자동으로 하기 쪽에는 보이지 않는다.
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await _settle(tester);
       expect(find.text('자주 하신 일로 만든 루틴(아직 저장 안 했어요)'), findsNothing);
     });

@@ -60,8 +60,29 @@ bool autoRuleNameSaysAll(AutoRule rule) {
   return word != null && rule.name.contains(word);
 }
 
+/// 루틴 줄 스위치의 지금 값 — 루틴마다 '자동 실행' 하나(용어·스위치 통일 2026-10-25, 사용자 승인). 자동 규칙이 붙은
+/// 루틴은 규칙과 루틴이 **둘 다** 켜져야 켜짐(한쪽만 켜진 '켰는데 안 도는' 상태를 켜짐으로 보이지 않는다).
+bool autoRunSwitchOn(Routine r, AutoRule? rule) => rule == null ? r.enabled : rule.enabled && r.enabled;
+
+/// 루틴 줄 스위치를 읽는 이름 — '실행 허용'·'루틴 켜기'로 나누지 않는다.
+String autoRunSwitchLabel(Routine r) => '${r.name} 자동 실행';
+
+/// 스위치 아래 한 줄 — 지금 값으로 실제 무엇이 되는지. 켜짐: 자동 규칙이 붙었으면 '매일 오후 10:00에 묻지 않고
+/// 공기청정기를 켜요'(본체 문장), 묻는 루틴은 '시간이 되면 먼저 물어봐요', 알림만이면 '시간이 되면 알려 드려요'.
+/// 꺼짐: '시간이 돼도 하지 않아요'.
+String autoRunSwitchNote(Routine r, AutoRule? rule) {
+  if (!autoRunSwitchOn(r, rule)) return '시간이 돼도 하지 않아요';
+  if (rule != null) {
+    return [withAmPmSpoken(rule.conditionText.trim(), rule.conditionTime), '묻지 않고', rule.actionText.trim()]
+        .where((t) => t.isNotEmpty)
+        .join(' ');
+  }
+  if (r.mode == RoutineMode.notify) return '시간이 되면 알려 드려요';
+  return '시간이 되면 먼저 물어봐요';
+}
+
 /// 본체가 사용자가 끈 규칙에 붙이는 까닭(끝 마침표 뺌) — 이 말이면 배지 없이 스위치만.
-const kUserOffReason = '자동으로 하기를 꺼 두셨어요';
+const kUserOffReason = '자동 실행을 꺼 두셨어요';
 
 /// 규칙 값 바꾸기 단추 이름 — 무엇의 값인지 말한다(UI 평가 3차 10/17: '세기'는 무엇의 세기인지 몰랐다).
 ///

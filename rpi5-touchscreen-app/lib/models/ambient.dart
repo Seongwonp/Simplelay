@@ -343,11 +343,11 @@ class KioskNextRun {
   String get whenShort =>
       [if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, clockHhmm(hhmm)].join(' ');
 
-  /// 시계 아래 묶음의 작은 머리말(사용자 결정 10/18) — 무슨 루틴인지 사실대로. 카드 없이 자동으로 하는 회차만 '자동 루틴',
+  /// 시계 아래 묶음의 작은 머리말(사용자 결정 10/18) — 무슨 루틴인지 사실대로. 카드 없이 자동으로 하는 회차만 '자동 실행',
   /// 카드로 물어보는 회차는 '물어볼 루틴', 알림만이면 '알림 루틴'. 조용한 시간이라 건너뛰는 회차·모르는 방식은 '다음 루틴'.
   String get kindLabel {
     if (quietSkip) return '다음 루틴';
-    if (auto || modeLabel == '자동 실행' || modeLabel == '자동') return '자동 루틴';
+    if (auto || modeLabel == '자동 실행' || modeLabel == '자동') return '자동 실행';
     return switch (modeLabel) {
       '승인 후 실행' => '물어볼 루틴',
       '알림만' => '알림 루틴',

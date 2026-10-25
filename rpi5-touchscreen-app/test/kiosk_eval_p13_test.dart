@@ -1,7 +1,7 @@
 // 사용자 요청·평가 13차(2026-10-18) — 키오스크 평소 화면·결과·연습 화면. 옛 코드에도 있는 공개 구성만 써서 옛 코드에서 실패하는 것을 확인한다.
 //
 // 1. '오늘은 건너뛰기'는 작은 글자 단추(테두리·면 없음, 머리말과 같은 작은 글씨), 누르는 자리는 48 이상. 건너뛴 상태도 같은 작은 꼴.
-// 2. '자동으로 해요'는 없앤다 — 다음 루틴 묶음에 작은 머리말 '자동 루틴'(서버 auto일 때만, 아니면 '물어볼 루틴' 등 사실대로).
+// 2. '자동으로 해요'는 없앤다 — 다음 루틴 묶음에 작은 머리말 '자동 실행'(서버 auto일 때만, 아니면 '물어볼 루틴' 등 사실대로).
 //    시각은 분까지 '오후 10:00'(폰과 같은 꼴).
 // 3. 날짜 옆 날씨는 빼고 예보 줄 맨 앞 칸 '지금'으로(지금 + 3칸까지). 지금 칸이 없으면 예보 4칸.
 // 4. 강수확률은 그 칸 안 기온 아래(칸 높이 같게), 날씨 안내는 어구 단위 줄바꿈('나갈 때'), 0시는 '밤 12시'.
@@ -137,21 +137,21 @@ void main() {
     await (FontLoader('Malgun')..addFont(Future.value(ByteData.view(bytes.buffer)))).load();
   });
 
-  group('1·2. 다음 루틴 — 자동 루틴 머리말, 작은 글자 단추', () {
-    testWidgets("'자동으로 해요' 대신 머리말 '자동 루틴', 시각은 '오후 10:00'", (tester) async {
+  group('1·2. 다음 루틴 — 자동 실행 머리말, 작은 글자 단추', () {
+    testWidgets("'자동으로 해요' 대신 머리말 '자동 실행', 시각은 '오후 10:00'", (tester) async {
       await _pumpView(tester, _idle(next: _next(), onToggle: (_) {}));
       final texts = _texts(tester);
       expect(texts, isNot(contains('자동으로 해요')));
-      expect(texts, contains('자동 루틴'));
+      expect(texts, contains('자동 실행'));
       // 시안 B(10/24): 오른쪽 좁은 줄 칸 — '오후 10:00'(굵게) 뒤 이름(작게)을 이어 쓰고 넘치면 줄을 바꾼다. 시각은 분까지.
       expect(texts.any((t) => t.startsWith('오후 10:00') && t.endsWith('저녁 공기청정기 켜기')), isTrue, reason: '$texts');
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets("카드로 물어보는 루틴은 '자동 루틴'이라 쓰지 않는다", (tester) async {
+    testWidgets("카드로 물어보는 루틴은 '자동 실행'이라 쓰지 않는다", (tester) async {
       await _pumpView(tester, _idle(next: _next(auto: false), onToggle: (_) {}));
       final texts = _texts(tester);
-      expect(texts, isNot(contains('자동 루틴')));
+      expect(texts, isNot(contains('자동 실행')));
       expect(texts, contains('물어볼 루틴'));
       expect(texts, isNot(contains('물어보고 해요')));
     });
@@ -160,7 +160,7 @@ void main() {
       await _pumpView(tester, _idle(next: _next(quiet: true), onToggle: (_) {}));
       final texts = _texts(tester);
       expect(texts, contains('다음 루틴'));
-      expect(texts, isNot(contains('자동 루틴')));
+      expect(texts, isNot(contains('자동 실행')));
       expect(texts, contains('조용한 시간이라 건너뛰어요'));
       expect(_next().whenShort, '오후 10:00');
     });
@@ -175,7 +175,7 @@ void main() {
           matching: find.byWidgetPredicate((w) =>
               w is Container && w.decoration is BoxDecoration && (w.decoration as BoxDecoration).border != null));
       expect(bordered, findsNothing, reason: '테두리 단추가 아니다');
-      expect(_fontOf(tester, label), _fontOf(tester, find.text('자동 루틴')), reason: '머리말과 같은 작은 글씨');
+      expect(_fontOf(tester, label), _fontOf(tester, find.text('자동 실행')), reason: '머리말과 같은 작은 글씨');
       expect(_colorOf(tester, label), KioskColors.muted, reason: '회색 계열');
       final r = tester.getRect(_skip);
       expect(r.height, greaterThanOrEqualTo(48));
@@ -184,10 +184,10 @@ void main() {
       expect(taps, hasLength(1));
     });
 
-    // 10/19: '오늘은 건너뛰어요'를 끝 줄에 또 두지 않는다 — 머리말 '자동 루틴 · 오늘은 안 해요'가 말하고 끝 줄은 '되돌리기'만.
-    testWidgets("건너뛴 상태 '자동 루틴 · 오늘은 안 해요' + '되돌리기' — 같은 작은 글씨", (tester) async {
+    // 10/19: '오늘은 건너뛰어요'를 끝 줄에 또 두지 않는다 — 머리말 '자동 실행 · 오늘은 안 해요'가 말하고 끝 줄은 '되돌리기'만.
+    testWidgets("건너뛴 상태 '자동 실행 · 오늘은 안 해요' + '되돌리기' — 같은 작은 글씨", (tester) async {
       await _pumpView(tester, _idle(next: _next(skipped: true), onToggle: (_) {}));
-      final head = _fontOf(tester, find.text('자동 루틴'));
+      final head = _fontOf(tester, find.text('자동 실행'));
       expect(_fontOf(tester, find.text('오늘은 안 해요')), head);
       expect(find.text('오늘은 건너뛰어요'), findsNothing);
       final undo = find.descendant(of: _unskip, matching: find.text('되돌리기'));
@@ -208,7 +208,7 @@ void main() {
           final line = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
           expect(line.left, greaterThanOrEqualTo(tile.right));
           expect(line.bottom, lessThanOrEqualTo(480));
-          expect(_texts(tester), contains('자동 루틴'));
+          expect(_texts(tester), contains('자동 실행'));
           final b = skipped ? _unskip : _skip;
           expect(tester.getRect(b).height, greaterThanOrEqualTo(48));
           await tester.tap(b);

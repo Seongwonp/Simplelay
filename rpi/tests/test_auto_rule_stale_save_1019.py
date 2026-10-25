@@ -62,7 +62,7 @@ def test_invalidation_does_not_overwrite_a_concurrent_delete_or_change(api, monk
 
     def racing_invalid(current):
         _change(engine, current.rule_id, kind)  # 판단 사이 다른 요청이 지우거나 값을 바꿨다
-        return "허락한 뒤 내용이 바뀌어 자동으로 하기를 껐어요. 다시 허락해 주세요."
+        return "허락한 뒤 내용이 바뀌어 자동 실행을 껐어요. 다시 허락해 주세요."
 
     monkeypatch.setattr(engine, "_invalid_reason", racing_invalid)
     _inject(api, inputs=("power",))

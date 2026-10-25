@@ -353,7 +353,7 @@ void main() {
 
     testWidgets('자동 규칙 안내는 짧게, 규칙 이름 끝 낱말은 앞 낱말과 함께', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 실행'));
       await _settle(tester);
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
       // 평가 17차(10/18): 한 문장(eval17_phone_test 6).

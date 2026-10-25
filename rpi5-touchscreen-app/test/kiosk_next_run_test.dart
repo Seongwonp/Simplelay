@@ -91,13 +91,13 @@ void main() {
         tester,
         const KioskNextRun(
             name: '아침 공기청정기 끄기', dayLabel: '내일', hhmm: '07:00', modeLabel: '자동 실행'));
-    // 담담한 줄(사용자 결정 10/18): 작은 머리말 '자동 루틴' + '내일 오전 7:00 · 아침 공기청정기 끄기'(분까지 — 평가 13차).
+    // 담담한 줄(사용자 결정 10/18): 작은 머리말 '자동 실행' + '내일 오전 7:00 · 아침 공기청정기 끄기'(분까지 — 평가 13차).
     final line = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-text')));
     // 어절 단위로 줄을 바꾼다 — 실패널에서 '공기청/정기'처럼 낱말 가운데서 끊겼다(10/16 밤).
     // 시안 B(10/24): 오른쪽 줄 칸 — 시각 줄 다음 이름 줄.
     expect(line.textSpan!.toPlainText(includeSemanticsLabels: false).replaceAll('⁠', '').replaceAll('\n', ' · '),
         '내일 오전 7:00 · 아침 공기청정기 끄기');
-    expect(find.text('자동 루틴'), findsOneWidget);
+    expect(find.text('자동 실행'), findsOneWidget);
     expect(find.text('자동으로 해요'), findsNothing);
     expect(tester.takeException(), isNull);
 

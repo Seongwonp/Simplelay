@@ -102,7 +102,7 @@ class AutoRule {
     final last = json['last_run'];
     return AutoRule(
       id: json['id'] as String,
-      name: json['name'] as String? ?? '자동으로 하기',
+      name: json['name'] as String? ?? '자동 실행',
       conditionText: json['condition_text'] as String? ?? '',
       actionText: json['action_text'] as String? ?? '',
       caveat: caveatFrom(json),

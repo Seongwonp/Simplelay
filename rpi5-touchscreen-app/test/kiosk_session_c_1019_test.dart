@@ -4,7 +4,7 @@
 //    되돌린다고 약속하지 않는다). 실행 화면 칸 안에서 잘리지 않는다.
 // 4. 실행 중 '눌렀어요, 확인 중이에요'는 버튼을 **다 누른 뒤**에만 — 두 번째 버튼을 누르러 가는 동안(앞 버튼 확인 결과만
 //    남아 있을 때)은 '누르고 있어요'.
-// 5. 건너뛴 다음 루틴 — 머리말 '자동 루틴 · 오늘은 안 해요' 하나로 말하고, 끝 줄은 '되돌리기'만(같은 말 두 번 금지).
+// 5. 건너뛴 다음 루틴 — 머리말 '자동 실행 · 오늘은 안 해요' 하나로 말하고, 끝 줄은 '되돌리기'만(같은 말 두 번 금지).
 // 6. 누름 장치 끊김 칩의 가전 수는 누름 장치가 누르는 가전만 — LG 가전·연습 가전·누름 장치가 위에 없는 가전은 세지 않는다.
 //    실내 온습도는 실측일 때만(모의·모름은 줄 없음).
 import 'package:flutter/material.dart';
@@ -146,10 +146,10 @@ void main() {
           'skip_action_label': '오늘은 건너뛰기',
         })!;
 
-    testWidgets("머리말 '자동 루틴 · 오늘은 안 해요', 끝 줄은 '되돌리기'만", (tester) async {
+    testWidgets("머리말 '자동 실행 · 오늘은 안 해요', 끝 줄은 '되돌리기'만", (tester) async {
       await _pump(tester, _idle(next: next()));
       final texts = _texts(tester);
-      expect(texts, contains('자동 루틴'));
+      expect(texts, contains('자동 실행'));
       expect(texts, contains('오늘은 안 해요'));
       expect(texts.where((t) => t.contains('건너뛰어요')), isEmpty);
       expect(find.descendant(
@@ -197,7 +197,7 @@ void main() {
       'control_path': 'physical',
       'can_execute': false,
       'readiness': 'needs_setup',
-      'readiness_reasons': ['이 가전에는 누름 장치가 설치되어 있지 않아 누를 수 없어요'],
+      'readiness_reasons': ['누름 장치가 이 가전에 달려 있지 않아요'],
     });
     final practiceWasher = applianceFromServerJson({
       'id': 'washer',

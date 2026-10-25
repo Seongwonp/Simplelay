@@ -733,7 +733,7 @@ KioskAirReading? airIfBad(KioskAirReading? air) =>
 
 /// 다음 루틴 — 시계 아래 담담한 묶음(사용자 결정 10/18, 오른쪽 큰 카드를 대신한다).
 ///
-/// - 머리말(작은 회색): '자동 루틴'(카드 없이 자동으로 하는 회차만) · '물어볼 루틴' · '알림 루틴' · '다음 루틴'([KioskNextRun.kindLabel]).
+/// - 머리말(작은 회색): '자동 실행'(카드 없이 자동으로 하는 회차만) · '물어볼 루틴' · '알림 루틴' · '다음 루틴'([KioskNextRun.kindLabel]).
 /// - 본 줄: '오후 10:00 · 저녁 공기청정기 켜기'(오늘이면 날 말 없이, 분까지 — 폰과 같은 꼴). 한 줄에 다 안 들어가면 시각 뒤에서
 ///   줄을 바꾼다(이름 가운데서 꺾여 '켜기'만 홀로 남지 않게).
 /// - 끝 줄: 작은 글자 단추 '오늘은 건너뛰기' — 머리말과 같은 작은 글씨·회색 계열, 테두리 없음(사용자 요청 10/18 — 테두리 단추가 너무
@@ -828,7 +828,7 @@ class _NextRunLine extends StatelessWidget {
   }
 
   static double _headHeight(BuildContext context) {
-    final t = _textHeight(context, '자동 루틴', _headStyle, double.infinity);
+    final t = _textHeight(context, '자동 실행', _headStyle, double.infinity);
     return t > _headIcon ? t : _headIcon;
   }
 

@@ -231,7 +231,7 @@ def test_rule_fragments_read_as_one_sentence():
 def test_old_user_off_reason_shows_the_new_sentence():
     from rpi.routines.auto_rules import USER_OFF_REASON, display_reason
 
-    assert USER_OFF_REASON == "자동으로 하기를 꺼 두셨어요."
+    assert USER_OFF_REASON == "자동 실행을 꺼 두셨어요."
     assert display_reason("직접 자동 실행을 껐어요.") == USER_OFF_REASON
 
 
@@ -260,7 +260,7 @@ def test_client_matched_words_stay_after_second_round():
     assert AutoRuleEngine._run_purpose(_Purpose(), rule).startswith("자동 실행 · ")
 
 
-# ── 10/18 쉬운 말 4차: '콘센트' → '전기 플러그', '보냈어요' 계열 → 사람 말, '자동 실행' 표시 문장 → '자동으로 하기' ─────
+# ── 10/18 쉬운 말 4차: '콘센트' → '전기 플러그', '보냈어요' 계열 → 사람 말, 기능 이름은 '자동 실행'(2026-10-25 용어 통일) ─────
 
 #: 화면에 나가는 문장을 만드는 모듈 — 문자열 상수(문서 문자열 제외)를 훑는다. 로그·설치용 오류는 이 목록 밖이다.
 _USER_TEXT_MODULES = (
@@ -271,13 +271,6 @@ _USER_TEXT_MODULES = (
     "rpi/scenarios/catalog.py", "rpi/api/ambient_router.py", "rpi/services/stop_confirm.py",
     "rpi4/services/act_executor.py", "rpi4/services/stop_hold.py",
 )
-#: 기능 이름·출처 표시로 클라이언트가 글자 그대로 쓰는 값(mode_label·status_label·목적 머리·규칙 이름 기본값)과
-#: 옛 저장 문장을 알아보는 표(보여 줄 때 지금 문장으로 바꾸는 열쇠).
-_AUTO_NAME_ALLOWED = re.compile(
-    r"^(자동 실행|자동 실행 · |자동 실행 켜짐|자동 실행 꺼짐|자동 실행을 |자동 실행이 )$"
-    r"|^(허용하는 사이 정지가|허브가 갑자기|루틴이 바뀌어 자동 실행을 껐어요 —|루틴을 지워서 자동 실행을 껐어요$"
-    r"|루틴이 꺼져 있어 자동 실행을 껐어요 —|직접 자동 실행을 껐어요|비상정지로 자동 실행을 껐어요 —|사용자가 자동 실행을 껐어요)"
-    r"|^auto rules unreadable")
 
 
 def _string_constants(path: str) -> list[tuple[int, str]]:
@@ -310,10 +303,13 @@ def test_round4_no_wall_socket_or_machine_send_words(path):
 
 @pytest.mark.parametrize("path", _USER_TEXT_MODULES)
 def test_round4_auto_name_in_sentences_is_plain(path):
-    """'자동 실행'은 클라이언트 비교값·기능 이름(mode_label·status_label·'자동 실행 · ' 머리)에만. 문장은 '자동으로 하기'."""
+    """기능 이름은 '루틴'·'자동 실행' 둘만(2026-10-25 용어 통일, 사용자 승인) — 화면 문장에 '자동으로 하기'·'자동 루틴'·
+    '저장된/저장한 동작'을 쓰지 않는다. 옛 이름은 저장된 사유를 알아보는 표(``_LEGACY_AUTO_NAME``)에만."""
     for line, text in _string_constants(path):
-        if "자동 실행" in text:
-            assert _AUTO_NAME_ALLOWED.search(text), f"{path}:{line} {text!r}"
+        if text in ("자동으로 하기를 ", "자동으로 하기가 ", "자동으로 하기는 "):
+            continue
+        for old in ("자동으로 하기", "자동 루틴", "저장된 동작", "저장한 동작"):
+            assert old not in text, f"{path}:{line} {text!r}"
 
 
 def test_round4_plug_and_send_sentences():
@@ -327,8 +323,8 @@ def test_round4_plug_and_send_sentences():
         "전기 플러그가 다시 켜져서 가전 전원이 꺼졌어요. 해제하면 전원을 다시 켜요.")
     # 보낸 것까지만 안다 — 멈췄다고 하지 않는다(확인 수준 유지).
     assert stop_confirm.stop_sentence(stop_confirm.STOP_SENT) == "멈추는 중이에요. 멈췄는지 기계를 봐 주세요"
-    assert auto_rules.ESTOP_REASON == "비상정지로 자동으로 하기를 껐어요."
-    assert auto_rules.USER_OFF_REASON == "자동으로 하기를 꺼 두셨어요."
+    assert auto_rules.ESTOP_REASON == "비상정지로 자동 실행을 껐어요."
+    assert auto_rules.USER_OFF_REASON == "자동 실행을 꺼 두셨어요."
     assert SKIP_REASON == "조용한 시간이라 자동으로 하지 않았어요"
     # 조용한 시간에 건너뛴 것은 나중에 다시 하지 않는다는 사실은 그대로.
     assert "나중에 다시 하지 않아요" in SCOPE_TEXT and "자동 실행" not in CARRIED_PAUSE_SCOPE_TEXT
@@ -340,8 +336,14 @@ def test_round4_old_auto_reasons_show_the_new_name():
     assert display_reason("자동 실행을 꺼 두셨어요.") == USER_OFF_REASON
     assert display_reason("비상정지로 자동 실행을 껐어요.") == ESTOP_REASON
     assert display_reason("공기청정기를 찾을 수 없어 자동 실행을 껐어요. 다시 허락해 주세요.") == (
-        "공기청정기를 찾을 수 없어 자동으로 하기를 껐어요. 다시 허락해 주세요.")
+        "공기청정기를 찾을 수 없어 자동 실행을 껐어요. 다시 허락해 주세요.")
     assert display_reason("직접 자동 실행을 껐어요.") == USER_OFF_REASON
+    # 10/18~10/25에 '자동으로 하기'로 저장된 사유도 지금 이름('자동 실행')으로(2026-10-25 용어 통일).
+    assert display_reason("자동으로 하기를 꺼 두셨어요.") == USER_OFF_REASON
+    assert display_reason("비상정지로 자동으로 하기를 껐어요.") == ESTOP_REASON
+    assert display_reason("살펴보던 가전이 없어져 자동으로 하기를 껐어요. 다시 허락해 주세요.") == (
+        "살펴보던 가전이 없어져 자동 실행을 껐어요. 다시 허락해 주세요.")
+    assert display_reason("자동으로 하기가 꺼져서 하지 않았어요.") == "자동 실행이 꺼져서 하지 않았어요."
 
 
 @pytest.mark.parametrize("stored, shown", [
