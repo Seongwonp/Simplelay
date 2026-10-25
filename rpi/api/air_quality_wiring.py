@@ -155,7 +155,10 @@ def stop_air_quality_poller() -> None:
 def reset_air_quality() -> None:
     """시험용 — 판독 스레드를 멈추라 표시하고 재알림 기억을 지운다."""
     global _monitor
+    from .context_suggestion_wiring import reset_context_suggestions  # noqa: PLC0415
+
     stop_air_quality_poller()
+    reset_context_suggestions()  # 환경 제안이 이 판독의 재알림 기억을 빌려 쓴다 — 함께 지운다
     with _lock:
         _monitor = None
 

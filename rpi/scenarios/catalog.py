@@ -56,7 +56,7 @@ class ScenarioStep:
 
 @dataclass(frozen=True)
 class ScenarioTrigger:
-    #: job_completed | thinq_event | appliance_done | air_quality | manual
+    #: job_completed | thinq_event | appliance_done | air_quality | context | manual
     kind: str
     appliance_id: str | None = None
     #: thinq_event 트리거의 이벤트 이름(예: wash_complete).
@@ -153,6 +153,45 @@ AIR_QUALITY_POWER_ON = ScenarioDefinition(
     auto_allowed=False,
 )
 
+#: 환경 제안(2026-10-26) — 사람 감지·방 밝기·공기청정기 상태·공기질·기상특보를 **함께** 보고 고른 때에 묻는다.
+#: 판정·쉬는 시간·근거 문장은 ``rpi/services/context_suggestions.py``, 판독 스레드는 ``rpi/api/context_suggestion_wiring.py``.
+#: 트리거 이벤트가 판정 규칙 이름이다. 셋 다 승인 뒤에만 실행하고 '다음부터도 자동으로'는 두지 않는다(auto_allowed=False).
+#: 질문 문장은 '다시 받지 않기'의 열쇠라 공기질 카드('공기청정기를 켤까요?')와 겹치지 않게 따로 둔다.
+CONTEXT_SLEEP_MODE = ScenarioDefinition(
+    scenario_id="context_sleep_mode",
+    name="불을 끄면 수면 모드",
+    question="공기청정기를 수면 모드로 할까요?",
+    trigger=ScenarioTrigger("context", appliance_id="air_purifier", event="lights_off"),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_job_mode", (("job_mode", "SLEEP"),)),
+    ),
+    auto_allowed=False,
+)
+
+CONTEXT_ARRIVAL_AIR = ScenarioDefinition(
+    scenario_id="context_arrival_air",
+    name="돌아왔을 때 공기",
+    question="공기청정기를 켜 둘까요?",
+    trigger=ScenarioTrigger("context", appliance_id="air_purifier", event="arrival"),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_power", (("power", "POWER_ON"),)),
+    ),
+    auto_allowed=False,
+)
+
+CONTEXT_DUST_AIR = ScenarioDefinition(
+    scenario_id="context_dust_air",
+    name="황사 특보 때 공기청정기",
+    question="황사에 대비해 공기청정기를 켤까요?",
+    trigger=ScenarioTrigger("context", appliance_id="air_purifier", event="dust_warning"),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_power", (("power", "POWER_ON"),)),
+    ),
+    auto_allowed=False,
+)
+
+CONTEXT_SCENARIOS = (CONTEXT_SLEEP_MODE, CONTEXT_ARRIVAL_AIR, CONTEXT_DUST_AIR)
+
 EVENING_REST = ScenarioDefinition(
     scenario_id="evening_rest",
     name="저녁 휴식",
@@ -180,7 +219,9 @@ WASH_THEN_DRY = ScenarioDefinition(
 V2_SCENARIOS = (COOK_THEN_AIR, EVENING_REST, WASH_THEN_DRY)
 #: 기본 카탈로그(v4): 가열 종료 감지 → 공기청정기, 그리고 공기청정기 센서 공기질 → 강풍(켜져 있을 때)·켜기(꺼져 있을 때)
 #: (2026-10-15). 그 밖의 카드는 사용자 루틴이 만든다. v2 구성(opt-in)에는 공기질 카드를 싣지 않는다.
-DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR, AIR_QUALITY_HIGH, AIR_QUALITY_POWER_ON)
+#: 2026-10-26: 환경 제안 세 개(불 끄면 수면 모드·돌아왔을 때 공기·황사 특보)를 더했다.
+DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR, AIR_QUALITY_HIGH, AIR_QUALITY_POWER_ON,
+                                                     *CONTEXT_SCENARIOS)
 
 V2_SCENARIOS_ENV = "SIMPLELAY_V2_SCENARIOS"
 
@@ -247,6 +288,10 @@ class ScenarioCatalog:
 __all__ = [
     "AIR_QUALITY_HIGH",
     "AIR_QUALITY_POWER_ON",
+    "CONTEXT_ARRIVAL_AIR",
+    "CONTEXT_DUST_AIR",
+    "CONTEXT_SCENARIOS",
+    "CONTEXT_SLEEP_MODE",
     "COOK_DONE_AIR",
     "COOK_THEN_AIR",
     "DEFAULT_SCENARIOS",

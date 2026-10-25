@@ -60,6 +60,9 @@ class RoomLight:
         self._now = now
         self._samples: deque[tuple[float, int]] = deque()
         self._state = UNKNOWN  # 마지막으로 정한 밝음·어두움(모름일 때 되살릴 이전 값은 두지 않는다)
+        # 판단이 바뀐 때와 그 전 판단(2026-10-26 환경 제안 '불 끄면 수면 모드'가 읽는다 — 밝음 → 어두움만 '불을 끔'이다).
+        self._previous = UNKNOWN
+        self._since: float | None = None
 
     def observe(self, level: int | None) -> str | None:
         """표본 하나(None = 읽지 못함). 판단이 바뀌면 새 상태, 아니면 None."""
@@ -77,7 +80,30 @@ class RoomLight:
         elif snap.level > self.light_above:
             self._state = LIGHT
         # 문턱 사이: 이전 판단 유지. 이전이 '모름'이면 아직 정하지 않는다.
-        return self._state if self._state != before else None
+        if self._state != before:
+            self._previous = before
+            self._since = t
+            return self._state
+        return None
+
+    def now(self) -> float:
+        """이 객체의 시계(:meth:`dark_since`와 같은 기준)."""
+        return self._now()
+
+    def dark_since(self) -> float | None:
+        """불이 꺼진 순간(밝음 → 어두움으로 바뀐 때, :meth:`now` 기준). 지금 어둡지 않거나, 어두워지기 전이 밝음이
+        아니었거나(켜진 뒤 처음부터 어두움·모름에서 어두움), 표본이 오래됐으면 None — 불을 끈 것으로 단정하지 않는다.
+
+        다른 스레드가 표본을 넣는 중에도 부를 수 있게 deque를 훑지 않고 마지막 표본만 본다."""
+        if self._state != DARK or self._previous != LIGHT:
+            return None
+        try:
+            last = self._samples[-1][0]
+        except IndexError:
+            return None
+        if self._now() - last > self.stale_s:
+            return None
+        return self._since
 
     def _mean(self) -> int | None:
         t = self._now()

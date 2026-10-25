@@ -123,6 +123,16 @@ class ScenarioEngine:
             card = self._offer(definition, reason, is_demo) or card
         return card
 
+    def on_context(self, scenario_id: str, reason: str, is_demo: bool):
+        """환경 제안 판정(``rpi/services/context_suggestions.py``) → ``context`` 트리거 카드(2026-10-26).
+
+        판정·쉬는 시간은 판정 쪽이 하고, 여기서는 종전 시나리오 카드처럼 준비 상태를 보고 만든다 — 조용한 시간·잠시 쉬기·
+        다시 받지 않기·부재는 제안 서비스가 막는다. **실행하지 않는다.** 만든(또는 이미 떠 있던) 카드, 막혔으면 None."""
+        definition = self._catalog.get(scenario_id)
+        if definition is None or definition.trigger.kind != "context":
+            return None
+        return self._offer(definition, reason, is_demo)
+
     def _approval_count(self, definition: ScenarioDefinition) -> int:
         """같은 제안(질문 문장)을 승인한 횟수 — 제안 기록(``feedback_events``, 최근 200건)에서 센 그대로. 모르면 0."""
         reader = getattr(self._suggestions, "feedback_events", None)
@@ -142,6 +152,9 @@ class ScenarioEngine:
         definition = self._catalog.get(scenario_id)
         if definition is None:
             raise KeyError(scenario_id)
+        if definition.trigger.kind == "context":
+            # 환경 제안은 실제 신호(사람·밝기·공기청정기·특보)를 함께 볼 때만 만든다 — 근거 없이 띄우지 않는다.
+            raise ScenarioUnavailableError("이 제안은 집 안 상황을 보고 스스로 만들어요. 연습으로 띄울 수 없어요.")
         if definition.trigger.kind == "air_quality":
             # 공기질 카드는 센서 판독으로만 만든다 — 값 없이 '공기가 나빠요'라고 하지 않는다(2026-10-15).
             # 리허설은 모의 센서 값 주입(POST /demo/thinq/air-quality)으로 한다.

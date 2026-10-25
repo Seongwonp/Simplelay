@@ -205,6 +205,11 @@ class AirQualityMonitor:
         self._last_card_at: float | None = None
         self._failures = 0
         self.last_outcome: str | None = None
+        # 마지막으로 읽은 ThinQ 상태와 그 시각(``monotonic``) — 환경 제안(rpi/services/context_suggestions.py)이 ThinQ를
+        # 따로 부르지 않고 이것을 빌려 본다. 통째로 바꿔 넣으므로 잠금 없이 읽는다(판독 중 잠금을 기다리지 않게).
+        self._last_state: tuple[float, object] | None = None
+        # 다른 규칙(환경 제안)이 공기청정기 켜기 카드를 만든 시각 — 이 판독의 카드 쉬는 시간에 함께 센다.
+        self._external_card_at: float | None = None
 
     @property
     def armed(self) -> bool:
@@ -215,6 +220,23 @@ class AirQualityMonitor:
         with self._lock:
             self._armed = True
             self._last_card_at = None
+            self._external_card_at = None
+
+    def recent_state(self, max_age_s: float):
+        """``max_age_s`` 안에 읽은 마지막 ThinQ 상태, 없거나 오래됐으면 None. 입출력·잠금 없음."""
+        snap = self._last_state
+        if snap is None or self._monotonic() - snap[0] > max_age_s:
+            return None
+        return snap[1]
+
+    def note_external_card(self) -> None:
+        """다른 규칙이 공기청정기 카드를 만들었다 — 재알림 기억을 함께 쓴다(곧바로 공기질 카드가 뒤따르지 않게)."""
+        self._external_card_at = self._monotonic()
+
+    def card_recent(self) -> bool:
+        """카드 쉬는 시간(``card_quiet_s``) 안인가 — 이 판독이 만든 카드든 다른 규칙이 만든 카드든."""
+        stamps = [t for t in (self._last_card_at, self._external_card_at) if t is not None]
+        return bool(stamps) and self._monotonic() - max(stamps) < self._card_quiet_s
 
     def check_once(self) -> str:
         """결과 이름 — ``skipped:<이유>`` · ``read_failed`` · ``no_data`` · ``ok`` · ``already_strong`` ·
@@ -238,6 +260,7 @@ class AirQualityMonitor:
                 "air quality read failed (%d in a row): %s", self._failures, message)
             return "read_failed"
         self._failures = 0
+        self._last_state = (self._monotonic(), state)
         reading = read_air(state)
         if reading is None:
             return "no_data"
@@ -249,7 +272,7 @@ class AirQualityMonitor:
         if not self._armed:
             return "waiting_rearm"
         now = self._monotonic()
-        if self._last_card_at is not None and now - self._last_card_at < self._card_quiet_s:
+        if self.card_recent():
             return "card_quiet"
         card = self._offer(reading.reason(), power_off=reading.power_off)
         if card is None:
@@ -266,8 +289,9 @@ class AirQualityPoller:
     """
 
     def __init__(self, check: Callable[[], object], *, interval_s: float,
-                 first_delay_s: float = DEFAULT_FIRST_DELAY_SECONDS) -> None:
+                 first_delay_s: float = DEFAULT_FIRST_DELAY_SECONDS, name: str = "air-quality-poll") -> None:
         self._check = check
+        self._name = name
         self.interval_s = interval_s
         self.first_delay_s = first_delay_s
         self._stop = threading.Event()
@@ -276,7 +300,7 @@ class AirQualityPoller:
     def start(self) -> None:
         if self._thread is not None:
             return
-        self._thread = threading.Thread(target=self._run, name="air-quality-poll", daemon=True)
+        self._thread = threading.Thread(target=self._run, name=self._name, daemon=True)
         self._thread.start()
 
     def stop(self) -> None:
@@ -293,7 +317,7 @@ class AirQualityPoller:
             try:
                 self._check()
             except Exception:  # noqa: BLE001 -- 판독 한 번의 실패가 스레드를 죽이지 않는다
-                log.exception("air quality check failed")
+                log.exception("%s check failed", self._name)
             if self._stop.wait(self.interval_s):
                 return
 
