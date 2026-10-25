@@ -1212,7 +1212,9 @@ void main() {
     // 제안 도착 발화 — 목적이 포함된 문장
     // 화면 질문과 같은 할 일 이름(평가 8차 10/18).
     expect(tts.utterances.single, contains('즉석밥 데우기'));
-    expect(tts.utterances.single, contains("화면의 '네'를 눌러"));
+    // 사람에게 말하듯 묻기만 한다(2026-10-26) — '하시려면 화면의 네를 눌러 주세요' 안내는 붙이지 않는다.
+    expect(tts.utterances.single, endsWith('지금 할까요?'));
+    expect(tts.utterances.single, isNot(contains('하시려면')));
 
     api.suggestionList = [];
     await tester.tap(find.byKey(_approveKey));

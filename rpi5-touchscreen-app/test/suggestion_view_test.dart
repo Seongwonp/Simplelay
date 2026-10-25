@@ -53,10 +53,10 @@ final _chips = find.byWidgetPredicate((w) =>
     w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('suggestion-signal-chip-'));
 
 const _signals = [
-  KioskSuggestionSignal(label: '사람 있음'),
+  KioskSuggestionSignal(label: '집에 계심'),
   KioskSuggestionSignal(label: '평소 오후 10시쯤'),
   KioskSuggestionSignal(label: '최근 7일 중 5일'),
-  KioskSuggestionSignal(label: '방이 어두움'),
+  KioskSuggestionSignal(label: '불을 끄심'),
   KioskSuggestionSignal(label: '다섯째 신호'),
 ];
 
@@ -319,7 +319,7 @@ void main() {
       await _pump(tester, target: kMicrowaveAppliance, suggestion: _habit, onMarkDone: () {});
       expect(tester.takeException(), isNull);
       expect(_chips, findsNWidgets(4));
-      expect(find.text('사람 있음'), findsOneWidget);
+      expect(find.text('집에 계심'), findsOneWidget);
       expect(find.text('다섯째 신호'), findsNothing);
     });
 
@@ -347,7 +347,7 @@ void main() {
             applianceId: 'air',
             scenarioId: 'context_sleep_mode',
             commands: [KioskSuggestionCommand(targetId: 'air', route: 'thinq', summary: '공기청정기 수면 모드')],
-            signals: [KioskSuggestionSignal(label: '방이 어두움'), KioskSuggestionSignal(label: '밤')],
+            signals: [KioskSuggestionSignal(label: '불을 끄심'), KioskSuggestionSignal(label: '밤')],
           ));
       expect(tester.takeException(), isNull);
       expect(_chips, findsNWidgets(2));

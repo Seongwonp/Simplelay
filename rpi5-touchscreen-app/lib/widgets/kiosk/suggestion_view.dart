@@ -51,7 +51,11 @@ class KioskSuggestionView extends StatelessWidget {
     this.onAllowConfirm,
     this.onAllowCancel,
     this.onMarkDone,
+    this.onAcknowledge,
   });
+
+  /// 조언 카드(서버 `kind: advice`, 2026-10-26)의 '알겠어요' — 실행 없이 닫는다. null이면 '괜찮아요'([onReject])와 같다.
+  final VoidCallback? onAcknowledge;
 
   /// '이미 했어요'(2026-10-26) — 습관 카드(서버 `can_mark_done`)에만. 서버 `reject(reason=already_done)`: 오늘은 다시 묻지 않고
   /// 거절로 세지 않는다. null이면 단추가 없다.
@@ -73,7 +77,8 @@ class KioskSuggestionView extends StatelessWidget {
   final ValueChanged<bool>? onMuteChanged;
 
   /// 체크 줄을 둘 카드인가 — 서버가 스스로 낸 제안만. 내가 연 카드·루틴 카드에는 두지 않는다.
-  bool get offersMute => onMuteChanged != null && !startedByUser && suggestion.routineId == null;
+  bool get offersMute =>
+      onMuteChanged != null && !startedByUser && suggestion.routineId == null && !suggestion.isAdvice;
 
   /// 사람이 키오스크에서 방금 저장된 동작을 눌러 만든 카드(10/24 QA) — 제안이 아니다. 위 띠는 '확인', 질문은 '루틴' 말 없이
   /// '30초 데우기를 할까요?'. 스스로 뜬 제안·다른 곳에서 만든 카드는 false(서버 문장 그대로).
@@ -83,6 +88,8 @@ class KioskSuggestionView extends StatelessWidget {
   String get questionText {
     final name = suggestion.routineName;
     if (startedByUser && name != null && name.isNotEmpty) return '${withObject(name)} 할까요?';
+    // 조언 카드는 권하는 말 한 줄이 제목이다('창문을 열어 환기해 보세요') — 묻지 않는다.
+    if (suggestion.isAdvice) return suggestion.purpose;
     if (suggestion.isScenario) return suggestion.purpose;
     // '즉석밥 데우기,\n지금 할까요?'의 쉼표가 어색했다(10/25 실패널 점검) — '-기'로 끝나면 '…를 지금 할까요?'(음성 안내와 같은 문장).
     final action = actionName(suggestion.purpose);
@@ -125,7 +132,8 @@ class KioskSuggestionView extends StatelessWidget {
     // 시나리오 카드는 서버가 고정한 명령으로 승인한다(ThinQ 가전은 조작판 목록에
     // 없다). 막는 것은 준비 안 된 대상뿐이다.
     final scenario = suggestion.isScenario;
-    final canExecute = scenario ? blockedWhy == null : target != null;
+    // 조언 카드는 실행이 없다 — 두 단추('괜찮아요'·'알겠어요')는 늘 눌린다(닫기만).
+    final canExecute = suggestion.isAdvice || (scenario ? blockedWhy == null : target != null);
     // 위 상태 띠(2026-10-16 디자인 규격 §4) — 제안 → 실행 → 정지 대기 → 결과가 같은 자리·같은 높이의 띠로 이어진다.
     // 화면 어디든 만지면 남은 시간이 처음으로(접근성 감사 10/18 — 읽는 중에 닫히지 않게). 단추 동작은 그대로(translucent).
     return Listener(
@@ -138,7 +146,11 @@ class KioskSuggestionView extends StatelessWidget {
           KioskStatusBand(
             tone: KioskBandTone.neutral,
             icon: startedByUser ? Icons.touch_app_outlined : Icons.lightbulb_outline,
-            label: startedByUser ? '직접 실행' : (suggestion.isDemo ? '제안 연습' : '제안'),
+            label: startedByUser
+                ? '직접 실행'
+                : suggestion.isAdvice
+                    ? '조언'
+                    : (suggestion.isDemo ? '제안 연습' : '제안'),
           ),
           Expanded(child: _body(context, target, scenario, canExecute)),
         ],
@@ -484,7 +496,7 @@ class KioskSuggestionView extends StatelessWidget {
                 flex: large ? 1 : 3,
                 child: Semantics(
                   button: true,
-                  label: '아니요. 이번에는 하지 않아요',
+                  label: suggestion.isAdvice ? '괜찮아요. 닫아요' : '아니요. 이번에는 하지 않아요',
                   excludeSemantics: true,
                   child: OutlinedButton(
                   key: const ValueKey('suggestion-later'),
@@ -499,8 +511,8 @@ class KioskSuggestionView extends StatelessWidget {
                         EdgeInsets.symmetric(horizontal: 12)),
                   ),
                   // 서버 동작은 이번만 거절(mute=false) — 위 체크가 있으면 다시 받지 않기(mute=true, 2026-10-25).
-                  child: const KioskText(
-                    '아니요',
+                  child: KioskText(
+                    suggestion.isAdvice ? '괜찮아요' : '아니요',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: KioskType.status,
@@ -515,11 +527,11 @@ class KioskSuggestionView extends StatelessWidget {
                 child: Semantics(
                   button: true,
                   enabled: canExecute,
-                  label: _approveSemantics(target, scenario),
+                  label: suggestion.isAdvice ? '알겠어요. 닫아요' : _approveSemantics(target, scenario),
                   excludeSemantics: true,
                   child: ElevatedButton(
                   key: const ValueKey('suggestion-approve'),
-                  onPressed: canExecute ? onApprove : null,
+                  onPressed: suggestion.isAdvice ? (onAcknowledge ?? onReject) : (canExecute ? onApprove : null),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(0, KioskSizes.primaryButton),
                     backgroundColor: KioskColors.primary,
@@ -534,8 +546,8 @@ class KioskSuggestionView extends StatelessWidget {
                     ),
                   ),
                   // 질문('…할까요?')에 대한 대답 '네'(2026-10-25 — 옛 '지금 하기'). 무엇이 일어나는지는 접근성 이름이 말한다.
-                  child: const Text(
-                    '네',
+                  child: Text(
+                    suggestion.isAdvice ? '알겠어요' : '네',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: KioskType.status,
@@ -547,7 +559,7 @@ class KioskSuggestionView extends StatelessWidget {
             ],
           ),
           ),
-          if (canExecute && onAllowAuto != null && (suggestion.autoRuleOffer != null || suggestion.adoptOffer != null)) ...[
+          if (canExecute && !suggestion.isAdvice && onAllowAuto != null && (suggestion.autoRuleOffer != null || suggestion.adoptOffer != null)) ...[
             const SizedBox(height: 10),
             allowConfirming
                 ? _AllowConfirm(
@@ -572,7 +584,9 @@ class KioskSuggestionView extends StatelessWidget {
               // 1~2 m에서 읽히게 본문 크기·흰 글자, 남은 초는 굵게 따로(결선 모의 평가 10/18 — 작은 회색이었다).
               Expanded(
                 child: KioskText(
-                  canExecute
+                  suggestion.isAdvice
+                      ? '가전은 움직이지 않아요'
+                      : canExecute
                       ? "'네'를 누르기 전에는 아무것도 하지 않아요"
                       : scenario
                           ? (blockedWhy ?? '')

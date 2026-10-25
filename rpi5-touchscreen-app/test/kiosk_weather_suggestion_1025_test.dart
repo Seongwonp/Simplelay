@@ -367,13 +367,13 @@ void main() {
       final s = KioskSuggestion.fromJson({
         'id': 'x', 'purpose': 'p', 'occurrences': 0,
         'signals': [
-          {'label': '사람 있음', 'ok': true},
+          {'label': '집에 계심', 'ok': true},
           {'label': ' ', 'ok': true},
-          {'label': '방이 어두움', 'ok': false},
+          {'label': '불을 끄심', 'ok': false},
         ],
         'can_mark_done': true,
       });
-      expect(s.signals.map((e) => e.label), ['사람 있음', '방이 어두움']);
+      expect(s.signals.map((e) => e.label), ['집에 계심', '불을 끄심']);
       expect(s.signals.last.ok, isFalse);
       expect(s.canMarkDone, isTrue);
       final old = KioskSuggestion.fromJson({'id': 'y', 'purpose': 'p', 'occurrences': 0});

@@ -98,6 +98,11 @@ class KioskWeatherDetailSheet extends StatelessWidget {
               semanticsLabel: '오늘 최고 ${today.high}도, 최저 ${today.low}도',
               style: body),
         ],
+        // 바깥 미세먼지(에어코리아, 2026-10-26) — 가까운 측정소의 지금 등급. 모르면 줄이 없다.
+        if (ambient.outdoorAirLine case final airLine?) ...[
+          const SizedBox(height: KioskSpace.xs),
+          Text(airLine, key: const ValueKey('weather-detail-outdoor-air'), style: body),
+        ],
         if (hours.isNotEmpty) ...[
           const SizedBox(height: KioskSpace.sm),
           Row(key: const ValueKey('weather-detail-hours'), crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -126,9 +126,24 @@ class KioskSuggestion {
     this.adoptOffer,
     this.signals = const [],
     this.canMarkDone = false,
+    this.kind = 'action',
+    this.question,
+    this.speech,
   });
 
   final bool isDemo;
+
+  /// 'action'(승인하면 실행) · 'advice'(조언 — 실행 없음, '알겠어요'·'괜찮아요'만, 서버 `kind` 2026-10-26).
+  final String kind;
+
+  /// 조언 카드인가 — '네'·'다음부터 알아서'가 없고, 닫기만 한다.
+  bool get isAdvice => kind == 'advice';
+
+  /// 서버가 아는 묻는 말("제습기를 켤까요?"). 없으면 화면이 목적 문장에서 만든다.
+  final String? question;
+
+  /// 소리로 읽을 말(서버 `speech`) — "<근거 문장> <묻는 말>". 없으면 화면이 근거 + 자기 질문으로 만든다.
+  final String? speech;
 
   /// '왜 지금' 신호(서버 `signals`, 2026-10-26) — 이 카드를 띄운 근거들. 서버가 만든 그대로만 보여 준다(화면에서 만들지 않음).
   final List<KioskSuggestionSignal> signals;
@@ -228,6 +243,9 @@ class KioskSuggestion {
         adoptOffer: KioskAdoptOffer.fromJson(json['adopt_offer']),
         signals: KioskSuggestionSignal.listFromJson(json['signals']),
         canMarkDone: json['can_mark_done'] == true,
+        kind: json['kind'] == 'advice' ? 'advice' : 'action',
+        question: (json['question'] as String?)?.trim().isEmpty ?? true ? null : (json['question'] as String).trim(),
+        speech: (json['speech'] as String?)?.trim().isEmpty ?? true ? null : (json['speech'] as String).trim(),
         commands: [
           for (final c in (json['commands'] as List<dynamic>?) ?? const [])
             if (c is Map<String, dynamic>) KioskSuggestionCommand.fromJson(c),
@@ -235,7 +253,7 @@ class KioskSuggestion {
       );
 }
 
-/// 카드를 띄운 신호 하나(서버 `signals[]`) — 예: '사람 있음', '최근 7일 중 5일'.
+/// 카드를 띄운 신호 하나(서버 `signals[]`) — 예: '집에 계심', '최근 7일 중 5일'.
 class KioskSuggestionSignal {
   const KioskSuggestionSignal({required this.label, this.ok = true});
 

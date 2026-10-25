@@ -133,7 +133,21 @@ class AmbientInfo {
     this.today,
     this.warnings = const [],
     this.fetchedAt,
+    this.outdoorAirGrade,
+    this.outdoorAirStation,
   });
+
+  /// 바깥 미세먼지 등급('좋음'·'보통'·'나쁨'·'매우 나쁨')과 측정소(서버 `outdoor_air`, 2026-10-26). 모르면 null.
+  final String? outdoorAirGrade;
+  final String? outdoorAirStation;
+
+  /// 날씨 자세히 창의 한 줄 — '바깥 미세먼지 보통 (측정소 부림동)'. 등급을 모르면 null.
+  String? get outdoorAirLine {
+    final grade = outdoorAirGrade;
+    if (grade == null || grade.isEmpty) return null;
+    final station = outdoorAirStation;
+    return station == null || station.isEmpty ? '바깥 미세먼지 $grade' : '바깥 미세먼지 $grade (측정소 $station)';
+  }
 
   /// 날씨 안내(서버 `weather_tip`, 2026-10-25) — [tip]이 확인할 일에 밀려도 날씨 줄은 이것을 쓴다. 옛 서버·없음이면 null.
   final AmbientTip? weatherTip;
@@ -187,7 +201,15 @@ class AmbientInfo {
               if (AmbientWarning.fromJson(w) case final warning?) warning,
         ],
         fetchedAt: json['fetched_at'] is String ? json['fetched_at'] as String : null,
+        outdoorAirGrade: _outdoor(json, 'grade'),
+        outdoorAirStation: _outdoor(json, 'station'),
       );
+
+  static String? _outdoor(Map<String, dynamic> json, String key) {
+    final air = json['outdoor_air'];
+    final value = air is Map ? air[key] : null;
+    return value is String && value.trim().isNotEmpty ? value.trim() : null;
+  }
 }
 
 /// `GET /connections` 한 항목(와이파이·누름 장치·플러그).

@@ -65,6 +65,23 @@ const kSuggestionMuteFailedNotice = '숨기지 못했어요. 다시 눌러 주�
 const kAdmitUnknownMessage = "본체 응답을 받지 못했어요. 시작됐을 수 있어요. 멈추려면 '정지'를 누르세요.";
 
 /// 제안 음성 물음 — 행동 이름('공기청정기 켜기')이면 '…를 지금 할까요?', 모르는 문장이면 원문 그대로 묻는다.
+/// 스스로 뜬 카드를 소리로 읽을 말(2026-10-26) — 서버 `speech`가 있으면 그대로, 없으면 "<근거 문장> <묻는 말>".
+/// 조언 카드는 조언 문장만. 묻는 말은 서버 `question` → 시나리오 질문 → 할 일 이름으로 만든 질문 순.
+String suggestionSpeech(KioskSuggestion s) {
+  final server = s.speech;
+  if (server != null && server.isNotEmpty) return server;
+  final reason = _sentence(s.userStarted ? '' : s.whyNow);
+  if (s.isAdvice) return reason.isNotEmpty ? reason : s.purpose;
+  final question = s.question ?? (s.isScenario ? s.purpose : _askNow(actionName(s.purpose)));
+  return [reason, question].where((p) => p.isNotEmpty).join(' ');
+}
+
+String _sentence(String text) {
+  final t = text.trim();
+  if (t.isEmpty || t.endsWith('.') || t.endsWith('?')) return t;
+  return '$t.';
+}
+
 String _askNow(String name) => name.endsWith('기') ? '${withObject(name)} 지금 할까요?' : '$name, 지금 할까요?';
 
 const _pollInterval = Duration(milliseconds: 2000);
@@ -2108,9 +2125,8 @@ class _KioskScreenState extends State<KioskScreen> {
         _tts.speak("${withObject(ownName)} 할까요? 하시려면 화면의 '네'를 눌러 주세요.");
       } else {
         // 스스로 뜬 제안만 알림음 뒤에 말한다(사용자 요청 10/25 — 화면 근처에 없어도 알게). 직접 누른 확인에는 알림음이 없다.
-        _tts.announce(suggestion.isScenario
-            ? "${suggestion.purpose} 하시려면 화면의 '네'를 눌러 주세요."
-            : "${_askNow(actionName(suggestion.purpose))} 하시려면 화면의 '네'를 눌러 주세요.");
+        // 사람에게 말하듯 "<근거> <묻는 말>"(2026-10-26 — '하시려면 화면의 네를 눌러 주세요'는 뺐다).
+        _tts.announce(suggestionSpeech(suggestion));
       }
     }
     setState(() {
@@ -2578,7 +2594,10 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   /// 체크 줄을 두는 카드 — 서버가 스스로 낸 제안만(내가 연 카드·루틴 카드 제외). 보기([KioskSuggestionView.offersMute])와 같은 규칙.
-  bool _offersMute(KioskSuggestion s) => s.id != _ownCardId && s.routineId == null;
+  bool _offersMute(KioskSuggestion s) => s.id != _ownCardId && s.routineId == null && !s.isAdvice;
+
+  /// 조언 카드의 '알겠어요'(2026-10-26) — 실행 없이 닫고 서버에 '알겠어요'로 남긴다. '괜찮아요'는 보통 거절([_onReject]).
+  Future<void> _onAcknowledge() => _dismissSuggestion(mute: false, reason: 'acknowledged');
 
   /// '이미 했어요'(습관 카드) — 서버가 오늘은 다시 묻지 않는다(거절로 세지 않음). 닫는 흐름은 '아니요'와 같다.
   Future<void> _onMarkDone() => _dismissSuggestion(mute: false, reason: 'already_done');
@@ -3282,6 +3301,7 @@ class _KioskScreenState extends State<KioskScreen> {
           blockedWhy: suggestion.isScenario ? _scenarioBlockedWhy : null,
           onApprove: _onApprove,
           onReject: _onReject,
+          onAcknowledge: _onAcknowledge,
           onMarkDone: suggestion.canMarkDone ? _onMarkDone : null,
           startedByUser: _ownCardId != null && _ownCardId == suggestion.id,
           muteChecked: _muteSuggestionId == suggestion.id,
