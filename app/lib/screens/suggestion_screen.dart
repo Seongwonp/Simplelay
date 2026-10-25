@@ -24,6 +24,7 @@ import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/button_map_grid.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/route_badge.dart';
+import '../widgets/signal_chips.dart';
 import '../theme/app_tokens.dart';
 
 /// 이 화면에서 방금 맡긴 카드 번호(실물 폰 10/20). 카드 번호는 서버가 매번 새로 주므로 앱 수명 동안 두어도 겹치지 않는다.
@@ -83,6 +84,7 @@ class SuggestionScreen extends ConsumerWidget {
     Suggestion suggestion, {
     required bool mute,
     bool snooze = false,
+    String? reason,
   }) async {
     final rpiApi = ref.read(rpiApiServiceProvider);
     var paused = false;
@@ -96,7 +98,7 @@ class SuggestionScreen extends ConsumerWidget {
           await rpiApi.snoozeSuggestion(suggestion.sequenceId);
           paused = true;
         } else {
-          await rpiApi.rejectSuggestion(suggestion.sequenceId, mute: mute);
+          await rpiApi.rejectSuggestion(suggestion.sequenceId, mute: mute, reason: reason);
         }
       } on RpiApiException catch (error) {
         if (error.statusCode != 404) {
@@ -417,6 +419,10 @@ class SuggestionScreen extends ConsumerWidget {
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ],
+          if (suggestion.signals.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.sm),
+            SuggestionSignalChips(signals: suggestion.signals),
+          ],
 
           const SizedBox(height: AppSpace.xxxl),
 
@@ -442,6 +448,9 @@ class SuggestionScreen extends ConsumerWidget {
         stepCount: suggestion.steps.length,
         blockedWhy: blockedWhy,
         onSkip: () => _dismissSuggestion(context, ref, suggestion, mute: false),
+        onMarkDone: suggestion.canMarkDone && suggestion.source == SuggestionSource.http
+            ? () => _dismissSuggestion(context, ref, suggestion, mute: false, reason: 'already_done')
+            : null,
         onRun: blocked ? null : () => _approve(context, ref, suggestion),
       ),
     );
@@ -559,7 +568,11 @@ class _ActionBar extends StatelessWidget {
     required this.blockedWhy,
     required this.onSkip,
     required this.onRun,
+    this.onMarkDone,
   });
+
+  /// '이미 했어요'(습관 카드만, 2026-10-26) — 오늘은 다시 묻지 않는다. null이면 단추가 없다.
+  final VoidCallback? onMarkDone;
 
   final ApplianceMap appliance;
   final int stepCount;
@@ -633,6 +646,18 @@ class _ActionBar extends StatelessWidget {
               run,
               const SizedBox(height: AppSpace.sm),
               skip,
+              if (onMarkDone != null)
+                Semantics(
+                  label: '이미 했어요. 오늘은 다시 묻지 않아요',
+                  button: true,
+                  excludeSemantics: true,
+                  child: TextButton(
+                    key: const Key('suggestion-already-done'),
+                    onPressed: onMarkDone,
+                    style: TextButton.styleFrom(minimumSize: const Size(0, 48)),
+                    child: Text('이미 했어요', style: TextStyle(color: context.appMuted)),
+                  ),
+                ),
             ],
           ),
         ),
@@ -919,6 +944,10 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
               '이유: ${suggestion.whyNow}',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
+          ],
+          if (suggestion.signals.isNotEmpty && !userStarted) ...[
+            const SizedBox(height: AppSpace.sm),
+            SuggestionSignalChips(signals: suggestion.signals),
           ],
           const SizedBox(height: AppSpace.xxl),
           Text(allPhysical ? '누를 버튼' : '할 일', style: AppText.title),

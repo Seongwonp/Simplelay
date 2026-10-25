@@ -41,6 +41,7 @@ import '../widgets/settings_action.dart';
 import '../widgets/notification_action.dart';
 import '../widgets/appliance_artwork.dart';
 import '../widgets/touch_mark.dart';
+import '../widgets/signal_chips.dart';
 import '../models/execution_status.dart';
 import '../theme/app_tokens.dart';
 
@@ -200,6 +201,9 @@ class HomeScreen extends ConsumerWidget {
                     .firstOrNull,
                 onRun: () => context.push('/suggestion/${suggestion.sequenceId}'),
                 onLater: () => _later(context, ref, suggestion),
+                onMarkDone: suggestion.canMarkDone && suggestion.source == SuggestionSource.http
+                    ? () => _later(context, ref, suggestion, reason: 'already_done')
+                    : null,
               ),
               const SizedBox(height: AppSpace.xxl),
             ],
@@ -295,12 +299,13 @@ class HomeScreen extends ConsumerWidget {
   static Future<void> _later(
     BuildContext context,
     WidgetRef ref,
-    Suggestion suggestion,
-  ) async {
+    Suggestion suggestion, {
+    String? reason,
+  }) async {
     final api = ref.read(rpiApiServiceProvider);
     if (suggestion.source == SuggestionSource.http && api != null) {
       try {
-        await api.rejectSuggestion(suggestion.sequenceId, mute: false);
+        await api.rejectSuggestion(suggestion.sequenceId, mute: false, reason: reason);
       } on RpiApiException catch (e) {
         if (e.statusCode != 404) {
           if (context.mounted) {

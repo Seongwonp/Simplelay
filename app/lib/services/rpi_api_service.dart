@@ -13,6 +13,7 @@ import '../models/quiet_hours.dart';
 import '../models/routine.dart';
 import '../models/routine_candidate.dart';
 import '../models/scenario_run.dart';
+import '../models/suggestion.dart' show SuggestionSignal;
 
 class RpiApiException implements Exception {
   RpiApiException(this.statusCode, this.message, {this.body});
@@ -341,10 +342,18 @@ class RpiSuggestion {
     this.routineId,
     this.routineName,
     this.autoRuleOffer,
+    this.signals = const [],
+    this.canMarkDone = false,
   });
   final bool isDemo;
   final String id;
   final String purpose;
+
+  /// '왜 지금' 신호(2026-10-26) — 본체가 만든 그대로. 없으면 빈 목록.
+  final List<SuggestionSignal> signals;
+
+  /// 습관 카드면 참 — '이미 했어요'를 둔다.
+  final bool canMarkDone;
 
   /// '다음부터도 자동으로'를 고를 수 있는 카드면 그 내용(서버 2026-10-13). 없으면 버튼이 없다.
   final AutoRuleOffer? autoRuleOffer;
@@ -388,6 +397,8 @@ class RpiSuggestion {
         routineId: json['routine_id'] as String?,
         routineName: json['routine_name'] as String?,
         autoRuleOffer: AutoRuleOffer.fromJson(json['auto_rule_offer']),
+        signals: SuggestionSignal.listFromJson(json['signals']),
+        canMarkDone: json['can_mark_done'] == true,
       );
 }
 
@@ -1448,12 +1459,13 @@ class RpiApiService {
   }
 
   // POST /suggestions/{id}/reject
-  Future<void> rejectSuggestion(String id, {bool mute = false}) async {
+  // [reason]은 '이미 했어요'일 때만 `already_done`(본체가 오늘은 다시 묻지 않음). '아니요'는 보내지 않는다.
+  Future<void> rejectSuggestion(String id, {bool mute = false, String? reason}) async {
     final res = await _client
         .post(
           _base.replace(path: '/suggestions/$id/reject'),
           headers: _jsonHeaders,
-          body: jsonEncode({'mute': mute}),
+          body: jsonEncode({'mute': mute, if (reason != null) 'reason': reason}),
         )
         .timeout(_timeout);
     _checkStatus(res);

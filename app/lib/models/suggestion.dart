@@ -21,7 +21,15 @@ class Suggestion {
     this.routineId,
     this.routineName,
     this.autoRuleOffer,
+    this.signals = const [],
+    this.canMarkDone = false,
   });
+
+  /// '왜 지금' 신호(본체 `signals`, 2026-10-26) — 이 카드를 띄운 근거들. 본체가 만든 그대로만 보인다(화면에서 만들지 않음).
+  final List<SuggestionSignal> signals;
+
+  /// 습관 카드면 참(본체 `can_mark_done`) — '이미 했어요'(오늘은 다시 묻지 않음)를 둔다.
+  final bool canMarkDone;
 
   /// '다음부터도 자동으로'를 고를 수 있으면 그 조건·동작(서버 2026-10-13). null이면 버튼을 두지 않는다
   /// (물리 누름 카드·대상 아닌 카드).
@@ -122,6 +130,24 @@ class Suggestion {
         receivedAt: DateTime.now(),
         source: SuggestionSource.ble,
       );
+}
+
+/// 카드를 띄운 신호 하나(본체 `signals[]`) — 예: '사람 있음', '최근 7일 중 5일'.
+class SuggestionSignal {
+  const SuggestionSignal({required this.label, this.ok = true});
+
+  final String label;
+  final bool ok;
+
+  /// 본체가 준 목록 그대로(빈 이름은 버림).
+  static List<SuggestionSignal> listFromJson(Object? json) {
+    if (json is! List) return const [];
+    return [
+      for (final item in json)
+        if (item is Map && item['label'] is String && (item['label'] as String).trim().isNotEmpty)
+          SuggestionSignal(label: (item['label'] as String).trim(), ok: item['ok'] != false),
+    ];
+  }
 }
 
 /// 시나리오 카드의 확정 명령 하나(서버 `commands[]`).

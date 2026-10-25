@@ -85,6 +85,7 @@ class _Hub {
   List<Map<String, dynamic>> power = const [];
   List<Map<String, dynamic>> air = const [];
   final requests = <String>[];
+  final rejectBodies = <Object?>[];
 
   http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
         utf8.encode(jsonEncode(body)),
@@ -123,6 +124,10 @@ class _Hub {
               'kind': 'suggestion',
               'suggestion': {'id': 'card-1'},
             });
+          }
+          if (req.method == 'POST' && path.endsWith('/reject')) {
+            rejectBodies.add(jsonDecode(req.body));
+            return _json({'ok': true});
           }
           if (path == '/suggestions') return _json(suggestions);
           return _json({'detail': 'not found'}, 404);
@@ -563,5 +568,58 @@ void main() {
         .evaluate()
         .isNotEmpty;
     expect(shown(keepPhrasesTogether('주방 전자레인지 · 누를 버튼 1개', wholeParts: true)), isTrue);
+  });
+
+  // 2026-10-26: 홈 카드의 '왜 지금' 신호 칩과 '이미 했어요'(습관 카드만, reason=already_done).
+  testWidgets("홈 카드는 본체 신호를 칩으로 보이고 '이미 했어요'는 already_done으로 거절한다", (tester) async {
+    final hub = _Hub(appliances: [_appliance('mw', '주방 전자레인지')], routines: const [])
+      ..suggestions = [
+        {
+          ..._suggestionJson,
+          'signals': [
+            {'label': '사람 있음', 'ok': true},
+            {'label': '최근 7일 중 5일', 'ok': true},
+          ],
+          'can_mark_done': true,
+        },
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_home(hub, suggestions: const [
+      Suggestion(
+        sequenceId: 's1',
+        label: '즉석밥 데우기',
+        steps: ['BT-08'],
+        source: SuggestionSource.http,
+        signals: [SuggestionSignal(label: '사람 있음'), SuggestionSignal(label: '최근 7일 중 5일')],
+        canMarkDone: true,
+      ),
+    ]));
+    await _settle(tester);
+    final card = find.byKey(const Key('home-suggestion'));
+    expect(find.descendant(of: card, matching: find.text('사람 있음')), findsOneWidget);
+    final done = find.byKey(const Key('home-suggestion-already-done'));
+    expect(done, findsOneWidget);
+    await tester.tap(done);
+    await _settle(tester);
+    expect(hub.rejectBodies, [
+      {'mute': false, 'reason': 'already_done'},
+    ]);
+  });
+
+  testWidgets("신호·이미 했어요가 없는 카드에는 칩도 단추도 없다", (tester) async {
+    final hub = _Hub(appliances: [_appliance('mw', '주방 전자레인지')], routines: const [])
+      ..suggestions = [_suggestionJson];
+    _tall(tester);
+    await tester.pumpWidget(_home(hub, suggestions: const [
+      Suggestion(sequenceId: 's1', label: '즉석밥 데우기', steps: ['BT-08'], source: SuggestionSource.http),
+    ]));
+    await _settle(tester);
+    expect(find.byKey(const Key('suggestion-signals')), findsNothing);
+    expect(find.byKey(const Key('home-suggestion-already-done')), findsNothing);
+    await tester.tap(find.text('이번엔 안 할게요'));
+    await _settle(tester);
+    expect(hub.rejectBodies, [
+      {'mute': false},
+    ]);
   });
 }

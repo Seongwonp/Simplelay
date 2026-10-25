@@ -7,12 +7,16 @@ class _SuggestionCard extends StatelessWidget {
     required this.appliance,
     required this.onRun,
     required this.onLater,
+    this.onMarkDone,
   });
 
   final Suggestion suggestion;
   final ApplianceMap? appliance;
   final VoidCallback onRun;
   final VoidCallback onLater;
+
+  /// '이미 했어요'(습관 카드만, 2026-10-26). null이면 단추가 없다.
+  final VoidCallback? onMarkDone;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +56,10 @@ class _SuggestionCard extends StatelessWidget {
             const SizedBox(height: AppSpace.xs),
             Text(why, style: context.appCaption),
           ],
+          if (suggestion.signals.isNotEmpty && !suggestion.userStarted) ...[
+            const SizedBox(height: AppSpace.sm),
+            SuggestionSignalChips(signals: suggestion.signals),
+          ],
           const SizedBox(height: AppSpace.lg),
           // 화면 글자는 짧게, 읽는 이름에는 대상을(2026-10-14, 발견 5).
           Semantics(
@@ -66,15 +74,33 @@ class _SuggestionCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.xs),
           Center(
-            child: Semantics(
-              label: '${suggestion.title} 다음에',
-              container: true,
-              button: true,
-              excludeSemantics: true,
-              child: TextButton(
-                onPressed: onLater,
-                child: Text('이번엔 안 할게요', style: TextStyle(color: context.appMuted)),
-              ),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: AppSpace.sm,
+              children: [
+                Semantics(
+                  label: '${suggestion.title} 다음에',
+                  container: true,
+                  button: true,
+                  excludeSemantics: true,
+                  child: TextButton(
+                    onPressed: onLater,
+                    child: Text('이번엔 안 할게요', style: TextStyle(color: context.appMuted)),
+                  ),
+                ),
+                if (onMarkDone != null && suggestion.canMarkDone)
+                  Semantics(
+                    label: '${suggestion.title} 이미 했어요. 오늘은 다시 묻지 않아요',
+                    container: true,
+                    button: true,
+                    excludeSemantics: true,
+                    child: TextButton(
+                      key: const Key('home-suggestion-already-done'),
+                      onPressed: onMarkDone,
+                      child: Text('이미 했어요', style: TextStyle(color: context.appMuted)),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
