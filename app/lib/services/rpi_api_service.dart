@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import '../models/intent_proposal.dart';
 
 import 'package:http/http.dart' as http;
 
@@ -1095,6 +1096,16 @@ class RpiApiService {
   }
 
   // POST /execute — 즉시 job_id 접수 응답(비동기 job 모델)
+  /// Read-only fallback. Inference timeout is not an execution timeout.
+  Future<IntentProposal?> understandIntent(String text) async {
+    final res = await _client
+        .post(_base.replace(path: '/intent/understand'),
+            headers: _jsonHeaders, body: jsonEncode({'text': text}))
+        .timeout(const Duration(seconds: 25));
+    _checkStatus(res);
+    return IntentProposal.parse(_decodeMap(res));
+  }
+
   Future<RpiJobAccepted> execute(
     String text, {
     String source = 'voice',

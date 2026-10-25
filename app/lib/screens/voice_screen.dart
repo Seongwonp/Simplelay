@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/command_result.dart';
+import '../models/intent_proposal.dart';
 import '../models/execution_status.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
@@ -37,6 +38,20 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   /// 전송 중 재진입 잠금. 연타하거나 자동/수동 경로가 겹치면 같은 명령이
   /// 두 번 실행된다 -- 물리 버튼을 누르는 기기에서는 되돌릴 수 없다.
   bool _sending = false;
+  bool _thinking = false;
+  int _intentGeneration = 0;
+  int _sendSerial = 0;
+
+  void _cancelIntent() {
+    _intentGeneration++;
+    if (mounted && _thinking) {
+      _sendSerial++; // A late cancelled lookup must not unlock a newer submission.
+      setState(() {
+        _thinking = false;
+        _sending = false;
+      });
+    }
+  }
 
   // dispose()는 위젯이 이미 unmount되는 중이라 그 시점의 ref.read()는
   // "Cannot use ref after the widget was disposed"로 죽는다 — initState에서
@@ -107,6 +122,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   }
 
   Future<void> _cancelSession() async {
+    _cancelIntent();
     if (_voiceService.isListening) await _voiceService.stop();
     if (!mounted) return;
     ref.read(voiceListeningProvider.notifier).state = false;
@@ -249,7 +265,9 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   /// 누르기 시작했을 수 있다(package:http로는 '닿지 못함'과 '보낸 뒤 답 없음'을 믿을 만하게 가르지 못한다). 예전에는 이때
   /// 블루투스로 같은 말을 또 보내 두 번 눌리거나 켠 것을 도로 끌 수 있었다. 이제 블루투스로 다시 보내지 않고 '모름'으로 두어
   /// 정지를 남긴다. 같은 요청을 가려낼 요청 번호가 본체에 생기기 전까지는 다시 보내지 않는다.
-  Future<void> _sendToHub(RpiApiService rpiApi, ApplianceMap appliance, String text) async {
+  Future<void> _sendToHub(
+      RpiApiService rpiApi, ApplianceMap appliance, String text) async {
+    final serial = ++_sendSerial;
     final execution = ref.read(executionStatusProvider.notifier);
     final requestId = execution.beginSubmitting(api: rpiApi, label: text);
     try {
@@ -262,12 +280,21 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
               clientRequestId: requestId,
             )
           : await rpiApi.execute(text,
-              source: 'voice', applianceId: appliance.id, clientRequestId: requestId);
+              source: 'voice',
+              applianceId: appliance.id,
+              clientRequestId: requestId);
       if (accepted.stopped) execution.abandonSubmission(requestId);
       _trackOrShowStop(rpiApi, accepted, text, requestId);
     } on RpiApiException catch (error) {
       execution.abandonSubmission(requestId); // 본체가 답했다 — 받지 않았다
       final help = NotUnderstoodHelp.fromException(error);
+      final unconfiguredLegacyParser = appliance.isCustom &&
+          error.statusCode == 503 &&
+          error.message.startsWith('no LLM client configured');
+      if (help != null || error.statusCode == 422 || unconfiguredLegacyParser) {
+        if (await _understandFallback(rpiApi, text)) return;
+        if (!mounted) return;
+      }
       if (help != null) {
         // 새 서버: 못 알아들은 말이면 이유·후보·할 수 있는 일을 화면에 남긴다(스낵바는 금방 사라진다).
         if (mounted) {
@@ -304,7 +331,104 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         context.push('/status');
       }
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted && serial == _sendSerial) setState(() => _sending = false);
+    }
+  }
+
+  Future<bool> _understandFallback(RpiApiService api, String text) async {
+    if (!mounted) return true;
+    final generation = ++_intentGeneration;
+    bool current() =>
+        mounted &&
+        generation == _intentGeneration &&
+        identical(ref.read(rpiApiServiceProvider), api) &&
+        (ModalRoute.of(context)?.isCurrent ?? false);
+    setState(() => _thinking = true);
+    IntentProposal? proposal;
+    try {
+      proposal = await api.understandIntent(text);
+    } catch (_) {/* Keep the original not-understood explanation. */}
+    if (!mounted || !current()) return true;
+    setState(() => _thinking = false);
+    if (proposal == null) return false;
+    final selected = proposal;
+    final accepted = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: Text(selected.question),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('아니요')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('네')),
+              ],
+            ));
+    if (!current()) return true;
+    _cancelPending();
+    if (accepted != true) return true;
+    await _executeProposal(api, selected, current);
+    return true;
+  }
+
+  Future<void> _executeProposal(RpiApiService api, IntentProposal proposal,
+      bool Function() current) async {
+    String? cardId;
+    // Routine triggering only creates a card. Check its fingerprint before the existing approval path.
+    if (proposal.kind == 'routine') {
+      try {
+        final result = await api.triggerRoutine(proposal.routineId!);
+        if (!current()) return;
+        final cards = await api.suggestions();
+        if (!current()) return;
+        final card =
+            cards.where((c) => c.id == result.suggestionId).firstOrNull;
+        if (card == null ||
+            card.scenarioId !=
+                'routine:${proposal.routineId}@${proposal.fingerprint!.substring(0, 12)}') {
+          _notice('동작 내용이 바뀌었어요. 다시 골라 주세요.');
+          return;
+        }
+        cardId = card.id;
+      } catch (_) {
+        if (current()) _notice('동작을 불러오지 못했어요. 다시 골라 주세요.');
+        return;
+      }
+    }
+    if (!current()) return;
+    final execution = ref.read(executionStatusProvider.notifier);
+    final requestId =
+        execution.beginSubmitting(api: api, label: proposal.label);
+    try {
+      final RpiJobAccepted result;
+      switch (proposal.kind) {
+        case 'buttons':
+          result = await api.executeButtons(proposal.buttons,
+              applianceId: proposal.applianceId, clientRequestId: requestId);
+        case 'thinq':
+          result = await api.thinqCommand(
+              proposal.applianceId!, proposal.action!, proposal.args,
+              clientRequestId: requestId);
+        default:
+          result =
+              await api.approveSuggestion(cardId!, clientRequestId: requestId);
+      }
+      _trackOrShowStop(api, result, proposal.label, requestId);
+    } on RpiApiException catch (error) {
+      execution.abandonSubmission(requestId);
+      if (mounted) {
+        _notice(error.statusCode == 412
+            ? _readinessMessage(error)
+            : '지금은 실행하지 못했어요. 다시 확인해 주세요.');
+      }
+    } catch (_) {
+      execution.beginSubmissionUnknown(
+          api: api,
+          label: proposal.label,
+          requestId: requestId,
+          byRequest: true);
+      if (mounted) context.push('/status');
     }
   }
 
@@ -351,15 +475,14 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   static String _stopNotice(StopOutcome? outcome) {
     if (outcome == null) return '멈추라고 보냈어요.';
     return stopLevelSentence(outcome.stopLevel, ackMs: outcome.ackMs) ??
-        (outcome.wasRunning
-            ? '멈추라고 보냈어요.'
-            : '멈추라고 보냈어요. 하던 일은 없었어요.');
+        (outcome.wasRunning ? '멈추라고 보냈어요.' : '멈추라고 보냈어요. 하던 일은 없었어요.');
   }
 
   /// 접수 응답 처리. 서버가 발화를 정지어로 받아 정지했으면(`status: stopped`, G7 두 번째 방어) 정지 문구만 보이고
   /// 따라가지 않는다 — 그 응답의 `job_id`는 새 실행이 아니다(멈춘 실행이거나 빈 문자열). 멈춘 실행을 폰이 따라가고
   /// 있었다면 그 추적이 결과를 받는다.
-  void _trackOrShowStop(RpiApiService api, RpiJobAccepted accepted, String label, String requestId) {
+  void _trackOrShowStop(RpiApiService api, RpiJobAccepted accepted,
+      String label, String requestId) {
     if (accepted.stopped) {
       _cancelPending();
       if (mounted) _notice(_stopNotice(accepted.stop));
@@ -371,7 +494,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   // 접수된 job을 상태 화면에서 실시간으로 따라가게 하고 그 화면으로 이동한다.
   // 음성 경로는 서버가 해석한 버튼 시퀀스를 미리 모르므로 steps 없이 시작 —
   // 진행률·완료 판정은 /status 폴링이 채운다.
-  void _trackJob(RpiApiService api, String jobId, String label, String requestId) {
+  void _trackJob(
+      RpiApiService api, String jobId, String label, String requestId) {
     ref.read(executionStatusProvider.notifier).beginHttpJob(
           api: api,
           jobId: jobId,
@@ -384,9 +508,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   /// 412(준비 안 됨) 안내 — 서버가 준 사유를 그대로 싣는다.
   static String _readinessMessage(RpiApiException error) {
     final detail = error.message.trim();
-    return detail.isEmpty
-        ? '이 가전은 아직 준비되지 않았어요.'
-        : '아직 준비되지 않았어요. $detail';
+    return detail.isEmpty ? '이 가전은 아직 준비되지 않았어요.' : '아직 준비되지 않았어요. $detail';
   }
 
   void _notice(String message) => ScaffoldMessenger.of(context)
@@ -394,6 +516,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
 
   @override
   void dispose() {
+    _intentGeneration++;
     WidgetsBinding.instance.removeObserver(this);
     _voiceService.cancel();
     _soundLevel.dispose();
@@ -405,6 +528,12 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     final text = ref.watch(voiceTextProvider);
     final listening = ref.watch(voiceListeningProvider);
     final appliance = ref.watch(selectedApplianceProvider);
+    ref.listen(selectedApplianceProvider, (previous, next) {
+      if (previous?.id != next?.id) _cancelIntent();
+    });
+    ref.listen(rpiApiServiceProvider, (previous, next) {
+      if (!identical(previous, next)) _cancelIntent();
+    });
 
     // 탭을 떠나면 마이크를 놓는다. 탭 브랜치는 화면을 떠나도 위젯이 살아
     // 있어서(상태 보존), 여기서 정리하지 않으면 숨겨진 화면이 계속 듣는다.
@@ -467,6 +596,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl),
         child: Column(
           children: [
+            if (_thinking) ...[
+              Semantics(liveRegion: true, child: const Text('생각하고 있어요…')),
+              TextButton(
+                  key: const Key('intent-cancel'),
+                  onPressed: _cancelIntent,
+                  child: const Text('취소')),
+            ],
             // 인식 문장이 길거나 글씨를 키우면 내용이 화면을 넘긴다.
             // 본문은 스크롤하고, 실행/취소는 아래에 고정해 항상 닿게 한다.
             Expanded(
@@ -516,21 +652,22 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                                   onPick: _sending ? null : _pickPurpose,
                                 )
                               : _recognitionError == null
-                              ? Text(
-                                  hintExample,
-                                  key: const ValueKey('hint'),
-                                  style: TextStyle(color: context.appMuted),
-                                  textAlign: TextAlign.center,
-                                )
-                              : _FailureNote(
-                                  key: const ValueKey('failure'),
-                                  message: _recognitionError!,
-                                ))
+                                  ? Text(
+                                      hintExample,
+                                      key: const ValueKey('hint'),
+                                      style: TextStyle(color: context.appMuted),
+                                      textAlign: TextAlign.center,
+                                    )
+                                  : _FailureNote(
+                                      key: const ValueKey('failure'),
+                                      message: _recognitionError!,
+                                    ))
                           : Container(
                               key: const ValueKey('live'),
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpace.lg, vertical: AppSpace.md),
+                                  horizontal: AppSpace.lg,
+                                  vertical: AppSpace.md),
                               decoration: BoxDecoration(
                                 color: Theme.of(context)
                                     .colorScheme
@@ -555,7 +692,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                       listening
                           ? '${VoiceService.silenceTimeout.inSeconds}초 동안 조용하면 듣기를 멈추고 물어봐요.'
                           : '말이 끝나면 한 번 물어본 뒤 해요.',
-                      style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+                      style: TextStyle(
+                          color: context.appMuted, fontSize: AppFont.caption),
                       textAlign: TextAlign.center,
                     ),
 
@@ -664,7 +802,8 @@ class _TargetLine extends StatelessWidget {
           Flexible(
             child: Text(
               '${appliance.displayName}에게',
-              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
+              style:
+                  TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ),
           if (appliance.isDemo) ...[
@@ -693,7 +832,8 @@ class _VoiceUnavailableNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl, vertical: AppSpace.xxl),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.xxxl, vertical: AppSpace.xxl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -710,7 +850,8 @@ class _VoiceUnavailableNotice extends StatelessWidget {
                 '마이크 권한이 꺼져 있거나 말 알아듣기 기능이 없어요.\n'
                 '${appliance.displayName}은 버튼으로 그대로 쓸 수 있어요.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
+                style: TextStyle(
+                    fontSize: AppFont.caption, color: context.appMuted),
               ),
               const SizedBox(height: AppSpace.xxl),
               FilledButton.icon(
@@ -741,7 +882,8 @@ class _FailureNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.md),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.lg, vertical: AppSpace.md),
         decoration: BoxDecoration(
           color: context.appWarning.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(12),
@@ -789,7 +931,8 @@ class _NotUnderstoodPanel extends StatelessWidget {
           const SizedBox(height: AppSpace.md),
           FilledButton.tonal(
             onPressed: pick == null ? null : () => pick(suggestion.purpose),
-            child: Text('혹시 이것인가요? ${suggestion.label}', textAlign: TextAlign.center),
+            child: Text('혹시 이것인가요? ${suggestion.label}',
+                textAlign: TextAlign.center),
           ),
         ],
         if (help.choices.isNotEmpty) ...[
@@ -813,7 +956,8 @@ class _NotUnderstoodPanel extends StatelessWidget {
           const SizedBox(height: AppSpace.sm),
           Text(
             '이렇게 말해 보세요: ${help.choices.first.purpose}',
-            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+            style:
+                TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
         ],
       ],
