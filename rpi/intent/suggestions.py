@@ -13,6 +13,7 @@ from uuid import uuid4
 from .base import IntentResolver
 from .models import ProactiveSuggestion, SuggestionStatus, UsageSource
 from .patterns import PatternDetector
+from .habit_timing import reason_time
 from .ports import Clock, PurposeExecutor, SuppressionStore
 from .rules import RuleBasedIntentResolver, UnknownIntentError
 from .cooldowns import SuggestionCooldowns
@@ -95,6 +96,8 @@ class ProactiveSuggestionService:
         self._feedback = feedback if feedback is not None else SuggestionFeedback()
         self._completed_actions = completed_actions
         self._detector = detector
+        if isinstance(detector, PatternDetector):
+            detector.set_feedback(self._feedback)
         self._clock = clock
         self._executor = executor
         self._intent_resolver = intent_resolver
@@ -319,13 +322,13 @@ class ProactiveSuggestionService:
                 self._expire_locked()
                 if not self._context_valid(candidate.purpose, candidate.time_band, candidate.appliance_id):
                     continue
-                if self._already_completed(candidate.purpose, candidate.time_band, candidate.appliance_id, steps):
+                if self._already_completed(candidate.purpose, candidate.time_band, candidate.appliance_id, steps, candidate.available_from):
                     continue
                 if (self._suppression_store is not None
                         and self._is_muted(candidate.purpose, self._suppression_store.muted())):
                     continue
-                until = self._detector.band_end(candidate.time_band, self._clock.now())
-                if until is None:
+                until = candidate.available_until or self._detector.band_end(candidate.time_band, self._clock.now())
+                if until is None or until <= self._clock.now():
                     continue  # 느린 미리보기 동안 시간대가 끝난 경우
                 routine = self._routine_for(candidate.appliance_id, steps)
                 key = self._cooldowns.key(
@@ -344,6 +347,8 @@ class ProactiveSuggestionService:
                     purpose=candidate.purpose,
                     time_band=candidate.time_band,
                     occurrences=candidate.occurrences,
+                    habit_time=candidate.usual_time,
+                    habit_start=candidate.available_from,
                     created_at=self._clock.now(),
                     steps=steps,
                     appliance_id=candidate.appliance_id,
@@ -351,7 +356,7 @@ class ProactiveSuggestionService:
                     # 근거는 본 사실만 담담하게(평가 14차 10/18 — '자주 하셔서 여쭤봐요'는 높임·낮춤이 섞인 번역투였다).
                     reason=((f"평소처럼 '{routine[1]}' 할까요? " if routine else "")
                             + f"최근 {candidate.window_days}일 중 "
-                            f"{candidate.distinct_days}일, {candidate.time_band}에 하셨어요"),
+                            f"{candidate.distinct_days}일, {reason_time(candidate)} 하셨어요"),
                     commands=commands,
                     command_summaries=summaries,
                     routine_id=routine[0] if routine else None,
@@ -1020,7 +1025,7 @@ class ProactiveSuggestionService:
                         or getattr(current, "is_demo", False) != suggestion.is_demo):
                     return "environment_changed"
             if self._already_completed(suggestion.purpose, suggestion.time_band,
-                                       suggestion.appliance_id, suggestion.steps):
+                                       suggestion.appliance_id, suggestion.steps, suggestion.habit_start):
                 return "already_completed"
         return None
 
@@ -1081,12 +1086,14 @@ class ProactiveSuggestionService:
                     and current.appliance_id == appliance_id)
         return True
 
-    def _already_completed(self, purpose, band, appliance_id, steps) -> bool:
+    def _already_completed(self, purpose, band, appliance_id, steps, habit_start=None) -> bool:
         if self._completed_actions is None or band == "데모":
             return False
         now = self._clock.now()
         since = (now - timedelta(minutes=15) if band == "환경"
                  else self._detector.band_start(band, now))
+        if habit_start is not None:
+            since = min(since, habit_start) if since is not None else habit_start
         return since is not None and self._completed_actions.contains(
             appliance_id, purpose, steps, since, now, include_since=band != "환경",
         )

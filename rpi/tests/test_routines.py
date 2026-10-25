@@ -721,7 +721,7 @@ def test_habit_card_prefers_matching_routine_name():
     _save(store, engine._clock, name="아침 데우기", steps=[{**HEAT, "buttons": ["즉석밥", "BT-05"]}])
     card, = _habit_service(engine.habit_routine).create_suggestions()
     assert card.reason.startswith("평소처럼 '아침 데우기' 할까요? ")
-    assert card.reason.endswith("에 하셨어요") and "최근 " in card.reason and "여쭤" not in card.reason
+    assert card.reason.endswith("쯤 하셨어요") and "최근 " in card.reason and "여쭤" not in card.reason
     assert card.routine_name == "아침 데우기"
     assert card.purpose == "즉석밥 데워줘"  # 실행 내용(버튼 순서)은 그대로
     assert card.commands == () and card.steps == ("즉석밥", "시작")
@@ -735,7 +735,7 @@ def test_habit_card_keeps_old_text_without_a_matching_routine():
     _save(store, engine._clock, name="해동", steps=[{**HEAT, "buttons": ["해동", "시작"]}])
     card, = _habit_service(engine.habit_routine).create_suggestions()
     assert not card.reason.startswith("평소처럼") and card.routine_name is None
-    assert card.reason.endswith("에 하셨어요") and "최근 " in card.reason and "여쭤" not in card.reason
+    assert card.reason.endswith("쯤 하셨어요") and "최근 " in card.reason and "여쭤" not in card.reason
     plain, = _habit_service(None).create_suggestions()
     assert plain.reason == card.reason
 

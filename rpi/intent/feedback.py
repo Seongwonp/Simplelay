@@ -28,6 +28,7 @@ class SuggestionEvent:
     reason: str
     job_id: str | None = None
     execution_status: str | None = None
+    habit_time: str | None = None
 
 
 class SuggestionFeedback:
@@ -50,7 +51,7 @@ class SuggestionFeedback:
                 "environment" if suggestion.time_band == "환경" else "pattern"),
             suggestion.purpose, suggestion.time_band, suggestion.reason,
             suggestion.occurrences, suggestion.appliance_id, action, reason,
-            job_id, execution_status,
+            job_id, execution_status, suggestion.habit_time,
         )
         with self._lock:
             self._events.append(event)
@@ -62,6 +63,10 @@ class SuggestionFeedback:
                     # failed response or undo a user's successful dismissal.
                     self._persistence_ok = False
                     log.exception("suggestion feedback persistence failed")
+
+    def snapshot(self) -> tuple[SuggestionEvent, ...]:
+        with self._lock:
+            return tuple(self._events)
 
     def recent(self, limit: int = 100) -> dict:
         if not 1 <= limit <= 200:

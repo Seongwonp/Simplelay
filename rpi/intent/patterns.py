@@ -1,7 +1,10 @@
-"""Configurable repeated-usage pattern detection."""
+"""Repeated real usage grouped by proximity on a circular daily clock."""
 
-from datetime import date, datetime, timedelta
+from dataclasses import asdict, replace
+from datetime import datetime, time, timedelta
+from statistics import median
 
+from .habit_timing import adaptation, clock_text, clusters, distance, minute, parse_time
 from .models import ExecutionMode, PatternCandidate, PatternConfig, UsageOutcome, UsageSource
 from .ports import Clock, UsageLog
 
@@ -11,9 +14,12 @@ class PatternDetector:
         self._usage_log = usage_log
         self._clock = clock
         self._config = config
+        self._feedback = None
+
+    def set_feedback(self, feedback) -> None:
+        self._feedback = feedback
 
     def band_end(self, name: str, now: datetime) -> datetime | None:
-        """현재 시간대의 끝. 자정을 넘는 시간대와 24시간 시간대도 지원."""
         band = next((b for b in self._config.time_bands if b.name == name), None)
         if band is None or not band.contains(now.timetz()):
             return None
@@ -31,129 +37,106 @@ class PatternDetector:
             start -= timedelta(days=1)
         return start
 
+    def _is_established(self, candidate):
+        return (candidate.occurrences >= self._config.minimum_occurrences
+                and candidate.distinct_days >= self._config.minimum_days)
+
     def candidates(self) -> tuple[PatternCandidate, ...]:
         now = self._clock.now()
-        matching_bands = [
-            band for band in self._config.time_bands if band.contains(now.timetz())
-        ]
-        if len(matching_bands) > 1:
-            raise ValueError("configured time bands overlap at the current time")
-        if not matching_bands:
-            return ()
-
-        band = matching_bands[0]
-        counts, days, minutes = self._tally(now)
-        lead = self._config.ask_lead_minutes
-        now_minute = now.hour * 60 + now.minute
-        start, end = band.start.replace(tzinfo=None), band.end.replace(tzinfo=None)
-        if start > end and now.time().replace(tzinfo=None) < end:
-            now_minute += 24 * 60  # 자정을 넘는 시간대 — 기록과 같은 축(_tally)으로 잰다
-
-        def due(c) -> bool:
-            if lead is None:
-                return True
-            values = sorted(minutes[(c.purpose, c.appliance_id, c.time_band)])
-            usual = values[(len(values) - 1) // 2]
-            return now_minute >= usual - lead
-
-        return tuple(
-            c for c in self._candidates_from(counts, days)
-            if c.time_band == band.name
-            and c.occurrences >= self._config.minimum_occurrences
-            and c.distinct_days >= self._config.minimum_days
-            and due(c)
-        )
-
-    def learning_status(self) -> dict:
-        now = self._clock.now()
-        counts, days, _ = self._tally(now)
-        return {
-            "window_days": self._config.window_days,
-            "minimum_days": self._config.minimum_days,
-            "minimum_occurrences": self._config.minimum_occurrences,
-            "routines": [
-                {
-                    "purpose": c.purpose,
-                    "appliance_id": c.appliance_id,
-                    "time_band": c.time_band,
-                    "occurrences": c.occurrences,
-                    "distinct_days": c.distinct_days,
-                    "established": (
-                        c.distinct_days >= self._config.minimum_days
-                        and c.occurrences >= self._config.minimum_occurrences
-                    ),
-                    # 왜 습관인지 보이는 근거 — 실제로 쓴 날(최근 5일, 오래된 날부터)(2026-10-25, 가이드라인 '이유 설명').
-                    "recent_days": [
-                        d.isoformat()
-                        for d in sorted(days[(c.purpose, c.appliance_id, c.time_band)])[-5:]
-                    ],
-                }
-                for c in self._candidates_from(counts, days)
-            ],
-        }
-
-    def established(self) -> tuple[tuple[PatternCandidate, str], ...]:
-        """모든 시간대에서 성립한 후보와 대표 시각("HH:MM") — 루틴 초안용(2026-10-14).
-
-        근거는 ``candidates``와 같다(성공·실제 실행·직접 사용만). 대표 시각은 그 기록들의
-        시각 중앙값을 5분 단위로 내린 값이다. 자정을 넘는 시간대는 넘긴 쪽 시각을 뒤로 이어 센다.
-        """
-        now = self._clock.now()
-        counts, days, minutes = self._tally(now)
+        if sum(b.contains(now.timetz()) for b in self._config.time_bands) > 1:
+            raise ValueError('configured time bands overlap at the current time')
         result = []
-        for candidate in self._candidates_from(counts, days):
-            if (candidate.occurrences < self._config.minimum_occurrences
-                    or candidate.distinct_days < self._config.minimum_days):
+        for candidate in self._evidence(now):
+            if not self._is_established(candidate) or candidate.paused_until:
                 continue
-            values = sorted(minutes[(candidate.purpose, candidate.appliance_id, candidate.time_band)])
-            middle = values[(len(values) - 1) // 2] % (24 * 60)
-            middle -= middle % 5
-            result.append((candidate, f"{middle // 60:02d}:{middle % 60:02d}"))
+            bounds = self.ask_window(candidate, now)
+            if bounds is not None and bounds[0] <= now < bounds[1]:
+                result.append(replace(candidate, available_from=bounds[0], available_until=bounds[1]))
         return tuple(result)
 
-    def _evidence(self, now: datetime) -> tuple[PatternCandidate, ...]:
-        counts, days, _ = self._tally(now)
-        return self._candidates_from(counts, days)
+    def ask_window(self, candidate, now):
+        # Explicit legacy configuration keeps full-band availability for confident habits.
+        if self._config.ask_lead_minutes is None and candidate.confident:
+            start = self.band_start(candidate.time_band, now)
+            end = self.band_end(candidate.time_band, now)
+            return (start, end) if start is not None and end is not None else None
+        centre = parse_time(candidate.usual_time)
+        anchor = now.replace(second=0, microsecond=0) - timedelta(minutes=distance(minute(now), centre))
+        start = anchor + timedelta(minutes=distance(parse_time(candidate.ask_time), centre))
+        first = -((centre - parse_time(candidate.window_start)) % 1440)
+        last = first + (parse_time(candidate.window_end) - parse_time(candidate.window_start)) % 1440
+        if not candidate.confident:
+            start = anchor + timedelta(minutes=first + max(0, candidate.ask_shift_minutes))
+        # A confident card retains a short response opportunity, including across midnight.
+        end = anchor + timedelta(minutes=max(last, 30) + 1 if candidate.confident else last + 1)
+        return start, end
 
-    def _tally(self, now: datetime):
-        counts: dict[tuple[str, str | None, str], int] = {}
-        days: dict[tuple[str, str | None, str], set[date]] = {}
-        minutes: dict[tuple[str, str | None, str], list[int]] = {}
+    def learning_status(self) -> dict:
+        routines = []
+        for candidate in self._evidence(self._clock.now()):
+            entry = asdict(candidate)
+            entry.pop('available_until')
+            entry.pop('available_from')
+            entry['recent_days'] = list(candidate.recent_days[-5:])
+            entry['paused_until'] = candidate.paused_until.isoformat() if candidate.paused_until else None
+            entry['established'] = self._is_established(candidate)
+            routines.append(entry)
+        return dict(window_days=self._config.window_days, minimum_days=self._config.minimum_days,
+                    minimum_occurrences=self._config.minimum_occurrences, routines=routines)
+
+    def established(self) -> tuple[tuple[PatternCandidate, str], ...]:
+        # Routine drafts retain their existing five-minute rounding convention.
+        return tuple((c, clock_text(parse_time(c.usual_time) // 5 * 5))
+                     for c in self._evidence(self._clock.now()) if self._is_established(c))
+
+    def _evidence(self, now: datetime) -> tuple[PatternCandidate, ...]:
         cutoff = now - timedelta(days=self._config.window_days)
+        grouped = {}
         for record in self._usage_log.records():
             if (record.outcome is not UsageOutcome.SUCCEEDED
                     or record.execution_mode is not ExecutionMode.REAL
-                    or record.source is not UsageSource.DIRECT):
+                    or record.source is not UsageSource.DIRECT
+                    or not cutoff <= record.occurred_at <= now):
                 continue
-            if not cutoff <= record.occurred_at <= now:
-                continue
-            local_record = record.occurred_at.astimezone(now.tzinfo)
-            bands = [b for b in self._config.time_bands if b.contains(local_record.timetz())]
-            # Ambiguous historical time bands cannot establish a habit.
-            if len(bands) != 1:
-                continue
-            band = bands[0]
-            key = (record.purpose.strip(), record.appliance_id, band.name)
-            counts[key] = counts.get(key, 0) + 1
-            day = local_record.date()
-            minute = local_record.hour * 60 + local_record.minute
-            start, end = band.start.replace(tzinfo=None), band.end.replace(tzinfo=None)
-            if start > end and local_record.time() < end:
-                day -= timedelta(days=1)
-                minute += 24 * 60
-            days.setdefault(key, set()).add(day)
-            minutes.setdefault(key, []).append(minute)
-        return counts, days, minutes
-
-    def _candidates_from(self, counts, days) -> tuple[PatternCandidate, ...]:
-        return tuple(
-            PatternCandidate(
-                purpose, band, occurrences,
-                appliance_id=appliance_id,
-                distinct_days=len(days[(purpose, appliance_id, band)]),
-                window_days=self._config.window_days,
-            )
-            for (purpose, appliance_id, band), occurrences in sorted(
-                counts.items(), key=lambda item: (item[0][0], item[0][1] or "", item[0][2])
-            )
-        )
+            local = replace(record, occurred_at=record.occurred_at.astimezone(now.tzinfo))
+            grouped.setdefault((record.purpose.strip(), record.appliance_id), []).append(local)
+        result = []
+        events = self._feedback.snapshot() if self._feedback else ()
+        for (purpose, appliance), records in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][1] or '')):
+            peers = []
+            cluster_records = {}
+            for group in clusters(records):
+                values = [value for value, _ in group]
+                # Minimize circular absolute deviation; lower unwrapped value breaks ties.
+                centre = min(sorted(set(values)), key=lambda c: sum(abs(distance(v, c)) for v in values))
+                spread = float(median(abs(distance(value, centre)) for value in values))
+                cluster_records[clock_text(centre)] = sorted(
+                    (r for _, r in group), key=lambda r: r.occurred_at)
+                bands = [b for b in self._config.time_bands if b.contains(time((centre % 1440) // 60, centre % 60))]
+                if len(bands) != 1:
+                    continue
+                # Records after midnight in a wrapping cluster belong to the preceding habit day.
+                days = sorted({(r.occurred_at.date() - timedelta(days=v // 1440))
+                               for v, r in group})
+                confident = spread <= 30
+                ask = centre - (self._config.ask_lead_minutes or 0) if confident else values[0]
+                peers.append(PatternCandidate(
+                    purpose, bands[0].name, len(group), appliance, len(days), self._config.window_days,
+                    usual_time=clock_text(centre), spread_minutes=spread,
+                    window_start=clock_text(values[0]), window_end=clock_text(values[-1]),
+                    confident=confident, ask_time=clock_text(ask),
+                    recent_days=tuple(d.isoformat() for d in days)))
+            for candidate in peers:
+                pause, shift = adaptation(candidate, peers, events, cluster_records[candidate.usual_time],
+                                          now, self._config.ask_lead_minutes or 0)
+                ask = parse_time(candidate.ask_time)
+                # Uncertain habits never move outside their observed window.
+                if candidate.confident:
+                    ask += shift
+                else:
+                    width = (parse_time(candidate.window_end) - ask) % 1440
+                    ask += max(0, min(width, shift))
+                result.append(replace(candidate, paused_until=pause,
+                                      pause_reason='consecutive_rejections' if pause else None,
+                                      ask_shift_minutes=shift, ask_time=clock_text(ask)))
+        return tuple(result)

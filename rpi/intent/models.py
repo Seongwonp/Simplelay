@@ -92,6 +92,18 @@ class PatternCandidate:
     appliance_id: str | None = None
     distinct_days: int = 0
     window_days: int = 28
+    usual_time: str | None = None
+    spread_minutes: float = 0
+    window_start: str | None = None
+    window_end: str | None = None
+    confident: bool = True
+    paused_until: datetime | None = None
+    pause_reason: str | None = None
+    ask_shift_minutes: int = 0
+    ask_time: str | None = None
+    recent_days: tuple[str, ...] = ()
+    available_until: datetime | None = None
+    available_from: datetime | None = None
 
 
 class SuggestionStatus(str, Enum):
@@ -137,3 +149,5 @@ class ProactiveSuggestion:
     #: 대상 이름·동작·버튼 이름뿐이라 다시 보정하거나 ThinQ 기기를 바꿔도 같았다. 승인 때 지금 설정과 다르면 재승인.
     #: 비어 있으면(가전 목록을 모르는 실행기) 대조하지 않는다.
     target_snapshot: tuple = ()
+    habit_time: str | None = None
+    habit_start: datetime | None = None

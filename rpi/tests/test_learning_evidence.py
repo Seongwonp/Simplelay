@@ -35,7 +35,7 @@ def test_counts_and_distinct_days_are_separate_and_reason_matches():
     service = ProactiveSuggestionService(d, FixedClock(NOW), MockPurposeExecutor())
     suggestion, = service.create_suggestions()
     # 평가 14차(10/18) — 번역투('하셔서 여쭤봐요') 없이 본 사실만.
-    assert suggestion.reason == '최근 28일 중 3일, 아침에 하셨어요'
+    assert suggestion.reason == '최근 28일 중 3일, 오전 8시쯤 하셨어요'
     assert '여쭤' not in suggestion.reason
 
 
