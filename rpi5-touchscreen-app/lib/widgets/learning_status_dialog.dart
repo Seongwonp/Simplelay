@@ -88,6 +88,8 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                           Text(
                               '최근 ${status.windowDays}일 중 ${routine.distinctDays}일, 모두 ${routine.occurrences}번',
                               style: const TextStyle(fontSize: KioskType.body)),
+                          if (usedDaysLine(routine.recentDays) case final line?)
+                            Text(line, style: const TextStyle(fontSize: KioskType.body)),
                           Text(
                               routine.muted
                                   ? '이 제안은 띄우지 않기로 했어요'

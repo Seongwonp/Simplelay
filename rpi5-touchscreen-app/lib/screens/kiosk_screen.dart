@@ -44,6 +44,7 @@ import '../widgets/kiosk/past_result_line.dart';
 import '../widgets/kiosk/suggestion_view.dart';
 import '../widgets/kiosk/settings_overlay.dart';
 import '../widgets/kiosk/top_progress_bar.dart';
+import '../widgets/kiosk/room_sleep.dart';
 
 /// 잠시 쉬기 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 폰과 같은 문장.
 const kSettingNotSavedNotice = '저장하지 못해 지금만 바뀌어요. 본체를 다시 켜면 예전 설정으로 돌아가요.';
@@ -407,6 +408,14 @@ class _KioskScreenState extends State<KioskScreen> {
   String? _estopMessage;
 
   Timer? _pollTimer;
+
+  // 방 안 사람 감지(온디바이스 카메라, 2026-10-25) — 자리 비움이면 처음 화면을 어둡게, 돌아오면 깨우고 인사.
+  Timer? _roomTimer;
+  RoomPresenceInfo? _room;
+  DateTime? _seenArrival;
+  DateTime? _touchWakeUntil;
+  Timer? _greetTimer;
+  bool _greetOn = false;
   Timer? _healthTimer;
   Timer? _clockTimer;
   Timer? _sensorTimer;
@@ -465,6 +474,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _fetchAlert();
     _poll();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
+    _fetchRoom();
+    _roomTimer = Timer.periodic(_pollInterval, (_) => _fetchRoom());
     _healthTimer = Timer.periodic(_healthInterval, (_) {
       _checkHealth();
       _fetchConnections(); // 연결 아이콘도 같은 주기로
@@ -518,6 +529,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _autoNoticeTimer?.cancel();
     _countdownTimer?.cancel();
     _pollTimer?.cancel();
+    _roomTimer?.cancel();
+    _greetTimer?.cancel();
     _healthTimer?.cancel();
     _clockTimer?.cancel();
     _sensorTimer?.cancel();
@@ -537,6 +550,49 @@ class _KioskScreenState extends State<KioskScreen> {
     final data = await _api.sensors();
     if (mounted) setState(() => _sensorData = data);
   }
+
+  Future<void> _fetchRoom() async {
+    final room = await _api.roomPresence();
+    if (!mounted) return;
+    final arrived = room?.arrivedAt;
+    // 처음 읽은 돌아옴은 방금(15초 안) 일어났을 때만 새 돌아옴이다(Codex 검토 10/25 — 첫 복귀 인사가 빠졌다).
+    // 화면이 다시 켜진 뒤 오래된 돌아옴에 또 인사하지 않는다.
+    final isNew = arrived != null &&
+        (_seenArrival == null
+            ? DateTime.now().difference(arrived).inSeconds.abs() <= 15
+            : arrived.isAfter(_seenArrival!));
+    setState(() {
+      _room = room;
+      if (arrived != null) _seenArrival = arrived;
+      if (isNew) {
+        // 돌아왔다 — 화면을 깨운다. 인사는 서버가 정했을 때만(오래 비웠다 왔을 때, 몇 시간에 한 번 — 10/25 사용자).
+        // 그 시간대 습관 제안은 서버가 바로 만든다(다음 폴링에 뜬다).
+        _touchWakeUntil = null;
+        _greetOn = room?.greeting != null;
+        _greetTimer?.cancel();
+        _greetTimer = Timer(const Duration(seconds: 8), () {
+          if (mounted) setState(() => _greetOn = false);
+        });
+      }
+    });
+    if (isNew) {
+      // 조용한 시간·방해 금지에는 소리 없이 화면 인사만.
+      final greeting = room?.greeting;
+      if (greeting != null && _health.speakGeneral) _tts.speak(greeting);
+      _poll();
+    }
+  }
+
+  /// 처음 화면만 어둡게 한다. 실행·제안·경보·창이 떠 있으면 절대 끄지 않는다(정지 단추·승인 대상은 늘 보인다).
+  bool get _roomSleeping {
+    final room = _room;
+    if (room == null || !room.sleepScreen) return false;
+    if (_phase != KioskPhase.idle || _overlayOpen || _showEstop || _alert.active) return false;
+    final wake = _touchWakeUntil;
+    return wake == null || DateTime.now().isAfter(wake);
+  }
+
+  bool get _greeting => _greetOn && _phase == KioskPhase.idle;
 
   Future<void> _fetchAmbient() async {
     final info = await _api.ambient();
@@ -1669,6 +1725,9 @@ class _KioskScreenState extends State<KioskScreen> {
   /// '이 제안 앞으로 받지 않기'를 체크한 제안 id(2026-10-25). 지금 카드 id와 같을 때만 체크로 본다 — 제안이 바뀌면 저절로 풀린다.
   String? _muteSuggestionId;
 
+  /// '다음부터는 알아서' 확인을 펼친 카드(2026-10-25). 다른 카드가 오면 접힌다.
+  String? _allowConfirmId;
+
   /// 결과 화면의 '이 가전 계속 조작' — 같은 가전 조작판으로 **돌아가기만** 한다(직전 명령을 다시 보내지 않는다).
   /// 최신 설치 목록에서 다시 찾고, 없으면(그사이 삭제) 가전 고르기로 — 다른 가전으로 메우지 않는다.
   void _continueSameAppliance() {
@@ -2142,7 +2201,7 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() => _doneHeld = true);
   }
 
-  Future<void> _onApprove({KioskSuggestion? suggestion}) async {
+  Future<void> _onApprove({KioskSuggestion? suggestion, String? allowFingerprint, String? adoptKey}) async {
     if (_dismissingSuggestion || _admitting) return;
     suggestion ??= _currentSuggestion;
     if (suggestion == null) return;
@@ -2158,7 +2217,10 @@ class _KioskScreenState extends State<KioskScreen> {
       return;
     }
     _countdownTimer?.cancel();
-    setState(() => _currentSuggestion = null);
+    setState(() {
+      _currentSuggestion = null;
+      _allowConfirmId = null;
+    });
     // 실행·완료 화면은 카드의 질문이 아니라 무엇을 하는지(평서형)를 말한다.
     final label =
         suggestion.doneLabel(scenarioName: _scenarioNames[suggestion.scenarioId]);
@@ -2179,11 +2241,39 @@ class _KioskScreenState extends State<KioskScreen> {
         : null;
     final gen = _admitGen;
     _accepting = true;
-    _retryAction = () => _onApprove(suggestion: suggestion);
+    _retryAction = () => _onApprove(suggestion: suggestion, allowFingerprint: allowFingerprint, adoptKey: adoptKey);
 
     try {
       // job 모델: 즉시 접수 — 진행·완료는 _pollExecuting이 job_id 대조로 따라간다
-      final accepted = await _api.approveSuggestion(suggestion.id, clientRequestId: _admitRequestId);
+      final KioskJobAccepted accepted;
+      if (adoptKey != null) {
+        // 이번 실행 + 매일 그 시각 루틴(+ 맡기기). 저장 결과는 결과 화면 위 한 줄로.
+        final (job, problem) = await _api.approveAndAdoptSuggestion(suggestion.id, adoptKey);
+        accepted = job;
+        if (mounted && gen == _admitGen) {
+          final auto = suggestion.adoptOffer?.auto ?? false;
+          _autoNoticeTimer?.cancel();
+          setState(() => _autoNotice =
+              problem ?? (auto ? '매일 이 시간에 알아서 할게요. 설정의 자동 실행에서 끌 수 있어요.' : '매일 이 시간에 여쭤볼게요.'));
+          _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
+            if (mounted) setState(() => _autoNotice = null);
+          });
+        }
+      } else if (allowFingerprint != null) {
+        // 이번 실행 + 다음부터 맡기기(서버가 지문으로 화면과 같은 내용인지 다시 본다). 맡기기 저장 결과는 결과 화면 위 한 줄로.
+        final (job, allowFailed) = await _api.approveAndAllowSuggestion(suggestion.id, allowFingerprint,
+            clientRequestId: _admitRequestId);
+        accepted = job;
+        if (mounted && gen == _admitGen) {
+          _autoNoticeTimer?.cancel();
+          setState(() => _autoNotice = allowFailed ?? '다음부터는 묻지 않고 할게요. 설정의 자동 실행에서 끌 수 있어요.');
+          _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
+            if (mounted) setState(() => _autoNotice = null);
+          });
+        }
+      } else {
+        accepted = await _api.approveSuggestion(suggestion.id, clientRequestId: _admitRequestId);
+      }
       if (gen != _admitGen) return;
       _accepting = false;
       _activeJobId = accepted.jobId;
@@ -2651,6 +2741,14 @@ class _KioskScreenState extends State<KioskScreen> {
                       ),
                     if (_openConnectionId != null && _phase == KioskPhase.idle)
                       Positioned.fill(child: KioskModalSemantics(label: '연결', child: _buildConnectionModal())),
+                    if (_greeting)
+                      Positioned(top: 12, left: 0, right: 0, child: Center(child: KioskWelcomeBack(text: _room?.greeting ?? '어서 오세요'))),
+                    if (_roomSleeping)
+                      Positioned.fill(
+                        child: KioskRoomSleep(
+                          onWake: () => setState(() => _touchWakeUntil = DateTime.now().add(const Duration(minutes: 2))),
+                        ),
+                      ),
                     if (_showSettings)
                       Positioned.fill(
                         child: KioskModalSemantics(
@@ -3015,6 +3113,18 @@ class _KioskScreenState extends State<KioskScreen> {
           onMuteChanged: _offersMute(suggestion)
               ? (v) => setState(() => _muteSuggestionId = v ? suggestion.id : null)
               : null,
+          onAllowAuto: suggestion.autoRuleOffer == null && suggestion.adoptOffer == null
+              ? null
+              : () {
+                  _touchSuggestion();
+                  setState(() => _allowConfirmId = suggestion.id);
+                },
+          allowConfirming: _allowConfirmId == suggestion.id,
+          onAllowCancel: () => setState(() => _allowConfirmId = null),
+          onAllowConfirm: () => _onApprove(
+              suggestion: suggestion,
+              allowFingerprint: suggestion.autoRuleOffer?.fingerprint,
+              adoptKey: suggestion.autoRuleOffer == null ? suggestion.adoptOffer?.candidateKey : null),
         );
       case KioskPhase.executing:
         return KioskExecutingView(

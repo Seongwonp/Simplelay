@@ -34,6 +34,26 @@ import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 class FakeKioskApi implements KioskApiService {
   @override
   Future<Map<String, dynamic>> routineRequest(Map<String, dynamic>? event) async => throw StateError('simulator unavailable');
+  // 방 안 사람 감지는 이 파일의 관심사가 아니다 — 감지기 없음(절전 없음).
+  @override
+  Future<RoomPresenceInfo?> roomPresence() async => room;
+  RoomPresenceInfo? room;
+  @override
+  Future<RoomPresenceInfo?> setRoomCamera(bool enabled) async => null;
+  @override
+  Future<(KioskJobAccepted, String?)> approveAndAllowSuggestion(String id, String fingerprint,
+      {String? clientRequestId}) async {
+    allowCalls.add((id, fingerprint));
+    return (await approveSuggestion(id, clientRequestId: clientRequestId), allowFailure);
+  }
+  final allowCalls = <(String, String)>[];
+  @override
+  Future<(KioskJobAccepted, String?)> approveAndAdoptSuggestion(String id, String candidateKey) async {
+    adoptCalls.add((id, candidateKey));
+    return (await approveSuggestion(id), null);
+  }
+  final adoptCalls = <(String, String)>[];
+  String? allowFailure;
   // 폰 연결 창은 이 파일의 관심사가 아니다 — 허브 없음으로 흉내 낸다.
   @override
   Future<Map<String, dynamic>> pairingSession({bool create = false}) async => throw StateError('pairing unavailable');
@@ -2761,6 +2781,127 @@ void main() {
     expect(find.textContaining('이전 단계'), findsNothing);
     expect(find.textContaining('1. '), findsNothing);
     await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 방 안 사람 감지(2026-10-25) — 자리 비움이면 처음 화면만 검게, 눌러서 켠다. 돌아오면 서버 인사를 보이고 말한다.
+  testWidgets('자리 비움이면 처음 화면이 쉬고, 누르면 켜진다', (tester) async {
+    final api = FakeKioskApi()..room = const RoomPresenceInfo(state: 'idle', sleepScreen: true);
+    await _pumpKiosk(tester, api);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('room-sleep')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('room-sleep')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('room-sleep')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('돌아오면 서버가 정한 인사를 화면에 띄우고 말한다', (tester) async {
+    final api = FakeKioskApi()..room = const RoomPresenceInfo(state: 'idle', sleepScreen: true);
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    api.room = RoomPresenceInfo(
+        state: 'present', sleepScreen: false, arrivedAt: DateTime.now(), greeting: '어서 오세요. 오늘 하루도 고생 많으셨어요.');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('room-sleep')), findsNothing);
+    expect(find.text('어서 오세요. 오늘 하루도 고생 많으셨어요.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 9));
+    expect(find.byKey(const ValueKey('room-welcome')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 묻기 → 맡기기(2026-10-25): 서버가 맡길 수 있다고 준 카드만 단추가 있고, 조건·동작을 다시 본 뒤 사람이 눌러야 맡긴다.
+  testWidgets('다음부터 알아서: 확인을 거쳐야 맡기고, 이번 실행도 한다', (tester) async {
+    useKioskViewport(tester);
+    const offer = KioskAutoRuleOffer(
+        conditionText: '매일 오후 7:00에', actionText: '공기청정기를 켜요', caveat: '조용한 시간에는 하지 않아요', fingerprint: 'fp-1');
+    final api = FakeKioskApi()
+      ..suggestionList = [
+        const KioskSuggestion(id: 's1', purpose: '즉석밥 데워줘', occurrences: 3, applianceId: 'microwave', autoRuleOffer: offer)
+      ];
+    await _pumpKiosk(tester, api);
+    await tester.tap(find.byKey(const ValueKey('suggestion-allow-auto')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('suggestion-allow-confirm')), findsOneWidget);
+    expect(find.textContaining('매일 오후 7:00에 공기청정기를 켜요'), findsOneWidget);
+    expect(api.allowCalls, isEmpty, reason: '확인을 누르기 전에는 아무것도 맡기지 않는다');
+    await tester.tap(find.byKey(const ValueKey('suggestion-allow-cancel')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('suggestion-allow-confirm')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('suggestion-allow-auto')));
+    await tester.pump();
+    api.suggestionList = [];
+    await tester.tap(find.byKey(const ValueKey('suggestion-allow-ok')));
+    await tester.pump();
+    expect(api.allowCalls, [('s1', 'fp-1')]);
+    expect(api.approvedIds, ['s1']);
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('맡길 수 없는 카드(물리 누름 등)에는 맡기기 단추가 없다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    expect(find.byKey(const ValueKey('suggestion-allow-auto')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('습관 카드: 매일 그 시각에 알아서 하기 — 확인을 거쳐 저장·맡기기', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [
+        const KioskSuggestion(
+            id: 's1', purpose: '즉석밥 데워줘', occurrences: 4, applianceId: 'microwave',
+            adoptOffer: KioskAdoptOffer(candidateKey: 'tc-1', askTime: '19:30', auto: true, evidence: '최근 28일 중 19시 30분쯤 4일 켰어요'))
+      ];
+    await _pumpKiosk(tester, api);
+    expect(find.text('이번에 하고, 매일 오후 7시 30분에 알아서 하기'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('suggestion-allow-auto')));
+    await tester.pump();
+    expect(find.textContaining('매일 오후 7시 30분에 묻지 않고'), findsOneWidget);
+    expect(find.text('최근 28일 중 19시 30분쯤 4일 켰어요'), findsOneWidget);
+    api.suggestionList = [];
+    await tester.tap(find.byKey(const ValueKey('suggestion-allow-ok')));
+    await tester.pump();
+    expect(api.adoptCalls, [('s1', 'tc-1')]);
+    expect(api.allowCalls, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('물리 누름 습관 카드는 매일 물어보기로만 저장한다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [
+        const KioskSuggestion(
+            id: 's1', purpose: '즉석밥 데워줘', occurrences: 4, applianceId: 'microwave',
+            adoptOffer: KioskAdoptOffer(candidateKey: 'hc-1', askTime: '08:00', auto: false))
+      ];
+    await _pumpKiosk(tester, api);
+    expect(find.text('이번에 하고, 매일 오전 8시에 물어보기'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('suggestion-allow-auto')));
+    await tester.pump();
+    expect(find.textContaining('누름 장치는 늘 확인을 받아요'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('잠깐 자리 비웠다 돌아오면 화면만 켜고 인사하지 않는다', (tester) async {
+    final api = FakeKioskApi()..room = const RoomPresenceInfo(state: 'idle', sleepScreen: true);
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('room-sleep')), findsOneWidget);
+    api.room = RoomPresenceInfo(state: 'present', sleepScreen: false, arrivedAt: DateTime.now());
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('room-sleep')), findsNothing);
+    expect(find.byKey(const ValueKey('room-welcome')), findsNothing);
+    expect(tts.utterances, isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

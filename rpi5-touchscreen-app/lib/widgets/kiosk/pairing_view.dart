@@ -132,6 +132,14 @@ class _KioskPairingViewState extends State<KioskPairingView> {
     if (mounted) widget.onClose();
   }
 
+
+  int get _left => _deadline == null ? 0 : _deadline!.difference(DateTime.now()).inSeconds.clamp(0, 300);
+
+  TextStyle _t(double size, {FontWeight weight = FontWeight.w500, Color? color}) =>
+      TextStyle(fontSize: size, height: 1.3, fontWeight: weight, color: color ?? KioskColors.ink);
+
+  // 연결 화면 짜임(10/25 실패널 사진 — 예전 글자 목록은 스크롤되며 주소가 아래로 잘리고 제목 밑으로 글이 겹쳤다):
+  // 위 줄 제목 + 오른쪽 '닫기', 가운데는 스크롤 없이 한 화면(넘치면 통째로 조금 줄어든다).
   @override
   Widget build(BuildContext context) {
     final session = _session;
@@ -139,69 +147,165 @@ class _KioskPairingViewState extends State<KioskPairingView> {
     return ColoredBox(
         color: KioskColors.bg,
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text('휴대폰 연결하기',
-                style: TextStyle(fontSize: KioskType.status, color: KioskColors.ink)),
-            Expanded(
-                child: SingleChildScrollView(
-                    child: Column(children: [
-              if (session != null && state == 'open') ...[
-                const Text('같은 와이파이에 연결된 휴대폰 카메라로 이 QR 코드를 비춰 주세요.',
-                    style: TextStyle(fontSize: KioskType.status)),
-                if (session['qr_png'] case final String png)
-                  Image.memory(base64Decode(png),
-                      width: 190,
-                      height: 190,
-                      gaplessPlayback: true,
-                      semanticLabel: '휴대폰 연결 QR 코드'),
-                Text('${session['code']}',
-                    key: const Key('pair-code'),
-                    style: TextStyle(fontSize: KioskType.key, color: KioskColors.ink)),
-                Text('주소 ${session['host']}',
-                    style: const TextStyle(fontSize: KioskType.body)),
-              ],
-              if (state == 'pending') ...[
-                const Text('이 휴대폰을 연결할까요?', style: TextStyle(fontSize: KioskType.status)),
-                Text('${session!['phone']}',
-                    style: const TextStyle(fontSize: KioskType.status)),
-                Text(
-                    '휴대폰에도 ${(session['request_id'] as String).substring(0, 6)} 표시가 있는지 봐 주세요',
-                    style: const TextStyle(fontSize: KioskType.status)),
-              ],
-              if (state == 'approved')
-                const Text('허락했어요. 휴대폰에서 연결됐는지 봐 주세요.',
-                    style: TextStyle(fontSize: KioskType.status)),
-              if (state == 'consumed')
-                const Text('휴대폰에 연결 정보를 보냈어요.', style: TextStyle(fontSize: KioskType.status)),
-              if (state == 'denied')
-                const Text('이 휴대폰은 연결하지 않았어요.', style: TextStyle(fontSize: KioskType.status)),
-              if (session != null && _deadline != null && state != 'consumed')
-                Text(
-                    '${_deadline!.difference(DateTime.now()).inSeconds.clamp(0, 300)}초 남았어요',
-                    style: const TextStyle(fontSize: KioskType.status)),
-              if (_error != null)
-                Text(_error!,
-                    style: TextStyle(
-                        fontSize: KioskType.status, color: KioskColors.warning)),
-            ]))),
-            Wrap(alignment: WrapAlignment.end, spacing: 16, children: [
-              TextButton(
-                  onPressed: _busy ? null : _close, child: const Text('닫기')),
-              if (state == 'pending') ...[
-                OutlinedButton(
-                    onPressed: _busy ? null : () => _decide(false),
-                    child: const Text('연결하지 않기')),
-                FilledButton(
-                    onPressed: _busy ? null : () => _decide(true),
-                    child: const Text('이 휴대폰 연결하기')),
-              ] else
-                FilledButton(
-                    onPressed: _busy ? null : _open,
-                    child: const Text('새 코드 받기')),
+          padding: const EdgeInsets.fromLTRB(KioskSpace.lg, KioskSpace.md, KioskSpace.lg, KioskSpace.md),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              Expanded(child: Text('휴대폰 연결하기', style: _t(KioskType.status, weight: FontWeight.w800))),
+              OutlinedButton(
+                  onPressed: _busy ? null : _close,
+                  style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border),
+                  child: Text('닫기', style: _t(KioskType.body, weight: FontWeight.w700))),
             ]),
+            const SizedBox(height: KioskSpace.md),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, box) => Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: box.maxWidth),
+                      child: _body(session, state, box.maxHeight),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ]),
         ));
   }
+
+  Widget _body(Map<String, dynamic>? session, Object? state, double height) {
+    if (session != null && state == 'open') return _openBody(session, height);
+    if (state == 'pending') return _pendingBody(session!);
+    final (icon, color, line) = switch (state) {
+      'approved' => (Icons.check_circle_outline, KioskColors.success, '허락했어요. 휴대폰에서 연결됐는지 봐 주세요.'),
+      'consumed' => (Icons.check_circle_outline, KioskColors.success, '휴대폰에 연결 정보를 보냈어요.'),
+      'denied' => (Icons.block, KioskColors.muted, '이 휴대폰은 연결하지 않았어요.'),
+      _ => (null, KioskColors.muted, null),
+    };
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (icon != null) Icon(icon, size: 72, color: color),
+      if (line != null) ...[
+        const SizedBox(height: KioskSpace.sm),
+        Text(line, textAlign: TextAlign.center, style: _t(KioskType.status, weight: FontWeight.w700)),
+      ],
+      if (_busy && session == null) const CircularProgressIndicator(),
+      if (session != null && _deadline != null && state != 'consumed' && state != 'denied') ...[
+        const SizedBox(height: KioskSpace.xs),
+        Text('$_left초 남았어요', style: _t(KioskType.body, color: KioskColors.muted)),
+      ],
+      ..._errorLine(),
+      if (state != 'approved' && state != 'consumed') ...[
+        const SizedBox(height: KioskSpace.md),
+        _newCodeButton(),
+      ],
+    ]);
+  }
+
+  // QR 왼쪽 · 할 일 세 줄과 숫자·주소 오른쪽.
+  Widget _openBody(Map<String, dynamic> session, double height) {
+    final qr = (height * 0.82).clamp(160.0, 340.0);
+    Widget step(String n, String text) => Padding(
+          padding: const EdgeInsets.only(bottom: KioskSpace.xs),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: KioskColors.primary, shape: BoxShape.circle),
+              child: Text(n, style: _t(KioskType.caption, weight: FontWeight.w800, color: KioskColors.onAccent)),
+            ),
+            const SizedBox(width: KioskSpace.sm),
+            Flexible(child: Text(text, style: _t(KioskType.body))),
+          ]),
+        );
+    return Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
+      if (session['qr_png'] case final String png) ...[
+        Container(
+          padding: const EdgeInsets.all(KioskSpace.sm),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(KioskSizes.buttonRadius),
+            border: Border.all(color: KioskColors.border, width: 2),
+          ),
+          child: Image.memory(base64Decode(png),
+              width: qr, height: qr, gaplessPlayback: true, semanticLabel: '휴대폰 연결 QR 코드'),
+        ),
+        const SizedBox(width: KioskSpace.xl),
+      ],
+      ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          step('1', '휴대폰을 본체와 같은 와이파이에 연결해 주세요.'),
+          step('2', "SimpleLay 앱에서 '본체 연결하기'를 눌러 주세요."),
+          step('3', 'QR 코드를 비추거나, 아래 숫자와 주소를 넣어 주세요.'),
+          const SizedBox(height: KioskSpace.sm),
+          Text('${session['code']}',
+              key: const Key('pair-code'),
+              style: _t(KioskType.key + 16, weight: FontWeight.w800).copyWith(letterSpacing: 6)),
+          Text('주소 ${session['host']}', style: _t(KioskType.body, color: KioskColors.muted)),
+          const SizedBox(height: KioskSpace.xs),
+          Text('$_left초 남았어요', style: _t(KioskType.body, color: KioskColors.muted)),
+          ..._errorLine(),
+          const SizedBox(height: KioskSpace.md),
+          _newCodeButton(),
+        ]),
+      ),
+    ]);
+  }
+
+  // 폰 요청 — 이름과 맞춰 볼 글자를 크게, 허락·거절은 큰 단추 둘.
+  Widget _pendingBody(Map<String, dynamic> session) {
+    final mark = (session['request_id'] as String).substring(0, 6);
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Text('이 휴대폰을 연결할까요?', style: _t(KioskType.status, weight: FontWeight.w800)),
+      const SizedBox(height: KioskSpace.xs),
+      Text('${session['phone']}', style: _t(KioskType.body, color: KioskColors.muted)),
+      const SizedBox(height: KioskSpace.md),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: KioskSpace.xl, vertical: KioskSpace.md),
+        decoration: BoxDecoration(
+          color: KioskColors.surface,
+          borderRadius: BorderRadius.circular(KioskSizes.buttonRadius),
+          border: Border.all(color: KioskColors.border, width: 2),
+        ),
+        child: Column(children: [
+          Text('휴대폰 화면에도 이 글자가 보이는지 봐 주세요', style: _t(KioskType.body)),
+          const SizedBox(height: KioskSpace.xs),
+          Text(mark,
+              key: const Key('pair-mark'),
+              semanticsLabel: '휴대폰에도 $mark 표시가 있는지 봐 주세요',
+              style: _t(KioskType.key + 8, weight: FontWeight.w800).copyWith(letterSpacing: 4)),
+        ]),
+      ),
+      const SizedBox(height: KioskSpace.xs),
+      Text('$_left초 남았어요', style: _t(KioskType.body, color: KioskColors.muted)),
+      ..._errorLine(),
+      const SizedBox(height: KioskSpace.md),
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        OutlinedButton(
+            onPressed: _busy ? null : () => _decide(false),
+            style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border),
+            child: Text('연결하지 않기', style: _t(KioskType.body, weight: FontWeight.w700))),
+        const SizedBox(width: KioskSpace.md),
+        ElevatedButton(
+            onPressed: _busy ? null : () => _decide(true),
+            style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent),
+            child: Text('이 휴대폰 연결하기',
+                style: _t(KioskType.body, weight: FontWeight.w800, color: KioskColors.onAccent))),
+      ]),
+    ]);
+  }
+
+  List<Widget> _errorLine() => [
+        if (_error != null) ...[
+          const SizedBox(height: KioskSpace.xs),
+          Text(_error!, style: _t(KioskType.body, weight: FontWeight.w700, color: KioskColors.warning)),
+        ],
+      ];
+
+  Widget _newCodeButton() => OutlinedButton(
+      onPressed: _busy ? null : _open,
+      style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border),
+      child: Text('새 코드 받기', style: _t(KioskType.body, weight: FontWeight.w700)));
 }

@@ -122,9 +122,18 @@ class KioskSuggestion {
     this.commands = const [],
     this.routineId,
     this.routineName,
+    this.autoRuleOffer,
+    this.adoptOffer,
   });
 
   final bool isDemo;
+
+  /// '다음부터는 알아서 하기' 내용(서버 `auto_rule_offer`, 2026-10-25 키오스크에도). 없으면 이 카드는 맡길 수 없다 —
+  /// 낮은 위험 LG 가전 동작 하나인 시각 루틴·가열 종료 카드만 서버가 준다. 물리 누름 카드는 늘 묻는다.
+  final KioskAutoRuleOffer? autoRuleOffer;
+
+  /// 습관 카드에서 바로 '매일 이 시간에'(서버 `adopt_offer`, 2026-10-25). 없으면 이 카드는 루틴으로 저장할 초안이 없다.
+  final KioskAdoptOffer? adoptOffer;
 
   /// 사용자 루틴 카드면 그 루틴(2026-09-30). 이름이 있으면 화면은 이 이름을
   /// 사용자가 붙인 말로 함께 보여 준다. 승인은 여전히 카드 id에 묶인다.
@@ -207,6 +216,8 @@ class KioskSuggestion {
         scenarioId: json['scenario_id'] as String?,
         routineId: json['routine_id'] as String?,
         routineName: json['routine_name'] as String?,
+        autoRuleOffer: KioskAutoRuleOffer.fromJson(json['auto_rule_offer']),
+        adoptOffer: KioskAdoptOffer.fromJson(json['adopt_offer']),
         commands: [
           for (final c in (json['commands'] as List<dynamic>?) ?? const [])
             if (c is Map<String, dynamic>) KioskSuggestionCommand.fromJson(c),
@@ -215,6 +226,48 @@ class KioskSuggestion {
 }
 
 /// 시나리오 카드의 확정 명령 하나(서버 `commands[]`).
+/// 습관 카드의 '매일 이 시간에' 내용 — [auto]면 맡기기까지(낮은 위험 LG 가전), 아니면 매일 묻기 루틴(물리 누름).
+class KioskAdoptOffer {
+  const KioskAdoptOffer({required this.candidateKey, required this.askTime, required this.auto, this.evidence});
+
+  final String candidateKey;
+  final String askTime; // "HH:MM"
+  final bool auto;
+  final String? evidence;
+
+  static KioskAdoptOffer? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    final key = json['candidate_key'];
+    final at = json['ask_time'];
+    if (key is! String || at is! String) return null;
+    return KioskAdoptOffer(
+        candidateKey: key, askTime: at, auto: json['auto'] == true, evidence: json['evidence'] as String?);
+  }
+}
+
+/// 카드의 '다음부터는 알아서' 내용 — 조건·동작·단서·지문(허락은 이 지문에 묶인다).
+class KioskAutoRuleOffer {
+  const KioskAutoRuleOffer(
+      {required this.conditionText, required this.actionText, required this.caveat, required this.fingerprint});
+
+  final String conditionText;
+  final String actionText;
+  final String caveat;
+  final String fingerprint;
+
+  static KioskAutoRuleOffer? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    final fingerprint = json['fingerprint'];
+    if (fingerprint is! String || fingerprint.isEmpty) return null;
+    return KioskAutoRuleOffer(
+      conditionText: json['condition_text'] as String? ?? '',
+      actionText: json['action_text'] as String? ?? '',
+      caveat: json['caveat'] as String? ?? '',
+      fingerprint: fingerprint,
+    );
+  }
+}
+
 class KioskSuggestionCommand {
   const KioskSuggestionCommand({
     required this.targetId,
@@ -586,6 +639,21 @@ class KioskJobLookup {
   final bool unsupported;
 }
 
+/// 방 안 사람 감지 판단(GET /presence/room). [sleepScreen]이면 처음 화면을 어둡게 해도 된다.
+class RoomPresenceInfo {
+  const RoomPresenceInfo(
+      {required this.state, required this.sleepScreen, this.arrivedAt, this.greeting, this.cameraEnabled = true});
+  final String state;
+  final bool sleepScreen;
+  final DateTime? arrivedAt;
+
+  /// 돌아왔을 때 건넬 인사 한 줄(서버가 정한다 — 외출 뒤 저녁이면 하루 위로).
+  final String? greeting;
+
+  /// 사용자가 카메라를 끈 동안은 false — 본체가 카메라를 열지 않는다.
+  final bool cameraEnabled;
+}
+
 class NodeInfo {
   const NodeInfo({required this.applianceId, required this.baseUrl});
 
@@ -788,6 +856,43 @@ class KioskApiService {
     _ensureOk(res);
     return KioskJobAccepted.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  /// '이번에 하고 다음부터는 알아서'(approve-and-allow). 이번 실행 번호와 맡기기 저장 결과(실패면 서버 이유)를 돌려준다.
+  Future<(KioskJobAccepted, String?)> approveAndAllowSuggestion(String id, String fingerprint,
+      {String? clientRequestId}) async {
+    final res = await _client
+        .post(_base.replace(path: '/suggestions/$id/approve-and-allow'),
+            headers: _jsonHeaders,
+            body: jsonEncode({
+              'offer_fingerprint': fingerprint,
+              if (clientRequestId != null) 'client_request_id': clientRequestId,
+            }))
+        .timeout(_timeout);
+    _ensureOk(res);
+    final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final allow = body['auto_allow'];
+    final failed = allow is Map<String, dynamic> && allow['ok'] != true
+        ? (allow['reason'] as String? ?? '다음부터 알아서 하기는 저장하지 못했어요')
+        : null;
+    return (KioskJobAccepted.fromJson(body), failed);
+  }
+
+  /// '이번에 하고, 매일 이 시간에'(approve-and-adopt). 이번 실행 번호와, 저장·맡기기가 안 됐으면 서버 이유.
+  Future<(KioskJobAccepted, String?)> approveAndAdoptSuggestion(String id, String candidateKey) async {
+    final res = await _client
+        .post(_base.replace(path: '/suggestions/$id/approve-and-adopt'),
+            headers: _jsonHeaders, body: jsonEncode({'candidate_key': candidateKey}))
+        .timeout(_timeout);
+    _ensureOk(res);
+    final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    String? problem;
+    for (final part in [body['adopt'], body['auto_allow']]) {
+      if (part is Map<String, dynamic> && part['ok'] != true) {
+        problem ??= part['reason'] as String? ?? '루틴으로 저장하지 못했어요';
+      }
+    }
+    return (KioskJobAccepted.fromJson(body), problem);
   }
 
   Future<KioskJobAccepted> approveSuggestion(String id, {String? clientRequestId}) async {
@@ -1251,6 +1356,39 @@ class KioskApiService {
       return res.statusCode == 200;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// GET /presence/room — 방 안 사람 감지(온디바이스 카메라, 2026-10-25). 감지기가 없거나 실패·옛 서버면 null(절전 없음).
+  Future<RoomPresenceInfo?> roomPresence() async {
+    try {
+      final res = await _client.get(_base.replace(path: '/presence/room')).timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      if (body['enabled'] != true) return null;
+      return RoomPresenceInfo(
+        state: body['state'] as String? ?? 'unknown',
+        sleepScreen: body['sleep_screen'] == true,
+        arrivedAt: DateTime.tryParse(body['arrived_at'] as String? ?? ''),
+        greeting: body['greeting'] as String?,
+        cameraEnabled: body['camera_enabled'] != false,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// POST /presence/room/camera — 사람 감지 카메라 켜기·끄기(2026-10-25). 바뀐 판단, 실패면 null.
+  Future<RoomPresenceInfo?> setRoomCamera(bool enabled) async {
+    try {
+      final res = await _client
+          .post(_base.replace(path: '/presence/room/camera'),
+              headers: {'Content-Type': 'application/json'}, body: jsonEncode({'enabled': enabled}))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return roomPresence();
+    } catch (_) {
+      return null;
     }
   }
 

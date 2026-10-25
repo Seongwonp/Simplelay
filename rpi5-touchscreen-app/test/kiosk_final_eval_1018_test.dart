@@ -8,7 +8,7 @@
 // 4. 경보음 화면 — '위급하면 119에 전화하세요'를 크게. 가족 휴대폰에 알렸다고 쓰지 않는다(서버는 보호자 알림함에 기록만
 //    하고 폰이 45초마다 당겨 온다 — 보냈다는 근거가 화면에 없다).
 // 5. 연습 실패 — 위 띠 한 줄(연습 표시는 짧게 '연습'), 주 단추 하나 + 보조 단추 같은 격자.
-// 6. 연결 끊김 — 한 줄 제목(본문보다 큰 글자) + 따로 선 '해결 방법 보기' 단추.
+// 6. 연결 끊김 — 폰 알림 꼴 얇은 알약 하나(10/25 사용자 요청 — 앰버 띠가 너무 컸다): 한 줄 제목 + 같은 알약 안 '해결 방법 보기' 단추.
 // 7. 직접 누르기 — 버튼판이 오른쪽에 큰 빈자리를 남기지 않는다.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -287,7 +287,7 @@ void main() {
     });
   });
 
-  group('6. 연결 끊김 — 한 줄 제목 + 따로 선 해결 방법 단추', () {
+  group('6. 연결 끊김 — 얇은 알림 알약(한 줄 제목 + 해결 방법 단추)', () {
     Widget idle({void Function(ConnectionItem)? onOpen}) => KioskIdleView(
           now: DateTime(2026, 9, 30, 7, 38),
           connected: true,
@@ -301,27 +301,27 @@ void main() {
           onDndGesture: () {},
         );
 
-    testWidgets('제목은 한 줄·본문보다 큰 글자, 해결 방법 보기는 제목 밖의 단추', (tester) async {
+    testWidgets('제목은 한 줄·본문보다 작은 글자, 해결 방법 보기는 알약 안 단추, 높이는 누르는 자리 48', (tester) async {
       ConnectionItem? opened;
       await _pump15(tester, idle(onOpen: (i) => opened = i));
       final cause = find.byKey(const ValueKey('idle-problem-cause'));
       expect(cause, findsOneWidget);
       expect(_plain('누름 장치 연결이 끊겨 가전 2대를 쓸 수 없어요'), findsOneWidget);
       final style = _styleOf(tester, cause);
-      // 시안 B(10/24): 처음 화면 띠는 높이를 고정한 한 줄(아래 칸을 밀어내지 않게) — 제목은 본문보다 큰 글자.
-      expect(style.fontSize, greaterThan(KioskType.body));
+      // 10/25 사용자 요청: 폰 알림처럼 작게 — 제목은 본문보다 작은 굵은 글자, 알약 높이는 누르는 자리 48 그대로.
+      expect(style.fontSize, lessThan(KioskType.body));
+      expect(tester.getSize(find.byKey(const ValueKey('idle-status-chip'))).height, 48.0);
       // 한 줄 — 높이가 글자 두 줄에 못 미친다(캔버스 단위).
       expect(tester.getSize(cause).height, lessThan(style.fontSize! * 2));
       final help = find.byKey(const ValueKey('idle-problem-help'));
       expect(help, findsOneWidget);
       expect(tester.widget(help), isA<ButtonStyleButton>());
       expect(find.descendant(of: help, matching: _plain('해결 방법 보기', contains: true)), findsOneWidget);
-      // 단추는 제목 칩 밖에 따로 선다.
+      // 단추는 같은 알약 안 오른쪽 끝(알림 한 장) — 제목과 겹치지 않는다.
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: help), findsNothing);
-      final chipRect = tester.getRect(chip);
-      final helpRect = tester.getRect(help);
-      expect(chipRect.overlaps(helpRect), isFalse);
+      expect(find.descendant(of: chip, matching: help), findsOneWidget);
+      expect(tester.getRect(cause).overlaps(tester.getRect(help)), isFalse);
+      expect(tester.getSize(help).height, greaterThanOrEqualTo(48));
       await tester.tap(help);
       await tester.pump();
       expect(opened?.id, 'press');

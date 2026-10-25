@@ -290,7 +290,8 @@ class KioskIdleProblemBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final tone = KioskColors.warning;
     if (vertical) return _verticalCard(tone);
-    final titleSize = compact ? KioskType.body + 1 : KioskType.status;
+    if (compact) return _notice(tone);
+    final titleSize = KioskType.status;
     return LayoutBuilder(builder: (context, box) {
     final barHeight = compact ? compactHeight : heightFor(context, also: also, width: box.maxWidth);
     return SizedBox(
@@ -378,6 +379,76 @@ class KioskIdleProblemBar extends StatelessWidget {
       ),
     );
     });
+  }
+
+  /// 처음 화면 알림 꼴(10/25 사용자 요청 — 앰버 띠가 너무 컸다): 폰 위 알림처럼 흰 알약 하나 —
+  /// 앰버 아이콘·본문보다 작은 굵은 제목·오른쪽 끝 '해결 방법 보기 ›'(같은 알약 안 글자 단추). 알약 어디를 눌러도 연결 창.
+  /// 높이는 [compactHeight](누르는 자리 48).
+  Widget _notice(Color tone) {
+    const radius = compactHeight / 2;
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: BorderSide(color: tone, width: 1.5),
+    );
+    return SizedBox(
+      height: compactHeight,
+      child: Semantics(
+        button: true,
+        label: semanticsLabel,
+        excludeSemantics: true,
+        child: Material(
+          key: const ValueKey('idle-status-chip'),
+          color: KioskColors.surface,
+          elevation: 2,
+          shadowColor: KioskColors.ink.withValues(alpha: 0.25),
+          shape: shape,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: shape,
+            child: Padding(
+              padding: const EdgeInsets.only(left: KioskSpace.md, right: KioskSpace.xs),
+              child: Row(children: [
+                Icon(Icons.error_outline, size: 22, color: tone),
+                const SizedBox(width: KioskSpace.xs),
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(title,
+                        key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                            fontSize: KioskType.caption + 1,
+                            height: 1.15,
+                            fontWeight: FontWeight.w700,
+                            color: KioskColors.ink)),
+                  ),
+                ),
+                TextButton(
+                  key: const ValueKey('idle-problem-help'),
+                  onPressed: onTap,
+                  style: TextButton.styleFrom(
+                    foregroundColor: KioskColors.ink,
+                    minimumSize: const Size(48, compactHeight),
+                    padding: const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
+                    shape: shape.copyWith(side: BorderSide.none),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(kProblemHelpShort,
+                        key: const ValueKey('idle-problem-help-text'),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: const TextStyle(fontSize: KioskType.caption + 1, fontWeight: FontWeight.w800)),
+                    Icon(Icons.chevron_right, size: KioskType.caption + 5, color: tone),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   /// 세로 카드 — 앰버 면·테 하나 안에 제목, 묶은 안내(여러 줄), '해결 방법 보기'. 카드 전체를 누르면 연결 창(띠와 같다).

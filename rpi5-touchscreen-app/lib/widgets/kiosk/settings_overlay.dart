@@ -93,6 +93,21 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
     _selected = widget.currentAppliance;
     _urlCtrl = TextEditingController()..addListener(() => setState(() {}));
     _fetchNodes();
+    _fetchCamera();
+  }
+
+  /// 사람 감지 카메라(2026-10-25) — 감지기가 설치된 본체에서만 줄이 보인다(null이면 줄 없음).
+  bool? _camera;
+
+  Future<void> _fetchCamera() async {
+    final room = await widget.api.roomPresence();
+    if (mounted) setState(() => _camera = room?.cameraEnabled);
+  }
+
+  Future<void> _setCamera(bool enabled) async {
+    setState(() => _camera = enabled);
+    final room = await widget.api.setRoomCamera(enabled);
+    if (mounted) setState(() => _camera = room?.cameraEnabled ?? !enabled);
   }
 
   @override
@@ -366,6 +381,18 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
             value: widget.darkModeEnabled,
             onChanged: widget.onDarkModeChanged,
           ),
+          // 카메라 끄기(가이드라인 '전체 제어', 10/25) — 끄면 본체가 카메라를 열지 않는다. 사진은 켜 있을 때도 남기지 않는다.
+          if (_camera case final camera?) ...[
+            const SizedBox(height: 4),
+            _toggleRow(
+              key: const ValueKey('settings-room-camera'),
+              icon: Icons.videocam_outlined,
+              title: '사람 감지 카메라',
+              subtitle: '사람이 있는지만 보고 사진은 남기지 않아요',
+              value: camera,
+              onChanged: _setCamera,
+            ),
+          ],
           const SizedBox(height: 10),
           _buildCountdownRow(),
         ],

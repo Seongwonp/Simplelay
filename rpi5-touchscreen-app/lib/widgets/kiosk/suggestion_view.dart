@@ -46,11 +46,22 @@ class KioskSuggestionView extends StatelessWidget {
     this.startedByUser = false,
     this.muteChecked = false,
     this.onMuteChanged,
+    this.onAllowAuto,
+    this.allowConfirming = false,
+    this.onAllowConfirm,
+    this.onAllowCancel,
   });
 
   /// '이 제안 앞으로 받지 않기' 체크(2026-10-25) — 체크하고 '아니요'면 서버 `reject(mute=true)`. 상태는 화면(kiosk_screen)이
   /// 제안 id에 묶어 쥐고 있어 제안이 바뀌면 풀린다. [onMuteChanged]가 null이면 줄이 없다.
   final bool muteChecked;
+
+  /// '이번에 하고 다음부터는 알아서'(2026-10-25 — 묻기에서 맡기기로 넘어가는 단계). 서버가 맡길 수 있다고 준 카드에서만
+  /// 단추가 보이고, 누르면 조건·동작·단서를 한 번 더 보인 뒤([allowConfirming]) 사람이 확인해야 맡긴다.
+  final VoidCallback? onAllowAuto;
+  final bool allowConfirming;
+  final VoidCallback? onAllowConfirm;
+  final VoidCallback? onAllowCancel;
   final ValueChanged<bool>? onMuteChanged;
 
   /// 체크 줄을 둘 카드인가 — 서버가 스스로 낸 제안만. 내가 연 카드·루틴 카드에는 두지 않는다.
@@ -490,6 +501,23 @@ class KioskSuggestionView extends StatelessWidget {
             ],
           ),
           ),
+          if (canExecute && onAllowAuto != null && (suggestion.autoRuleOffer != null || suggestion.adoptOffer != null)) ...[
+            const SizedBox(height: 10),
+            allowConfirming
+                ? _AllowConfirm(
+                    lines: _handOverLines(suggestion),
+                    okLabel: suggestion.autoRuleOffer != null || suggestion.adoptOffer!.auto ? '이번에 하고 맡기기' : '이번에 하고 저장',
+                    onConfirm: onAllowConfirm,
+                    onCancel: onAllowCancel)
+                : OutlinedButton.icon(
+                    key: const ValueKey('suggestion-allow-auto'),
+                    onPressed: onAllowAuto,
+                    icon: Icon(Icons.auto_mode, color: KioskColors.primary),
+                    style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.primary),
+                    label: Text(_handOverLabel(suggestion),
+                        style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),
+                  ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
@@ -571,6 +599,95 @@ class KioskSuggestionView extends StatelessWidget {
 const kAlwaysShownCaveats = ['조리 완료가 아닐 수 있어요'];
 
 /// 근거 — 두 줄까지 보이고, 넘치면 '근거 전체 보기'(48 이상)로 펼친다. 낭독은 늘 전문이다.
+/// "19:30" → "오후 7시 30분".
+String _spokenHhmm(String hhmm) {
+  final parts = hhmm.split(':');
+  final h = int.tryParse(parts.first) ?? 0;
+  final m = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+  final ampm = h < 12 ? '오전' : '오후';
+  final h12 = h % 12 == 0 ? 12 : h % 12;
+  return m == 0 ? '$ampm $h12시' : '$ampm $h12시 $m분';
+}
+
+/// 맡기기 단추 글 — 시각 루틴 카드는 '다음부터', 습관 카드는 '매일 그 시각에'(알아서 / 물어보기).
+String _handOverLabel(KioskSuggestion s) {
+  if (s.autoRuleOffer != null) return '이번에 하고, 다음부터는 묻지 않고 하기';
+  final adopt = s.adoptOffer!;
+  final when = _spokenHhmm(adopt.askTime);
+  return adopt.auto ? '이번에 하고, 매일 $when에 알아서 하기' : '이번에 하고, 매일 $when에 물어보기';
+}
+
+/// 확인 칸 줄들 — 무엇을·언제·어떻게(묻지 않고 / 물어보고)·근거·끄는 곳.
+List<String> _handOverLines(KioskSuggestion s) {
+  final rule = s.autoRuleOffer;
+  if (rule != null) {
+    return [
+      '${rule.conditionText} ${rule.actionText}. 다음부터는 묻지 않고 하고 결과만 알려 드려요.',
+      if (rule.caveat.isNotEmpty) rule.caveat,
+      '설정의 자동 실행에서 언제든 끌 수 있어요.',
+    ];
+  }
+  final adopt = s.adoptOffer!;
+  final when = _spokenHhmm(adopt.askTime);
+  final evidence = adopt.evidence;
+  return [
+    adopt.auto
+        ? '매일 $when에 묻지 않고 하고 결과만 알려 드려요.'
+        : '매일 $when에 할지 물어볼게요. 누름 장치는 늘 확인을 받아요.',
+    if (evidence != null && evidence.isNotEmpty) evidence,
+    adopt.auto ? '설정의 자동 실행에서 언제든 끌 수 있어요.' : '휴대폰 앱 루틴에서 바꾸거나 지울 수 있어요.',
+  ];
+}
+
+/// 맡기기 확인 — 언제·무엇을·하지 않는 경우를 보이고, 사람이 확인 단추를 눌러야 저장한다(가이드라인 '결과 알리기').
+class _AllowConfirm extends StatelessWidget {
+  const _AllowConfirm({required this.lines, required this.okLabel, this.onConfirm, this.onCancel});
+
+  final List<String> lines;
+  final String okLabel;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const ValueKey('suggestion-allow-confirm'),
+        padding: const EdgeInsets.all(KioskSpace.sm),
+        decoration: BoxDecoration(
+          color: KioskColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: KioskColors.primary, width: 2),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+          for (var i = 0; i < lines.length; i++)
+            KioskText(lines[i],
+                style: i == 0
+                    ? TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.ink)
+                    : TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+          const SizedBox(height: KioskSpace.xs),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                key: const ValueKey('suggestion-allow-cancel'),
+                onPressed: onCancel,
+                style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.muted),
+                child: const Text('취소', style: TextStyle(fontSize: KioskType.body)),
+              ),
+            ),
+            const SizedBox(width: KioskSpace.sm),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton(
+                key: const ValueKey('suggestion-allow-ok'),
+                onPressed: onConfirm,
+                style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent),
+                child: Text(okLabel, style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ]),
+        ]),
+      );
+}
+
 class _WhyText extends StatefulWidget {
   const _WhyText(this.text);
   final String text;
