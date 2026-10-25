@@ -130,12 +130,35 @@ def ignore_pause(candidate, responses, now):
     return until if now < until else None
 
 
+#: 공휴일 표(2026-10-26, 천문연 특일 정보) — ``(date) -> True | False | None``. None(모름)·없음이면 평일 규칙만.
+_holiday_lookup = None
+
+
+def set_holiday_lookup(lookup) -> None:
+    """서버 기동이 공휴일 표를 붙인다(캐시만 읽는 함수여야 한다 — 판정 중 네트워크를 기다리지 않는다). None이면 뗀다."""
+    global _holiday_lookup
+    _holiday_lookup = lookup
+
+
+def is_rest_day(day) -> bool:
+    """토·일 또는 공휴일. 공휴일 표를 못 읽으면(인터넷 없음·모름) 토·일만."""
+    if day.weekday() >= 5:
+        return True
+    lookup = _holiday_lookup
+    if lookup is None:
+        return False
+    try:
+        return lookup(day) is True
+    except Exception:  # noqa: BLE001 -- 공휴일 표 실패는 평일 규칙으로
+        return False
+
+
 def day_matches(kind, day) -> bool:
-    """평일 습관은 월~금, 주말 습관은 토·일만. 모르면(섞임·근거 적음) 모든 날."""
+    """평일 습관은 쉬는 날이 아닌 날(월~금, 공휴일 제외), 주말 습관은 쉬는 날(토·일·공휴일)만. 모르면(섞임·근거 적음) 모든 날."""
     if kind == 'weekday':
-        return day.weekday() < 5
+        return not is_rest_day(day)
     if kind == 'weekend':
-        return day.weekday() >= 5
+        return is_rest_day(day)
     return True
 
 

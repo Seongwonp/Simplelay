@@ -1,0 +1,1 @@
+{"response":{"body":{"totalCount":2,"items":[{"informCode":"PM10","informData":"2026-10-26","dataTime":"2026-10-26 11시 발표","informGrade":"서울 : 보통,경기남부 : 보통,경기북부 : 보통"},{"informCode":"PM10","informData":"2026-10-27","dataTime":"2026-10-26 11시 발표","informGrade":"서울 : 좋음,경기남부 : 보통,경기북부 : 좋음"}],"pageNo":1,"numOfRows":100},"header":{"resultMsg":"NORMAL_CODE","resultCode":"00"}}}

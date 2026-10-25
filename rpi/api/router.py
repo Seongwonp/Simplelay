@@ -153,7 +153,7 @@ from .service import (
 from .job_receipts import CLIENT_REQUEST_ID_PATTERN, ledger_of
 from .readiness_view import readiness_view
 from .stop_lane import resolve_without_shared_pool, run_on_stop_lane
-from .thinq_router import command_payloads, is_habit_card, signal_payloads
+from .thinq_router import command_payloads, is_habit_card, signal_payloads, speech_of
 from .thinq_router import router as thinq_router
 
 log = logging.getLogger(__name__)
@@ -1420,6 +1420,9 @@ async def list_suggestions(
             routine_name=s.routine_name,
             signals=signal_payloads(s),
             can_mark_done=is_habit_card(s),
+            kind=s.kind,
+            question=s.question,
+            speech=speech_of(s),
         )
         for s in pending
     ]
@@ -1499,7 +1502,9 @@ def reject_suggestion(
     except UnknownSuggestionError:
         raise HTTPException(status_code=404, detail="suggestion not found")
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail="'이미 했어요'는 습관 카드에만 쓸 수 있어요") from exc
+        detail = ("'알겠어요'는 조언 카드에만 쓸 수 있어요" if body is not None and body.reason == "acknowledged"
+                  else "'이미 했어요'는 습관 카드에만 쓸 수 있어요")
+        raise HTTPException(status_code=422, detail=detail) from exc
     return OkResponse()
 
 
@@ -1626,6 +1631,10 @@ async def demo_environment(
             steps=list(s.steps),
             reason=s.reason,
             appliance_id=s.appliance_id,
+            signals=signal_payloads(s),
+            kind=s.kind,
+            question=s.question,
+            speech=speech_of(s),
         )
         for s in created
     ]
@@ -1656,7 +1665,16 @@ async def presence(
 
 
 def _greeting_weather_line() -> str | None:
-    """돌아온 사람에게 이어 말할 날씨 한 줄 — 특보 안내가 먼저, 없으면 예보 안내(비·눈·더위·추위). 날씨를 못 받으면 None."""
+    """돌아온 사람에게 이어 말할 날씨 한 줄 — 특보 안내가 먼저, 없으면 예보 안내(비·눈·더위·추위). 낮(9~16시)에 자외선이
+    매우 강하면(지수 8 이상) 자외선 한 문장을 덧붙인다(2026-10-26). 날씨를 못 받으면 None."""
+    from rpi.api.ambient_router import uv_advice_now  # noqa: PLC0415
+
+    line = _greeting_forecast_line()
+    uv = uv_advice_now()
+    return " ".join(part for part in (line, uv) if part) or None
+
+
+def _greeting_forecast_line() -> str | None:
     from datetime import datetime, timezone  # noqa: PLC0415
 
     from rpi.api.ambient_router import get_weather_service  # noqa: PLC0415

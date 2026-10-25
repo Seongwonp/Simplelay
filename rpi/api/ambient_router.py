@@ -96,6 +96,61 @@ def get_weather_service() -> WeatherService:
     return WeatherService(config, store=get_db() if config.mode == "real" else None)
 
 
+class PublicData:
+    """공공데이터포털 추가 서비스 묶음(2026-10-26) — 바깥 미세먼지·공휴일·자외선·해 뜨고 짐. 날씨가 실제 모드이고 키가
+    있을 때만 켜진다. 읽기는 캐시만 보고, 받기는 데몬 스레드가 한다(요청을 막지 않는다)."""
+
+    def __init__(self, config) -> None:
+        from rpi.services.weather.public_data import (  # noqa: PLC0415
+            HolidayCalendar,
+            LivingWeather,
+            OutdoorAirService,
+        )
+
+        self.config = config
+        self.air = OutdoorAirService(config)
+        self.holidays = HolidayCalendar(config)
+        self.living = LivingWeather(config)
+
+
+@lru_cache(maxsize=1)
+def get_public_data() -> PublicData:
+    from rpi.services.weather.public_data import PublicDataConfig  # noqa: PLC0415
+
+    env = _weather_env()
+    return PublicData(PublicDataConfig.from_weather(WeatherConfig.from_env(env), env))
+
+
+def outdoor_air_now() -> dict | None:
+    """바깥 미세먼지(``/ambient``의 ``outdoor_air``) — 캐시만, 실패는 None."""
+    try:
+        return get_public_data().air.snapshot()
+    except Exception:  # noqa: BLE001
+        log.exception("outdoor air unavailable")
+        return None
+
+
+def sun_times_now() -> tuple[str | None, str | None]:
+    try:
+        return get_public_data().living.sun_times()
+    except Exception:  # noqa: BLE001
+        log.exception("sun times unavailable")
+        return None, None
+
+
+def uv_advice_now() -> str | None:
+    try:
+        return get_public_data().living.uv_advice()
+    except Exception:  # noqa: BLE001
+        log.exception("uv index unavailable")
+        return None
+
+
+def holiday_lookup(day) -> bool | None:
+    """습관 평일·주말 판정의 공휴일 표(``rpi.intent.habit_timing.set_holiday_lookup``) — 모르면 None."""
+    return get_public_data().holidays.is_holiday(day)
+
+
 # ── 응답 모델 ────────────────────────────────────────────────────────────────
 
 
@@ -144,6 +199,17 @@ class AmbientWarning(BaseModel):
     advice: str
 
 
+class AmbientOutdoorAir(BaseModel):
+    """바깥 미세먼지(에어코리아, 2026-10-26). 등급은 말('좋음'·'보통'·'나쁨'·'매우 나쁨'), 모르면 null."""
+
+    station: str
+    pm10: int | None = None
+    pm25: int | None = None
+    grade: str | None = None
+    forecast_today: str | None = None
+    forecast_tomorrow: str | None = None
+
+
 class AmbientResponse(BaseModel):
     greeting: str
     tip: AmbientTip | None = None
@@ -157,6 +223,11 @@ class AmbientResponse(BaseModel):
     weather_tip: AmbientTip | None = None
     today: AmbientToday | None = None
     warnings: list[AmbientWarning] = []
+    #: 바깥 미세먼지(2026-10-26, 덧붙인 칸) — 키가 없거나 못 받으면 null.
+    outdoor_air: AmbientOutdoorAir | None = None
+    #: 오늘 해 뜨고 지는 시각 "HH:MM"(천문연, 2026-10-26) — 모르면 null.
+    sunrise: str | None = None
+    sunset: str | None = None
 
 
 class ConnectionItemModel(BaseModel):
@@ -284,9 +355,13 @@ async def ambient(
     # 기상청 호출(최대 timeout초)이 이벤트 루프를 막지 않게 스레드로 넘긴다.
     snapshot = await asyncio.to_thread(weather.snapshot, now)
     warnings = await asyncio.to_thread(weather.warnings, now)
-    return build_ambient(
+    body = build_ambient(
         now, snapshot, _attention(service, registry, alerts, care_events, acks), weather.config, warnings
     )
+    # 공공데이터 추가 칸(2026-10-26) — 캐시만 읽는다(받기는 데몬 스레드).
+    sunrise, sunset = sun_times_now()
+    body.update(outdoor_air=outdoor_air_now(), sunrise=sunrise, sunset=sunset)
+    return body
 
 
 # ── /connections ────────────────────────────────────────────────────────────
@@ -375,6 +450,7 @@ def put_hub_location(body: HubLocationRequest) -> HubLocationResponse:
     location = (round(body.lat, 2), round(body.lon, 2))
     save_hub_location(location)
     get_weather_service.cache_clear()
+    get_public_data.cache_clear()
     nx, ny = latlon_to_grid(*location)
     return HubLocationResponse(source="app", lat=location[0], lon=location[1], nx=nx, ny=ny)
 
@@ -383,4 +459,5 @@ def put_hub_location(body: HubLocationRequest) -> HubLocationResponse:
 def delete_hub_location() -> HubLocationResponse:
     save_hub_location(None)
     get_weather_service.cache_clear()
+    get_public_data.cache_clear()
     return get_hub_location()

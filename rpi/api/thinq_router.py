@@ -362,7 +362,16 @@ def suggestion_payload(s) -> dict:
         "commands": command_payloads(s),
         "signals": signal_payloads(s),
         "can_mark_done": is_habit_card(s),
+        "kind": getattr(s, "kind", "action"),
+        "question": getattr(s, "question", None),
+        "speech": speech_of(s),
     }
+
+
+def speech_of(s) -> str | None:
+    from rpi.intent.suggestions import speech_of as _speech  # noqa: PLC0415
+
+    return _speech(s)
 
 
 def signal_payloads(s) -> list[dict]:

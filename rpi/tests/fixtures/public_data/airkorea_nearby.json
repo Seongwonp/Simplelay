@@ -1,0 +1,1 @@
+{"response":{"body":{"totalCount":3,"items":[{"tm":1.4,"addr":"경기 안양시 동안구 평촌대로 389","stationName":"부림동"},{"tm":2.8,"addr":"경기 안양시 만안구 안양로 70","stationName":"안양6동"},{"tm":3.9,"addr":"경기 군포시 군포로 5","stationName":"당동"}],"pageNo":1,"numOfRows":10},"header":{"resultMsg":"NORMAL_CODE","resultCode":"00"}}}

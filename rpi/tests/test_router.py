@@ -668,14 +668,12 @@ def test_reject_without_mute_does_not_suppress(client):
 # ── /demo/environment (온습도 기반 제안) ──────────────────────────────────
 
 
-def test_demo_environment_creates_aircon_suggestion(client):
+def test_demo_environment_does_not_suggest_an_unregistered_aircon(client):
+    """에어컨이 등록돼 있지 않으면 덥고 습해도 '에어컨 켜줘' 카드를 내지 않는다(2026-10-26 — 예전에는 없는 aircon에 냈다)."""
     created = client.post(
         "/demo/environment", json={"temperature": 30.0, "humidity": 72.0}
     ).json()
-    ac = [s for s in created if s["purpose"] == "에어컨 켜줘"]
-    assert len(ac) == 1
-    assert ac[0]["steps"] == ["전원", "냉방"]
-    assert "더워요" in ac[0]["reason"]
+    assert [s for s in created if s["time_band"] == "환경"] == []
 
 
 def test_demo_environment_reflects_in_sensors(client):

@@ -889,11 +889,42 @@ def _read_environment() -> tuple[float | None, float | None]:
     return get_dht22().read()
 
 
+def environment_targets() -> tuple:
+    """온습도 카드가 고를 수 있는 가전 — 등록돼 있고 **지금 실행할 수 있는** 것만(2026-10-26).
+
+    준비 판정은 가전 목록·``GET /readiness``와 같은 함수(``readiness_view``)다. 못 읽으면 빈 목록(카드 없음).
+    """
+    from rpi.intent.environment import EnvironmentTarget  # noqa: PLC0415
+
+    from .readiness_view import readiness_view  # noqa: PLC0415
+
+    try:
+        service, nodes = get_service(), get_node_registry()
+        out = []
+        for a in get_appliance_registry().list_all():
+            binding = a.thinq
+            names = (tuple(f.purpose for f in binding.functions) if binding is not None
+                     else tuple(name for name, _ in a.functions))
+            try:
+                ready = bool(readiness_view(a, service, nodes)[2])
+            except Exception:  # noqa: BLE001 -- 판정을 못 하면 실행할 수 없는 것으로
+                ready = False
+            out.append(EnvironmentTarget(
+                appliance_id=a.appliance_id, category=a.category.value, functions=names,
+                thinq_device_type=binding.device_type if binding is not None else None,
+                can_execute=ready))
+        return tuple(out)
+    except Exception:  # noqa: BLE001
+        log.exception("environment targets unavailable")
+        return ()
+
+
 def _build_environmental_suggester():
     from rpi.intent.environment import EnvironmentalSuggester  # noqa: PLC0415
 
     return EnvironmentalSuggester(
         lambda: get_dht22().read(), demo_read=get_environment_override().current,
+        targets=environment_targets,
     )
 
 

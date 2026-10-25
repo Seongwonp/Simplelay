@@ -98,7 +98,7 @@ def test_mixed_days_are_asked_any_day():
 def test_habit_card_signals_are_the_facts_used():
     clock, service = build(records([MON, TUE, WED]), at(THU), presence=lambda: True)
     card, = ask(service, clock, at(THU))
-    assert card.signals == (('사람 있음', True), ('평소 오후 8시쯤', True),
+    assert card.signals == (('집에 계심', True), ('평소 오후 8시쯤', True),
                             ('최근 28일 중 3일', True), ('평일 습관', True))
     assert '최근 28일 중 3일' in card.reason and '오후 8시쯤' in card.reason
 
@@ -162,7 +162,7 @@ def test_context_rules_pass_the_signals_they_checked():
     monitor = ContextSuggestionMonitor(lambda: sleep, lambda sid, reason, *, signals=(): offers.append(signals) or 1,
                                        monotonic=lambda: 1000.0)
     assert monitor.check_once().startswith('sleep:offered')
-    assert [label for label, _ in offers[0]] == ['사람 있음', '방이 어두움', '밤 시간', '공기청정기 켜짐']
+    assert [label for label, _ in offers[0]] == ['집에 계심', '불을 끄심', '밤', '공기청정기 켜짐']
     arrival = ContextSignals(local_now=night, presence='present', arrival_at=9_900.0, wall_now=10_000.0,
                              purifier={"operation": {"airPurifierOperationMode": "POWER_OFF"},
                                        "airQualitySensor": {"PM2Level": "BAD", "totalPollutionLevel": "BAD"}},
@@ -171,7 +171,7 @@ def test_context_rules_pass_the_signals_they_checked():
     monitor = ContextSuggestionMonitor(lambda: arrival, lambda sid, reason, *, signals=(): offers.append(signals) or 1,
                                        monotonic=lambda: 1000.0)
     assert 'arrival:offered' in monitor.check_once()
-    assert [label for label, _ in offers[0]] == ['외출 뒤 돌아옴', '실내 공기 나쁨', '황사 특보', '공기청정기 꺼짐']
+    assert [label for label, _ in offers[0]] == ['다녀오심', '실내 공기 나쁨', '황사 특보', '공기청정기 꺼짐']
 
 
 def test_payload_carries_signals_and_mark_done():
@@ -381,7 +381,7 @@ from rpi.tests.test_context_suggestions import _server_monitor, _sleep_signals, 
 def test_api_context_card_carries_signals_and_no_mark_done(api):  # noqa: F811
     assert _server_monitor(_sleep_signals()).check_once().startswith('sleep:offered')
     card, = [s for s in api.get('/suggestions').json() if s.get('scenario_id') == 'context_sleep_mode']
-    assert [s['label'] for s in card['signals']] == ['사람 있음', '방이 어두움', '밤 시간', '공기청정기 켜짐']
+    assert [s['label'] for s in card['signals']] == ['집에 계심', '불을 끄심', '밤', '공기청정기 켜짐']
     assert all(s['ok'] is True for s in card['signals'])
     assert card['can_mark_done'] is False
     res = api.post(f"/suggestions/{card['id']}/reject", json={'reason': 'already_done'})

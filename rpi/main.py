@@ -159,6 +159,10 @@ async def lifespan(app: FastAPI):
     # 환경 제안(2026-10-26) — 사람·밝기·공기청정기·특보를 함께 보고 묻기만 한다. 공기질 판독과 같은 조건의 데몬 스레드.
     from rpi.api.context_suggestion_wiring import start_context_poller, stop_context_poller
     start_context_poller()
+    # 공휴일은 주말처럼(2026-10-26) — 습관 평일·주말 판정에 천문연 공휴일 표(캐시만 읽음, 받기는 데몬 스레드)를 붙인다.
+    from rpi.api.ambient_router import holiday_lookup
+    from rpi.intent.habit_timing import set_holiday_lookup
+    set_holiday_lookup(holiday_lookup)
     # 방 안 사람 감지(온디바이스 카메라, 2026-10-25) — SIMPLELAY_ROOM_PRESENCE_FILE이 있을 때만 전용 데몬 스레드.
     from rpi.api.room_presence_wiring import start_room_presence_poller, stop_room_presence_poller
     start_room_presence_poller()
@@ -177,6 +181,7 @@ async def lifespan(app: FastAPI):
         stop_room_presence_poller()
         stop_room_light_poller()
         stop_lifestyle_summary_scheduler()
+        set_holiday_lookup(None)
         refresh_task.cancel()
         routine_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

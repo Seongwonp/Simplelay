@@ -858,6 +858,13 @@ class SuggestionResponse(BaseModel):
     signals: list[dict] = []
     #: '이미 했어요'를 둘 습관 카드인가(2026-10-26). 참이면 거절 본문에 ``reason: "already_done"``을 보낼 수 있다.
     can_mark_done: bool = False
+    #: ``action``(승인하면 실행) · ``advice``(조언 — 실행 없음, '알겠어요'는 거절 본문 ``reason: "acknowledged"``,
+    #: '괜찮아요'는 본문 없는 거절. 승인은 409). 옛 클라이언트는 이 칸을 모른다(2026-10-26).
+    kind: str = "action"
+    #: 묻는 말("제습기를 켤까요?") — 서버가 알 때만. 없으면 화면이 목적 문장에서 만든다.
+    question: str | None = None
+    #: 소리로 읽을 말 — "<근거 문장> <묻는 말>"(조언은 조언 문장). 서버가 묻는 말을 모르면 null.
+    speech: str | None = None
 
 
 class ApproveResponse(BaseModel):
@@ -1274,7 +1281,8 @@ class RejectSuggestionRequest(BaseModel):
 
     mute: bool = False
     #: ``already_done``(2026-10-26, 선택) — '이미 했어요': 오늘은 이 습관을 다시 묻지 않고, 거절로 세지 않는다. 습관 카드만.
-    reason: Literal["already_done"] | None = None
+    #: ``acknowledged``(2026-10-26) — 조언 카드의 '알겠어요'(닫고 기록만). 조언 카드에만.
+    reason: Literal["already_done", "acknowledged"] | None = None
 
 
 class SuppressionListResponse(BaseModel):

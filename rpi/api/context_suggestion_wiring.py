@@ -1,7 +1,6 @@
 """환경 제안(2026-10-26) — 판정(:mod:`rpi.services.context_suggestions`)에 실제 신호와 시나리오 카드를 붙인다.
 
-- 판정 스레드는 공기질 판독과 같은 조건(``SIMPLELAY_THINQ_MODE``가 off가 아닐 때)에서만 띄운다 — 세 규칙 모두 공기청정기
-  카드라 ThinQ 없이는 물을 일이 없다. 전용 데몬 스레드, 주기 ``SIMPLELAY_CONTEXT_POLL_SECONDS``(기본 30초).
+- 판정 스레드는 ThinQ가 켜져 있거나(공기청정기 규칙 A·B·C) 날씨가 실제 모드일 때(조언 D·E, 2026-10-26)만 띄운다. 전용 데몬 스레드, 주기 ``SIMPLELAY_CONTEXT_POLL_SECONDS``(기본 30초).
 - ThinQ를 따로 부르지 않는다: 공기청정기 상태는 공기질 판독이 마지막으로 읽은 것을 빌린다(나이 제한 있음).
 - 사람 감지·방 밝기는 각 배선의 메모리 판단만 읽는다(꺼져 있으면 None → 그 신호가 필요한 규칙은 묻지 않는다).
 - 기상특보는 날씨 서비스(30분마다 묻고 캐시)를 읽는다 — 이 스레드 안에서만.
@@ -13,6 +12,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from datetime import datetime
@@ -63,6 +63,39 @@ def _dust_warning() -> bool:
         return False
 
 
+def _indoor() -> tuple[float | None, float | None]:
+    from . import deps  # noqa: PLC0415
+
+    try:
+        environmental = deps._build_environmental_suggester()
+        return environmental.reading()
+    except Exception:  # noqa: BLE001 -- 실내 온습도를 못 읽으면 그 신호 없이
+        log.debug("indoor reading unavailable for context rules", exc_info=True)
+        return None, None
+
+
+def _outdoor(now: datetime) -> dict:
+    """바깥 기온·습도·강수(기상청 '지금' 칸)·미세먼지 등급(에어코리아)·해 지는 시각. 모르면 빈 칸."""
+    from rpi.services.weather.ambient import current_slot  # noqa: PLC0415
+    from rpi.services.weather.public_data import sunset_at  # noqa: PLC0415
+
+    from .ambient_router import get_weather_service, outdoor_air_now, sun_times_now  # noqa: PLC0415
+
+    out: dict = {}
+    try:
+        snap = get_weather_service().snapshot(now)
+        slot = current_slot(snap.forecast.slots, now) if snap.usable and snap.forecast is not None else None
+        if slot is not None:
+            out.update(outdoor_temp=slot.tmp, outdoor_humidity=slot.reh, outdoor_pty=slot.pty, outdoor_pop=slot.pop)
+    except Exception:  # noqa: BLE001
+        log.debug("forecast unavailable for context rules", exc_info=True)
+    air = outdoor_air_now()
+    if air is not None:
+        out["outdoor_air"] = air.get("grade")
+    out["sunset"] = sunset_at(sun_times_now(), now)
+    return out
+
+
 def read_signals(purifier_max_age_s: float):
     """지금 신호를 모은다. **판정 스레드에서만** 부른다(특보 조회는 입출력)."""
     from rpi.services.context_suggestions import ContextSignals  # noqa: PLC0415
@@ -71,8 +104,13 @@ def read_signals(purifier_max_age_s: float):
 
     presence, arrival_at = _presence_signals()
     lights_off_at, dark_for_s = _light_signals()
+    local_now = datetime.now().astimezone()
+    indoor_temp, indoor_humidity = _indoor()
     return ContextSignals(
-        local_now=datetime.now().astimezone(),
+        local_now=local_now,
+        indoor_temp=indoor_temp,
+        indoor_humidity=indoor_humidity,
+        **_outdoor(local_now),
         presence=presence,
         arrival_at=arrival_at,
         wall_now=time.time(),
@@ -113,6 +151,13 @@ def offer(scenario_id: str, reason: str, *, signals=()):
     return engine.on_context(scenario_id, reason + (MOCK_SUFFIX if is_demo else ""), is_demo, signals=signals)
 
 
+def advise(*, title: str, text: str, signals=()):
+    """규칙 → 조언 카드(실행 없음). 막혔으면 None(조용한 시간·잠시 쉬기·부재·하루 상한·무시 물러서기)."""
+    from . import deps  # noqa: PLC0415
+
+    return deps.get_suggestion_service().create_advice(title=title, text=text, signals=signals)
+
+
 def get_monitor():
     global _monitor
     from rpi.services.context_suggestions import ContextRuleConfig, ContextSuggestionMonitor  # noqa: PLC0415
@@ -126,7 +171,7 @@ def get_monitor():
             _monitor = ContextSuggestionMonitor(
                 lambda: read_signals(config.purifier_state_max_age_s), offer, blocked=blocked_reason,
                 air_card_recent=air.card_recent, note_power_card=air.note_external_card,
-                config=config)
+                advise=advise, config=config)
         return _monitor
 
 
@@ -139,7 +184,10 @@ def start_context_poller():
 
     from .thinq_wiring import get_thinq_config  # noqa: PLC0415
 
-    if get_thinq_config().mode is ThinqMode.OFF:
+    # 공기청정기 규칙(A·B·C)은 ThinQ가, 조언(D·E)은 실제 날씨가 있어야 물을 일이 있다 — 둘 다 없으면 띄우지 않는다.
+    # (환경 변수만 읽는다 — 날씨 싱글턴은 판정 스레드 안에서 만든다.)
+    weather_real = (os.environ.get("SIMPLELAY_WEATHER_MODE") or "").strip().lower() == "real"
+    if get_thinq_config().mode is ThinqMode.OFF and not weather_real:
         return None
     monitor = get_monitor()
     with _lock:

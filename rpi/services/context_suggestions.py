@@ -22,7 +22,12 @@
 - 켜기 카드(B·C)는 공기질 제안과 **재알림 기억을 함께 쓴다** — 공기질 카드의 쉬는 시간 안이면 묻지 않고, 묻고 나면
   공기질 제안도 쉬는 시간을 지킨다(:meth:`rpi.services.air_quality.AirQualityMonitor.note_external_card`).
 - 값이 없으면 지어내지 않는다: 공기청정기 상태가 오래됐거나(``purifier_state_max_age_s``) 칸이 없으면 그 규칙은 넘어간다.
-- 습도: 제습기·가습기가 없으니 습도로 무엇을 하자고 하지 않는다(근거 문장에도 넣지 않는다 — 공기청정기와 무관).
+- 습도: 공기청정기 카드(A·B·C)의 근거에는 넣지 않는다(공기청정기와 무관). 습도는 아래 조언 D가 쓴다.
+- D ``advice_ventilate`` 환기 조언(2026-10-26, **실행 없음** — '알겠어요'·'괜찮아요'만): 사람이 있고 8~21시, 실내가 습하고
+  바깥이 덜 습하거나 실내가 바깥보다 3도 넘게 따뜻하고, 비가 없고(강수형태 0·강수확률 40% 미만) 황사 특보가 없고 바깥
+  미세먼지(에어코리아)가 좋음·보통이면 창문 열기를 권한다. 하루 한 번.
+- E ``advice_windows_closed``: D와 같은 '창문 열 만한 때'인데 바깥 미세먼지가 나쁨 이상이면 창문을 닫아 두자고 한다. 하루 한 번.
+- 조언도 하루 묻는 상한·무시 물러서기·조용한 시간·잠시 쉬기·부재를 똑같이 따른다(제안 서비스 ``create_advice``).
 - 로그에는 규칙 이름과 결과·신호 이름만 쓴다(사람 이름·영상·기기 ID 없음).
 
 값의 근거: 시간 창 21~02시·2분·6시간은 사용자 지시(2026-10-26). 나머지 기본값은 **추측**이다(측정·사용 뒤 조정 필요) —
@@ -50,6 +55,16 @@ RULE_SLEEP = "context_sleep_mode"
 RULE_ARRIVAL = "context_arrival_air"
 RULE_DUST = "context_dust_air"
 CONTEXT_SCENARIO_IDS = (RULE_SLEEP, RULE_ARRIVAL, RULE_DUST)
+#: 조언 카드(2026-10-26, 실행 없음) — D 환기 권유 · E 바깥 공기가 나쁠 때 창문 닫기.
+ADVICE_VENTILATE = "advice_ventilate"
+ADVICE_WINDOWS_CLOSED = "advice_windows_closed"
+VENTILATE_TITLE = "창문을 열어 환기해 보세요"
+WINDOWS_CLOSED_TITLE = "창문은 닫아 두세요"
+#: 바깥 미세먼지 등급(에어코리아 말) — 환기해도 되는 것·나쁜 것.
+OUTDOOR_OK_GRADES = ("좋음", "보통")
+OUTDOOR_BAD_GRADES = ("나쁨", "매우 나쁨")
+#: 실내 공기가 괜찮다(공기청정기가 매긴 등급).
+INDOOR_FINE_LEVELS = ("GOOD", "NORMAL")
 
 #: 돌아왔을 때 켜기를 물을 실내 공기 등급(가전이 매긴 값 — 우리 임계값 없음, 공기질 제안과 같은 등급 이름).
 #: '보통'부터 넣는다: 나쁨 이상은 공기질 제안도 잡지만, 돌아온 때는 보통이어도 미리 켜 둘지 묻는다(사용자 지시).
@@ -68,6 +83,7 @@ ARRIVAL_AIR_WORDS = {"NORMAL": "보통", "BAD": "나쁨", "VERY_BAD": "매우 �
 DUST_SENTENCE = "황사 특보가 있어요."
 PURIFIER_OFF_SENTENCE = "공기청정기가 꺼져 있어요."
 DUST_REASON = "황사 특보가 났어요. " + PURIFIER_OFF_SENTENCE
+OUTDOOR_BAD_SENTENCE = "바깥 미세먼지도 나빠요."
 
 
 @dataclass(frozen=True)
@@ -89,6 +105,20 @@ class ContextRuleConfig:
     dust_cooldown_s: float = 6 * 3600.0
     #: 공기청정기 상태를 믿는 나이(초) — 공기질 판독 주기 기본 120초의 두 번 + 여유. **추측**.
     purifier_state_max_age_s: float = 300.0
+    # ── 조언(2026-10-26, 표시 없는 값은 **추측** — 사용 뒤 조정) ──
+    #: 조언을 하는 지역 시각(시작 포함·끝 제외). 사용자 지시 8~21시.
+    advice_start_hour: int = 8
+    advice_end_hour: int = 21
+    #: 실내 습도가 이 이상이면 '습하다'(온습도 카드와 같은 70%).
+    vent_humidity_pct: float = 70.0
+    #: 바깥 습도가 실내보다 이만큼 낮아야 '바깥이 덜 습하다'.
+    vent_humidity_gap: float = 10.0
+    #: 실내가 바깥보다 이만큼 따뜻하면 '실내가 바깥보다 덥다'. 사용자 지시 3도.
+    vent_temp_gap: float = 3.0
+    #: 바깥이 이보다 추우면 창문 열기를 권하지 않는다.
+    vent_min_outdoor_c: float = 10.0
+    #: 강수확률이 이 이상이면 권하지 않는다. 사용자 지시 40%.
+    vent_max_pop: float = 40.0
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> ContextRuleConfig:
@@ -149,6 +179,16 @@ class ContextSignals:
     purifier: Mapping | None = None
     #: 우리 지역에 황사 특보가 걸려 있나.
     dust_warning: bool = False
+    #: 실내 온습도(DHT22), 바깥 기온·습도·강수형태·강수확률(기상청 '지금' 칸), 바깥 미세먼지 등급(에어코리아 말 — '보통').
+    indoor_temp: float | None = None
+    indoor_humidity: float | None = None
+    outdoor_temp: float | None = None
+    outdoor_humidity: float | None = None
+    outdoor_pty: int | None = None
+    outdoor_pop: int | None = None
+    outdoor_air: str | None = None
+    #: 오늘 해 지는 시각(지역 시각). 모르면 None.
+    sunset: datetime | None = None
 
 
 def _purifier_power(state) -> str | None:
@@ -188,6 +228,7 @@ class ContextSuggestionMonitor:
         blocked: Callable[[], str | None] = lambda: None,
         air_card_recent: Callable[[], bool] = lambda: False,
         note_power_card: Callable[[], None] = lambda: None,
+        advise: Callable[..., object | None] | None = None,
         monotonic: Callable[[], float] | None = None,
         config: ContextRuleConfig | None = None,
     ) -> None:
@@ -196,6 +237,10 @@ class ContextSuggestionMonitor:
         self._blocked = blocked
         self._air_card_recent = air_card_recent
         self._note_power_card = note_power_card
+        #: ``advise(title=, text=, signals=)`` → 조언 카드(막혔으면 None). None이면 조언 규칙은 쉰다.
+        self._advise = advise
+        #: 조언마다 마지막으로 만든 날(지역 날짜) — 하루 한 번.
+        self._advice_days: dict[str, object] = {}
         self._monotonic = monotonic or time.monotonic
         self.config = config or ContextRuleConfig()
         try:
@@ -219,6 +264,7 @@ class ContextSuggestionMonitor:
             self._arrival_done_for = None
             self._dust_seen = False
             self._dust_pending = False
+            self._advice_days.clear()
 
     def check_once(self) -> str:
         """결과 한 줄 — ``<규칙>:<결과>``를 ``,``로 이은 것, 또는 ``blocked:<이유>``. 카드를 만든 규칙이 있으면 거기서 끝."""
@@ -235,7 +281,8 @@ class ContextSuggestionMonitor:
         if reason:
             return f"blocked:{reason}"
         outcomes = []
-        for name, rule in (("sleep", self._rule_sleep), ("arrival", self._rule_arrival), ("dust", self._rule_dust)):
+        for name, rule in (("sleep", self._rule_sleep), ("arrival", self._rule_arrival), ("dust", self._rule_dust),
+                           ("ventilate", self._rule_ventilate), ("windows", self._rule_windows_closed)):
             result = rule(s)
             outcomes.append(f"{name}:{result}")
             if result in ("offered", "not_offered"):
@@ -283,6 +330,8 @@ class ContextSuggestionMonitor:
             return "absent"
         if not is_night(s.local_now, c.night_start_hour, c.night_end_hour):
             return "not_night"
+        if s.sunset is not None and s.local_now.hour >= 12 and s.local_now < s.sunset:
+            return "before_sunset"  # 해가 아직 있다 — 방이 어두워도 밤으로 보지 않는다(밤 창을 바꿨을 때의 덧막이)
         if s.purifier is None:
             return "no_purifier_state"
         if _purifier_power(s.purifier) != "POWER_ON":
@@ -295,7 +344,7 @@ class ContextSuggestionMonitor:
             return "already_sleep"
         if self._cooling(RULE_SLEEP, c.sleep_cooldown_s):
             return "cooldown"
-        if self._ask(RULE_SLEEP, SLEEP_REASON, ("사람 있음", "방이 어두움", "밤 시간", "공기청정기 켜짐")) is None:
+        if self._ask(RULE_SLEEP, SLEEP_REASON, ("집에 계심", "불을 끄심", "밤", "공기청정기 켜짐")) is None:
             return "not_offered"
         self._sleep_done_for = s.lights_off_at
         self._mark(RULE_SLEEP)
@@ -318,20 +367,25 @@ class ContextSuggestionMonitor:
         summary = air_summary(s.purifier)
         grade = summary["grade"] if summary is not None else None
         air_sentence = ARRIVAL_AIR_SENTENCES.get(grade) if grade in ARRIVAL_AIR_LEVELS else None
-        if air_sentence is None and not s.dust_warning:
+        outdoor_bad = s.outdoor_air in OUTDOOR_BAD_GRADES
+        if air_sentence is None and not s.dust_warning and not outdoor_bad:
             return "air_ok"
         if self._cooling(RULE_ARRIVAL, c.arrival_cooldown_s):
             return "cooldown"
         if self._air_card_recent():
             return "air_card_quiet"
         parts = [ARRIVAL_PREFIX]
-        chips = ["외출 뒤 돌아옴"]
+        chips = ["다녀오심"]
         if air_sentence is not None:
             parts.append(air_sentence)
             chips.append(f"실내 공기 {ARRIVAL_AIR_WORDS[grade]}")
         if s.dust_warning:
             parts.append(DUST_SENTENCE)
             chips.append("황사 특보")
+        if outdoor_bad:
+            parts.append(OUTDOOR_BAD_SENTENCE if air_sentence is not None or s.dust_warning
+                         else "바깥 미세먼지가 나빠요.")
+            chips.append(f"바깥 미세먼지 {s.outdoor_air}")
         parts.append(PURIFIER_OFF_SENTENCE)
         chips.append("공기청정기 꺼짐")
         if self._ask(RULE_ARRIVAL, " ".join(parts), chips) is None:
@@ -361,12 +415,85 @@ class ContextSuggestionMonitor:
             return "cooldown"
         if self._air_card_recent():
             return "air_card_quiet"
-        if self._ask(RULE_DUST, DUST_REASON, ("황사 특보", "사람 있음", "공기청정기 꺼짐")) is None:
+        if self._ask(RULE_DUST, DUST_REASON, ("황사 특보", "집에 계심", "공기청정기 꺼짐")) is None:
             return "not_offered"
         self._dust_pending = False
         self._mark(RULE_DUST)
         self._note_power_card()
         return "offered"
+
+
+    # ── 조언(실행 없음, 2026-10-26) ─────────────────────────────────────────
+    def _window_likely(self, s: ContextSignals):
+        """창문을 열 만한 때인가 — ``(이유 이름, 근거 문장, 칩)``, 아니면 ``(안 되는 이유, None, None)``.
+
+        사람이 집에 있고, 낮(8~21시), 실내가 습하고 바깥이 덜 습하거나 실내가 바깥보다 3도 넘게 따뜻하고, 바깥이 너무 춥지
+        않고, 비·눈이 없고 강수확률이 낮고, 황사 특보가 없을 때. 바깥 미세먼지는 부르는 쪽(D·E)이 따로 본다."""
+        c = self.config
+        if s.presence != PRESENT:
+            return "absent", None, None
+        if not c.advice_start_hour <= s.local_now.hour < c.advice_end_hour:
+            return "not_daytime", None, None
+        if s.outdoor_temp is None or s.outdoor_pty is None or s.outdoor_pop is None:
+            return "no_outdoor", None, None
+        if s.outdoor_pty != 0 or s.outdoor_pop >= c.vent_max_pop:
+            return "rain", None, None
+        if s.dust_warning:
+            return "dust_warning", None, None
+        if s.outdoor_temp < c.vent_min_outdoor_c:
+            return "cold_outside", None, None
+        humid = (s.indoor_humidity is not None and s.indoor_humidity >= c.vent_humidity_pct
+                 and s.outdoor_humidity is not None
+                 and s.outdoor_humidity <= s.indoor_humidity - c.vent_humidity_gap)
+        warm = s.indoor_temp is not None and s.indoor_temp >= s.outdoor_temp + c.vent_temp_gap
+        if humid:
+            return "humid", f"실내 습도가 {s.indoor_humidity:.0f}%로 꽤 습해요.", [f"실내 습도 {s.indoor_humidity:.0f}%"]
+        if warm:
+            return "warm", f"실내가 {s.indoor_temp:.0f}도로 바깥보다 더워요.", [f"실내 {s.indoor_temp:.0f}°C"]
+        return "indoor_ok", None, None
+
+    def _give_advice(self, advice_id: str, title: str, text: str, chips, s: ContextSignals) -> str:
+        if self._advise(title=title, text=text, signals=tuple((label, True) for label in chips)) is None:
+            return "not_offered"
+        self._advice_days[advice_id] = s.local_now.date()
+        return "offered"
+
+    def _rule_ventilate(self, s: ContextSignals) -> str:
+        """D 환기 권유 — 창문을 열 만한 때이고 바깥 미세먼지가 좋음·보통이면(모르면 권하지 않는다). 하루 한 번."""
+        if self._advise is None:
+            return "off"
+        if self._advice_days.get(ADVICE_VENTILATE) == s.local_now.date():
+            return "done"
+        why, first, chips = self._window_likely(s)
+        if first is None:
+            return why
+        if s.outdoor_air not in OUTDOOR_OK_GRADES:
+            return "outdoor_air_unknown" if s.outdoor_air is None else "outdoor_air_bad"
+        if why == "humid" and s.outdoor_temp > 22:
+            second = f"바깥은 습도가 {s.outdoor_humidity:.0f}%로 덜 습하니"
+        else:
+            second = f"바깥은 {s.outdoor_temp:.0f}도로 선선하니"
+        text = f"{first} {second} 잠깐 창문을 열어 환기해 보시는 건 어떨까요?"
+        return self._give_advice(ADVICE_VENTILATE, VENTILATE_TITLE, text,
+                                 ["집에 계심", *chips, f"바깥 {s.outdoor_temp:.0f}°C", f"바깥 미세먼지 {s.outdoor_air}"], s)
+
+    def _rule_windows_closed(self, s: ContextSignals) -> str:
+        """E 창문 닫기 — 창문을 열 만한 때인데 바깥 미세먼지가 나쁘면(드물게, 하루 한 번)."""
+        if self._advise is None:
+            return "off"
+        if s.outdoor_air not in OUTDOOR_BAD_GRADES:
+            return "outdoor_air_ok"
+        if self._advice_days.get(ADVICE_WINDOWS_CLOSED) == s.local_now.date():
+            return "done"
+        why, first, chips = self._window_likely(s)
+        if first is None:
+            return why
+        summary = air_summary(s.purifier) if s.purifier is not None else None
+        indoor_fine = summary is not None and summary.get("grade") in INDOOR_FINE_LEVELS
+        text = ("밖 공기는 나쁜데 집 안은 괜찮아요. 창문은 닫아 두세요." if indoor_fine
+                else "밖 공기가 나빠요. 창문은 닫아 두세요.")
+        return self._give_advice(ADVICE_WINDOWS_CLOSED, WINDOWS_CLOSED_TITLE, text,
+                                 ["집에 계심", f"바깥 미세먼지 {s.outdoor_air}", *chips], s)
 
 
 def has_dust_warning(warnings) -> bool:
@@ -375,6 +502,8 @@ def has_dust_warning(warnings) -> bool:
 
 
 __all__ = [
+    "ADVICE_VENTILATE",
+    "ADVICE_WINDOWS_CLOSED",
     "ARRIVAL_AIR_LEVELS",
     "CONTEXT_SCENARIO_IDS",
     "ContextRuleConfig",

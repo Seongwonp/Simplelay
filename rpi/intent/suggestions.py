@@ -38,14 +38,19 @@ DAILY_ASK_LIMIT_ENV = "SIMPLELAY_DAILY_ASK_LIMIT"
 DEFAULT_DAILY_ASK_LIMIT = 3
 #: 하루 상한에 세는 '먼저 묻는' 카드의 생성 사유 — 습관·온습도·상황(공기질·환경 규칙·가전 끝) 카드.
 #: 사용자가 직접 요청한 카드(``user_request``)·저장한 루틴의 '물어보기'(시간대 ``루틴``)·연습/시연 카드는 세지 않는다.
-PROACTIVE_REASONS = ("habit_pattern", "environment_condition", "scenario_trigger")
+PROACTIVE_REASONS = ("habit_pattern", "environment_condition", "scenario_trigger", "advice_condition")
 #: 카드에 실은 '왜 지금' 신호 칩 최대 개수.
 MAX_SIGNALS = 4
 #: '이미 했어요' 거절 사유(2026-10-26).
 REJECT_ALREADY_DONE = "already_done"
+#: 조언 카드의 '알겠어요'(2026-10-26) — 실행 없이 닫고 기록만. '괜찮아요'는 보통 거절(``dismissed``)이다.
+REJECT_ACKNOWLEDGED = "acknowledged"
+#: 조언 카드(실행 없음)의 종류·시간대 이름.
+KIND_ADVICE = "advice"
+ADVICE_BAND = "조언"
 #: 사람이 답한 것(예·아니요·이미 했어요·쉬기·숨기기) — 무시(답 없이 만료) 연속을 끊는다.
 _ANSWERS = ("dismissed", "snoozed", "approval_requested", "muted", "already_done", "submitted",
-            "execution_returned")
+            "execution_returned", "acknowledged")
 
 
 def daily_ask_limit_from_env(env=None) -> int | None:
@@ -67,7 +72,29 @@ def daily_ask_limit_from_env(env=None) -> int | None:
 def is_habit_card(suggestion: ProactiveSuggestion) -> bool:
     """'이미 했어요'를 둘 습관 카드인가 — 사용 기록에서 나온 카드(시나리오·온습도·시연·직접 요청·바꾼 카드 아님)."""
     return (suggestion.scenario_id is None and suggestion.time_band not in ("데모", "환경")
-            and not suggestion.is_demo and not suggestion.user_started and suggestion.revised_from is None)
+            and suggestion.kind != KIND_ADVICE and not suggestion.is_demo and not suggestion.user_started and suggestion.revised_from is None)
+
+
+def _sentence(text: str) -> str:
+    """끝에 마침표·물음표가 없으면 마침표를 붙인다(소리로 읽을 때 두 문장이 붙지 않게)."""
+    text = (text or "").strip()
+    return text if not text or text[-1] in ".?" else text + "."
+
+
+def speech_of(suggestion: ProactiveSuggestion) -> str | None:
+    """소리로 읽을 말(2026-10-26) — "<근거 문장> <묻는 말>". 조언 카드는 근거(조언) 문장만.
+
+    묻는 말을 서버가 모르면(가전 기능 이름에서 만드는 습관 카드) None — 화면이 근거 문장 + 자기 질문으로 만든다.
+    근거가 이미 묻는 말로 시작하면(습관 카드의 '평소처럼 …할까요?') 근거를 먼저, 묻는 말을 끝에 둔다."""
+    if suggestion.kind == KIND_ADVICE:
+        return _sentence(suggestion.reason) or None
+    question = (suggestion.question or "").strip()
+    if not question:
+        return None
+    reason = (suggestion.reason or "").strip()
+    if reason.startswith(question):
+        reason = reason[len(question):].strip()
+    return " ".join(part for part in (_sentence(reason), question) if part)
 
 
 def signal_tuple(signals) -> tuple:
@@ -118,6 +145,13 @@ class SuggestionTargetUnknownError(RuntimeError):
             "이 제안은 대상 가전을 알 수 없어 실행할 수 없습니다 -- "
             "가전을 등록한 뒤 새 제안을 기다려 주세요"
         )
+
+
+class AdviceNotExecutableError(RuntimeError):
+    """조언 카드는 실행하지 않는다(2026-10-26) — 승인 경로로 오면 409."""
+
+    def __init__(self) -> None:
+        super().__init__("이 카드는 조언이라 실행하지 않아요")
 
 
 class ProactiveSuggestionService:
@@ -424,6 +458,7 @@ class ProactiveSuggestionService:
                     routine_name=routine[1] if routine else None,
                     target_snapshot=self._target_snapshot(candidate.appliance_id, commands),
                     signals=self._habit_signals(candidate),
+                    question=f"평소처럼 '{routine[1]}' 할까요?" if routine else None,
                 )
                 self._next_id += 1
                 self._suggestions[suggestion.suggestion_id] = suggestion
@@ -437,7 +472,7 @@ class ProactiveSuggestionService:
         """습관 카드의 '왜 지금' — 사람 감지(게이트가 켜져 있고 통과했을 때만)·평소 시각·최근 며칠·평일/주말."""
         signals = []
         if self._presence_gate is not None:
-            signals.append(("사람 있음", True))  # 게이트가 막지 않았다(``_context_valid``) — 감지가 꺼져 있으면 말하지 않는다
+            signals.append(("집에 계심", True))  # 게이트가 막지 않았다(``_context_valid``) — 감지가 꺼져 있으면 말하지 않는다
         signals.append((f"평소 {reason_time(candidate)}", True))
         signals.append((f"최근 {candidate.window_days}일 중 {candidate.distinct_days}일", True))
         kind = day_kind(candidate.recent_days)
@@ -494,6 +529,7 @@ class ProactiveSuggestionService:
                 command_summaries=env_summaries,
                 target_snapshot=self._target_snapshot(env.appliance_id, env_commands),
                 signals=signal_tuple(getattr(env, "signals", ())),
+                question=getattr(env, "question", None),
             )
             self._next_id += 1
             self._suggestions[env_suggestion.suggestion_id] = env_suggestion
@@ -582,6 +618,8 @@ class ProactiveSuggestionService:
             raise UnknownSuggestionError(suggestion_id) from exc
         if suggestion.status is not SuggestionStatus.PENDING:
             raise SuggestionAlreadyApprovedError(suggestion_id)
+        if suggestion.kind == KIND_ADVICE:
+            raise AdviceNotExecutableError()
         # 대상 없는 제안은 게이트를 소비하기 전에 거절한다(B10) --
         # 카드는 pending으로 남아 화면이 이유를 보여줄 수 있다.
         if suggestion.appliance_id is None:
@@ -721,10 +759,61 @@ class ProactiveSuggestionService:
                 user_started=user_started,
                 target_snapshot=self._target_snapshot(commands[0].target_id, commands),
                 signals=signal_tuple(signals),
+                # 시나리오 질문은 이미 묻는 말이다("…바꿀까요?"). 묻는 말이 아닌 목적(루틴 이름 등)은 화면이 만든다.
+                question=purpose.strip() if purpose.strip().endswith("?") else None,
             )
             self._next_id += 1
             self._suggestions[suggestion.suggestion_id] = suggestion
             self._record(suggestion, "created", "user_request" if user_started else "scenario_trigger")
+            return suggestion
+
+    def create_advice(self, *, title: str, text: str, signals=(), valid_minutes: int = 30,
+                      is_demo: bool = False) -> ProactiveSuggestion | None:
+        """조언 카드(2026-10-26) — 가전을 움직이지 않는 말 한마디('창문을 열어 환기해 보세요'). **실행 경로가 없다.**
+
+        먼저 묻는 다른 카드와 같은 문을 지난다: 조용한 시간·잠시 쉬기·부재·'다시 받지 않기'면 만들지 않고, 하루 상한
+        (``SIMPLELAY_DAILY_ASK_LIMIT``)에 세며, 연달아 두 날 무시하면 하루 건너뛴다. 같은 조언이 떠 있으면 그것을 돌려준다.
+        ``title``은 카드 제목(짧게), ``text``는 근거와 권유를 함께 담은 문장(소리로도 그대로 읽는다). 막혔으면 None."""
+        title, text = (title or "").strip(), (text or "").strip()
+        if not title or not text:
+            raise ValueError("advice needs a title and a text")
+        if self.is_quiet():
+            return None
+        if self._presence_gate is not None and not self._presence_gate():
+            return None
+        muted = (self._suppression_store.muted()
+                 if self._suppression_store is not None else frozenset())
+        if title in muted:
+            return None
+        with self._state_lock:
+            self._expire_locked()
+            existing = next((s for s in self._suggestions.values()
+                             if s.kind == KIND_ADVICE and s.purpose == title
+                             and s.status is SuggestionStatus.PENDING), None)
+            if existing is not None:
+                return existing
+            key = self._cooldowns.key(title, ADVICE_BAND, None)
+            now = self._clock.now()
+            if self._cooldowns.blocked(key, now):
+                return None
+            if not is_demo and (self._ignore_paused_locked(title, key) or not self._budget_allows_locked(key)):
+                return None
+            suggestion = ProactiveSuggestion(
+                suggestion_id=f"suggestion-{self._id_prefix}-{self._next_id}",
+                purpose=title,
+                time_band=ADVICE_BAND,
+                occurrences=0,
+                created_at=now,
+                reason=text,
+                is_demo=is_demo,
+                appliance_id=None,
+                expires_at=now + timedelta(minutes=valid_minutes),
+                signals=signal_tuple(signals),
+                kind=KIND_ADVICE,
+            )
+            self._next_id += 1
+            self._suggestions[suggestion.suggestion_id] = suggestion
+            self._record(suggestion, "created", "advice_condition")
             return suggestion
 
     def _target_snapshot(self, appliance_id, commands=()) -> tuple:
@@ -824,6 +913,16 @@ class ProactiveSuggestionService:
             ):
                 raise UnknownSuggestionError(suggestion_id)
             purpose = suggestion.purpose
+            if suggestion.kind == KIND_ADVICE or reason == REJECT_ACKNOWLEDGED:
+                # 조언 카드(2026-10-26): '알겠어요'·'괜찮아요' 둘 다 닫고 기록만 — 실행·숨기기 없음.
+                if suggestion.kind != KIND_ADVICE:
+                    raise ValueError("acknowledged is only for advice cards")
+                self._remember_locked(suggestion)
+                self._suggestions.pop(suggestion_id)
+                acknowledged = reason == REJECT_ACKNOWLEDGED
+                self._record(suggestion, "acknowledged" if acknowledged else "dismissed",
+                             "user_acknowledged" if acknowledged else "user_skip")
+                return
             if reason == REJECT_ALREADY_DONE and not mute:
                 # '이미 했어요'(2026-10-26): 오늘은 이 습관을 다 한 것으로 — 오늘 다시 묻지 않고, 거절로 세지 않는다
                 # (연달아 두 번 거절의 잠시 묻지 않음에 넣지 않는다). 습관 카드에만 둔다.
@@ -1180,6 +1279,8 @@ class ProactiveSuggestionService:
         if suggestion.time_band != "데모":
             if self._presence_gate is not None and not self._presence_gate():
                 return "presence_absent"
+            if suggestion.kind == KIND_ADVICE:
+                return None
             if suggestion.time_band == "환경":
                 current = self._current_environment()
                 if current is None:
@@ -1210,7 +1311,8 @@ class ProactiveSuggestionService:
                         self._record(suggestion, "withdrawn", "environment_changed")
                         continue
                     suggestion = replace(suggestion, reason=current.reason,
-                                         signals=signal_tuple(getattr(current, "signals", ())))
+                                         signals=signal_tuple(getattr(current, "signals", ())),
+                                         question=getattr(current, "question", None))
             elif suggestion.expires_at is not None and now >= suggestion.expires_at:
                 # Cleaning up an approved card is not unanswered expiry.
                 continue

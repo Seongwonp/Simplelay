@@ -5,7 +5,7 @@
 
 from datetime import date
 
-from .habit_timing import parse_time
+from .habit_timing import is_rest_day, parse_time
 
 #: 시간대 이름을 말로 읽을 때(‘야간 이맘때’보다 ‘밤 이맘때’가 자연스럽다).
 _BAND_WORDS = {'야간': '밤'}
@@ -27,7 +27,7 @@ def korean_clock(value: str) -> str:
 
 
 def day_kind(days) -> str | None:
-    """쓴 날이 모두 평일이면 'weekday', 모두 주말이면 'weekend', 섞였거나 근거가 적으면(3일 미만) None."""
+    """쓴 날이 모두 평일이면 'weekday', 모두 주말(토·일·공휴일)이면 'weekend', 섞였거나 근거가 적으면(3일 미만) None."""
     parsed = []
     for value in days:
         try:
@@ -36,9 +36,10 @@ def day_kind(days) -> str | None:
             return None
     if len(parsed) < 3:
         return None
-    if all(d.weekday() < 5 for d in parsed):
+    rest = [is_rest_day(d) for d in parsed]  # 공휴일은 주말처럼(2026-10-26)
+    if not any(rest):
         return 'weekday'
-    if all(d.weekday() >= 5 for d in parsed):
+    if all(rest):
         return 'weekend'
     return None
 

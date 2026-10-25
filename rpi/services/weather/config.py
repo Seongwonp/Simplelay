@@ -13,6 +13,9 @@
 | ``SIMPLELAY_WEATHER_COLD_C`` | 이 기온 이하면 추위 안내 | -5 |
 | ``SIMPLELAY_WEATHER_RAIN_POP`` | 강수형태가 없어도 이 강수확률(%) 이상이면 비 안내 | 60 |
 | ``SIMPLELAY_WEATHER_TIP_HOURS`` | 비·더위·추위를 살펴볼 앞으로의 시간 | 12 |
+| ``SIMPLELAY_AIRKOREA_STATION`` | 바깥 미세먼지 측정소 이름(비우면 허브 위치에서 가장 가까운 곳, ``public_data.py``) | 없음 |
+| ``SIMPLELAY_AIRKOREA_REFRESH_MINUTES`` | 바깥 미세먼지를 다시 받는 간격(30~60) | 30 |
+| ``SIMPLELAY_UV_AREA_NO`` | 자외선 지수 지역 코드(비우면 허브 위치에서 가장 가까운 시도) | 없음 |
 | ``SIMPLELAY_WEATHER_WARN_AREAS`` | 기상특보 구역코드(쉼표로 여럿, 앞부분도 됨). 비우면 허브 위치(폰 앱 '현재 위치로 설정' 또는 LAT/LON)로 정한다. 기상특보 조회서비스 활용 신청이 따로 필요 | 없음 → 위치로 |
 """
 

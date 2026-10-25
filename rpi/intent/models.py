@@ -153,3 +153,7 @@ class ProactiveSuggestion:
     habit_start: datetime | None = None
     #: '왜 지금' 신호(2026-10-26) — ``((사람 말 이름, 맞음), …)``, 최대 4개. 카드를 만들 때 실제로 본 신호만(지어내지 않는다).
     signals: tuple = ()
+    #: 화면·소리로 묻는 말(2026-10-26) — "제습기를 켤까요?". None이면 화면이 목적 문장에서 만든다(습관 카드).
+    question: str | None = None
+    #: ``action``(승인하면 실행) · ``advice``(조언 — 실행 없음, '알겠어요'·'괜찮아요'만, 2026-10-26).
+    kind: str = "action"

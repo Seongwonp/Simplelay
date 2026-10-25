@@ -48,7 +48,8 @@ class SuggestionFeedback:
         event = SuggestionEvent(
             uuid4().hex, now.isoformat(), suggestion.suggestion_id,
             "demo" if suggestion.time_band == "데모" or suggestion.is_demo else (
-                "environment" if suggestion.time_band == "환경" else "pattern"),
+                "environment" if suggestion.time_band == "환경" else
+                "advice" if getattr(suggestion, "kind", "action") == "advice" else "pattern"),
             suggestion.purpose, suggestion.time_band, suggestion.reason,
             suggestion.occurrences, suggestion.appliance_id, action, reason,
             job_id, execution_status, suggestion.habit_time,
