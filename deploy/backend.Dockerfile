@@ -40,7 +40,8 @@ RUN pip install --no-cache-dir \
 # libportaudio2: sounddevice가 여는 PortAudio 공유 라이브러리 — RPi4 마이크(종료음·위험 소리, 2026-10-06 평가).
 # 컨테이너는 /dev/snd를 넘겨받아야 마이크를 본다(deploy/run_act.sh의 SIMPLELAY_ACT_DEVICES).
 # espeak-ng: 키오스크 음성 안내 합성(POST /tts, 2026-10-25) — 보드 기본 이미지에 없어 실패널에서 음성이 나오지 않았다.
-RUN apt-get update && apt-get install -y --no-install-recommends socat libportaudio2 espeak-ng \
+# pulseaudio-utils: 본체가 보드 소리 서버로 직접 튼다(POST /tts/play) — 격리된 키오스크 앱은 재생 도구를 쓰지 못한다.
+RUN apt-get update && apt-get install -y --no-install-recommends socat libportaudio2 espeak-ng pulseaudio-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # 코드만 얹는다(리포 전체 아님 — .dockerignore가 나머지를 막는다).

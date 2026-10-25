@@ -6,8 +6,12 @@
 """
 from __future__ import annotations
 
+import os
+import queue
 import shutil
 import subprocess
+import tempfile
+import threading
 
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -55,12 +59,82 @@ def chime_wav(rate: int = 22050) -> bytes:
 _CHIME = None
 
 
-@router.get("/tts/chime")
-def chime() -> Response:
+def _chime_bytes() -> bytes:
     global _CHIME
     if _CHIME is None:
         _CHIME = chime_wav()
-    return Response(content=_CHIME, media_type="audio/wav")
+    return _CHIME
+
+
+@router.get("/tts/chime")
+def chime() -> Response:
+    return Response(content=_chime_bytes(), media_type="audio/wav")
+
+
+class TtsPlayRequest(BaseModel):
+    text: str | None = Field(default=None, max_length=MAX_TTS_CHARS)
+    chime: bool = False
+
+
+_play_queue: "queue.Queue[tuple[bool, str | None]] | None" = None
+_play_lock = threading.Lock()
+#: 쌓인 안내가 이보다 많으면 새 것은 버린다(소리가 한참 밀려 나오지 않게).
+MAX_QUEUED = 4
+
+
+def _play_wav(data: bytes) -> None:
+    if not data or shutil.which("paplay") is None:
+        return
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        f.write(data)
+        path = f.name
+    try:
+        subprocess.run(["paplay", path], capture_output=True, timeout=30)
+    except (subprocess.SubprocessError, OSError):
+        pass
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def _worker(q: "queue.Queue[tuple[bool, str | None]]") -> None:
+    while True:
+        chime_first, text = q.get()
+        try:
+            if chime_first:
+                _play_wav(_chime_bytes())
+            if text and shutil.which("espeak-ng") is not None:
+                out = subprocess.run(espeak_command(text), capture_output=True, timeout=TTS_TIMEOUT_S)
+                if out.returncode == 0:
+                    _play_wav(out.stdout)
+        except Exception:  # noqa: BLE001 - 소리는 보조 — 재생 줄은 죽지 않는다
+            pass
+        finally:
+            q.task_done()
+
+
+def _enqueue(chime_first: bool, text: str | None) -> bool:
+    global _play_queue
+    with _play_lock:
+        if _play_queue is None:
+            _play_queue = queue.Queue()
+            threading.Thread(target=_worker, args=(_play_queue,), daemon=True, name="tts-play").start()
+        if _play_queue.qsize() >= MAX_QUEUED:
+            return False
+        _play_queue.put((chime_first, text))
+        return True
+
+
+@router.post("/tts/play", status_code=202)
+def play(body: TtsPlayRequest) -> dict:
+    """보드 스피커로 튼다(2026-10-25) — 본체 컨테이너가 보드 소리 서버로 직접. 격리된 키오스크 앱은 재생 도구를 쓰지 못했다.
+    알림음과 말은 한 줄로 차례대로라 겹치지 않는다. 바로 돌려주고 재생은 뒤에서."""
+    text = (body.text or "").strip() or None
+    if not body.chime and text is None:
+        raise HTTPException(status_code=422, detail="틀 소리가 없어요")
+    return {"queued": _enqueue(body.chime, text)}
 
 
 @router.post("/tts")

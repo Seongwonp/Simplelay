@@ -98,6 +98,12 @@ for chip in /dev/gpiochip0 /dev/gpiochip4; do
   if [ -e "$chip" ]; then GPIO_ARGS="$GPIO_ARGS --device $chip"; fi
 done
 
+# 키오스크 음성 안내·알림음(2026-10-25) — 보드의 소리 서버 소켓을 넘겨 본체가 직접 튼다(키오스크 앱은 격리돼 재생 도구를 못 쓴다).
+AUDIO_ARGS=
+if [ -S /var/run/pulse/native ]; then
+  AUDIO_ARGS="-v /var/run/pulse/native:/run/pulse-host/native -e PULSE_SERVER=unix:/run/pulse-host/native"
+fi
+
 docker run -d --name simplelay-backend \
   --restart always \
   --security-opt apparmor=unconfined \
@@ -109,6 +115,7 @@ docker run -d --name simplelay-backend \
   ${CARRY:+-e SIMPLELAY_PAUSE_CARRYOVER_UNTIL=$CARRY} \
   $THINQ_ARGS \
   $GPIO_ARGS \
+  $AUDIO_ARGS \
   $TZ_ARGS \
   simplelay-backend
 

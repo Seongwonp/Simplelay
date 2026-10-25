@@ -26,7 +26,7 @@ docker run --name simplelay-build --security-opt apparmor=unconfined \
     # thinqconnect: ThinQ 공식 SDK(2026-10-15) — backend.Dockerfile·pyproject [thinq]와 같은 고정 버전. 없으면
     # SIMPLELAY_THINQ_MODE=real·fake_cloud에서 서버가 기동을 거절한다(꺼짐·mock은 불러오지 않음).
     # libportaudio2: 마이크(sounddevice) — backend.Dockerfile과 같다(2026-10-06 평가)
-    apt-get update && apt-get install -y --no-install-recommends socat libportaudio2 espeak-ng
+    apt-get update && apt-get install -y --no-install-recommends socat libportaudio2 espeak-ng pulseaudio-utils
     rm -rf /var/lib/apt/lists/*
     mkdir -p /app /data
     cp -r /src/rpi /src/rpi4 /app/

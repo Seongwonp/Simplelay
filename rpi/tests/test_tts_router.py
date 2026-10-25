@@ -56,3 +56,16 @@ def test_chime_is_a_short_wav():
     with wave.open(io.BytesIO(res.content)) as w:
         seconds = w.getnframes() / w.getframerate()
     assert 0.3 < seconds < 1.5
+
+
+def test_play_queues_chime_then_speech_in_order(monkeypatch):
+    played = []
+    monkeypatch.setattr(mod, "_play_wav", lambda data: played.append(data[:4]))
+    monkeypatch.setattr(mod.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(mod.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=b"SPEE", stderr=b""))
+    c = _client()
+    assert c.post("/tts/play", json={"chime": True, "text": "즉석밥 데우기, 지금 할까요?"}).status_code == 202
+    mod._play_queue.join()
+    assert played == [b"RIFF", b"SPEE"]  # 알림음(wav) 뒤에 말
+    assert c.post("/tts/play", json={}).status_code == 422
