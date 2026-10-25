@@ -9,6 +9,7 @@ class _PairApi extends KioskApiService {
   int sessionCalls = 0;
   int approvals = 0;
   int closed = 0;
+  bool withQr = false;
   @override
   Future<Map<String, dynamic>> pairingSession({bool create = false}) async {
     sessionCalls++;
@@ -19,6 +20,7 @@ class _PairApi extends KioskApiService {
       'expires_in': expiresIn,
       'request_id': 'abcdef-request',
       'phone': '내 폰',
+      if (withQr) 'qr_png': _onePixelPng,
     };
   }
   @override
@@ -34,7 +36,25 @@ class _PairApi extends KioskApiService {
   }
 }
 
+const _onePixelPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
 void main() {
+  // 10/26 실패널 점검 — QR 옆 할 일 세 줄이 화면 오른쪽 끝에서 잘렸다(바깥 줄이 남은 폭을 모른 채 520폭으로 그렸다).
+  testWidgets('QR 옆 할 일 글은 800x480 화면 안에서 줄을 바꾼다', (tester) async {
+    tester.view.physicalSize = const Size(800, 480);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final api = _PairApi()..withQr = true;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: KioskPairingView(api: api, onClose: () {}))));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final step = find.textContaining('같은 와이파이');
+    expect(step, findsOneWidget);
+    expect(tester.getRect(step).right, lessThanOrEqualTo(800));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('폰 요청을 보고 직접 승인해야 연결해요', (tester) async {
     final api = _PairApi();
     await tester.pumpWidget(MaterialApp(

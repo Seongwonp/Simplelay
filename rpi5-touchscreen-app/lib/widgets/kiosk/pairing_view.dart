@@ -233,7 +233,9 @@ class _KioskPairingViewState extends State<KioskPairingView> {
         ),
         const SizedBox(width: KioskSpace.xl),
       ],
-      ConstrainedBox(
+      // Flexible — QR 옆 남은 폭 안에서 줄을 바꾼다(10/26 실패널 점검: 할 일 글이 화면 오른쪽 끝에서 잘렸다).
+      Flexible(
+          child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           step('1', '휴대폰을 본체와 같은 와이파이에 연결해 주세요.'),
@@ -250,7 +252,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
           const SizedBox(height: KioskSpace.md),
           _newCodeButton(),
         ]),
-      ),
+      )),
     ]);
   }
 

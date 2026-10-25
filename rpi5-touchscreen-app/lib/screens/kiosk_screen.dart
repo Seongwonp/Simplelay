@@ -2638,6 +2638,7 @@ class _KioskScreenState extends State<KioskScreen> {
             builder: (context, suppressed, _) => KioskCanvas(
               dim: _quietDim,
               scrim: _scrimOn,
+              blackout: _roomSleeping,
               child: _buildScaffold(),
             ),
           )),
@@ -2655,7 +2656,9 @@ class _KioskScreenState extends State<KioskScreen> {
             ) : null,
       // 조용한 시간이면 바탕만 어둡게(접근성 감사 10/18) — 캔버스 바탕과 같은 색이라 안쪽 사각형 테두리가 드러나지 않는다.
       // 창이 떠 있으면 바탕도 막과 같은 색 — 맨 위 3px(진행 막대 자리)·캔버스 가장자리가 밝은 선으로 남았다(실패널 10/24).
-      backgroundColor: _scrimOn
+      backgroundColor: _roomSleeping
+          ? KioskRoomSleep.sleepColor
+          : _scrimOn
           ? Color.alphaBlend(Colors.black.withValues(alpha: KioskCanvas.scrimAlpha), _quietDim ? KioskCanvas.quietBg : KioskColors.bg)
           : (_quietDim ? KioskCanvas.quietBg : KioskColors.bg),
       body: Stack(
@@ -2742,7 +2745,8 @@ class _KioskScreenState extends State<KioskScreen> {
                     if (_openConnectionId != null && _phase == KioskPhase.idle)
                       Positioned.fill(child: KioskModalSemantics(label: '연결', child: _buildConnectionModal())),
                     if (_greeting)
-                      Positioned(top: 12, left: 0, right: 0, child: Center(child: KioskWelcomeBack(text: _room?.greeting ?? '어서 오세요'))),
+                      // 메뉴 단추 왼쪽 빈자리 — 가운데에 두면 날짜·온습도를 가렸다(10/26 실패널 점검).
+                      Positioned(top: 16, right: 100, child: KioskWelcomeBack(text: _room?.greeting ?? '어서 오세요')),
                     if (_roomSleeping)
                       Positioned.fill(
                         child: KioskRoomSleep(

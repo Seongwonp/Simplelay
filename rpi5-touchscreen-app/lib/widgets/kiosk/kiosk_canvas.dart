@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/kiosk_colors.dart';
+import 'room_sleep.dart';
 
 /// 키오스크 UI를 **고정 설계 캔버스(800x480)** 위에 그리고, 실제 화면이 그보다 크면
 /// 캔버스를 통째로 비율 유지 확대해 채운다.
@@ -35,7 +36,10 @@ import '../../theme/kiosk_colors.dart';
 /// 바탕을 [quietBg]로 칠하고, 글자 위에 반투명 막을 얹지 않는다(막을 덮으면 날짜·'메뉴'·건너뛰기 글자 대비가 2.5~3:1로
 /// 떨어졌다). 글자 밝기는 처음 화면이 대비 4.5:1 하한을 지키며 낮춘다([kQuietTextOpacity]).
 class KioskCanvas extends StatelessWidget {
-  const KioskCanvas({super.key, required this.child, this.dim = false, this.scrim = false});
+  const KioskCanvas({super.key, required this.child, this.dim = false, this.scrim = false, this.blackout = false});
+
+  /// 자리 비움 화면 쉬기 — 가장자리 여백까지 같은 회색(10/26 실패널: 안쪽만 어둡고 바깥 띠가 밝게 남아 고장처럼 보였다).
+  final bool blackout;
 
   /// 화면 안에 창(메뉴·설정·확인 창)이 떠 있다 — 가장자리 여백 띠도 창의 막과 같이 어둡게 한다(실패널 10/24: 막이 캔버스
   /// 안쪽만 덮어 가장자리 띠가 밝게 남았다). 창들의 막과 같은 짙기([scrimAlpha]).
@@ -78,7 +82,9 @@ class KioskCanvas extends StatelessWidget {
         // 조용한 시간이면 패널 전체 바탕(가장자리 여백까지)을 어둡게 — 글자 위 막이 아니다.
         ColoredBox(
           key: dim ? const ValueKey('kiosk-panel-dim') : null,
-          color: scrim
+          color: blackout
+              ? KioskRoomSleep.sleepColor
+              : scrim
               ? Color.alphaBlend(Colors.black.withValues(alpha: scrimAlpha), dim ? quietBg : KioskColors.bg)
               : (dim ? quietBg : KioskColors.bg),
         ),
