@@ -226,3 +226,14 @@ def test_now_slot_icon_is_current_sky_not_rain_probability():
     assert build_ambient(_at(11, 15), _snap(_forecast_of(slots)), [], CFG)["now"]["icon"] == "cloudy"
     rain = (HourlyForecast(_at(11), tmp=20.0, pop=70, pty=1, sky=4),)
     assert build_ambient(_at(11, 15), _snap(_forecast_of(rain)), [], CFG)["now"]["icon"] == "rain"
+
+
+def test_weather_tip_and_today_range_are_kept_even_when_attention_wins():
+    """날씨 자세히 창(10/25) — 확인할 일이 tip을 차지해도 비 안내와 오늘 최고·최저는 따로 온다."""
+    slots = tuple(HourlyForecast(_at(h), tmp=10 + h, pop=80 if h == 15 else 10, pty=0, sky=1) for h in range(9, 22))
+    forecast = kma.Forecast("kma", _at(8, 20).astimezone(timezone.utc), "202609300800", slots)
+    out = build_ambient(_at(9, 10), _snap(forecast), [AttentionItem("alert", "약 드실 시간이에요")], CFG)
+    assert out["tip"]["kind"] == "alert"
+    assert out["weather_tip"]["kind"] == "rain" and "우산" in out["weather_tip"]["text"]
+    assert out["today"] == {"high": 31, "low": 19}
+    assert build_ambient(_at(9, 10), _snap(), [], CFG)["today"] is None

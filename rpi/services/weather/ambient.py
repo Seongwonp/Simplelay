@@ -202,6 +202,15 @@ def now_slot(
     return {"time": at.isoformat(), "hour": at.hour, "icon": slot.icon(rain_pop=101), "temp": round(slot.tmp)}
 
 
+def today_range(slots: Sequence[HourlyForecast], now: datetime) -> dict | None:
+    """오늘(한국 시각 날짜) 예보 칸의 최고·최저 기온 — 키오스크 날씨 자세히 창(10/25). 받은 예보 안의 값만."""
+    today = now.astimezone(KST).date()
+    temps = [s.tmp for s in slots if s.tmp is not None and s.at.astimezone(KST).date() == today]
+    if not temps:
+        return None
+    return {"high": round(max(temps)), "low": round(min(temps))}
+
+
 def build_ambient(
     now: datetime,
     weather: WeatherSnapshot,
@@ -225,6 +234,9 @@ def build_ambient(
         "tip": tip,
         "hourly": hourly_strip(slots, now, config) if usable else [],
         "now": now_slot(slots, now, config) if usable else None,
+        # 날씨 안내는 확인할 일(attention)에 밀려 tip에 안 실릴 수 있다 — 날씨 자세히 창은 이것을 따로 쓴다(10/25).
+        "weather_tip": weather_tip(slots, now, config) if usable else None,
+        "today": today_range(slots, now) if usable else None,
         "weather_source": weather.source,
         "fetched_at": weather.fetched_at.isoformat() if weather.fetched_at else None,
         "stale": bool(weather.stale),
