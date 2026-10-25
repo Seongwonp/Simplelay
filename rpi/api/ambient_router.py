@@ -129,6 +129,21 @@ class AmbientNow(BaseModel):
     temp: int
 
 
+class AmbientToday(BaseModel):
+    high: int
+    low: int
+
+
+class AmbientWarning(BaseModel):
+    """기상특보 하나(10/25) — 예: kind 강풍 · level 주의보 · title 강풍주의보 · advice 사용자에게 보이는 한 문장."""
+
+    kind: str
+    level: str
+    title: str
+    icon: str
+    advice: str
+
+
 class AmbientResponse(BaseModel):
     greeting: str
     tip: AmbientTip | None = None
@@ -138,6 +153,10 @@ class AmbientResponse(BaseModel):
     weather_source: str
     fetched_at: str | None = None
     stale: bool = False
+    #: 확인할 일에 밀려도 날씨 안내는 따로 — 날씨 자세히 창(10/25)
+    weather_tip: AmbientTip | None = None
+    today: AmbientToday | None = None
+    warnings: list[AmbientWarning] = []
 
 
 class ConnectionItemModel(BaseModel):
@@ -264,7 +283,10 @@ async def ambient(
     now = datetime.now(timezone.utc)
     # 기상청 호출(최대 timeout초)이 이벤트 루프를 막지 않게 스레드로 넘긴다.
     snapshot = await asyncio.to_thread(weather.snapshot, now)
-    return build_ambient(now, snapshot, _attention(service, registry, alerts, care_events, acks), weather.config)
+    warnings = await asyncio.to_thread(weather.warnings, now)
+    return build_ambient(
+        now, snapshot, _attention(service, registry, alerts, care_events, acks), weather.config, warnings
+    )
 
 
 # ── /connections ────────────────────────────────────────────────────────────

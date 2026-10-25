@@ -216,6 +216,7 @@ def build_ambient(
     weather: WeatherSnapshot,
     attention: Sequence[AttentionItem],
     config: WeatherConfig,
+    warnings: Sequence[dict] = (),
 ) -> dict:
     """GET /ambient 본문."""
     now = now.astimezone(KST)
@@ -237,6 +238,8 @@ def build_ambient(
         # 날씨 안내는 확인할 일(attention)에 밀려 tip에 안 실릴 수 있다 — 날씨 자세히 창은 이것을 따로 쓴다(10/25).
         "weather_tip": weather_tip(slots, now, config) if usable else None,
         "today": today_range(slots, now) if usable else None,
+        # 우리 지역에 지금 걸린 기상특보(센 것부터) — 예보가 없어도 특보는 보인다(10/25).
+        "warnings": list(warnings),
         "weather_source": weather.source,
         "fetched_at": weather.fetched_at.isoformat() if weather.fetched_at else None,
         "stale": bool(weather.stale),

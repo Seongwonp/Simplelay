@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
-from . import kma
+from . import kma, warnings
 from .config import WeatherConfig
 
 log = logging.getLogger(__name__)
@@ -50,7 +50,13 @@ class WeatherService:
         store=None,
         clock: Callable[[], datetime] = _utc_now,
         fetch: Callable[..., kma.Forecast] = kma.fetch_forecast,
+        fetch_warnings: Callable[..., list] = warnings.fetch_items,
     ) -> None:
+        self._fetch_warnings = fetch_warnings
+        self._warn_lock = threading.Lock()
+        self._warn_cache: list[dict] = []
+        self._warn_at: datetime | None = None
+        self._warn_attempt: datetime | None = None
         self._config = config
         self._store = store
         self._clock = clock
@@ -154,3 +160,29 @@ class WeatherService:
             self._persist(forecast)
         finally:
             self._refresh_lock.release()
+
+    #: 특보를 다시 묻는 간격·버리는 나이(10/25). 특보 발표는 수시라 예보(3시간)보다 자주 묻는다.
+    WARN_REFRESH = timedelta(minutes=30)
+    WARN_STALE = timedelta(hours=3)
+
+    def warnings(self, now: datetime | None = None) -> list[dict]:
+        """지금 우리 지역에 걸린 기상특보. 실제 모드·키·구역이 있을 때만, 실패하면 빈 목록(예보 안내는 그대로)."""
+        cfg = self._config
+        areas = cfg.warn_areas or warnings.zones_for_location(cfg.lat, cfg.lon)
+        if cfg.mode != "real" or not cfg.service_key or not areas:
+            return []
+        now = now or self._clock()
+        due = self._warn_attempt is None or now - self._warn_attempt >= self.WARN_REFRESH
+        if due and self._warn_lock.acquire(blocking=False):
+            try:
+                self._warn_attempt = now
+                items = self._fetch_warnings(cfg.service_key, now, cfg.timeout_seconds)
+                self._warn_cache = warnings.active_warnings(items, areas)
+                self._warn_at = now
+            except kma.KmaError as exc:
+                log.warning("weather warning fetch failed: kind=%s code=%s", exc.kind, exc.code)
+            finally:
+                self._warn_lock.release()
+        if self._warn_at is None or now - self._warn_at > self.WARN_STALE:
+            return []
+        return list(self._warn_cache)

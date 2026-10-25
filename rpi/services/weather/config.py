@@ -13,6 +13,7 @@
 | ``SIMPLELAY_WEATHER_COLD_C`` | 이 기온 이하면 추위 안내 | -5 |
 | ``SIMPLELAY_WEATHER_RAIN_POP`` | 강수형태가 없어도 이 강수확률(%) 이상이면 비 안내 | 60 |
 | ``SIMPLELAY_WEATHER_TIP_HOURS`` | 비·더위·추위를 살펴볼 앞으로의 시간 | 12 |
+| ``SIMPLELAY_WEATHER_WARN_AREAS`` | 기상특보 구역코드(쉼표로 여럿, 앞부분도 됨). 비우면 허브 위치(폰 앱 '현재 위치로 설정' 또는 LAT/LON)로 정한다. 기상특보 조회서비스 활용 신청이 따로 필요 | 없음 → 위치로 |
 """
 
 from __future__ import annotations
@@ -41,6 +42,10 @@ class WeatherConfig:
     cold_c: float = -5.0
     rain_pop: int = 60
     tip_hours: int = 12
+    #: 기상특보 구역코드(10/25). 비면 [lat]/[lon]으로 정한다(warnings.zones_for_location).
+    warn_areas: tuple[str, ...] = ()
+    lat: float | None = None
+    lon: float | None = None
     #: mode가 real인데 키·격자가 없어 끈 이유(로그·개발자 확인용). 사용자 문구가 아니다.
     disabled_reason: str | None = None
 
@@ -78,6 +83,12 @@ class WeatherConfig:
             mode = "off"
         key = (src.get("SIMPLELAY_KMA_SERVICE_KEY") or "").strip() or None
 
+        lat = lon = None
+        try:
+            lat = float((src.get("SIMPLELAY_WEATHER_LAT") or "").strip())
+            lon = float((src.get("SIMPLELAY_WEATHER_LON") or "").strip())
+        except ValueError:
+            lat = lon = None
         nx, ny = _int("SIMPLELAY_WEATHER_NX"), _int("SIMPLELAY_WEATHER_NY")
         if nx is None or ny is None:
             lat_raw = (src.get("SIMPLELAY_WEATHER_LAT") or "").strip()
@@ -111,6 +122,11 @@ class WeatherConfig:
             cold_c=_float("SIMPLELAY_WEATHER_COLD_C", -5.0),
             rain_pop=int(_float("SIMPLELAY_WEATHER_RAIN_POP", 60)),
             tip_hours=max(3, int(_float("SIMPLELAY_WEATHER_TIP_HOURS", 12))),
+            warn_areas=tuple(
+                p.strip().upper() for p in (src.get("SIMPLELAY_WEATHER_WARN_AREAS") or "").split(",") if p.strip()
+            ),
+            lat=lat,
+            lon=lon,
             disabled_reason=reason,
         )
 
