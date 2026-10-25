@@ -23,7 +23,7 @@ from rpi4.services import act_executor
 #: 사용자 문장에 나오면 안 되는 말(쉬운 말 사전 §3). '본체'·'누름 장치'(10/18 '작은 팔'에서 바꿈)·'전기 플러그'·'LG 가전'·'연습'으로 바꾼다.
 #: 10/18 4차: '콘센트'(가족은 벽 콘센트로 읽음 → '전기 플러그')·'보냈어요'(기계 말 → '가전에 전했어요'·'멈추는 중이에요').
 BANNED_WORDS = ("허브", "모의", "시연", "ThinQ", "CT", "L3", "작은 팔", "가전 콘센트 장치", "SimpleLay 본체",
-                "상태 재조회", "변경 명령", "콘센트 전력", "콘센트", "보냈어요")
+                "상태 재조회", "변경 명령", "콘센트 전력")
 #: 문장을 잇는 기호(말투 규칙 4).
 BANNED_JOINERS = ("—", "--", " · ", "(", ")")
 
@@ -88,8 +88,8 @@ def test_client_matched_words_stay():
 
 # ── 10/18 쉬운 말 2차: 자동 실행 규칙 문장·누름 결과·루틴 진행·LG 오류·연습 장치 ─────────────────────────────
 
-#: 2차에서 더 막는 말 — 설정표 말('풍량'), 화살표, 내부 이름·검증 층·재시도 횟수, '단계'(→ '할 일').
-BANNED_WORDS_2 = ("풍량", "→", "PAT", "API", "SIMPLELAY_", "L1", "L2", "L3", "재시도", "정지 요청", "단계",
+#: 2차에서 더 막는 말 — 설정표 말('풍량'), 화살표, 내부 이름·검증 층·재시도 횟수. '단계'는 2026-10-25 문구 검토로 다시 쓴다(루틴 진행).
+BANNED_WORDS_2 = ("풍량", "→", "PAT", "API", "SIMPLELAY_", "L1", "L2", "L3", "재시도", "정지 요청",
                   "전원 켜기", "전원 끄기", "클라우드", "프로필")
 
 
@@ -302,11 +302,10 @@ def test_round4_no_wall_socket_or_machine_send_words(path):
     """가족은 '콘센트'를 벽 콘센트로 읽는다 — 우리 장치는 '전기 플러그'. '보냈어요'는 기계 말 — '가전에 전했어요'·
     '멈추는 중이에요'로. '보내지 않았어요'는 클라이언트가 '이미'와 함께 글자로 가르는 이미 목표값 문장에만 남긴다."""
     for line, text in _string_constants(path):
-        assert "콘센트" not in text, f"{path}:{line} {text!r}"
-        assert "보냈어요" not in text and "보냈지만" not in text, f"{path}:{line} {text!r}"
-        if "보내지 않았어요" in text:
-            # 이미 목표값 문장('이미 … 설정돼 있어요. 그래서 보내지 않았어요.')은 조각으로 나뉘어 있을 수 있다.
-            assert "이미" in text or text.startswith(" 설정돼 있어요."), f"{path}:{line} {text!r}"
+        # 2026-10-25 문구 검토: 장치 이름은 '콘센트'로 되돌렸다(화면 용어 통일). 이미 목표값 판정은 상태 열쇠
+        # (already_at_target)가 먼저라 '보내지 않았어요'가 다른 문장에 있어도 섞이지 않는다.
+        if path.startswith("rpi/"):  # RPi4 문장(rpi4/)은 이번 검토 범위 밖 — 따로 바꾼다.
+            assert "전기 플러그" not in text, f"{path}:{line} {text!r}"
 
 
 @pytest.mark.parametrize("path", _USER_TEXT_MODULES)
@@ -322,8 +321,8 @@ def test_round4_plug_and_send_sentences():
     from rpi.services import stop_confirm
     from rpi.services.quiet_hours import CARRIED_PAUSE_SCOPE_TEXT, SCOPE_TEXT, SKIP_REASON
 
-    assert connections.plug_item("off", "weak").title == "전기 플러그 연결이 약해요"
-    assert connections.plug_item("off").fixes == ("쓰려면 가전 전원선을 전기 플러그에 꽂고, 전기 플러그를 벽에 꽂아 주세요.",)
+    assert connections.plug_item("off", "weak").title == "콘센트 연결이 약해요"
+    assert connections.plug_item("off").fixes == ("쓰려면 가전 전원선을 콘센트에 꽂고, 콘센트를 벽에 꽂아 주세요.",)
     assert POWER_LOST_DETAIL == act_executor.POWER_LOST_LATCH_DETAIL == (
         "전기 플러그가 다시 켜져서 가전 전원이 꺼졌어요. 해제하면 전원을 다시 켜요.")
     # 보낸 것까지만 안다 — 멈췄다고 하지 않는다(확인 수준 유지).

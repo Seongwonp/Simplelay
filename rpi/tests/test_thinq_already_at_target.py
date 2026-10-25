@@ -198,7 +198,7 @@ def test_cloud_refused_pre_read_does_not_send(error):
     result = ctrl.execute_command(HIGH)
     assert client.controls == []  # 제어 요청 0회
     assert result.receipt is Receipt.NOT_DISPATCHED and result.status is CommandStatus.FAILED
-    assert "그래서 하지 않았어요" in result.detail
+    assert "명령을 보내지 않았어요" in result.detail
 
 
 def test_pre_read_failure_on_remote_gated_washer_still_does_not_send():

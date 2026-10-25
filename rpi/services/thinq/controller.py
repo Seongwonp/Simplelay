@@ -124,7 +124,7 @@ def _with_result(reason: str, result: str) -> str:
 
 #: 가전에 전하지 않았다는 결과 한 줄(10/18 쉬운 말 4차 — '보내지 않았어요'는 이미 목표값일 때만 쓴다. 폰·키오스크가
 #: '이미'+'보내지 않았어요'로 already_at_target 문장을 가른다).
-NOT_SENT_RESULT = "그래서 하지 않았어요."
+NOT_SENT_RESULT = "명령을 보내지 않았어요."
 
 
 def _not_sent(exc: Exception, fallback: str) -> str:
@@ -136,7 +136,7 @@ def _rejected_sentence(exc: Exception) -> str:
     """클라우드 거절 — 이유 한 줄 + 실행되지 않았다는 결과. 코드 번호는 기록에만 남긴다."""
     log.info("thinq command rejected: code=%s", getattr(exc, "code", None))
     reason = _reason(exc, "")
-    return _with_result(reason, "그래서 바뀌지 않았어요.") if reason else "가전이 명령을 받지 않았어요. 바뀌지 않았어요."
+    return _with_result(reason, "바뀌지 않았어요.") if reason else "가전이 명령을 거절해 바뀌지 않았어요."
 
 
 def _josa_eul(word: str) -> str:
@@ -445,7 +445,7 @@ class ThinqController:
                 commit = dispatch_guard(binding)
             except Exception as exc:  # noqa: BLE001 -- 재판정에 걸림: 보내지 않는다
                 return self._result(command, failed, not_sent, none,
-                                    str(exc) or "하기 직전에 다시 확인했더니 할 수 없었어요. 그래서 하지 않았어요.", requested_at)
+                                    str(exc) or "보내기 직전에 다시 확인해 보니 할 수 없는 상태라 보내지 않았어요.", requested_at)
 
         # 4) 이미 목표값(2026-10-14) -- 확인할 속성을 읽을 수 있고 조회 값이 목표와 같으면 보내지 않는다. 정지·재판정을
         #    지난 뒤에만 이 결과를 낸다(아래 잠금 안). 판정 재료(조회 값)는 이미 정해졌다.
@@ -458,7 +458,7 @@ class ThinqController:
         with self._lock:
             if self._cancel:
                 return self._result(command, CommandStatus.STOPPED, not_sent, none,
-                                    "멈추기를 눌러서 하지 않았어요.", requested_at,
+                                    "정지를 눌러서 보내지 않았어요.", requested_at,
                                     stop_requested=True)
             # 같은 바인딩 재확인(검토 10/19): 위 조회를 기다리는 동안 연결이 지워지거나 다른 기기로 바뀌었으면 보내지 않는다.
             # 예전에는 시작 때 잡은 바인딩으로 그대로 보내, 지워진 연결·옛 기기로 갔다. 메모리 조회만이다.
@@ -476,7 +476,7 @@ class ThinqController:
                         commit()
                 except Exception as exc:  # noqa: BLE001 -- 전송권 없음: 보내지 않는다
                     return self._result(command, failed, not_sent, none,
-                                        str(exc) or "하기 직전에 다시 확인했더니 할 수 없었어요. 그래서 하지 않았어요.", requested_at)
+                                        str(exc) or "보내기 직전에 다시 확인해 보니 할 수 없는 상태라 보내지 않았어요.", requested_at)
             if already:
                 return self._result(command, CommandStatus.SUCCEEDED, not_sent, Confirmation.ALREADY_AT_TARGET,
                                     already_sentence(cap.setting_phrase(str(target))),
@@ -510,7 +510,7 @@ class ThinqController:
                 stop = self._stop_during_confirm
             if stop:
                 return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
-                                    "가전에는 이미 전했어요. 멈추기를 눌러서 확인은 그만뒀어요.",
+                                    "가전에는 이미 보냈어요. 정지를 눌러 결과 확인은 하지 않았어요.",
                                     requested_at, accepted_at=accepted_at, provider_ref=ref,
                                     stop_requested=True)
             try:

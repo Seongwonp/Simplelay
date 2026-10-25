@@ -150,7 +150,7 @@ def test_plan_base_and_step_ids_report_their_own_results():
     step2 = api.get(f"/jobs/{record.job_id}-2").json()
     assert step2["step"] == 2 and step2["last_appliance_id"] == "induction"
     assert step2["last_outcome"] == "stopped" and step2["last_receipt"] == "not_dispatched"
-    assert step2["last_detail"] == "멈추기를 눌러서 하지 않았어요."
+    assert step2["last_detail"] == "정지를 눌러서 보내지 않았어요."
 
     assert api.get(f"/jobs/{record.job_id}-3").status_code == 404
     assert api.get(f"/jobs/{record.job_id}-0").status_code == 404

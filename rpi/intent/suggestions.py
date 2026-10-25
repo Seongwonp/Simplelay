@@ -718,7 +718,7 @@ class ProactiveSuggestionService:
             self._remember_locked(old)
             new = replace(old, suggestion_id=uuid4().hex, purpose=purpose,
                           steps=tuple(steps), occurrences=0, revised_from=old.suggestion_id,
-                          reason='이번 요청에서 바꾼 동작이에요. 순서를 확인하고 다시 승인해 주세요.')
+                          reason='내용이 바뀌었어요. 순서를 다시 보고 실행해 주세요.')
             self._suggestions.pop(suggestion_id)
             self._suggestions[new.suggestion_id] = new
             self._record(old, 'revised', 'user_changed_this_request')

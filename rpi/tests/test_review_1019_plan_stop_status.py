@@ -64,7 +64,7 @@ def test_stop_between_steps_is_this_jobs_public_status_and_keeps_dispatched_targ
     payload = status_event_payload(service)
     assert payload["last_outcome"] == "stopped", payload
     assert payload["last_receipt"] == "not_dispatched"
-    assert payload["last_detail"] == "멈추기를 눌러서 하지 않았어요."
+    assert payload["last_detail"] == "정지를 눌러서 보내지 않았어요."
     entries = history.recent()
     assert any(e.status == CommandStatus.STOPPED.value and e.appliance_id == "induction" for e in entries), entries
 
@@ -89,4 +89,4 @@ def test_stop_before_the_first_step_is_dispatched_replaces_the_previous_jobs_sta
     payload = status_event_payload(service)
     assert payload["last_outcome"] == "stopped", payload
     assert payload["last_receipt"] == "not_dispatched"
-    assert command_status_fields(snap)["last_detail"] == "멈추기를 눌러서 하지 않았어요."
+    assert command_status_fields(snap)["last_detail"] == "정지를 눌러서 보내지 않았어요."

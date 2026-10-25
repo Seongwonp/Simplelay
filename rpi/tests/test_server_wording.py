@@ -26,7 +26,7 @@ from rpi4.services.act_executor import (
 
 #: 화면 문장에 남으면 안 되는 옛 말·내부 말.
 OLD_WORDS = re.compile(
-    r"허브|작은 ?팔|콘센트|(?<!전기 )플러그|비상정지가 걸려|보관 위치|실행기|이쪽 센서|구동부|RPi4|좌표|"
+    r"허브|작은 ?팔|콘센트 전력|(?<!전기 )플러그|비상정지가 걸려|보관 위치|실행기|이쪽 센서|구동부|RPi4|좌표|"
     r"정지됨|미확인|다시 연결하기"
 )
 
@@ -63,7 +63,7 @@ def test_user_sentences_use_the_kiosk_glossary(texts):
 
 def test_connection_items_name_the_parts_by_the_glossary():
     # 10/17 쉬운 말 사전: 본체 · 누름 장치(10/18) · 전기 플러그(10/18 — '콘센트'는 벽 콘센트로 읽혀 바꿈).
-    assert plug_item("off", "weak").title == "전기 플러그 연결이 약해요"
+    assert plug_item("off", "weak").title == "콘센트 연결이 약해요"
     assert press_item("uart", "no_reply").title == "누름 장치가 답하지 않아요"
     assert network_item("down").message.startswith("본체가")
     assert "'다시 확인하기'" in network_item("up", "failed").fixes[-1]

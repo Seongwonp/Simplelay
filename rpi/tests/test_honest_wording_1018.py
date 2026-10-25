@@ -40,4 +40,4 @@ def test_practice_plug_item_does_not_say_the_plug_is_connected():
 
 def test_real_items_keep_their_titles():
     assert press_item("uart", "ok").title == "누름 장치가 연결돼 있어요"
-    assert plug_item("off").title == "전기 플러그가 아직 없어요"
+    assert plug_item("off").title == "콘센트가 아직 없어요"

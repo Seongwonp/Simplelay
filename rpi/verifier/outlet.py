@@ -529,15 +529,15 @@ class OutletLink:
         """모듈과 말이 통하지 않으면 사람이 읽을 이유, 아니면 None. RPi4 실행기가 execute 전에 본다."""
         if self._reopening:
             # 10/18 쉬운 말 4차: '콘센트 장치'·괄호·초 숫자 대신 결과 한 줄 + 할 일 한 줄(기한·침묵 초는 로그 몫).
-            return "전기 플러그와 다시 연결하는 중이에요. 선이 꽂혀 있는지 봐 주세요."
+            return "콘센트와 다시 연결하는 중이에요. 선이 꽂혀 있는지 봐 주세요."
         with self._cond:
             last = self._last_rx
         reference = last if last is not None else self.started_at_s
         silence = self._clock() - reference
         if silence > self.config.offline_s:
             if last is None:
-                return "전기 플러그가 아직 한 번도 답하지 않았어요. 선이 꽂혀 있는지 봐 주세요."
-            return "전기 플러그가 답하지 않아요. 선이 꽂혀 있는지 봐 주세요."
+                return "콘센트가 아직 한 번도 응답하지 않았어요. 선이 꽂혀 있는지 봐 주세요."
+            return "콘센트가 응답하지 않아요. 선이 꽂혀 있는지 봐 주세요."
         return None
 
     # ── 명령 ─────────────────────────────────────────────────────────────────

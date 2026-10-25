@@ -1076,7 +1076,7 @@ class AutoRuleEngine:
         # ⑥ 가열 종료 근거 = CT 전력 끝(취소·문 열림 종료도 같게 온다 — 정책상 허용, 문구로 밝힘). 시각 규칙은 허브 시계가 근거.
         if not timed and "power" not in (record.get("inputs") or []):
             return self._record(rule, record, key, "blocked",
-                                "전기 플러그로 가열이 끝난 것을 보지 못해 자동으로 하지 않았어요.")
+                                "콘센트로 가열이 끝난 것을 보지 못해 자동으로 하지 않았어요.")
         # ③ 같은 사건·오래된 사건 — 나이는 이 허브 시계로 옮긴 끝 시각부터 지금까지(링크 지연 포함, 3차 평가 M1).
         # 시각 규칙: 나이 = 정해진 시각보다 늦게 확인한 시간. 늦음·허용 전·재시작 전은 보내지 않고 카드로 묻는다(reoffer).
         age = event_age_s(record, self._monotonic())

@@ -149,10 +149,10 @@ def _press_units(step: "_Step") -> int:
 
 
 #: 비상정지가 걸려 있을 때 ThinQ 명령을 받지·보내지 않는 사유(2026-10-15 검토 H1).
-THINQ_ESTOP_REASON = "비상 버튼이 눌려 있어 하지 않았어요. 버튼을 풀고 해제한 뒤 다시 해 주세요."
+THINQ_ESTOP_REASON = "비상 버튼이 눌려 있어 하지 않았어요. 버튼을 돌려 푼 뒤 화면의 '풀기'를 누르고 다시 해 주세요."
 
 #: 시작 게이트 뒤 ThinQ 연결이 지워지거나 다른 기기로 바뀐 단계를 보내지 않은 사유(검토 10/19).
-THINQ_BINDING_CHANGED = "LG 가전 연결이 바뀌었어요. 그래서 하지 않았어요."
+THINQ_BINDING_CHANGED = "LG 가전 연결이 바뀌었어요. 명령을 보내지 않았어요."
 
 _LEGACY_STATUS = {
     CommandStatus.SUCCEEDED: ExecutionStatus.SUCCEEDED,
@@ -493,8 +493,8 @@ class CommandExecutionMixin:
                     command=command, status=CommandStatus.STOPPED if stop else CommandStatus.FAILED,
                     receipt=Receipt.NOT_DISPATCHED, confirmation=Confirmation.NONE,
                     execution_mode=_thinq_mode(step.controller, command.target_id),
-                    detail=("멈추기를 눌러서 하지 않았어요." if stop
-                            else "앞의 일이 됐는지 확인하지 못해 하지 않았어요."),
+                    detail=("정지를 눌러서 보내지 않았어요." if stop
+                            else "앞 단계 결과를 확인하지 못해 하지 않았어요."),
                     observed_at=self._clock.now(), stop_requested=stop,
                 )
                 results.append(skipped)
@@ -555,7 +555,7 @@ class CommandExecutionMixin:
             if self._thinq_stop_requested():
                 if stop_hit is not None:
                     stop_hit.append(True)
-                raise RuntimeError("멈추기를 눌러서 하지 않았어요.")
+                raise RuntimeError("정지를 눌러서 보내지 않았어요.")
 
         def guard(*args):
             if self._thinq_estop_latched():
@@ -599,7 +599,7 @@ class CommandExecutionMixin:
             try:
                 dispatch_guard()
             except Exception as exc:  # noqa: BLE001 -- 보내기 직전 재검사에 걸림: 보내지 않는다
-                blocked = str(exc) or "하기 직전에 다시 확인했더니 할 수 없었어요. 그래서 하지 않았어요."
+                blocked = str(exc) or "보내기 직전에 다시 확인해 보니 할 수 없는 상태라 보내지 않았어요."
         try:
             if blocked is not None:
                 result = CommandResult(
@@ -624,7 +624,7 @@ class CommandExecutionMixin:
         if stop_hit and result.receipt is Receipt.NOT_DISPATCHED:
             # 보내기 직전 확인이 정지 표시로 막았다 — 실패가 아니라 '멈춤·보내지 않음'(2026-10-19)
             result = replace(result, status=CommandStatus.STOPPED, confirmation=Confirmation.NONE,
-                             detail="멈추기를 눌러서 하지 않았어요.", stop_requested=True)
+                             detail="정지를 눌러서 보내지 않았어요.", stop_requested=True)
         with self._lock:
             stopped_by_user = self._stop_requested_this_run
             stop_requested_at = self._stop_requested_at

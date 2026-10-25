@@ -516,7 +516,7 @@ class RoutineRunner:
                 continue
             if not self._await_idle():
                 self._finish(run, routine, RunStatus.FAILED,
-                             "다른 일이 아직 끝나지 않아 다음 할 일을 멈췄어요.", notify=True)
+                             "다른 일이 아직 끝나지 않아 다음 단계는 시작하지 않았어요.", notify=True)
                 return
             # G3: 기다린 사이에 온 정지 — 다시 본다(기다림 앞의 확인만으로는 그 사이 정지를 놓친다).
             if self._halted(run):
@@ -630,7 +630,7 @@ class RoutineRunner:
             run.is_demo = True
             return True, "연습이라 실제로 끝났는지는 확인하지 않았어요.", "mock", False
         # 확인 수준(``result.confirmation``)은 결과 기록에 남는다 — 문장에는 내지 않는다.
-        return False, "끝났는지 확인하지 못해 다음 할 일을 멈췄어요. 가전을 봐 주세요.", "none", False
+        return False, "끝났는지 확인하지 못해 다음 단계는 시작하지 않았어요. 가전을 봐 주세요.", "none", False
 
     def done_timeout_for(self, appliance_id: str) -> float:
         return self._done_timeouts.get(appliance_id, self._done_timeout)
@@ -652,12 +652,12 @@ class RoutineRunner:
             record = self._done_log.wait_for(appliance_id, run.done_mark, min(remaining, 0.5), run.cancel)
         if record is None:
             return False, (f"시작한 뒤 {timeout / 60:.0f}분이 지나도 끝난 것을 보지 못했어요. "
-                           "다음 할 일을 멈췄으니 가전을 봐 주세요."), "cycle_end", False
+                           "다음 단계는 시작하지 않았어요. 가전을 봐 주세요."), "cycle_end", False
         inputs = record.get("inputs") or []
         source = record.get("source")
         if record.get("state") != "done_confirmed":
-            which = "전기 쓰는 것만 줄었어요." if inputs == ["power"] else "끝나는 소리만 들렸어요."
-            detail = f"{PROBABLE_DETAIL} {which} 다음 할 일을 멈췄으니 가전을 봐 주세요."
+            which = "전기 사용량이 줄어든 것만 확인했어요." if inputs == ["power"] else "끝나는 소리만 들렸어요."
+            detail = f"{PROBABLE_DETAIL} {which} 다음 단계는 시작하지 않았어요. 가전을 봐 주세요."
             if source == "injected":
                 run.is_demo = True
                 detail += INJECTED_NOTE
