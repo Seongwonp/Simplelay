@@ -800,6 +800,53 @@ def _build_presence_gate():
 
 
 @lru_cache(maxsize=1)
+def get_lifestyle_summary_store():
+    """밤 정리 문장 저장 칸(설정 저장소 ``lifestyle_summary``, 2026-10-26). DB가 없으면 메모리만."""
+    from rpi.intent.lifestyle_summary import SETTING_KEY, LifestyleSummaryStore  # noqa: PLC0415
+
+    db = get_db()
+    return LifestyleSummaryStore(load=(lambda: db.load_setting(SETTING_KEY)) if db else None,
+                                 save=(lambda value: db.save_setting(SETTING_KEY, value)) if db else None)
+
+
+_summary_scheduler = None
+
+
+def start_lifestyle_summary_scheduler():
+    """밤 정리 전용 데몬 스레드를 띄운다(기동 때 없거나 24시간 지났으면 한 번, 그 뒤 매일 03:00).
+    여기서는 스레드만 띄운다 — 서비스 생성·DB 읽기·모델 호출은 모두 그 스레드 안에서."""
+    global _summary_scheduler
+    from rpi.intent.lifestyle_summary import SummaryConfig, SummaryScheduler  # noqa: PLC0415
+
+    config = SummaryConfig.from_env()
+    if not config.url:
+        return None  # 모델이 없으면 정해진 문장만 — 화면 요청이 그때 만든다(스레드 없음)
+    if _summary_scheduler is None:
+        _summary_scheduler = SummaryScheduler(
+            status=lambda: get_suggestion_service().learning_status(),
+            store=_LazySummaryStore(), clock=_clock, config=config)
+        _summary_scheduler.start()
+    return _summary_scheduler
+
+
+def stop_lifestyle_summary_scheduler() -> None:
+    global _summary_scheduler
+    if _summary_scheduler is not None:
+        _summary_scheduler.stop()
+        _summary_scheduler = None
+
+
+class _LazySummaryStore:
+    """스레드 안에서 처음 쓸 때 저장 칸을 만든다(기동 중 이벤트 루프에서 DB를 열지 않게)."""
+
+    def get(self):
+        return get_lifestyle_summary_store().get()
+
+    def put(self, value):
+        get_lifestyle_summary_store().put(value)
+
+
+@lru_cache(maxsize=1)
 def get_suppression_store() -> SuppressionStore:
     db = get_db()
     return (

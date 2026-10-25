@@ -159,12 +159,16 @@ async def lifespan(app: FastAPI):
     # 방 안 사람 감지(온디바이스 카메라, 2026-10-25) — SIMPLELAY_ROOM_PRESENCE_FILE이 있을 때만 전용 데몬 스레드.
     from rpi.api.room_presence_wiring import start_room_presence_poller, stop_room_presence_poller
     start_room_presence_poller()
+    # 밤 생활 습관 정리(2026-10-26) — 전용 데몬 스레드(모델 한 번에 수십 초, 요청 경로·공유 풀 밖).
+    from rpi.api.deps import start_lifestyle_summary_scheduler, stop_lifestyle_summary_scheduler
+    start_lifestyle_summary_scheduler()
     try:
         yield
     finally:
         # 표시만 하고 기다리지 않는다 — 판독이 멈춰 있어도 종료가 늦지 않게.
         stop_air_quality_poller()
         stop_room_presence_poller()
+        stop_lifestyle_summary_scheduler()
         refresh_task.cancel()
         routine_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

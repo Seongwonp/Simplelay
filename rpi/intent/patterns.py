@@ -4,6 +4,7 @@ from dataclasses import asdict, replace
 from datetime import datetime, time, timedelta
 from statistics import median
 
+from .habit_words import day_kind, when_text
 from .habit_timing import adaptation, clock_text, clusters, distance, minute, parse_time
 from .models import ExecutionMode, PatternCandidate, PatternConfig, UsageOutcome, UsageSource
 from .ports import Clock, UsageLog
@@ -80,6 +81,10 @@ class PatternDetector:
             entry['recent_days'] = list(candidate.recent_days[-5:])
             entry['paused_until'] = candidate.paused_until.isoformat() if candidate.paused_until else None
             entry['established'] = self._is_established(candidate)
+            # 사람에게 보일 말(10/26 '알게 된 것') — 쓴 날 전체로 평일·주말을 가린다(최근 5일만 보지 않는다).
+            entry['day_kind'] = day_kind(candidate.recent_days)
+            entry['when_text'] = when_text(candidate.usual_time, candidate.confident,
+                                           candidate.time_band, entry['day_kind'])
             routines.append(entry)
         return dict(window_days=self._config.window_days, minimum_days=self._config.minimum_days,
                     minimum_occurrences=self._config.minimum_occurrences, routines=routines)

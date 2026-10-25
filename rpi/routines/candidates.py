@@ -129,6 +129,16 @@ class RoutineCandidates:
         return next((d for d in self.list()
                      if d.get("purpose") == wanted and d.get("appliance_id") == appliance_id), None)
 
+    def habit_routines(self) -> dict[tuple[str, str], object]:
+        """습관(목적·가전) → 이미 저장된 같은 동작 루틴('알게 된 것'의 '자동 실행 중' 표시, 2026-10-26).
+        숨긴 습관도 본다 — 제안을 숨겨도 저장한 루틴은 그대로 돈다는 것을 보여야 한다."""
+        result = {}
+        for draft in self._raw_drafts(include_muted=True).values():
+            routine = self._existing_same(draft)
+            if routine is not None:
+                result.setdefault((draft["purpose"], draft["appliance_id"]), routine)
+        return result
+
     # ── 저장 ──────────────────────────────────────────────────────────────
     def save(self, key: str, body: dict):
         if not isinstance(body, dict):
@@ -182,11 +192,11 @@ class RoutineCandidates:
             return False
         return now >= at + timedelta(days=DECLINE_DAYS)
 
-    def _raw_drafts(self) -> dict[str, dict]:
+    def _raw_drafts(self, include_muted: bool = False) -> dict[str, dict]:
         """판단·중복을 보기 전의 초안들. 같은 가전·버튼 순서는 근거가 가장 강한 시간대 하나로 묶는다."""
         drafts: dict[str, dict] = {}
         for candidate, ask_time in self._detector.established():
-            if candidate.appliance_id is None or self._is_muted(candidate.purpose):
+            if candidate.appliance_id is None or (not include_muted and self._is_muted(candidate.purpose)):
                 continue
             appliance = self._registry.get(candidate.appliance_id) if self._registry is not None else None
             if appliance is None:

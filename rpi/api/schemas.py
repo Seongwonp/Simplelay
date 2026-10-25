@@ -1270,7 +1270,7 @@ class SuppressionListResponse(BaseModel):
 
 
 class UnmuteRequest(BaseModel):
-    """POST /suppressions/unmute 본문 -- 억제 해제할 루틴."""
+    """POST /suppressions/unmute·/suppressions/mute 본문 -- 억제 해제(또는 억제)할 루틴."""
 
     purpose: str
 
@@ -1317,6 +1317,22 @@ class LearningRoutineResponse(BaseModel):
     established: bool
     muted: bool
     recent_days: list[str] = []  # 실제로 쓴 날(ISO 날짜, 최근 5일) — 화면이 '왜 습관인지' 근거로 보인다
+    # ── '알게 된 것'(2026-10-26) — 모두 선택 필드(옛 화면은 무시한다) ──
+    usual_time: str | None = None  # 평소 시각 "HH:MM"
+    confident: bool = True  # 시각이 모여 있나(아니면 화면은 정확한 시각 대신 '저녁 이맘때')
+    paused_until: str | None = None  # 연달아 거절해 묻기를 쉬는 끝 시각(ISO), 아니면 null
+    day_kind: str | None = None  # weekday · weekend · null(섞임·근거 적음)
+    when_text: str | None = None  # 사람에게 보일 때 — '평일 오후 10시쯤' / '저녁 이맘때'
+    state: str | None = None  # auto · hidden · paused · asking · learning
+    routine_name: str | None = None  # state=auto일 때 그 루틴 이름
+
+
+class LifestyleSummaryResponse(BaseModel):
+    """밤마다 만드는 생활 습관 정리(2026-10-26). source=llm은 본체 안 언어 모델, template은 정해진 문장."""
+
+    text: str
+    generated_at: str
+    source: str
 
 
 class LearningStatusResponse(BaseModel):
@@ -1325,6 +1341,7 @@ class LearningStatusResponse(BaseModel):
     minimum_occurrences: int
     paused: bool
     routines: list[LearningRoutineResponse]
+    summary: LifestyleSummaryResponse | None = None
 
 
 class SuggestionEventResponse(BaseModel):

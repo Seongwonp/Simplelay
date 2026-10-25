@@ -60,3 +60,18 @@ def test_changed_draft_runs_and_saves_nothing(api, clock, hub, submits):
     assert res.status_code == 409
     assert submits == []
     assert api.get("/routines/auto-rules").json() == []
+
+
+def test_learning_view_marks_the_adopted_habit_as_auto_even_when_hidden(api, clock, hub, submits):
+    """'알게 된 것'(2026-10-26) — 맡긴 습관은 '자동 실행 중'과 루틴 이름. 제안을 숨겨도 루틴은 돌기에 그대로 보인다."""
+    card = _habit_card(api, clock, hub)
+    before = api.get("/learning").json()["routines"]
+    assert [r["state"] for r in before] == ["asking"]
+    body = api.post(f"/suggestions/{card['id']}/approve-and-adopt",
+                    json={"candidate_key": card["adopt_offer"]["candidate_key"]}).json()
+    name = api.get(f"/routines/{body['routine_id']}").json()["name"]
+    (habit,) = api.get("/learning").json()["routines"]
+    assert (habit["state"], habit["routine_name"]) == ("auto", name)
+    assert api.post("/suppressions/mute", json={"purpose": habit["purpose"]}).status_code == 200
+    (habit,) = api.get("/learning").json()["routines"]
+    assert (habit["state"], habit["muted"]) == ("auto", True)

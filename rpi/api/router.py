@@ -74,6 +74,7 @@ from .deps import (
     get_dht22,
     get_environment_override,
     get_job_history,
+    get_lifestyle_summary_store,
     get_node_registry,
     get_presence_store,
     get_service,
@@ -138,6 +139,7 @@ from .schemas import (
     EstopAckResponse,
     SuggestionResponse,
     LearningStatusResponse,
+    LifestyleSummaryResponse,
     SuggestionEventsResponse,
     SuppressionListResponse,
     UnmuteRequest,
@@ -1337,8 +1339,59 @@ async def suggestion_events(
 @router.get("/learning", response_model=LearningStatusResponse)
 async def learning_status(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+    summary_store=Depends(get_lifestyle_summary_store),
+    clock=Depends(get_clock),
 ) -> dict:
-    return await asyncio.to_thread(svc.learning_status)
+    # '알게 된 것'(2026-10-26) — 습관별 상태와 밤 정리 문장을 함께. 모델은 부르지 않는다(저장된 문장만 읽는다).
+    return await asyncio.to_thread(_learning_view, svc, summary_store, clock)
+
+
+@router.get("/learning/summary", response_model=LifestyleSummaryResponse)
+async def learning_summary(
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+    summary_store=Depends(get_lifestyle_summary_store),
+    clock=Depends(get_clock),
+) -> dict:
+    """밤 정리 문장만. 요청 경로에서 모델을 부르지 않는다 — 없으면 지금 근거로 만든 정해진 문장."""
+    view = await asyncio.to_thread(_learning_view, svc, summary_store, clock)
+    return view["summary"]
+
+
+def _learning_view(svc, summary_store, clock) -> dict:
+    from rpi.intent.habit_words import habit_state  # noqa: PLC0415
+    from rpi.intent.lifestyle_summary import current_summary  # noqa: PLC0415
+
+    status = svc.learning_status()
+    autos = _habit_auto_routines(status["routines"])
+    for routine in status["routines"]:
+        name = autos.get((routine["purpose"], routine.get("appliance_id")))
+        routine["state"] = habit_state(routine, auto_routine=name is not None)
+        routine["routine_name"] = name
+    try:
+        stored = summary_store.get() if summary_store is not None else None
+    except Exception:  # noqa: BLE001 -- 못 읽으면 정해진 문장
+        log.exception("lifestyle summary read failed")
+        stored = None
+    status["summary"] = current_summary(stored, status, clock.now())
+    return status
+
+
+def _habit_auto_routines(routines) -> dict[tuple[str, str], str]:
+    """습관(목적·가전) → 카드 없이 자동 실행되는 저장 루틴 이름. 실패는 빈 결과(목록은 그대로)."""
+    if not any(r.get("established") and r.get("appliance_id") for r in routines):
+        return {}
+    try:
+        from rpi.routines.wiring import get_auto_rule_engine, get_routine_candidates  # noqa: PLC0415
+
+        linked = get_routine_candidates().habit_routines()
+        if not linked:
+            return {}
+        engine = get_auto_rule_engine()
+        return {key: routine.name for key, routine in linked.items()
+                if routine.enabled and routine.trigger.kind == "time" and engine.time_rule_on(routine.routine_id)}
+    except Exception:  # noqa: BLE001
+        log.exception("habit routine lookup failed")
+        return {}
 
 
 @router.get("/suggestions", response_model=list[SuggestionResponse])
@@ -1491,6 +1544,21 @@ def list_suppressions(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> SuppressionListResponse:
     return SuppressionListResponse(purposes=list(svc.muted_purposes()))
+
+
+@router.post("/suppressions/mute", response_model=OkResponse)
+def mute_suppression(
+    body: UnmuteRequest,
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> OkResponse:
+    """'알게 된 것'에서 이 습관 숨기기(2026-10-26) — 카드의 '다시 받지 않기'와 같다. 저장한 루틴은 건드리지 않는다."""
+    if not body.purpose.strip():
+        raise HTTPException(status_code=422, detail="숨길 습관이 비어 있어요")
+    try:
+        svc.mute(body.purpose)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="지금은 숨길 수 없어요. 잠시 뒤 다시 해 주세요.") from exc
+    return OkResponse()
 
 
 @router.post("/suppressions/unmute", response_model=OkResponse)

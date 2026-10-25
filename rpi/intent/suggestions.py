@@ -776,6 +776,12 @@ class ProactiveSuggestionService:
         # 옛 질문 문장은 지금 문장으로 보인다(10/18 쉬운 말 3차). 같은 제안이 두 줄로 보이지 않게 한 번만.
         return tuple(sorted({_current(m) for m in self._suppression_store.muted()}))
 
+    def mute(self, purpose: str) -> None:
+        """이 습관을 다시 제안하지 않는다('알게 된 것'에서 숨기기, 2026-10-26). 카드의 '다시 받지 않기'와 같은 저장소."""
+        if self._suppression_store is None:
+            raise RuntimeError('suppression store unavailable')
+        self._suppression_store.mute(_current(purpose))
+
     def unmute(self, purpose: str) -> None:
         """억제 해제 -- 다시 제안 대상이 된다. 같은 제안의 옛 질문 문장 기록도 함께 푼다."""
         if self._suppression_store is not None:
