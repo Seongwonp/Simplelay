@@ -1358,7 +1358,9 @@ class RpiApiService {
         .get(_base.replace(path: '/learning'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
-    return LearningStatus.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+    // FastAPI는 charset 없이 JSON을 보낸다 — 한글(습관 이름·정리 문장)은 바이트를 UTF-8로 직접 푼다.
+    return LearningStatus.fromJson(
+        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
   }
 
   Future<List<RpiSuggestion>> suggestions() async {
@@ -1470,6 +1472,18 @@ class RpiApiService {
     _checkStatus(res);
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     return (data['purposes'] as List).cast<String>();
+  }
+
+  // POST /suppressions/mute -- '알게 된 것'에서 습관 숨기기(카드의 '다시 받지 않기'와 같은 저장소)
+  Future<void> muteSuppression(String purpose) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/suppressions/mute'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'purpose': purpose}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
   }
 
   // POST /suppressions/unmute -- 억제 해제

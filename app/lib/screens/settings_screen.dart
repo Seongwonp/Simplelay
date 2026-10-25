@@ -289,6 +289,8 @@ class SettingsScreen extends ConsumerWidget {
               showDialog<void>(context: context, builder: (_) => LearningStatusDialog(
                 load: api?.learningStatus,
                 applianceNames: {for (final a in appliances) a.id: a.name},
+                onHide: api?.muteSuppression,
+                onUnhide: api?.unmuteSuppression,
               ));
             },
           ),
