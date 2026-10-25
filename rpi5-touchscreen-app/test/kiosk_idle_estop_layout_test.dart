@@ -163,8 +163,8 @@ void main() {
     double size(Finder f) => tester.widget<Text>(f).style!.fontSize!;
     final clock = size(find.text('11:41'));
     final tip = size(find.text(_tipText));
-    // 시안 B(10/24): 오른쪽 줄 머리말('바깥 날씨')이 가장 작은 글자.
-    final label = size(find.text('바깥 날씨'));
+    // 시안 B(10/24): 오른쪽 줄 머리말이 가장 작은 글자. 날씨 줄은 머리말이 없어(10/25) 안내 줄 머리말('알림')로 잰다.
+    final label = size(find.text('알림'));
     final appliance = size(find.text('세탁기'));
     expect(clock, greaterThan(tip));
     expect(tip, greaterThan(label));

@@ -133,11 +133,11 @@ void main() {
     expect(label.style!.color!.a, greaterThanOrEqualTo(0.7));
   });
 
-  testWidgets("제안 주 단추는 '지금 하기'(폰과 같은 말)", (tester) async {
+  testWidgets("제안 주 단추는 '네'(폰과 같은 말)", (tester) async {
     await _pump(tester, _suggestion());
     expect(
         find.descendant(
-            of: find.byKey(const ValueKey('suggestion-approve')), matching: find.text('지금 하기')),
+            of: find.byKey(const ValueKey('suggestion-approve')), matching: find.text('네')),
         findsOneWidget);
   });
 }

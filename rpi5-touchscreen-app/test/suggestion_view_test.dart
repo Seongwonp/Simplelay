@@ -46,9 +46,9 @@ void main() {
     expect(find.byType(ElevatedButton), findsOneWidget);
     expect(find.byType(OutlinedButton), findsOneWidget);
     expect(find.byType(TextButton), findsNothing);
-    expect(find.text('이번엔 안 할게요'), findsOneWidget);
-    // 승인 버튼은 폰과 같은 '지금 하기'(2차 평가 10/18) — 가전 버튼 이름 '시작'과 겹치지 않게(UI 평가 10/17).
-    expect(find.descendant(of: find.byKey(_approve), matching: find.text('지금 하기')),
+    expect(find.text('아니요'), findsOneWidget);
+    // 승인 버튼은 폰과 같은 '네'(2차 평가 10/18) — 가전 버튼 이름 '시작'과 겹치지 않게(UI 평가 10/17).
+    expect(find.descendant(of: find.byKey(_approve), matching: find.text('네')),
         findsOneWidget);
     expect(find.descendant(of: find.byKey(_approve), matching: find.text('시작')), findsNothing);
   });

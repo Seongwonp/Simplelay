@@ -30,7 +30,7 @@ void main() {
     // 시안 B(10/24): 예보 칸 줄 대신 오른쪽 '바깥 날씨' 줄 하나 — 지금 날씨가 밤이면 해가 아니라 달.
     // 22:30의 지금은 0시(90분 뒤) 칸 값을 쓴다(옛 서버 대체 규칙).
     final now = find.byKey(const ValueKey('idle-weather-now'));
-    expect(find.descendant(of: now, matching: find.text('16° 맑음', findRichText: true)), findsOneWidget);
+    expect(find.descendant(of: now, matching: find.text('16° · 맑음', findRichText: true)), findsOneWidget);
     expect(find.descendant(of: now, matching: find.byIcon(Icons.nightlight)), findsOneWidget);
     expect(find.descendant(of: now, matching: find.byIcon(Icons.wb_sunny)), findsNothing);
     expect(find.byKey(const ValueKey('idle-outside')), findsNothing);

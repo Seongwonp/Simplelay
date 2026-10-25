@@ -15,6 +15,9 @@ import 'idle_featured.dart';
 import 'kiosk_tab_bar.dart';
 import 'idle_side_rows.dart';
 import 'idle_top.dart';
+import 'idle_weather_line.dart';
+import 'weather_detail_sheet.dart';
+import 'weather_icon.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'kiosk_canvas.dart';
 import 'kiosk_modal.dart';
@@ -188,7 +191,9 @@ class KioskIdleView extends StatelessWidget {
     final rawTip = (amb?.tip != null && amb!.tip!.text.isNotEmpty) ? amb.tip : null;
     // 날씨 안내는 '바깥 날씨' 줄이, 그 밖의 안내(확인 필요 가전·약 드실 시간 등)는 오른쪽 칸 맨 위 '알림' 줄이 말한다
     // (시안 B 10/24 — 예전에는 연결 문제 띠 둘째 줄에 묶었다. 띠는 이제 한 줄이라 다른 것을 밀어내지 않는다).
-    final weatherTip = rawTip != null && isWeatherTip(rawTip) ? rawTip : null;
+    // 서버가 날씨 안내를 따로 주면(`weather_tip`, 10/25) 그것 — 위 안내가 확인할 일에 밀려도 날씨 줄은 제 안내를 말한다.
+    final serverWeatherTip = amb?.weatherTip != null && amb!.weatherTip!.text.isNotEmpty ? amb.weatherTip : null;
+    final weatherTip = serverWeatherTip ?? (rawTip != null && isWeatherTip(rawTip) ? rawTip : null);
     final noticeTip = rawTip != null && !isWeatherTip(rawTip) ? rawTip : null;
     final dnd = dndUntil != null && dndUntil!.isAfter(now) ? dndUntil : null;
     // 본체에 닿지 않으면 지난 연결 목록을 믿지 않는다(평가 7차 10/18 — 끊겼는데 칩이 '모두 정상').
@@ -309,16 +314,16 @@ class KioskIdleView extends StatelessWidget {
         ]);
 
     // 오른쪽 칸 줄들(시안 B 10/24) — 값이 있는 줄만. 순서: 알림 · 다음 자동 실행 · 바깥 날씨 · 공기질.
-    final nowSlot = outsideNowSlot(amb, now);
-    // 서버에 '지금' 칸이 없으면(밤 11시처럼 지난 정시 칸이 없을 때 — 10/24 실패널에서 날씨 줄이 통째로 사라졌다) 가장 가까운
-    // 예보 칸을 **그 시각을 붙여** 보인다. '지금'으로 꾸미지 않는다.
-    final shownWeather = nowSlot ??
-        amb?.hourly.where((h) => h.temp != null).firstOrNull;
+    final shown = shownWeatherOf(amb, now);
+    final shownWeather = shown.slot;
+    final warnings = amb?.warnings ?? const <AmbientWarning>[];
     final rainSlot = forecastSlots(amb, now)
         .where((s) => !s.isNow && (s.hour.precip || s.hour.icon == 'rain' || s.hour.icon == 'snow' || (s.hour.pop ?? 0) >= 60))
         .firstOrNull;
-    final weatherAdvice = weatherTip != null
-        ? kioskLine(weatherTip.text)
+    // 아래 작은 줄 — 첫 특보 안내, 없으면 날씨 안내, 없으면 가까운 비 소식(2026-10-25 계획 §2).
+    final adviceIsTip = warnings.any((w) => w.advice.isNotEmpty) || weatherTip != null;
+    final weatherAdvice = adviceIsTip
+        ? weatherAdviceOf(amb, weatherTip)
         : rainSlot == null
             ? null
             : [rainSlot.label, _rainWord(rainSlot.hour)].join(' ');
@@ -331,7 +336,7 @@ class KioskIdleView extends StatelessWidget {
             label: noticeTip.icon == 'attention' ? '주의' : '알림',
             child: _NoticeLine(tip: noticeTip),
           );
-    final sideRows = <Widget>[
+    List<Widget> sideRowsFor(_IdleSheets sheets) => <Widget>[
       if (next != null)
         KioskSideRow(
           child: _NextRunLine(
@@ -342,16 +347,18 @@ class KioskIdleView extends StatelessWidget {
               notice: nextRunNotice,
               onToggle: onToggleNextRunSkip),
         ),
-      if (shownWeather != null || weatherAdvice != null)
+      // 머리말 없는 한 줄(10/25) — 줄 전체를 누르면 날씨 자세히 창.
+      if (shownWeather != null || weatherAdvice != null || warnings.isNotEmpty)
         KioskSideRow(
           key: const ValueKey('idle-weather'),
-          label: '바깥 날씨',
-          child: _WeatherLine(
+          child: KioskWeatherLine(
             now: shownWeather,
-            at: nowSlot == null && shownWeather != null ? hourLabel12(shownWeather.label) : null,
-            night: _nightHour(nowSlot == null && shownWeather != null ? (shownWeather.slotHour ?? now.hour) : now.hour),
+            at: shown.at,
+            night: shown.night,
+            warning: warnings.firstOrNull,
             advice: weatherAdvice,
-            adviceIsTip: weatherTip != null,
+            adviceIsTip: adviceIsTip,
+            onTap: amb == null ? null : sheets.openWeather,
           ),
         ),
       if (air case final a?)
@@ -464,7 +471,7 @@ class KioskIdleView extends StatelessWidget {
                 width: sideWidth,
                 height: body.maxHeight,
                 child: SingleChildScrollView(
-                    child: KioskSideColumn(rows: [if (notice != null && !noticeLeft) notice, ...sideRows])),
+                    child: KioskSideColumn(rows: [if (notice != null && !noticeLeft) notice, ...sideRowsFor(sheets)])),
               ),
             ]);
           })),
@@ -571,70 +578,6 @@ class _NoticeLine extends StatelessWidget {
         ),
       ),
     ]);
-  }
-}
-
-/// '바깥 날씨' 줄 — 지금 칸(서버 '지금'만, [outsideNowSlot])의 아이콘·기온·날씨 말, 아래 작은 줄은 날씨 안내 또는 가까운 비 소식.
-class _WeatherLine extends StatelessWidget {
-  const _WeatherLine({this.now, this.at, required this.night, this.advice, this.adviceIsTip = false});
-
-  final AmbientHour? now;
-
-  /// [now]가 '지금'이 아니라 예보 칸이면 그 시각('오전 12시') — 값 뒤에 '· 오전 12시 예보'로 붙인다.
-  final String? at;
-  final bool night;
-  final String? advice;
-
-  /// 아래 줄이 서버 날씨 안내(할 일이 담긴 문장)인가 — 그러면 흰 글자, 비 소식이면 회색.
-  final bool adviceIsTip;
-
-  @override
-  Widget build(BuildContext context) {
-    final n = now;
-    final word = n == null ? '' : _weatherWord(n.icon);
-    final spoken = [
-      '바깥 날씨',
-      if (at != null) '$at 예보',
-      if (n?.temp != null) '${n!.temp}도',
-      if (word.isNotEmpty) word,
-      if (advice case final a?) a,
-    ].join(', ');
-    return Semantics(
-      container: true,
-      label: spoken,
-      excludeSemantics: true,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        if (n != null)
-          Row(key: ValueKey(at == null ? 'idle-weather-now' : 'idle-weather-forecast'), children: [
-            _WeatherIcon(n.icon, night: night, size: 24, color: KioskColors.ink),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text.rich(
-                TextSpan(children: [
-                  if (n.temp != null) TextSpan(text: '${n.temp}°'),
-                  if (word.isNotEmpty)
-                    TextSpan(text: '${n.temp != null ? ' ' : ''}$word', style: const TextStyle(fontWeight: FontWeight.w500)),
-                  if (at != null)
-                    TextSpan(text: ' · $at 예보', style: KioskSideRow.smallStyle.copyWith(color: KioskColors.muted)),
-                ]),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: KioskSideRow.valueStyle,
-              ),
-            ),
-          ]),
-        if (advice case final a?)
-          Text.rich(
-            TextSpan(text: keepWords(keepPhrases(a)), semanticsLabel: a),
-            key: const ValueKey('idle-weather-advice'),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: KioskSideRow.smallStyle.copyWith(
-                color: adviceIsTip ? KioskColors.ink : KioskColors.muted,
-                fontWeight: adviceIsTip ? FontWeight.w600 : null),
-          ),
-      ]),
-    );
   }
 }
 
@@ -1512,8 +1455,17 @@ class ForecastSlot {
   final bool isNow;
 }
 
-/// 밤 시간(19~5시)인가. 모르면 낮으로 본다.
-bool _nightHour(int? h) => h != null && (h >= 19 || h < 6);
+bool _nightHour(int? h) => isNightHour(h);
+
+/// 처음 화면 날씨 줄·자세히 창이 보일 칸 — 서버 '지금'([outsideNowSlot]). 없으면(밤 11시처럼 지난 정시 칸이 없을 때 — 10/24
+/// 실패널에서 날씨 줄이 통째로 사라졌다) 가장 가까운 예보 칸을 **그 시각을 붙여**([at]) 보인다. '지금'으로 꾸미지 않는다.
+({AmbientHour? slot, String? at, bool night}) shownWeatherOf(AmbientInfo? ambient, DateTime now) {
+  final nowSlot = outsideNowSlot(ambient, now);
+  if (nowSlot != null) return (slot: nowSlot, at: null, night: _nightHour(now.hour));
+  final f = ambient?.hourly.where((h) => h.temp != null).firstOrNull;
+  if (f == null) return (slot: null, at: null, night: _nightHour(now.hour));
+  return (slot: f, at: hourLabel12(f.label), night: _nightHour(f.slotHour ?? now.hour));
+}
 
 /// 평소 화면 예보 줄의 칸들(사용자 요청 10/18) — 맨 앞 '지금'([outsideNowSlot]), 그 뒤 서버 3시간 칸. 모두 [max]칸까지
 /// (1~2 m에서 읽히게 칸을 늘리지 않는다 — 지금 칸이 있으면 예보는 3칸). 지금 칸으로 쓴 서버 칸은 다시 두지 않는다.
@@ -1553,84 +1505,17 @@ AmbientHour? outsideNowSlot(AmbientInfo? ambient, DateTime now) {
   return null;
 }
 
-String _weatherWord(String icon) => switch (icon) {
-      'clear' => '맑음',
-      'partly' => '구름 조금',
-      'cloudy' => '흐림',
-      'rain' => '비',
-      'snow' => '눈',
-      _ => '',
-    };
-
-/// 예보 아이콘 — 가전 아이콘과 같은 채움 양식(평가 17차 10/18 — 날씨만 가는 선이었다). 밤의 맑음·구름 조금은 해가 아니라 달(외부 평가 10/16 4차, 실패널 0시·3시에 해가 찍혔다).
-IconData _hourIcon(String icon, {bool night = false}) => switch (icon) {
-      'clear' when night => Icons.nightlight,
-      'partly' when night => Icons.nights_stay,
-      'clear' => Icons.wb_sunny,
-      'partly' => Icons.wb_cloudy,
-      'cloudy' => Icons.cloud,
-      // 비는 [_WeatherIcon]이 비 오는 구름으로 그린다 — 물방울은 습도로 읽혔다(평가 10차 10/18). 여기 값은 '아는 날씨' 표시.
-      'rain' => Icons.cloud,
-      'snow' => Icons.ac_unit,
-      _ => Icons.remove,
-    };
-
-/// 날씨 아이콘 하나 — 예보 칸이 모두 같은 규칙(평가 10차 10/18). 비는 글꼴에 '비 오는 구름'이 없어 구름 + 빗줄기
-/// 세 줄로 그린다(물방울은 습도, 우산은 '챙기세요' 안내로 읽혔다). 나머지는 [_hourIcon].
-class _WeatherIcon extends StatelessWidget {
-  const _WeatherIcon(this.icon, {this.night = false, required this.size, required this.color});
-  final String icon;
-  final bool night;
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    if (icon != 'rain') return Icon(_hourIcon(icon, night: night), size: size, color: color);
-    return SizedBox(
-      key: const ValueKey('weather-rain-cloud'),
-      width: size,
-      height: size,
-      child: Stack(clipBehavior: Clip.none, children: [
-        Positioned(
-          left: size * 0.05,
-          top: -size * 0.1,
-          child: Icon(Icons.cloud, size: size * 0.9, color: color),
-        ),
-        Positioned.fill(child: CustomPaint(painter: _RainPainter(color))),
-      ]),
-    );
-  }
-}
-
-class _RainPainter extends CustomPainter {
-  const _RainPainter(this.color);
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = (w * 0.09).clamp(1.5, 4.0)
-      ..strokeCap = StrokeCap.round;
-    for (final x in const [0.32, 0.52, 0.72]) {
-      canvas.drawLine(Offset(w * (x + 0.05), h * 0.7), Offset(w * (x - 0.04), h * 0.94), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RainPainter old) => old.color != color;
-}
-
 /// 위쪽 칩·메뉴가 여는 큰 창(메뉴·연결 목록)을 들고 있는 껍데기(화면 구조 개편 10/18).
 /// 창은 캔버스 안에 그린다(확대·가장자리 여백을 그대로 따른다).
-enum _Sheet { none, menu, connections, help }
+enum _Sheet { none, menu, connections, help, weather }
 
 class _IdleSheets {
-  const _IdleSheets(this.openMenu, this.openConnections);
+  const _IdleSheets(this.openMenu, this.openConnections, this.openWeather);
   final VoidCallback openMenu;
   final VoidCallback openConnections;
+
+  /// 날씨 자세히 창(2026-10-25).
+  final VoidCallback openWeather;
 }
 
 /// 탭 화면(가전 고르기·자동 실행·기록)의 '메뉴'(QA 10/25) — 처음 화면과 **같은** 메뉴 창(방해 금지·설정·연결·사용 방법)을
@@ -1661,12 +1546,19 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
 
   void _close() => setState(() => _sheet = _Sheet.none);
 
+  Widget _weatherSheet(KioskIdleView v) {
+    final shown = shownWeatherOf(v.ambient, v.now);
+    return KioskWeatherDetailSheet(
+        ambient: v.ambient!, current: shown.slot, currentAt: shown.at, night: shown.night, onClose: _close);
+  }
+
   @override
   Widget build(BuildContext context) {
     final v = widget.view;
     final body = widget.builder(_IdleSheets(
       () => setState(() => _sheet = _Sheet.menu),
       () => setState(() => _sheet = _Sheet.connections),
+      () => setState(() => _sheet = _Sheet.weather),
     ));
     if (_sheet == _Sheet.none) return body;
     final dnd = v.dndUntil != null && v.dndUntil!.isAfter(v.now) ? v.dndUntil : null;
@@ -1681,8 +1573,15 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
       const KioskTabBarSuppress(),
       Positioned.fill(
         child: KioskModalSemantics(
-        label: switch (_sheet) { _Sheet.help => '사용 방법', _Sheet.menu => '메뉴', _ => '연결' },
-        child: _sheet == _Sheet.help
+        label: switch (_sheet) {
+          _Sheet.help => '사용 방법',
+          _Sheet.menu => '메뉴',
+          _Sheet.weather => '날씨',
+          _ => '연결',
+        },
+        child: _sheet == _Sheet.weather && v.ambient != null
+            ? _weatherSheet(v)
+            : _sheet == _Sheet.help
             // 사용 방법 세 장(휴리스틱 평가 10/18).
             ? KioskHelpGuide(onClose: _close)
             : _sheet == _Sheet.menu

@@ -82,7 +82,7 @@ KioskIdleView _idle({AmbientTip? tip}) => KioskIdleView(
       onDndGesture: () {},
     );
 
-final _weatherIcon = find.byWidgetPredicate((w) => w.runtimeType.toString() == '_WeatherIcon');
+final _weatherIcon = find.byWidgetPredicate((w) => w.runtimeType.toString() == 'KioskWeatherIcon');
 
 double _fontOf(WidgetTester tester, Finder text) {
   final rich = tester.widget<RichText>(find.descendant(of: text, matching: find.byType(RichText)).first);

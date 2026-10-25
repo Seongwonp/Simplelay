@@ -126,7 +126,7 @@ void main() {
       final icon = tester.widget<Icon>(find.descendant(of: now, matching: find.byType(Icon)));
       expect(icon.icon, Icons.cloud);
       // 화면 읽기: 무엇의 값인지 말로.
-      expect(find.bySemanticsLabel(RegExp('바깥 날씨, 14도, 흐림')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('날씨 자세히 보기. 14도, 흐림')), findsOneWidget);
     });
 
     testWidgets("지금 칸이 없으면 가장 가까운 예보를 '시각 예보'로 붙여 보인다 — 날씨 줄이 사라지지 않는다(10/24 실패널 밤 11시)", (tester) async {

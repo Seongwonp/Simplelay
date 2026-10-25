@@ -52,6 +52,13 @@ const kSettingNotSavedNotice = '저장하지 못해 지금만 바뀌어요. 본�
 /// 켜기·끄기 둘 다 같은 창에서 보내므로 '바꾸지 못했어요'로 말한다.
 const kDndNotSentNotice = '방해 금지를 바꾸지 못했어요. 잠시 뒤 다시 눌러 주세요.';
 
+/// 제안 '아니요'(이번만)가 본체에 닿지 않았다 — 카드는 그대로 둔다.
+const kSuggestionRejectFailedNotice = "'아니요'가 본체에 전달되지 않았어요. 다시 눌러 주세요.";
+
+/// '이 제안 앞으로 받지 않기' + '아니요'가 됐을 때·안 됐을 때(2026-10-25 계획 §3). 되돌리기는 폰 앱 '숨긴 제안'.
+const kSuggestionMutedNotice = '이 제안은 다시 띄우지 않아요. 휴대폰 앱에서 다시 켤 수 있어요.';
+const kSuggestionMuteFailedNotice = '숨기지 못했어요. 다시 눌러 주세요.';
+
 /// 실행 접수 응답을 받지 못했을 때(검토 10/19) — 본체가 이미 시작했을 수 있다. 정지 단추는 그대로 둔다.
 const kAdmitUnknownMessage = "본체 응답을 받지 못했어요. 시작됐을 수 있어요. 멈추려면 '정지'를 누르세요.";
 
@@ -1659,6 +1666,9 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 사람이 이 키오스크에서 저장된 동작을 눌러 만든 마지막 카드 id(10/24 QA) — 그 카드는 '제안'이 아니라 '확인'으로 묻는다.
   String? _ownCardId;
 
+  /// '이 제안 앞으로 받지 않기'를 체크한 제안 id(2026-10-25). 지금 카드 id와 같을 때만 체크로 본다 — 제안이 바뀌면 저절로 풀린다.
+  String? _muteSuggestionId;
+
   /// 결과 화면의 '이 가전 계속 조작' — 같은 가전 조작판으로 **돌아가기만** 한다(직전 명령을 다시 보내지 않는다).
   /// 최신 설치 목록에서 다시 찾고, 없으면(그사이 삭제) 가전 고르기로 — 다른 가전으로 메우지 않는다.
   void _continueSameAppliance() {
@@ -1881,12 +1891,12 @@ class _KioskScreenState extends State<KioskScreen> {
       final ownName = suggestion.id == _ownCardId ? suggestion.routineName : null;
       // 직접 누른 저장된 동작이면 화면 질문과 같은 말('30초 데우기를 할까요?', 10/24 QA).
       if (ownName != null && ownName.isNotEmpty) {
-        _tts.speak("${withObject(ownName)} 할까요? 하시려면 화면의 '지금 하기'를 눌러 주세요.");
+        _tts.speak("${withObject(ownName)} 할까요? 하시려면 화면의 '네'를 눌러 주세요.");
       } else {
         // 스스로 뜬 제안만 알림음 뒤에 말한다(사용자 요청 10/25 — 화면 근처에 없어도 알게). 직접 누른 확인에는 알림음이 없다.
         _tts.announce(suggestion.isScenario
-            ? "${suggestion.purpose} 하시려면 화면의 '지금 하기'를 눌러 주세요."
-            : "${_askNow(actionName(suggestion.purpose))} 하시려면 화면의 '지금 하기'를 눌러 주세요.");
+            ? "${suggestion.purpose} 하시려면 화면의 '네'를 눌러 주세요."
+            : "${_askNow(actionName(suggestion.purpose))} 하시려면 화면의 '네'를 눌러 주세요.");
       }
     }
     setState(() {
@@ -2316,7 +2326,14 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
-  Future<void> _onReject() => _dismissSuggestion(mute: false);
+  /// '아니요' — 위 '이 제안 앞으로 받지 않기'를 체크했으면 다시 받지 않기(mute=true), 아니면 이번만.
+  Future<void> _onReject() {
+    final id = _currentSuggestion?.id;
+    return _dismissSuggestion(mute: id != null && _muteSuggestionId == id && _offersMute(_currentSuggestion!));
+  }
+
+  /// 체크 줄을 두는 카드 — 서버가 스스로 낸 제안만(내가 연 카드·루틴 카드 제외). 보기([KioskSuggestionView.offersMute])와 같은 규칙.
+  bool _offersMute(KioskSuggestion s) => s.id != _ownCardId && s.routineId == null;
 
   Future<void> _dismissSuggestion({required bool mute}) async {
     final suggestion = _currentSuggestion;
@@ -2327,13 +2344,17 @@ class _KioskScreenState extends State<KioskScreen> {
       await _api.rejectSuggestion(suggestion.id, mute: mute);
       if (mounted && _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
+        _muteSuggestionId = null;
         _toIdle();
+        if (mute) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(kSuggestionMutedNotice)));
+        }
       }
     } catch (_) {
       if (mounted && _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("'이번엔 안 할게요'가 본체에 전달되지 않았어요. 다시 눌러 주세요."),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(mute ? kSuggestionMuteFailedNotice : kSuggestionRejectFailedNotice),
         ));
       }
     } finally {
@@ -2990,6 +3011,10 @@ class _KioskScreenState extends State<KioskScreen> {
           onApprove: _onApprove,
           onReject: _onReject,
           startedByUser: _ownCardId != null && _ownCardId == suggestion.id,
+          muteChecked: _muteSuggestionId == suggestion.id,
+          onMuteChanged: _offersMute(suggestion)
+              ? (v) => setState(() => _muteSuggestionId = v ? suggestion.id : null)
+              : null,
         );
       case KioskPhase.executing:
         return KioskExecutingView(

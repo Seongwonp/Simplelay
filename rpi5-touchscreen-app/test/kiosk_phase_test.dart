@@ -603,7 +603,7 @@ void main() {
     await tester.pump();
     expect(find.byType(KioskSuggestionView), findsOneWidget);
     // 문구 통일(3c064ec) 뒤에도 실패를 알리고 카드를 남긴다.
-    expect(find.textContaining("'이번엔 안 할게요'가 본체에 전달되지 않았어요"), findsOneWidget);
+    expect(find.textContaining("'아니요'가 본체에 전달되지 않았어요"), findsOneWidget);
     api.rejectError = null;
     await tester.tap(find.byKey(_laterKey));
     await tester.pump();
@@ -1131,7 +1131,7 @@ void main() {
     // 제안 도착 발화 — 목적이 포함된 문장
     // 화면 질문과 같은 할 일 이름(평가 8차 10/18).
     expect(tts.utterances.single, contains('즉석밥 데우기'));
-    expect(tts.utterances.single, contains("화면의 '지금 하기'를 눌러"));
+    expect(tts.utterances.single, contains("화면의 '네'를 눌러"));
 
     api.suggestionList = [];
     await tester.tap(find.byKey(_approveKey));
@@ -1422,7 +1422,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     expect(KioskTimings.countdownSeconds, 40); // 결선 모의 평가 10/18 — 20초도 짧았다
-    expect(find.text("'지금 하기'를 누르기 전에는 아무것도 하지 않아요"), findsOneWidget);
+    expect(find.text("'네'를 누르기 전에는 아무것도 하지 않아요"), findsOneWidget);
     expect(find.text('40초 뒤 닫혀요'), findsOneWidget);
   });
 

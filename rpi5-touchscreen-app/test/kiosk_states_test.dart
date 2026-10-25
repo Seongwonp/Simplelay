@@ -392,7 +392,7 @@ void main() {
 
   // ── 다가오면 ──────────────────────────────────────────────────────────
   group('다가오면', () {
-    testWidgets('제안 카드 한 장 — 루틴 이름·근거·누를 순서, 버튼은 시작과 이번엔 안 할게요 뿐', (tester) async {
+    testWidgets('제안 카드 한 장 — 루틴 이름·근거·누를 순서, 버튼은 시작과 아니요 뿐', (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..suggestionList = const [

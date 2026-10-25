@@ -13,6 +13,7 @@ import 'kiosk_text.dart';
 import 'status_band.dart';
 import 'route_badge.dart';
 import 'panel_picture.dart';
+import 'suggestion_mute_row.dart';
 
 /// 승인 재검사 실패(409) 안내. 폰 앱과 같은 문장.
 const kApprovalChangedMessage = '내용이 바뀌었어요. 다시 봐 주세요';
@@ -43,7 +44,17 @@ class KioskSuggestionView extends StatelessWidget {
     this.onTouch,
     this.onExtend,
     this.startedByUser = false,
+    this.muteChecked = false,
+    this.onMuteChanged,
   });
+
+  /// '이 제안 앞으로 받지 않기' 체크(2026-10-25) — 체크하고 '아니요'면 서버 `reject(mute=true)`. 상태는 화면(kiosk_screen)이
+  /// 제안 id에 묶어 쥐고 있어 제안이 바뀌면 풀린다. [onMuteChanged]가 null이면 줄이 없다.
+  final bool muteChecked;
+  final ValueChanged<bool>? onMuteChanged;
+
+  /// 체크 줄을 둘 카드인가 — 서버가 스스로 낸 제안만. 내가 연 카드·루틴 카드에는 두지 않는다.
+  bool get offersMute => onMuteChanged != null && !startedByUser && suggestion.routineId == null;
 
   /// 사람이 키오스크에서 방금 저장된 동작을 눌러 만든 카드(10/24 QA) — 제안이 아니다. 위 띠는 '확인', 질문은 '루틴' 말 없이
   /// '30초 데우기를 할까요?'. 스스로 뜬 제안·다른 곳에서 만든 카드는 false(서버 문장 그대로).
@@ -111,6 +122,14 @@ class KioskSuggestionView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// '네' 단추의 접근성 이름 — 무엇이 일어나는지. 누름 장치로 [target]의 버튼만 누르면 '네. 전자레인지 버튼을 눌러요',
+  /// 그 밖(LG 가전 바꾸기가 섞임·대상 모름)은 지어내지 않고 '네. 지금 해요'.
+  String _approveSemantics(ApplianceMap? target, bool scenario) {
+    final presses = !scenario || suggestion.commands.every((c) => c.route == 'physical');
+    if (target != null && presses) return '네. ${target.displayName} 버튼을 눌러요';
+    return '네. 지금 해요';
   }
 
   /// 사용자가 직접 고른 저장 동작 카드의 누를 버튼 순서 — 모든 명령이 [target] 가전의 버튼 누름이면 그 버튼을 이어 붙인다.
@@ -380,7 +399,17 @@ class KioskSuggestionView extends StatelessWidget {
                   ),
           ),
 
-          const SizedBox(height: 12),
+          SizedBox(height: offersMute ? 4 : 12),
+          if (offersMute)
+            Row(children: [
+              // '아니요' 바로 위(같은 폭) — 오른쪽 '네' 칸은 비운다.
+              Expanded(
+                flex: large ? 1 : 3,
+                child: KioskSuggestionMuteRow(checked: muteChecked, onChanged: onMuteChanged!),
+              ),
+              const SizedBox(width: 12),
+              Expanded(flex: large ? 1 : 4, child: const SizedBox.shrink()),
+            ]),
           // 두 단추는 늘 같은 높이(UI 평가 3차 10/17 — 큰 글씨에서 거절이 두 줄로 접혀 높이가 달랐다).
           IntrinsicHeight(
             child: Row(
@@ -390,10 +419,14 @@ class KioskSuggestionView extends StatelessWidget {
               // 높이를 고정하지 않고 **최소 높이**로 준다. 고정하면 큰 글씨
               // 모드에서 글자가 버튼 안에서 잘린다. 선택 버튼은 질문 다음으로 크게 — 순서·근거보다
               // 먼저 눈에 들어와야 한다(2026-10-14 UI 정리).
-              // 큰 글씨는 반반 — 3:4에서 '이번엔 안 할게요'가 두 줄로 접혔다.
+              // 큰 글씨는 반반 — 3:4에서 옛 거절 단추 말이 두 줄로 접혔다.
               Expanded(
                 flex: large ? 1 : 3,
-                child: OutlinedButton(
+                child: Semantics(
+                  button: true,
+                  label: '아니요. 이번에는 하지 않아요',
+                  excludeSemantics: true,
+                  child: OutlinedButton(
                   key: const ValueKey('suggestion-later'),
                   onPressed: onReject,
                   // 보조 단추 모양(테두리) — 둘 중 하나를 고르는 자리라 높이만 주 단추와 같다(§1-5).
@@ -405,20 +438,26 @@ class KioskSuggestionView extends StatelessWidget {
                     padding: const WidgetStatePropertyAll(
                         EdgeInsets.symmetric(horizontal: 12)),
                   ),
-                  // 서버 동작은 이번만 거절(mute=false)이다 — 그 뜻 그대로(2026-10-15).
+                  // 서버 동작은 이번만 거절(mute=false) — 위 체크가 있으면 다시 받지 않기(mute=true, 2026-10-25).
                   child: const KioskText(
-                    '이번엔 안 할게요',
+                    '아니요',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: KioskType.status,
                         fontWeight: FontWeight.w600),
                   ),
                 ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 flex: large ? 1 : 4,
-                child: ElevatedButton(
+                child: Semantics(
+                  button: true,
+                  enabled: canExecute,
+                  label: _approveSemantics(target, scenario),
+                  excludeSemantics: true,
+                  child: ElevatedButton(
                   key: const ValueKey('suggestion-approve'),
                   onPressed: canExecute ? onApprove : null,
                   style: ElevatedButton.styleFrom(
@@ -434,14 +473,15 @@ class KioskSuggestionView extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  // 폰과 같은 '지금 실행' — 가전 버튼 이름 '시작'과 겹치면 가전 버튼을 바로 누르는 것으로 읽혔다(UI 평가 10/17).
+                  // 질문('…할까요?')에 대한 대답 '네'(2026-10-25 — 옛 '지금 하기'). 무엇이 일어나는지는 접근성 이름이 말한다.
                   child: const Text(
-                    '지금 하기',
+                    '네',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: KioskType.status,
                         fontWeight: FontWeight.w800),
                   ),
+                ),
                 ),
               ),
             ],
@@ -456,7 +496,7 @@ class KioskSuggestionView extends StatelessWidget {
               Expanded(
                 child: KioskText(
                   canExecute
-                      ? "'지금 하기'를 누르기 전에는 아무것도 하지 않아요"
+                      ? "'네'를 누르기 전에는 아무것도 하지 않아요"
                       : scenario
                           ? (blockedWhy ?? '')
                           : '이 가전을 찾지 못해 할 수 없어요. 휴대폰 앱에서 가전을 봐 주세요',

@@ -43,11 +43,13 @@ String clockHhmm(String hhmm) {
   return t == null ? hhmm : clockTime(t.$1, t.$2);
 }
 
-/// 예보 칸 이름 '15시' → '오후 3시'. 다른 꼴('내일' 등)은 그대로.
+/// 예보 칸 이름 '15시' → '오후 3시'. 0시는 '밤 12시', 12시는 '낮 12시'(2026-10-25 — 서버 `_hour_label`과 같은 규칙,
+/// '오후 12시'는 자정으로 읽혔다). 다른 꼴('내일' 등)은 그대로.
 String hourLabel12(String label) {
   final m = RegExp(r'^(\d{1,2})시$').firstMatch(label.trim());
   if (m == null) return label;
   final h = int.parse(m.group(1)!);
   if (h > 23) return label;
+  if (h == 12) return '낮 12시';
   return spokenTime(h, 0);
 }

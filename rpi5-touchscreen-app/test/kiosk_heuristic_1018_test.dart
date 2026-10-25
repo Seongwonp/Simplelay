@@ -488,7 +488,7 @@ void main() {
       expect(body(), contains("'메뉴'"));
       await next();
       expect(title(), contains('누름 장치'));
-      expect(body(), contains("'지금 하기'"));
+      expect(body(), contains("'네'"));
       await next();
       expect(title(), contains('LG 가전'));
       await next();

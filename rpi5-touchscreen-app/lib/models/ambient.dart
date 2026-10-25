@@ -69,6 +69,57 @@ int? _hourOfLabel(String? label) {
   return h <= 23 ? h : null;
 }
 
+/// 기상 특보 한 건(서버 `warnings`, 2026-10-25) — 강한 것부터 온다. 문구는 서버 말 그대로.
+class AmbientWarning {
+  const AmbientWarning({required this.kind, required this.level, required this.title, this.icon = '', this.advice = ''});
+
+  /// 강풍 | 호우 | 한파 | 건조 | 태풍 | 대설 | 황사 | 폭염 …
+  final String kind;
+
+  /// 주의보 | 경보
+  final String level;
+
+  /// '강풍주의보'
+  final String title;
+
+  /// wind | rain | cold | dry | storm | snow | dust | hot
+  final String icon;
+
+  /// '바람이 강해요. 외출할 때 조심하세요.'
+  final String advice;
+
+  /// 제목이 없으면 null(지어내지 않는다).
+  static AmbientWarning? fromJson(Map<String, dynamic> json) {
+    final kind = json['kind'] is String ? json['kind'] as String : '';
+    final level = json['level'] is String ? json['level'] as String : '';
+    var title = json['title'] is String ? (json['title'] as String).trim() : '';
+    if (title.isEmpty && kind.isNotEmpty) title = '$kind$level';
+    if (title.isEmpty) return null;
+    return AmbientWarning(
+      kind: kind,
+      level: level,
+      title: title,
+      icon: json['icon'] is String ? json['icon'] as String : '',
+      advice: json['advice'] is String ? (json['advice'] as String).trim() : '',
+    );
+  }
+}
+
+/// 오늘 최고·최저(서버 `today`, 2026-10-25). 하나라도 모르면 없는 것으로 본다.
+class AmbientToday {
+  const AmbientToday({required this.high, required this.low});
+
+  final int high;
+  final int low;
+
+  static AmbientToday? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final high = json['high'], low = json['low'];
+    if (high is! num || low is! num) return null;
+    return AmbientToday(high: high.toInt(), low: low.toInt());
+  }
+}
+
 class AmbientInfo {
   const AmbientInfo({
     required this.greeting,
@@ -78,7 +129,23 @@ class AmbientInfo {
     this.nowKnown = false,
     this.weatherSource = 'none',
     this.stale = false,
+    this.weatherTip,
+    this.today,
+    this.warnings = const [],
+    this.fetchedAt,
   });
+
+  /// 날씨 안내(서버 `weather_tip`, 2026-10-25) — [tip]이 확인할 일에 밀려도 날씨 줄은 이것을 쓴다. 옛 서버·없음이면 null.
+  final AmbientTip? weatherTip;
+
+  /// 오늘 최고·최저(서버 `today`). 모르면 null.
+  final AmbientToday? today;
+
+  /// 기상 특보(서버 `warnings`, 강한 것부터). 없거나 옛 서버면 빈 목록.
+  final List<AmbientWarning> warnings;
+
+  /// 예보를 받은 시각(서버 `fetched_at`, 본체 벽시계 원문). 모르면 null.
+  final String? fetchedAt;
 
   final String greeting;
   final AmbientTip? tip;
@@ -110,6 +177,16 @@ class AmbientInfo {
         nowKnown: json.containsKey('now'),
         weatherSource: json['weather_source'] as String? ?? 'none',
         stale: json['stale'] as bool? ?? false,
+        weatherTip: json['weather_tip'] is Map<String, dynamic>
+            ? AmbientTip.fromJson(json['weather_tip'] as Map<String, dynamic>)
+            : null,
+        today: AmbientToday.fromJson(json['today']),
+        warnings: [
+          for (final w in (json['warnings'] is List ? json['warnings'] as List : const []))
+            if (w is Map<String, dynamic>)
+              if (AmbientWarning.fromJson(w) case final warning?) warning,
+        ],
+        fetchedAt: json['fetched_at'] is String ? json['fetched_at'] as String : null,
       );
 }
 

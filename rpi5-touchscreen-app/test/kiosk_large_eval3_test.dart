@@ -1,7 +1,7 @@
 // UI 평가 3차(2026-10-17)에서 큰 글씨(1.22배) 골든에 남은 잘림·어긋남을 맑은 고딕으로 잰다.
 // - 실행 화면: 마지막 줄이 스크롤 영역 아래에서 잘렸다(k-large-executing).
 // - 연결 창: 셋째 할 일이 스크롤해야 보였다(k-large-connection_modal).
-// - 제안: '이번엔 안 할게요'가 두 줄로 접혀 옆 '지금 실행'과 높이가 달랐다(k-large-suggestion).
+// - 제안: '아니요'가 두 줄로 접혀 옆 '지금 실행'과 높이가 달랐다(k-large-suggestion).
 // - 결과: '누름 장치가 다 눌렀다고 알려 / 왔어요'처럼 한 덩어리 말이 끊겼다(k-large-done).
 // 폰트가 없는 기기(윈도가 아닌 곳)에서는 건너뛴다.
 import 'dart:io';
@@ -155,7 +155,7 @@ void main() {
       final approve = tester.getRect(find.byKey(const ValueKey('suggestion-approve')));
       expect((later.height - approve.height).abs(), lessThan(0.5),
           reason: '거절 $later · 실행 $approve');
-      final rejectText = tester.renderObject<RenderParagraph>(_drawn('이번엔 안 할게요'));
+      final rejectText = tester.renderObject<RenderParagraph>(_drawn('아니요'));
       final plain = rejectText.text.toPlainText();
       final tops = rejectText
           .getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: plain.length))
