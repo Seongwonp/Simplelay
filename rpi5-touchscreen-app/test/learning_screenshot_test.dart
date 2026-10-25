@@ -29,8 +29,10 @@ void main() {
         ),
         home: Scaffold(
             body: LearningStatusDialog(
-          load: () async => fixtures.status(),
-          applianceNames: const {'mw': '주방 전자레인지'},
+          load: () async => fixtures.learned(),
+          applianceNames: const {'mw': '주방 전자레인지', 'air': '거실 공기청정기'},
+          onHide: (_) async {},
+          onUnhide: (_) async {},
         )),
       ));
       await tester.pumpAndSettle();

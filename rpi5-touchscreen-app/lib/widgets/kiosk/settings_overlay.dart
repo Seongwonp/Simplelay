@@ -183,6 +183,8 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
         child: LearningStatusDialog(
           load: widget.api.learningStatus,
           applianceNames: {for (final a in widget.appliances) a.id: a.displayName},
+          onHide: widget.api.hideHabit,
+          onUnhide: widget.api.unhideHabit,
           onClose: () => setState(() => _showLearning = false),
         ),
       );

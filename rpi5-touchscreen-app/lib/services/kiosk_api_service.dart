@@ -821,8 +821,26 @@ class KioskApiService {
     final res =
         await _client.get(_base.replace(path: '/learning')).timeout(_timeout);
     _ensureOk(res);
+    // FastAPI는 charset 없이 JSON을 보낸다 — 한글(습관 이름·정리 문장)은 바이트를 UTF-8로 직접 푼다.
     return LearningStatus.fromJson(
-        jsonDecode(res.body) as Map<String, dynamic>);
+        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+  }
+
+  /// '알게 된 것'에서 습관 숨기기(POST /suppressions/mute) — 카드의 '다시 받지 않기'와 같다.
+  Future<void> hideHabit(String purpose) => _suppression('mute', purpose);
+
+  /// 숨긴 습관 다시 보이기(POST /suppressions/unmute).
+  Future<void> unhideHabit(String purpose) => _suppression('unmute', purpose);
+
+  Future<void> _suppression(String action, String purpose) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/suppressions/$action'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'purpose': purpose}),
+        )
+        .timeout(_timeout);
+    _ensureOk(res);
   }
 
   Future<List<KioskSuggestion>> suggestions() async {

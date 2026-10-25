@@ -936,7 +936,7 @@ void main() {
       await tester.pumpAndSettle();
       const days = '최근 28일 중 2일, 모두 5번';
       expect(find.text(days), findsOneWidget);
-      expect(find.text('이 제안은 띄우지 않기로 했어요'), findsOneWidget);
+      expect(find.text('숨김'), findsOneWidget); // 10/26 '알게 된 것' — 숨김은 상태 이름
       expect(find.text('추천 숨김'), findsNothing);
       expect(tester.widget<Text>(find.text(days)).style?.fontSize, greaterThanOrEqualTo(20));
       expect(find.textContaining('모의'), findsNothing);

@@ -63,6 +63,10 @@ class FakeKioskApi implements KioskApiService {
   Future<void> closePairing() async {}
   @override
   Future<LearningStatus> learningStatus() async => throw StateError('offline');
+  @override
+  Future<void> hideHabit(String purpose) async {}
+  @override
+  Future<void> unhideHabit(String purpose) async {}
 
   List<KioskSuggestion> suggestionList = [];
   // 서버 가전 목록 — 비어 있으면 화면이 내장 목록으로 폴백한다
