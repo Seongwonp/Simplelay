@@ -14,6 +14,8 @@ void main() {
     expect(find.text('9:05'), findsOneWidget);
     expect(find.text('오후'), findsOneWidget);
     expect(find.text('10월 26일 월요일'), findsOneWidget);
+    // 실제 제품 시계처럼 — '사람이 보이면 다시 켜져요' 같은 안내 글은 없다(10/26 사용자).
+    expect(find.textContaining('켜져요'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('room-sleep')));
     expect(woke, 1);
     await tester.pumpWidget(const SizedBox.shrink());

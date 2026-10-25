@@ -56,6 +56,7 @@ class _KioskRoomSleepState extends State<KioskRoomSleep> {
         // Material — 화면 틀(Scaffold) 밖에 놓여도 글자에 노란 밑줄(기본 글자 모양 없음 표시)이 생기지 않게(10/26 실패널).
         child: Material(
           color: KioskRoomSleep.sleepColor,
+          // 안내 글은 두지 않는다(10/26 사용자 — 보여 주기식 문구, 실제 제품 시계처럼).
           child: Stack(children: [
             Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -73,14 +74,6 @@ class _KioskRoomSleepState extends State<KioskRoomSleep> {
                 const SizedBox(height: KioskSpace.sm),
                 Text(date, style: TextStyle(fontSize: KioskType.status, color: soft)),
               ]),
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: KioskSpace.lg),
-                child: Text('사람이 보이면 다시 켜져요 · 눌러도 켜져요',
-                    style: TextStyle(fontSize: KioskType.caption, color: soft)),
-              ),
             ),
           ]),
         ),
