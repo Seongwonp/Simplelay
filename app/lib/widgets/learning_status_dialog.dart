@@ -68,6 +68,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                               '${widget.applianceNames[routine.applianceId] ?? '어느 가전인지 확인하지 못했어요'}, ${routine.timeBand}'),
                           Text(
                               '${routine.distinctDays}일 동안 ${routine.occurrences}번 썼어요'),
+                          if (usedDaysLine(routine.recentDays) case final line?) Text(line),
                           Text(routine.muted
                               ? '묻지 않기로 했어요'
                               : routine.established

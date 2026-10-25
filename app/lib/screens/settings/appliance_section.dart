@@ -26,77 +26,33 @@ const kAwayTitle = '집 비우는 날';
 // ── 가전 선택 ─────────────────────────────────────────────────────────────
 
 class _ApplianceSection extends ConsumerWidget {
+  // 가전 목록은 홈·가전 탭과 같아 설정에서 뺐다(10/25 사용자 — 굳이 두 번). 여기엔 이 폰에서 바꾼 가전이
+  // 본체에 아직 없을 때만 그 사실과 '본체에도 똑같이 맞추기'를 둔다. 평상시에는 묶음째 보이지 않는다.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final appliances = ref.watch(installedAppliancesProvider);
-
+    if (!ref.watch(hasPendingSyncProvider)) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (appliances.isEmpty)
-          const Text('홈에서 가전을 추가해 주세요.'),
-        // 홈과 같은 목록 — ThinQ 가전도 보인다(UI 평가 10/17: 홈 5대·설정 4대였다). 지울 수 없는 줄은 이유를
-        // 부제로, 눌러서 들어간다는 것은 화살표로 말한다.
-        // 평가 15차(10/18): 다른 설정 묶음과 같은 문법 — 줄 사이 옅은 구분선.
-        for (final (i, appliance) in appliances.indexed) ...[
-          if (i > 0) Divider(height: 1, color: context.appBorderFaint),
-          ListTile(
-            leading: ApplianceArtwork(category: appliance.category, size: 36),
-            // 연습 가전은 '연습 세탁기'(접근성 감사 10/18 — 홈 타일·본체와 같은 표기, 서버 이름은 그대로).
-            title: Text(applianceDisplayLine(appliance)),
-            // 버튼 자리를 맞추지 않은 가전은 할 일만 짧게 한 줄(평가 7차 10/18: 주황 두 줄 + ⋮라 눌러도 되는지 헷갈렸다).
-            subtitle: appliance.isCustom && !appliance.isThinq
-                ? (needsPanelMapping(appliance)
-                    // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17).
-                    ? _WordsText('버튼 자리를 맞춰 주세요',
-                        style: TextStyle(fontSize: AppFont.caption, color: context.appWarning))
-                    : null)
-                // 평가 4차 10/18: '처음부터 들어 있는 가전이에요'·'빼기는 LG 가전 연결에서 해요'는 앱이 어떻게 만들어졌는지를
-                // 말했다. 사용자가 할 일이 있을 때만 적는다 — LG 가전은 어디서 무엇을 하는지, 그 밖은 비운다.
-                // 평가 11차(10/18): 'LG 앱에서 관리해요'는 여기서 못 다룬다는 오해 — 켜기·끄기는 줄을 눌러 들어간 상태 카드에서 한다.
-                : appliance.isThinq && isPracticeAppliance(appliance)
-                    // 연습 LG 가전(서버가 세운 모의 기기)은 LG 앱에서 등록할 것이 없다(보호자 과업 평가 10/18 —
-                    // '등록은 LG 앱에서 해요'가 상세·홈과 어긋났다).
-                    ? Text(kPracticeSubtitle,
-                        key: const Key('settings-practice-subtitle'),
-                        style: TextStyle(fontSize: AppFont.caption, color: context.appPractice))
-                : appliance.isThinq
-                    // 평가 12차(10/18): 한 줄로 이어 쓰니 'LG / 앱에서'로 끊겼다 → 두 문장을 두 줄로, 'LG 앱에서'는
-                    // 붙여 둔다(줄바꿈 없는 빈칸). 낭독은 원문.
-                    ? Text(
-                        kThinqSubtitleLines.map(keepPhrasesTogether).join('\n'),
-                        key: const Key('settings-thinq-subtitle'),
-                        semanticsLabel: kThinqSubtitleLines.join(' '),
-                        style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
-                    : null,
-            onTap: () => context.push('/appliance/detail/${appliance.id}'),
-            // 줄 끝 표시는 하나, 모든 줄이 같은 >(평가 5차·7차 10/18) — 줄 전체가 눌려 상세로 간다는 뜻.
-            // 지우기는 줄에 두지 않고 가전 상세 화면 위 ⋮ 한 곳(확인 대화는 그대로).
-            trailing: Icon(Icons.chevron_right, color: context.appMuted),
-          ),
-        ],
-        // 아직 키오스크에 못 보낸 변경이 있으면 **여기서 먼저 말한다.**
-        // 평상시에는 아무것도 띄우지 않는다 -- 늘 떠 있는 상태 표시는
-        // 읽히지 않고, 정작 문제가 생겼을 때도 눈에 안 들어온다.
+        _SectionHeader(title: '가전'),
+        const SizedBox(height: AppSpace.sm),
         SyncStatusLine(onRetry: () => _resyncCustomAppliances(context, ref)),
-        if (ref.watch(hasPendingSyncProvider)) ...[
-          const SizedBox(height: AppSpace.md),
-          TextButton.icon(
-            onPressed: () => _resyncCustomAppliances(context, ref),
-            style: TextButton.styleFrom(
-              minimumSize: const Size(48, 48),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-            ),
-            icon: Icon(Icons.sync, size: 18, color: context.appMuted),
-            // 낱말 중간에서 꺾이지 않게('다 / 시' 방지, 큰 글씨).
-            label: Text(
-              keepWordsTogether(kResyncLabel),
-              semanticsLabel: kResyncLabel,
-              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
-            ),
+        const SizedBox(height: AppSpace.md),
+        TextButton.icon(
+          onPressed: () => _resyncCustomAppliances(context, ref),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
           ),
-        ],
-        // 서버가 구성한 ThinQ 가전(편집 불가). ThinQ가 꺼져 있으면 아무것도 없다.
+          icon: Icon(Icons.sync, size: 18, color: context.appMuted),
+          // 낱말 중간에서 꺾이지 않게('다 / 시' 방지, 큰 글씨).
+          label: Text(
+            keepWordsTogether(kResyncLabel),
+            semanticsLabel: kResyncLabel,
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
+          ),
+        ),
+        const SizedBox(height: AppSpace.xxxl),
       ],
     );
   }

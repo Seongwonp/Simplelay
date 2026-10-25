@@ -612,11 +612,7 @@ void main() {
       expect(tileMarkText(tester, 'mw'), isNot(kTilePowerUnknown));
     });
 
-    testWidgets("설정의 연습 가전 부제 '연습용이라 등록할 필요 없어요'", (tester) async {
-      await _pump(tester, const SettingsScreen());
-      expect(findPlainText('연습용이라 등록할 필요 없어요'), findsOneWidget);
-      expect(findPlainText('LG 세탁기(연습)'), findsNothing);
-    });
+    // 10/25 사용자: 설정의 가전 목록을 뺐다(홈·가전 탭과 같다) — 설정 가전 줄 시험은 settings_screen_test '설정에는 가전 목록이 없다'로 대신한다.
   });
 
   group('5. 타일 원인은 짧게, 말줄임 없이', () {

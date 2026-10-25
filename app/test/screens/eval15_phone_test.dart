@@ -326,10 +326,8 @@ void main() {
         '잠시 쉬기': tester.getTopLeft(find.byIcon(AppIcons.pause)).dx,
         '어두운 화면': tester.getTopLeft(find.byIcon(Icons.contrast)).dx,
         '음성 안내': tester.getTopLeft(find.byIcon(Icons.record_voice_over)).dx,
-        // 가전 그림 통일(10/24): 가전 줄 왼쪽은 아이콘 대신 홈과 같은 ApplianceArtwork 그림.
-        '전자레인지': tester
-            .getTopLeft(find.byKey(Key('appliance-artwork-${ApplianceMap.fromJson(_mw).category.value}')).first)
-            .dx,
+        // 10/25: 설정의 가전 목록을 뺐다 — 대신 '부르는 이름' 줄도 같은 열.
+        '부르는 이름': tester.getTopLeft(find.byIcon(Icons.waving_hand_outlined)).dx,
       };
       for (final e in lefts.entries) {
         expect(e.value, closeTo(lefts['본체']!, 0.5), reason: '${e.key} $lefts');

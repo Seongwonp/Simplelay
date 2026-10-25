@@ -455,12 +455,6 @@ void main() {
 
   group('F. 설정 가전 줄', () {
     // 평가 7차(10/18): 모든 줄이 > 하나, ⋮ 는 가전 상세 화면으로 옮겼다 — 줄 끝 표시가 하나라는 규칙은 그대로.
-    testWidgets('줄 끝 표시는 하나 — ⋮ 와 > 를 함께 두지 않는다', (tester) async {
-      await _pump(tester, const SettingsScreen());
-      expect(find.byKey(const Key('appliance-menu-washer')), findsNothing);
-      final row = find.widgetWithText(ListTile, '세탁기');
-      expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
-      expect(find.descendant(of: row, matching: find.byIcon(Icons.more_vert)), findsNothing);
-    });
+    // 10/25 사용자: 설정의 가전 목록을 뺐다(홈·가전 탭과 같다) — 설정 가전 줄 시험은 settings_screen_test '설정에는 가전 목록이 없다'로 대신한다.
   });
 }

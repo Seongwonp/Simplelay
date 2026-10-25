@@ -1326,6 +1326,22 @@ class RpiApiService {
   }
 
   // GET /suggestions
+  /// GET /profile — 본체가 인사할 때 부르는 이름(2026-10-25). 없으면 null.
+  Future<String?> residentName() async {
+    final res = await _client.get(_base.replace(path: '/profile'), headers: _headers).timeout(_timeout);
+    _checkStatus(res);
+    return (jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>)['name'] as String?;
+  }
+
+  /// PUT /profile — 부를 이름 저장(10자까지, 빈 값이면 이름 없이 인사). 본체에만 남는다. 저장된 이름을 돌려준다.
+  Future<String?> setResidentName(String? name) async {
+    final res = await _client
+        .put(_base.replace(path: '/profile'), headers: _jsonHeaders, body: jsonEncode({'name': name}))
+        .timeout(_timeout);
+    _checkStatus(res);
+    return (jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>)['name'] as String?;
+  }
+
   Future<LearningStatus> learningStatus() async {
     final res = await _client
         .get(_base.replace(path: '/learning'), headers: _headers)

@@ -247,12 +247,7 @@ void main() {
   });
 
   group('C. 개발자 시점 문장', () {
-    testWidgets('내 가전 줄에 "처음부터 들어 있는"·"빼기는" 없음, LG 가전은 할 일만', (tester) async {
-      await _pump(tester, const SettingsScreen(), width: 400, scale: 1.0, hub: false);
-      expect(findPlainText('처음부터 들어 있는', contains: true), findsNothing);
-      expect(findPlainText('빼기는', contains: true), findsNothing);
-      expect(findPlainText('등록은 LG 앱에서', contains: true), findsOneWidget); // 평가 11차
-    });
+    // 10/25 사용자: 설정의 가전 목록을 뺐다(홈·가전 탭과 같다) — 설정 가전 줄 시험은 settings_screen_test '설정에는 가전 목록이 없다'로 대신한다.
 
     test('다시 맞추기 → 가전 다시 불러오기(평가 6차) → 하는 일 그대로(평가 11차)', () => expect(kResyncLabel, '본체에도 똑같이 맞추기'));
 

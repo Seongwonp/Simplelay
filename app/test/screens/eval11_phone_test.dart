@@ -374,11 +374,7 @@ void main() {
   });
 
   group('4. 설정', () {
-    testWidgets("LG 가전 부제는 '켜기·끄기는 여기서, 등록은 LG 앱에서'", (tester) async {
-      await _pump(tester, const SettingsScreen());
-      expect(findPlainText('등록은 LG 앱에서', contains: true), findsOneWidget);
-      expect(findPlainText('LG 앱에서 관리해요'), findsNothing);
-    });
+    // 10/25 사용자: 설정의 가전 목록을 뺐다(홈·가전 탭과 같다) — 설정 가전 줄 시험은 settings_screen_test '설정에는 가전 목록이 없다'로 대신한다.
 
     test('못 보낸 변경을 다시 보내는 단추는 하는 일 그대로', () {
       expect(kResyncLabel, '본체에도 똑같이 맞추기');

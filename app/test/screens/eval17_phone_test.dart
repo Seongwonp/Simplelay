@@ -416,7 +416,6 @@ void main() {
       await _pump(tester, const SettingsScreen());
       expect(find.byIcon(Icons.router_outlined), findsOneWidget);
       expect(find.byIcon(Icons.tablet_outlined), findsNothing);
-      expect(tester.widget<Text>(find.byKey(const Key('settings-thinq-subtitle'))).semanticsLabel, '등록은 LG 앱에서 해요');
     });
 
     testWidgets("개발 모드여도 '개발자' 줄은 숨김, 앱 정보 이름을 7번 누르면 열린다", (tester) async {

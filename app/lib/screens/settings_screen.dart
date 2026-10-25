@@ -220,12 +220,13 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpace.xxxl),
 
-          // ── 내 가전 ──────────────────────────────────────────────────────
-          _SectionHeader(title: '내 가전'),
-          const SizedBox(height: AppSpace.sm),
+          // ── 가전 — 목록은 가전 탭에만(10/25). 본체에 못 보낸 변경이 있을 때만 이 묶음이 보인다. ──
           _ApplianceSection(),
-          // 가전마다 버튼을 눌러 줄 장치(노드) 등록은 개발자 탭으로 옮겼다(2026-10-14 UX) —
-          // 허브가 대신 누르는 기본 구성에서는 '미연결'이 늘 보여 홈의 준비 상태와 엇갈렸다.
+
+          // ── 부르는 이름(2026-10-25) — 본체가 오래 비웠다 돌아온 사람에게 인사할 때 ──
+          _SectionHeader(title: '인사'),
+          const SizedBox(height: AppSpace.sm),
+          const _ResidentNameTile(),
 
           const SizedBox(height: AppSpace.xxxl),
 
@@ -362,4 +363,80 @@ class SettingsScreen extends ConsumerWidget {
         RpiConnectionState.unreachable => '연결이 끊겼어요',
         RpiConnectionState.unconfigured => '아직 주소가 없어요',
       };
+}
+
+
+/// 본체가 인사할 때 부르는 이름(2026-10-25). 줄을 누르면 고친다. 비우면 이름 없이 인사한다. 본체에만 저장된다.
+class _ResidentNameTile extends ConsumerStatefulWidget {
+  const _ResidentNameTile();
+
+  @override
+  ConsumerState<_ResidentNameTile> createState() => _ResidentNameTileState();
+}
+
+class _ResidentNameTileState extends ConsumerState<_ResidentNameTile> {
+  String? _name;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final api = ref.read(rpiApiServiceProvider);
+    String? name;
+    try {
+      name = await api?.residentName();
+    } catch (_) {}
+    if (mounted) setState(() {
+      _name = name;
+      _loaded = api != null;
+    });
+  }
+
+  Future<void> _edit() async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (api == null) return;
+    final ctrl = TextEditingController(text: _name ?? '');
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('어떻게 불러 드릴까요?'),
+        content: TextField(
+          key: const Key('resident-name-field'),
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 10,
+          decoration: const InputDecoration(hintText: '예: 성원', helperText: '비우면 이름 없이 인사해요'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(ctrl.text), child: const Text('저장')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (value == null || !mounted) return;
+    try {
+      final saved = await api.setResidentName(value.trim().isEmpty ? null : value.trim());
+      if (mounted) setState(() => _name = saved);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('이름을 저장하지 못했어요. 본체 연결을 봐 주세요.')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        key: const Key('settings-resident-name'),
+        leading: const Icon(Icons.waving_hand_outlined),
+        title: const Text('부르는 이름'),
+        // 낱말 중간에서 꺾이지 않게(390px·큰 글씨 '있|어' 사고 시험).
+        subtitle: Text(keepWordsTogether(!_loaded ? '본체와 연결하면 정할 수 있어요' : (_name ?? '정하지 않음 · 이름 없이 인사해요'))),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _loaded ? _edit : null,
+      );
 }

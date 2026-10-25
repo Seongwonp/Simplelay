@@ -355,22 +355,7 @@ void main() {
   });
 
   group('E. 설정 가전 줄', () {
-    testWidgets("버튼 자리를 맞추지 않은 가전: 짧은 부제 한 줄 + 줄 끝 > 하나(⋮ 없음)", (tester) async {
-      await _pump(tester, const SettingsScreen());
-      for (final id in ['washer', 'door']) {
-        final name = id == 'washer' ? '세탁기' : '인터폰';
-        final row = find.widgetWithText(ListTile, name);
-        expect(row, findsOneWidget);
-        expect(find.descendant(of: row, matching: findPlainText('버튼 자리를 맞춰 주세요')), findsOneWidget);
-        expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
-        expect(find.byKey(Key('appliance-menu-$id')), findsNothing);
-      }
-      // 모든 가전 줄이 같은 끝 표시.
-      for (final name in ['전자레인지', '공기청정기']) {
-        expect(find.descendant(of: find.widgetWithText(ListTile, name), matching: find.byIcon(Icons.chevron_right)),
-            findsOneWidget);
-      }
-    });
+    // 10/25 사용자: 설정의 가전 목록을 뺐다(홈·가전 탭과 같다) — 설정 가전 줄 시험은 settings_screen_test '설정에는 가전 목록이 없다'로 대신한다.
 
     testWidgets('지우기는 가전 상세 화면 ⋮ 한 곳(확인을 한 번 더 받는다)', (tester) async {
       await _pump(tester, const ApplianceDetailScreen(applianceId: 'washer'));

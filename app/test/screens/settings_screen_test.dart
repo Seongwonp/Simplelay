@@ -10,7 +10,6 @@ import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/demo_provider.dart';
 import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/providers/wellness_pause_provider.dart';
-import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 
 import '../helpers/test_helpers.dart';
@@ -176,7 +175,7 @@ void main() {
       }
     });
 
-    testWidgets('가전 목록은 상세로 이어지고 옛 선택 칩을 숨겨요', (tester) async {
+    testWidgets('옛 선택 칩을 숨겨요', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
@@ -184,67 +183,21 @@ void main() {
       expect(findPlainText('새 가전'), findsNothing);
       expect(findPlainText('음성으로 멈추기'), findsNothing);
       expect(findPlainText('가전 추가'), findsNothing);
-      expect(find.widgetWithText(ListTile, '전자레인지'), findsWidgets);
     });
 
-    // UI 평가 10/17: 홈은 5대인데 설정 '내 가전'은 ThinQ 가전을 빼 4대였고, 지우기가 없는 줄은 이유도 화살표도 없었다.
-    testWidgets('내 가전: ThinQ 가전도 보이고, 지울 수 없는 줄은 이유와 화살표', (tester) async {
+    // 10/25 사용자: 설정의 '내 가전' 목록은 홈·가전 탭과 같아 뺐다. 본체에 못 보낸 변경이 없으면 가전 묶음 자체가 없다.
+    testWidgets('설정에는 가전 목록이 없다', (tester) async {
       _useTallViewport(tester);
-      final purifier = ApplianceMap.fromJson({
-        'id': 'air_purifier',
-        'name': '공기청정기',
-        'rows': 1,
-        'cols': 1,
-        'buttons': const [],
-        'control_path': 'thinq',
-      });
       await tester.pumpWidget(buildScreen(
         const SettingsScreen(),
         overrides: [
           ..._scanOverrides(),
-          ...installedOverrides([kTestAppliance, purifier]),
+          ...installedOverrides([kTestAppliance]),
         ],
       ));
       await tester.pump();
-      expect(find.widgetWithText(ListTile, '공기청정기'), findsOneWidget);
-      // 평가 4차 10/18: 앱이 어떻게 만들어졌는지 대신 사용자 할 일만 — LG 가전은 어디서 무엇을 하는지, 그 밖은 비운다.
-      // 평가 11차 10/18: 'LG 앱에서 관리해요'는 여기서 못 다룬다는 오해 — 켜기·끄기는 여기서.
-      expect(findPlainText('등록은 LG 앱에서', contains: true), findsOneWidget);
-      expect(findPlainText('처음부터 들어 있는 가전이에요'), findsNothing);
-      expect(find.descendant(of: find.widgetWithText(ListTile, '공기청정기'), matching: find.byIcon(Icons.chevron_right)),
-          findsOneWidget);
-    });
-
-    testWidgets('내 가전: 모든 줄 끝은 > 하나, 지우기는 줄에 없다(가전 상세 ⋮)', (tester) async {
-      _useTallViewport(tester);
-      final washer = ApplianceMap.fromJson({
-        'id': 'custom_washer',
-        'name': '세탁기',
-        'rows': 1,
-        'cols': 1,
-        'is_custom': true,
-        'buttons': const [],
-      });
-      await tester.pumpWidget(buildScreen(
-        const SettingsScreen(),
-        overrides: [
-          ..._scanOverrides(),
-          ...installedOverrides([kTestAppliance, washer]),
-        ],
-      ));
-      await tester.pump();
-      final row = find.widgetWithText(ListTile, '세탁기');
-      // 휴지통·⋮ 를 줄에 두지 않는다 — 줄 끝은 > 하나, 지우기는 가전 상세 화면 ⋮ 안(평가 7차 10/18).
-      expect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)), findsNothing);
-      expect(find.byKey(const Key('appliance-menu-custom_washer')), findsNothing);
-      expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
-      // 버튼 자리를 맞추지 않은 가전은 할 일만 짧게 한 줄(평가 7차 10/18).
-      final subFinder = find.descendant(of: row, matching: findPlainText('버튼 자리를 맞춰 주세요'));
-      expect(subFinder, findsOneWidget);
-      // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17 10:13), 화면 읽기는 원문.
-      final sub = tester.widget<Text>(subFinder);
-      expect(sub.data, contains(kWordJoiner));
-      expect(sub.semanticsLabel, '버튼 자리를 맞춰 주세요');
+      expect(find.text('내 가전'), findsNothing);
+      expect(find.widgetWithText(ListTile, kTestAppliance.name), findsNothing);
     });
 
     testWidgets('허브 화면에 RPi 서버 URL 입력 필드가 보인다', (tester) async {

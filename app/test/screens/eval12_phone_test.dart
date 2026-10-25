@@ -20,7 +20,6 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/display_status.dart';
-import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/history_screen.dart';
 import 'package:simplelay/screens/home_screen.dart';
@@ -228,22 +227,11 @@ void main() {
   });
 
   group('4. 설정', () {
-    testWidgets("LG 가전 부제는 두 줄 — '등록은 LG 앱에서 해요'가 한 줄", (tester) async {
+    // 10/25 사용자: 설정의 가전 목록은 홈·가전 탭과 같아 뺐다 — LG 가전 부제도 설정에 없다.
+    testWidgets('설정에는 가전 목록이 없다', (tester) async {
       await _pump(tester, const SettingsScreen());
-      expect(findPlainText('켜기·끄기는 여기서, 등록은 LG 앱에서'), findsNothing);
-      final sub = find.byKey(const Key('settings-thinq-subtitle'));
-      expect(sub, findsOneWidget);
-      final data = tester.widget<Text>(sub).data!;
-      final lines = data.replaceAll(kWordJoiner, '').split('\n');
-      // 평가 17차(10/18): 한 문장 '등록은 LG 앱에서 해요'(eval17_phone_test 5).
-      expect(lines.map((l) => l.replaceAll(kNoBreakSpace, ' ')).toList(), ['등록은 LG 앱에서 해요']);
-      // 'LG'와 '앱에서'는 떨어지지 않는다.
-      expect(lines[0], contains('LG$kNoBreakSpace앱에서'));
-      if (_noKoreanFont == null) {
-        final t = tester.widget<Text>(sub);
-        final lineH = (t.style?.fontSize ?? 14) * 1.6;
-        expect(tester.getSize(sub).height, lessThan(lineH * 2), reason: '${tester.getSize(sub)}');
-      }
+      expect(find.byKey(const Key('settings-thinq-subtitle')), findsNothing);
+      expect(findPlainText('내 가전'), findsNothing);
     });
 
     testWidgets('바꾼 것이 없으면 본체 반영 단추가 없다', (tester) async {

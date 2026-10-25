@@ -25,6 +25,9 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
           'http://simplelay.local:8000');
   late final _code = TextEditingController(text: widget.code);
   final _phone = TextEditingController(text: '내 폰');
+
+  /// 본체가 인사할 때 부를 이름(선택, 2026-10-25). 연결이 끝난 뒤 본체에 한 번 저장한다.
+  final _callName = TextEditingController();
   RpiApiService? _api;
   String? _resolvedHost;
   Timer? _timer;
@@ -62,6 +65,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     _host.dispose();
     _code.dispose();
     _phone.dispose();
+    _callName.dispose();
     super.dispose();
   }
 
@@ -213,6 +217,11 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
         _stopWaiting(
             connected ? '본체와 연결했어요.' : '연결 허락은 저장했어요. 본체 연결을 다시 봐 주세요.');
         setState(() => _connected = true);
+        final callName = _callName.text.trim();
+        if (callName.isNotEmpty) {
+          // 이름 저장 실패는 연결과 무관하다 — 설정에서 다시 정할 수 있다.
+          unawaited(ref.read(rpiApiServiceProvider)?.setResidentName(callName).catchError((Object _) => null));
+        }
       } else if (result['state'] == 'denied') {
         _stopWaiting('본체에서 연결을 닫았어요. 새 코드를 받아 다시 연결해 주세요.');
       }
@@ -243,6 +252,13 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
               enabled: !_busy && !_connected,
               maxLength: 40,
               decoration: const InputDecoration(labelText: '본체 화면에 보일 폰 이름')),
+          TextField(
+              key: const Key('pair-call-name'),
+              controller: _callName,
+              enabled: !_busy && !_connected,
+              maxLength: 10,
+              decoration: const InputDecoration(
+                  labelText: '어떻게 불러 드릴까요? (선택)', hintText: '예: 성원', helperText: '본체가 인사할 때 불러요. 본체에만 저장돼요.')),
           if (!_manual && !_connected)
             Align(
               alignment: Alignment.centerLeft,
@@ -257,11 +273,14 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
                 enabled: !_busy && !_connected,
                 decoration: const InputDecoration(labelText: '본체 주소'),
                 keyboardType: TextInputType.url),
+            // 칸 사이를 띄운다(10/25 캡처 — '여섯 자리 숫자' 이름표가 위 칸 테두리에 겹쳤다).
+            const SizedBox(height: AppSpace.lg),
             TextField(
                 controller: _code,
                 enabled: !_busy && !_connected,
                 autocorrect: false,
                 decoration: const InputDecoration(labelText: '여섯 자리 숫자')),
+            const SizedBox(height: AppSpace.md),
           ],
           if (_message != null) Text(_message!, key: const Key('pair-message')),
           if (_token != null) ...[
