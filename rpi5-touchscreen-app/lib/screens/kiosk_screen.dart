@@ -2639,7 +2639,15 @@ class _KioskScreenState extends State<KioskScreen> {
               dim: _quietDim,
               scrim: _scrimOn,
               blackout: _roomSleeping,
-              child: _buildScaffold(),
+              // 쉬는 동안 뒤 화면은 그리지 않는다(Offstage — 상태는 남는다). 위에 덮기만 하면 밝은 처음 화면이 가장자리에
+              // 가는 선으로 비쳤다(10/26 실패널).
+              child: Stack(fit: StackFit.expand, children: [
+                Offstage(offstage: _roomSleeping, child: _buildScaffold()),
+                if (_roomSleeping)
+                  KioskRoomSleep(
+                    onWake: () => setState(() => _touchWakeUntil = DateTime.now().add(const Duration(minutes: 2))),
+                  ),
+              ]),
             ),
           )),
     );
@@ -2747,12 +2755,6 @@ class _KioskScreenState extends State<KioskScreen> {
                     if (_greeting)
                       // 메뉴 단추 왼쪽 빈자리 — 가운데에 두면 날짜·온습도를 가렸다(10/26 실패널 점검).
                       Positioned(top: 16, right: 100, child: KioskWelcomeBack(text: _room?.greeting ?? '어서 오세요')),
-                    if (_roomSleeping)
-                      Positioned.fill(
-                        child: KioskRoomSleep(
-                          onWake: () => setState(() => _touchWakeUntil = DateTime.now().add(const Duration(minutes: 2))),
-                        ),
-                      ),
                     if (_showSettings)
                       Positioned.fill(
                         child: KioskModalSemantics(
