@@ -21,23 +21,56 @@ const _later = ValueKey('suggestion-later');
 Future<void> _pump(WidgetTester tester,
     {ApplianceMap? target,
     KioskSuggestion suggestion = _sug,
-    Size size = const Size(800, 480)}) async {
+    Size size = const Size(800, 480),
+    double? textScale,
+    VoidCallback? onMarkDone}) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
+  final view = KioskSuggestionView(
+    suggestion: suggestion,
+    target: target,
+    cdRemaining: 20,
+    cdTotal: 20,
+    onApprove: () {},
+    onReject: () {},
+    onMarkDone: onMarkDone,
+  );
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
-      body: KioskSuggestionView(
-        suggestion: suggestion,
-        target: target,
-        cdRemaining: 20,
-        cdTotal: 20,
-        onApprove: () {},
-        onReject: () {},
-      ),
+      body: textScale == null
+          ? view
+          : Builder(
+              builder: (context) => MediaQuery(
+                    data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+                    child: view,
+                  )),
     ),
   ));
 }
+
+final _chips = find.byWidgetPredicate((w) =>
+    w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('suggestion-signal-chip-'));
+
+const _signals = [
+  KioskSuggestionSignal(label: '사람 있음'),
+  KioskSuggestionSignal(label: '평소 오후 10시쯤'),
+  KioskSuggestionSignal(label: '최근 7일 중 5일'),
+  KioskSuggestionSignal(label: '방이 어두움'),
+  KioskSuggestionSignal(label: '다섯째 신호'),
+];
+
+const _habit = KioskSuggestion(
+  id: 'h1',
+  purpose: '즉석밥 데워줘',
+  occurrences: 5,
+  timeBand: '저녁',
+  reason: '최근 7일 중 5일, 오후 10시쯤 하셨어요',
+  steps: ['즉석밥', '시작'],
+  applianceId: 'microwave',
+  signals: _signals,
+  canMarkDone: true,
+);
 
 void main() {
   testWidgets('버튼은 시작과 다음에 두 개뿐 — 억제·미루기·바꾸기는 폰에 둔다', (tester) async {
@@ -278,5 +311,55 @@ void main() {
       KioskSuggestion.fromJson({'id': 's2', 'purpose': 'x'}).applianceId,
       isNull,
     );
+  });
+
+  // 2026-10-26 '왜 지금' 신호 칩·'이미 했어요'.
+  group('신호 칩·이미 했어요', () {
+    testWidgets('서버가 준 신호를 칩으로 4개까지만 보인다', (tester) async {
+      await _pump(tester, target: kMicrowaveAppliance, suggestion: _habit, onMarkDone: () {});
+      expect(tester.takeException(), isNull);
+      expect(_chips, findsNWidgets(4));
+      expect(find.text('사람 있음'), findsOneWidget);
+      expect(find.text('다섯째 신호'), findsNothing);
+    });
+
+    testWidgets('신호가 없으면 칩 줄이 없다(화면에서 만들지 않음)', (tester) async {
+      await _pump(tester, target: kMicrowaveAppliance, onMarkDone: () {});
+      expect(find.byKey(const ValueKey('suggestion-signals')), findsNothing);
+    });
+
+    testWidgets("'이미 했어요'는 습관 카드(can_mark_done)에만 있고 누르면 알린다", (tester) async {
+      var done = 0;
+      await _pump(tester, target: kMicrowaveAppliance, suggestion: _habit, onMarkDone: () => done++);
+      await tester.tap(find.byKey(const ValueKey('suggestion-already-done')));
+      expect(done, 1);
+      await _pump(tester, target: kMicrowaveAppliance, onMarkDone: () => done++);
+      expect(find.byKey(const ValueKey('suggestion-already-done')), findsNothing);
+    });
+
+    testWidgets('시나리오 카드도 신호를 오른쪽 칸에 보인다', (tester) async {
+      await _pump(tester,
+          suggestion: const KioskSuggestion(
+            id: 'c1',
+            purpose: '수면 모드로 바꿀까요?',
+            occurrences: 0,
+            reason: '불을 끄셨네요.',
+            applianceId: 'air',
+            scenarioId: 'context_sleep_mode',
+            commands: [KioskSuggestionCommand(targetId: 'air', route: 'thinq', summary: '공기청정기 수면 모드')],
+            signals: [KioskSuggestionSignal(label: '방이 어두움'), KioskSuggestionSignal(label: '밤')],
+          ));
+      expect(tester.takeException(), isNull);
+      expect(_chips, findsNWidgets(2));
+    });
+
+    for (final scale in [1.0, 1.5]) {
+      testWidgets('800x480·글자 $scale배에서 칩·이미 했어요가 넘치지 않는다', (tester) async {
+        await _pump(tester,
+            target: kMicrowaveAppliance, suggestion: _habit, textScale: scale, onMarkDone: () {});
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(const ValueKey('suggestion-already-done')), findsOneWidget);
+      });
+    }
   });
 }

@@ -351,6 +351,35 @@ void main() {
         {'mute': false},
       ]);
     });
+
+    test("'이미 했어요'는 본문에 reason=already_done을 싣는다(2026-10-26)", () async {
+      Object? body;
+      await http.runWithClient(
+          () => KioskApiService(baseUrl: 'http://hub.test').rejectSuggestion('s1', reason: 'already_done'),
+          () => MockClient((req) async {
+                body = jsonDecode(req.body);
+                return http.Response('{"ok":true}', 200);
+              }));
+      expect(body, {'mute': false, 'reason': 'already_done'});
+    });
+
+    test('신호·이미 했어요 표시는 서버 값 그대로 읽는다(없으면 빈 목록·거짓)', () {
+      final s = KioskSuggestion.fromJson({
+        'id': 'x', 'purpose': 'p', 'occurrences': 0,
+        'signals': [
+          {'label': '사람 있음', 'ok': true},
+          {'label': ' ', 'ok': true},
+          {'label': '방이 어두움', 'ok': false},
+        ],
+        'can_mark_done': true,
+      });
+      expect(s.signals.map((e) => e.label), ['사람 있음', '방이 어두움']);
+      expect(s.signals.last.ok, isFalse);
+      expect(s.canMarkDone, isTrue);
+      final old = KioskSuggestion.fromJson({'id': 'y', 'purpose': 'p', 'occurrences': 0});
+      expect(old.signals, isEmpty);
+      expect(old.canMarkDone, isFalse);
+    });
   });
 
   test('예보 받은 시각 — 본체가 UTC로 보내도 한국 시각으로(10/25 실패널: 11시 10분이 2시 10분으로 보였다)', () {

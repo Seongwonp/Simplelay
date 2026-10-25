@@ -50,7 +50,15 @@ class KioskSuggestionView extends StatelessWidget {
     this.allowConfirming = false,
     this.onAllowConfirm,
     this.onAllowCancel,
+    this.onMarkDone,
   });
+
+  /// '이미 했어요'(2026-10-26) — 습관 카드(서버 `can_mark_done`)에만. 서버 `reject(reason=already_done)`: 오늘은 다시 묻지 않고
+  /// 거절로 세지 않는다. null이면 단추가 없다.
+  final VoidCallback? onMarkDone;
+
+  /// '이미 했어요' 단추를 둘 카드인가 — 서버가 습관 카드라고 알린 것만, 내가 연 카드는 아니다.
+  bool get offersMarkDone => onMarkDone != null && suggestion.canMarkDone && !startedByUser;
 
   /// '이 제안 앞으로 받지 않기' 체크(2026-10-25) — 체크하고 '아니요'면 서버 `reject(mute=true)`. 상태는 화면(kiosk_screen)이
   /// 제안 id에 묶어 쥐고 있어 제안이 바뀌면 풀린다. [onMuteChanged]가 null이면 줄이 없다.
@@ -205,6 +213,11 @@ class KioskSuggestionView extends StatelessWidget {
             !suggestion.userStarted) ...[
           const SizedBox(height: 10),
           _WhyText(suggestion.whyNow),
+        ],
+        // '왜 지금' 신호(서버가 준 것만) — 시나리오 카드(작은 글씨)는 오른쪽 칸 근거 아래에 둔다.
+        if ((large || !scenario) && !suggestion.userStarted && suggestion.signals.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          KioskSignalChips(signals: suggestion.signals),
         ],
       ],
     );
@@ -382,6 +395,10 @@ class KioskSuggestionView extends StatelessWidget {
                                   const SizedBox(height: 16),
                                   _WhyText('이유: ${suggestion.whyNow}'),
                                 ],
+                                if (!suggestion.userStarted && suggestion.signals.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  KioskSignalChips(signals: suggestion.signals),
+                                ],
                               ],
                             ),
                           ),
@@ -413,16 +430,45 @@ class KioskSuggestionView extends StatelessWidget {
                   ),
           ),
 
-          SizedBox(height: offersMute ? 4 : 12),
-          if (offersMute)
+          SizedBox(height: offersMute || offersMarkDone ? 4 : 12),
+          if (offersMute || offersMarkDone)
             Row(children: [
-              // '아니요' 바로 위(같은 폭) — 오른쪽 '네' 칸은 비운다.
+              // '아니요' 바로 위(같은 폭) — 오른쪽 '네' 칸은 '이미 했어요'(습관 카드만) 말고는 비운다.
               Expanded(
                 flex: large ? 1 : 3,
-                child: KioskSuggestionMuteRow(checked: muteChecked, onChanged: onMuteChanged!),
+                child: offersMute
+                    ? KioskSuggestionMuteRow(checked: muteChecked, onChanged: onMuteChanged!)
+                    : const SizedBox.shrink(),
               ),
               const SizedBox(width: 12),
-              Expanded(flex: large ? 1 : 4, child: const SizedBox.shrink()),
+              Expanded(
+                flex: large ? 1 : 4,
+                child: offersMarkDone
+                    ? Align(
+                        alignment: Alignment.centerRight,
+                        child: Semantics(
+                          button: true,
+                          label: '이미 했어요. 오늘은 다시 묻지 않아요',
+                          excludeSemantics: true,
+                          child: TextButton(
+                            key: const ValueKey('suggestion-already-done'),
+                            onPressed: onMarkDone,
+                            style: ButtonStyle(
+                              minimumSize: const WidgetStatePropertyAll(Size(120, 48)),
+                              foregroundColor: WidgetStatePropertyAll(KioskColors.ink),
+                              padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12)),
+                            ),
+                            child: const Text('이미 했어요',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: KioskType.body,
+                                    decoration: TextDecoration.underline)),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ]),
           // 두 단추는 늘 같은 높이(UI 평가 3차 10/17 — 큰 글씨에서 거절이 두 줄로 접혀 높이가 달랐다).
           IntrinsicHeight(
@@ -686,6 +732,48 @@ class _AllowConfirm extends StatelessWidget {
           ]),
         ]),
       );
+}
+
+/// '왜 지금' 신호 칩(2026-10-26) — 서버가 준 신호를 앞에서 4개까지만. 화면에서 신호를 만들지 않는다.
+/// 줄이 넘치면 다음 줄로 감싸고(Wrap), 한 칩 글이 길면 말줄임. 맞지 않는 신호(ok=false)는 흐린 테두리.
+class KioskSignalChips extends StatelessWidget {
+  const KioskSignalChips({super.key, required this.signals});
+
+  static const maxShown = 4;
+  final List<KioskSuggestionSignal> signals;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = signals.take(maxShown).toList();
+    return Semantics(
+      label: '이렇게 보고 물어봐요: ${shown.map((s) => s.label).join(', ')}',
+      excludeSemantics: true,
+      child: Wrap(
+        key: const ValueKey('suggestion-signals'),
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          for (var i = 0; i < shown.length; i++)
+            Container(
+              key: ValueKey('suggestion-signal-chip-$i'),
+              constraints: const BoxConstraints(maxWidth: 260),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: shown[i].ok ? KioskColors.primary : KioskColors.border),
+              ),
+              child: Text(
+                shown[i].label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: KioskType.caption, color: shown[i].ok ? KioskColors.ink : KioskColors.muted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _WhyText extends StatefulWidget {

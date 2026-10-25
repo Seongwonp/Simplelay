@@ -216,9 +216,10 @@ class FakeKioskApi implements KioskApiService {
   }
 
   @override
-  Future<void> rejectSuggestion(String id, {bool mute = false}) async {
+  Future<void> rejectSuggestion(String id, {bool mute = false, String? reason}) async {
     if (rejectError != null) throw rejectError!;
     rejectedIds.add(id);
+    rejectReasons.add(reason);
     if (mute) mutedIds.add(id);
   }
 
@@ -230,6 +231,9 @@ class FakeKioskApi implements KioskApiService {
 
   /// 정지 실패(통신·본체 거절)를 흉내 낸다(검토 10/19).
   Object? stopError;
+
+  /// 거절마다 보낸 이유(null이면 '아니요' — 이유 없음, 2026-10-26 '이미 했어요').
+  final rejectReasons = <String?>[];
 
   /// POST /routines/runs/{id}/stop(검토 10/19) — 멈추라고 보낸 루틴 실행 번호.
   final routineStops = <String>[];
@@ -801,6 +805,43 @@ void main() {
 
     expect(api.rejectedIds, ['s1']);
     expect(api.mutedIds, isEmpty);
+  });
+
+  // 2026-10-26: 습관 카드의 '이미 했어요' — 오늘은 다시 묻지 않게 이유를 실어 거절하고, 닫는 흐름은 '아니요'와 같다.
+  testWidgets("'이미 했어요'는 already_done 이유로 거절하고 카드를 닫는다", (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [
+        const KioskSuggestion(
+            id: 'h1', purpose: '즉석밥 데워줘', occurrences: 3, applianceId: 'microwave', canMarkDone: true),
+      ];
+    await _pumpKiosk(tester, api);
+    expect(find.byKey(const ValueKey('suggestion-already-done')), findsOneWidget);
+    api.suggestionList = [];
+    await tester.tap(find.byKey(const ValueKey('suggestion-already-done')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(api.rejectedIds, ['h1']);
+    expect(api.rejectReasons, ['already_done']);
+    expect(api.mutedIds, isEmpty);
+    expect(find.byType(KioskSuggestionView), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets("'아니요'는 이유 없이 거절한다(이미 했어요와 섞이지 않음)", (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [
+        const KioskSuggestion(
+            id: 'h2', purpose: '즉석밥 데워줘', occurrences: 3, applianceId: 'microwave', canMarkDone: true),
+      ];
+    await _pumpKiosk(tester, api);
+    api.suggestionList = [];
+    await tester.tap(find.byKey(_laterKey));
+    await tester.pump();
+    expect(api.rejectedIds, ['h2']);
+    expect(api.rejectReasons, [null]);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('서버 재시작으로 작업이 사라지면 확인 불가, 복귀 후 진행 작업을 다시 추적한다', (tester) async {

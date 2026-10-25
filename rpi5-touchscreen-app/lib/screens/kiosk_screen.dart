@@ -2580,13 +2580,16 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 체크 줄을 두는 카드 — 서버가 스스로 낸 제안만(내가 연 카드·루틴 카드 제외). 보기([KioskSuggestionView.offersMute])와 같은 규칙.
   bool _offersMute(KioskSuggestion s) => s.id != _ownCardId && s.routineId == null;
 
-  Future<void> _dismissSuggestion({required bool mute}) async {
+  /// '이미 했어요'(습관 카드) — 서버가 오늘은 다시 묻지 않는다(거절로 세지 않음). 닫는 흐름은 '아니요'와 같다.
+  Future<void> _onMarkDone() => _dismissSuggestion(mute: false, reason: 'already_done');
+
+  Future<void> _dismissSuggestion({required bool mute, String? reason}) async {
     final suggestion = _currentSuggestion;
     if (suggestion == null || _dismissingSuggestion) return;
     _dismissingSuggestion = true;
     _countdownTimer?.cancel();
     try {
-      await _api.rejectSuggestion(suggestion.id, mute: mute);
+      await _api.rejectSuggestion(suggestion.id, mute: mute, reason: reason);
       if (mounted && _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
         _muteSuggestionId = null;
@@ -3279,6 +3282,7 @@ class _KioskScreenState extends State<KioskScreen> {
           blockedWhy: suggestion.isScenario ? _scenarioBlockedWhy : null,
           onApprove: _onApprove,
           onReject: _onReject,
+          onMarkDone: suggestion.canMarkDone ? _onMarkDone : null,
           startedByUser: _ownCardId != null && _ownCardId == suggestion.id,
           muteChecked: _muteSuggestionId == suggestion.id,
           onMuteChanged: _offersMute(suggestion)

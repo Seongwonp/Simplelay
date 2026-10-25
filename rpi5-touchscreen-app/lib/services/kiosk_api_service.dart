@@ -124,9 +124,17 @@ class KioskSuggestion {
     this.routineName,
     this.autoRuleOffer,
     this.adoptOffer,
+    this.signals = const [],
+    this.canMarkDone = false,
   });
 
   final bool isDemo;
+
+  /// '왜 지금' 신호(서버 `signals`, 2026-10-26) — 이 카드를 띄운 근거들. 서버가 만든 그대로만 보여 준다(화면에서 만들지 않음).
+  final List<KioskSuggestionSignal> signals;
+
+  /// 습관 카드면 참(서버 `can_mark_done`) — '이미 했어요'(오늘은 다시 묻지 않음)를 둔다.
+  final bool canMarkDone;
 
   /// '다음부터는 알아서 하기' 내용(서버 `auto_rule_offer`, 2026-10-25 키오스크에도). 없으면 이 카드는 맡길 수 없다 —
   /// 낮은 위험 LG 가전 동작 하나인 시각 루틴·가열 종료 카드만 서버가 준다. 물리 누름 카드는 늘 묻는다.
@@ -218,6 +226,8 @@ class KioskSuggestion {
         routineName: json['routine_name'] as String?,
         autoRuleOffer: KioskAutoRuleOffer.fromJson(json['auto_rule_offer']),
         adoptOffer: KioskAdoptOffer.fromJson(json['adopt_offer']),
+        signals: KioskSuggestionSignal.listFromJson(json['signals']),
+        canMarkDone: json['can_mark_done'] == true,
         commands: [
           for (final c in (json['commands'] as List<dynamic>?) ?? const [])
             if (c is Map<String, dynamic>) KioskSuggestionCommand.fromJson(c),
@@ -225,7 +235,24 @@ class KioskSuggestion {
       );
 }
 
-/// 시나리오 카드의 확정 명령 하나(서버 `commands[]`).
+/// 카드를 띄운 신호 하나(서버 `signals[]`) — 예: '사람 있음', '최근 7일 중 5일'.
+class KioskSuggestionSignal {
+  const KioskSuggestionSignal({required this.label, this.ok = true});
+
+  final String label;
+  final bool ok;
+
+  /// 서버가 준 목록 그대로(빈 이름은 버림). 화면은 앞에서 4개까지만 보인다.
+  static List<KioskSuggestionSignal> listFromJson(Object? json) {
+    if (json is! List) return const [];
+    return [
+      for (final item in json)
+        if (item is Map && item['label'] is String && (item['label'] as String).trim().isNotEmpty)
+          KioskSuggestionSignal(label: (item['label'] as String).trim(), ok: item['ok'] != false),
+    ];
+  }
+}
+
 /// 습관 카드의 '매일 이 시간에' 내용 — [auto]면 맡기기까지(낮은 위험 LG 가전), 아니면 매일 묻기 루틴(물리 누름).
 class KioskAdoptOffer {
   const KioskAdoptOffer({required this.candidateKey, required this.askTime, required this.auto, this.evidence});
@@ -1319,12 +1346,13 @@ class KioskApiService {
         jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
   }
 
-  Future<void> rejectSuggestion(String id, {bool mute = false}) async {
+  /// [reason]은 '이미 했어요'일 때만 `already_done`(서버가 오늘은 다시 묻지 않음). '아니요'는 보내지 않는다.
+  Future<void> rejectSuggestion(String id, {bool mute = false, String? reason}) async {
     final res = await _client
         .post(
           _base.replace(path: '/suggestions/$id/reject'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'mute': mute}),
+          body: jsonEncode({'mute': mute, if (reason != null) 'reason': reason}),
         )
         .timeout(_timeout);
     // 이미 만료/처리된 카드는 넘긴 것과 같다. 그 외 실패는 UI에 전달한다.
