@@ -85,7 +85,7 @@ class KioskManualActions extends StatelessWidget {
           const SizedBox(height: KioskSpace.sm),
           // 여러 버튼을 한 번 묻고 한 번에 맡기는 길은 저장된 동작(루틴)이다(첫 사용 검토 10/19 #6). 새 루틴은 폰에서 만든다.
           KioskText(
-            '여러 버튼을 한 번에 맡기려면 휴대폰 앱에서 루틴을 만들어요',
+            '여러 버튼을 한 번에 누르려면 휴대폰 앱에서 루틴을 만들 수 있어요',
             textKey: const ValueKey('manual-routine-hint'),
             style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
           ),

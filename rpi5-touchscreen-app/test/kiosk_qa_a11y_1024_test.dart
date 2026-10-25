@@ -84,7 +84,7 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets("설정의 전기 플러그 주소 칸은 '설치용'을 펼쳐야 보인다(기능은 그대로)", (tester) async {
+  testWidgets("설정의 콘센트 주소 칸은 '설치용'을 펼쳐야 보인다(기능은 그대로)", (tester) async {
     await _pump(tester);
     await _tap(tester, 'idle-menu');
     await _tap(tester, 'settings-entry');

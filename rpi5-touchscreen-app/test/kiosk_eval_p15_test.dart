@@ -3,11 +3,11 @@
 //
 // 1. '지금' 칸: 서버가 `now` 키를 보내면 그 값만(없으면 '지금' 칸 없음). 키가 없는 옛 서버만 3시간 칸 대체.
 // 2. 실패 결과 아래 줄: 주 단추 하나('처음 화면으로') + 보조 한 줄(같은 폭·같은 높이·같은 오른쪽 끝).
-// 3. 안전: 누름 장치가 멈췄는지 모르는 정지 결과에는 '누름 장치로 골라 누르기'가 없고 번호 안내가 있다.
+// 3. 안전: 누름 장치가 멈췄는지 모르는 정지 결과에는 '버튼 직접 고르기'가 없고 번호 안내가 있다.
 // 4. '처음 화면으로'는 한 모양(흰 채움·집 아이콘)·한 자리(왼쪽 아래 같은 선) — 정지 미확인 대기는 크기만 보조.
-// 5. 문제 칩: 원인이 하나면 첫 줄에 원인과 영향('누름 장치 연결이 끊겨 가전 N대를 못 써요'), '연결 1곳을 봐 주세요'은 남는다.
+// 5. 문제 칩: 원인이 하나면 첫 줄에 원인과 영향('누름 장치 연결이 끊겨 가전 N대를 못 써요'), '연결 1곳에 문제가 있어요'은 남는다.
 // 6. 공기 할 일은 '공기 나빠요' 바로 아래 같은 왼쪽 열.
-// 7. LG 가전 '보내다' 표현 없음 — '공기청정기에 켜 달라고 했어요', '정지를 누르면 더 하지 않아요'.
+// 7. LG 가전 '보내다' 표현 없음 — '공기청정기에 켜기 명령을 보냈어요', '정지를 누르면 더 하지 않아요'.
 // 8. '~봐 주세요' 되풀이 없음 — 번호 안내가 있으면 할 일 한 줄을 따로 두지 않는다.
 // 9. LG 가전 결과(확인됨)는 내용이 위에 붙지 않고 가운데 쪽.
 // 10. 지난 일 줄이 있어도 '오늘은 건너뛰기'와 가전 줄 사이 간격 토큰 이상, LG 상세 공기 블록 들여쓰기·아래 끝 맞춤,
@@ -257,7 +257,7 @@ void main() {
       expect(_count(texts, '봐 주세요'), lessThanOrEqualTo(1));
     });
 
-    testWidgets('안전 — 누름 장치가 멈췄는지 모르면 누름 장치로 골라 누르기가 없고 번호 안내가 있다', (tester) async {
+    testWidgets('안전 — 누름 장치가 멈췄는지 모르면 버튼 직접 고르기가 없고 번호 안내가 있다', (tester) async {
       await _pump15(tester, _userStop());
       expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
       expect(find.byKey(const ValueKey('done-manual')), findsNothing);
@@ -333,8 +333,8 @@ void main() {
             ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
           ]));
       final texts = _texts(tester);
-      expect(texts, contains('누름 장치가 끊겨 가전 4대를 쓸 수 없어요'));
-      expect(texts, isNot(contains('연결 1곳을 봐 주세요'))); // 한 줄 제목만(결선 모의 평가 10/18)
+      expect(texts, contains('누름 장치 연결이 끊겨 가전 4대를 쓸 수 없어요'));
+      expect(texts, isNot(contains('연결 1곳에 문제가 있어요'))); // 한 줄 제목만(결선 모의 평가 10/18)
       expect(find.byKey(const ValueKey('idle-problem-help')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -376,8 +376,8 @@ void main() {
           confirmation: 'none',
           executionMode: 'real',
           action: thinqActionOf('공기청정기', ['공기청정기 전원 켜기']))!;
-      expect(copy.headline, '공기청정기에 켜 달라고 했어요');
-      expect(copy.headline + copy.sub, isNot(contains('보냈')));
+      expect(copy.headline, '공기청정기에 켜기 명령을 보냈어요');
+      expect(copy.headline + copy.sub, isNot(contains('확인했어요')));
     });
 
     // 10/19: 이미 보낸 명령을 멈추는 것처럼 읽혔다 — 되돌리지 못할 수 있다고 말한다(되돌린다고 약속하지 않는다).
@@ -406,7 +406,7 @@ void main() {
       // 정지 안내(10/19 — 이미 보낸 것은 되돌리지 못할 수 있다)만 빼고.
       expect(_texts(tester).where((t) => t != kThinqStopNote && (t.contains('보내') || t.contains('보냈'))), isEmpty);
       await _pump15(tester, _thinqDone(confirmed: false));
-      expect(_texts(tester).where((t) => t.contains('보내') || t.contains('보냈')), isEmpty);
+      expect(_texts(tester).where((t) => t.contains('확인했어요')), isEmpty);
     });
   });
 
@@ -546,7 +546,7 @@ void main() {
             verificationDetail: '전력 변화를 보는 중',
             onStop: () {},
           ));
-      expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
+      expect(find.text('눌렀어요. 눌렸는지 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing);
     });
   });

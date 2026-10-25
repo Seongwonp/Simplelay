@@ -32,7 +32,7 @@ class KioskHistoryView extends StatelessWidget {
   /// 위 오른쪽 '메뉴'(처음 화면과 같은 창). null이면 두지 않는다.
   final VoidCallback? onMenu;
 
-  static const kMoreOnPhone = '자세한 내용과 답하기는 휴대폰 앱 기록에서 볼 수 있어요';
+  static const kMoreOnPhone = '자세한 내용은 휴대폰 앱 기록에서 볼 수 있어요';
 
   @override
   Widget build(BuildContext context) => KioskTabPage(

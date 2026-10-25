@@ -208,7 +208,7 @@ class KioskEstopScope extends InheritedWidget {
 
   final bool shown;
 
-  /// 위 띠 제목('비상 버튼이 눌려 있어요' · '전기 플러그 전원이 꺼져 있어요'). 띠가 없으면 null.
+  /// 위 띠 제목('비상 버튼이 눌려 있어요' · '콘센트 전원이 꺼져 있어요'). 띠가 없으면 null.
   final String? title;
 
   static bool shownOf(BuildContext context) =>

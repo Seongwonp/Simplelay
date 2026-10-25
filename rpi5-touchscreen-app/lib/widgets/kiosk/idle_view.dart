@@ -328,7 +328,7 @@ class KioskIdleView extends StatelessWidget {
         ? null
         : KioskSideRow(
             key: const ValueKey('ambient-tip'),
-            label: noticeTip.icon == 'attention' ? '확인 필요' : '알림',
+            label: noticeTip.icon == 'attention' ? '주의' : '알림',
             child: _NoticeLine(tip: noticeTip),
           );
     final sideRows = <Widget>[
@@ -1310,7 +1310,7 @@ class _DndEntry extends StatelessWidget {
     return Semantics(
       button: true,
       label: quiet != null
-          ? '조용한 시간, $quiet까지. 새 제안과 일반 안내 소리를 쉬어요'
+          ? '조용한 시간, $quiet까지. 새 제안과 일반 안내 소리를 내지 않아요'
           : on
               ? '방해 금지 켜짐, $remaining 남았어요. 끄려면 누르세요'
               : kDndName,

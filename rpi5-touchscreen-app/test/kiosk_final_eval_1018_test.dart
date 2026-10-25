@@ -1,7 +1,7 @@
 // 결선 심사 모의 평가(10/18, 합의 78점)에서 나온 키오스크 문제 — 단정 시험.
 //
 // 1. 전력 확인 결과('전자레인지가 켜졌어요')는 무엇으로 확인했는지 제목 바로 아래 한 줄(본문 크기·흰 글자).
-// 2. 실행 중 상태는 실제 단계대로 — 서버 진행 보고가 누른 뒤 확인 결과를 실어 오면 '눌렀어요, 확인하고 있어요',
+// 2. 실행 중 상태는 실제 단계대로 — 서버 진행 보고가 누른 뒤 확인 결과를 실어 오면 '눌렀어요. 눌렸는지 확인하고 있어요',
 //    확인 결과 없이 버튼만 오면 '누르고 있어요'. 예전 '제대로 눌렸는지 보는 중'은 누르는 중인지 확인 중인지 헷갈렸다.
 // 3. 보조 글씨 키우기 — 제안 카운트다운(키오스크 타이머 40초, 남은 초를 따로 크게), 버튼판 안내, 가전 타일 회색 띠 글자,
 //    사용 방법 본문.
@@ -87,7 +87,7 @@ void main() {
       final style = _styleOf(tester, evidence);
       expect(style.fontSize, greaterThanOrEqualTo(KioskType.body));
       expect(style.color, KioskColors.ink);
-      // 제목(전자레인지가 켜졌어요) 바로 아래, 할 일('원하는 대로 됐는지 봐 주세요')보다 위.
+      // 제목(전자레인지가 켜졌어요) 바로 아래, 할 일('원하는 대로 작동하는지 봐 주세요')보다 위.
       final title = _plain('전자레인지가 켜졌어요');
       expect(title, findsOneWidget);
       final sub = find.byKey(const ValueKey('done-sub'));
@@ -118,9 +118,9 @@ void main() {
           onStop: _noop,
         );
 
-    testWidgets("누른 뒤 확인 결과가 오면 '눌렀어요, 확인하고 있어요' — '보는 중'이 아니다", (tester) async {
+    testWidgets("누른 뒤 확인 결과가 오면 '눌렀어요. 눌렸는지 확인하고 있어요' — '보는 중'이 아니다", (tester) async {
       await _pump15(tester, exec(confidence: 0.93, detail: '전류 +14mA'));
-      expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget);
+      expect(find.text('눌렀어요. 눌렸는지 확인하고 있어요'), findsOneWidget);
       expect(find.text('제대로 눌렸는지 보는 중'), findsNothing);
       expect(find.text('누르고 있어요'), findsNothing);
     });
@@ -128,17 +128,17 @@ void main() {
     testWidgets("확인 결과 없이 버튼만 오면 '누르고 있어요'", (tester) async {
       await _pump15(tester, exec());
       expect(find.text('누르고 있어요'), findsOneWidget);
-      expect(find.text('눌렀어요, 확인하고 있어요'), findsNothing);
+      expect(find.text('눌렀어요. 눌렸는지 확인하고 있어요'), findsNothing);
       expect(find.text('누르는 중'), findsNothing);
     });
 
     testWidgets('다시 누르는 중·연습은 다시 누른다는 뜻 그대로(R1 — 다시 누르기를 숨기지 않는다, 말끝만 해요체 10/19)', (tester) async {
       await _pump15(tester, exec(attempt: 2, confidence: 0.4));
       expect(find.text('자리를 맞춰 다시 누르고 있어요'), findsOneWidget);
-      expect(find.text('눌렀어요, 확인하고 있어요'), findsNothing);
+      expect(find.text('눌렀어요. 눌렸는지 확인하고 있어요'), findsNothing);
       await _pump15(tester, exec(mode: 'mock', confidence: 0.9));
       expect(find.text('연습으로 누르고 있어요'), findsOneWidget);
-      expect(find.text('눌렀어요, 확인하고 있어요'), findsNothing);
+      expect(find.text('눌렀어요. 눌렸는지 확인하고 있어요'), findsNothing);
     });
   });
 
@@ -306,7 +306,7 @@ void main() {
       await _pump15(tester, idle(onOpen: (i) => opened = i));
       final cause = find.byKey(const ValueKey('idle-problem-cause'));
       expect(cause, findsOneWidget);
-      expect(_plain('누름 장치가 끊겨 가전 2대를 쓸 수 없어요'), findsOneWidget);
+      expect(_plain('누름 장치 연결이 끊겨 가전 2대를 쓸 수 없어요'), findsOneWidget);
       final style = _styleOf(tester, cause);
       // 시안 B(10/24): 처음 화면 띠는 높이를 고정한 한 줄(아래 칸을 밀어내지 않게) — 제목은 본문보다 큰 글자.
       expect(style.fontSize, greaterThan(KioskType.body));

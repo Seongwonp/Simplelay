@@ -83,10 +83,10 @@ class ThinqAction {
   /// 확인 못 함 결과의 큰 글자 — 어느 가전에 무엇을 부탁했는지(평가 11차 10/18, 가전 이름 포함). '명령'(평가 10차)·
   /// '보냈어요'(기계가 한 일, 평가 15차 10/18)는 쓰지 않는다 — '공기청정기에 켜 달라고 했어요'.
   String get asked => switch (kind) {
-        ThinqActionKind.powerOn => '$applianceName에 켜 달라고 했어요',
-        ThinqActionKind.powerOff => '$applianceName에 꺼 달라고 했어요',
-        ThinqActionKind.wind => '$applianceName에 바람을 $windWord 해 달라고 했어요',
-        ThinqActionKind.other => '$applianceName에 설정을 바꿔 달라고 했어요',
+        ThinqActionKind.powerOn => '$applianceName에 켜기 명령을 보냈어요',
+        ThinqActionKind.powerOff => '$applianceName에 끄기 명령을 보냈어요',
+        ThinqActionKind.wind => '$applianceName에 바람을 $windWord 바꾸는 명령을 보냈어요',
+        ThinqActionKind.other => '$applianceName에 설정 변경 명령을 보냈어요',
       };
 
   /// 확인 못 함 결과의 아래 줄 — 아직 모른다는 것.
@@ -213,7 +213,7 @@ ThinqResultCopy? thinqResultCopy({
           headline: power == null
               ? (d.contains('바꿨어요') ? _firstSentence(d) : '$applianceName 설정을 바꿨어요')
               : '$who ${power ? '켜졌어요' : '꺼졌어요'}',
-          sub: '가전에서 확인했어요',
+          sub: '가전 상태를 다시 읽어 확인했어요',
           tone: ThinqResultTone.confirmed,
         );
       default: // state_confirmed_unknown_before — 전 값을 몰라 '바꿨어요'·'켜졌어요'라고 하지 않는다.
@@ -221,7 +221,7 @@ ThinqResultCopy? thinqResultCopy({
           headline: power == null
               ? (d.contains('설정된 것을 확인') ? _firstSentence(d) : '현재 설정을 확인했어요')
               : '$who ${power ? '켜져' : '꺼져'} 있어요',
-          sub: '가전에서 현재 상태를 확인했어요',
+          sub: '지금 가전 상태를 확인했어요',
           tone: ThinqResultTone.confirmed,
         );
     }
@@ -229,7 +229,7 @@ ThinqResultCopy? thinqResultCopy({
   // 부탁했지만 확인하지 못했다 — 체크 없이, 사람이 가전을 본다. 받았는지조차 모르면 다시 하기 전에 보라고 한다.
   if (receipt == 'unknown') {
     return ThinqResultCopy(
-      headline: '${withSubject(applianceName)} 받았는지 확인하지 못했어요',
+      headline: '${withSubject(applianceName)} 명령을 받았는지 확인하지 못했어요',
       sub: '다시 하기 전에 가전을 봐 주세요',
       tone: ThinqResultTone.attention,
     );

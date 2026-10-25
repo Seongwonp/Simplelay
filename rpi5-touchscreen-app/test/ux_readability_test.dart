@@ -13,7 +13,7 @@ void main() {
       items: const [ConnectionItem(id: 'press', state: 'unknown', title: '확인 전', message: '')],
       onOpen: (_) {},
     ))));
-    expect(find.text('모름'), findsOneWidget);
+    expect(find.text('확인 못 함'), findsOneWidget);
     expect(find.byKey(const ValueKey('conn-badge-press')), findsNothing);
   });
 

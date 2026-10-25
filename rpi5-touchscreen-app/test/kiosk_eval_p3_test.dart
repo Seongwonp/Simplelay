@@ -1,7 +1,7 @@
 // 평가 3차(2026-10-18) 지적 수리 — 키오스크 3단계.
 //
-// 1. 결과 띠 말은 두 가지뿐: '됐어요'(초록, 실제 확인) · '살펴볼 게 있어요'(그 밖 모름·주의 전부). 같은 말 두 번 금지는
-//    제목을 바꿔 지킨다. 누름 보고만(done_reported)은 띠 '살펴볼 게 있어요' / 제목 '버튼은 다 눌렀어요'(중립색).
+// 1. 결과 띠 말은 두 가지뿐: '됐어요'(초록, 실제 확인) · '주의'(그 밖 모름·주의 전부). 같은 말 두 번 금지는
+//    제목을 바꿔 지킨다. 누름 보고만(done_reported)은 띠 '주의' / 제목 '버튼을 모두 눌렀어요'(중립색).
 // 2. 누름 장치 연결이 끊기면 대기 화면의 누름 장치 가전 타일은 '지금 못 써요'(흐리게, 누르면 연결 창). LG 가전은 그대로.
 // 3. 대기 화면 가전 타일 줄 왼쪽 = 시계 왼쪽 선, 다음 루틴은 가운데 아래 큰 카드, 큰 글씨에서 장 넘김 글자 안 잘림.
 // 4. 쉬운 말: 경보 소리·연습용 숫자·눌러 드려요·작동하고 있어요·LG 가전 설정 N번.
@@ -136,11 +136,11 @@ void main() {
             target: kMicrowaveAppliance,
             resultConfirmation: 'reported',
             onDismiss: () {}),
-        '살펴볼 게 있어요'
+        '주의'
       ),
       '실행 환경 모름': (
         KioskDoneView(success: true, label: '즉석밥 데워줘', onDismiss: () {}),
-        '살펴볼 게 있어요'
+        '주의'
       ),
       '눌렸는지 모름': (
         KioskDoneView(
@@ -149,7 +149,7 @@ void main() {
             label: '즉석밥 데워줘',
             reason: KioskFailureReason.execution,
             onDismiss: () {}),
-        '살펴볼 게 있어요'
+        '주의'
       ),
       '본체 연결 끊김': (
         KioskDoneView(
@@ -158,7 +158,7 @@ void main() {
             label: '즉석밥 데워줘',
             reason: KioskFailureReason.serverLost,
             onDismiss: () {}),
-        '살펴볼 게 있어요'
+        '주의'
       ),
       'LG 가전 못 바꿈': (
         KioskDoneView(
@@ -168,7 +168,7 @@ void main() {
             route: 'thinq',
             reason: KioskFailureReason.notExecuted,
             onDismiss: () {}),
-        '살펴볼 게 있어요'
+        '주의'
       ),
       'LG 가전 받았는지 모름': (
         KioskDoneView(
@@ -178,7 +178,7 @@ void main() {
             route: 'thinq',
             reason: KioskFailureReason.unconfirmed,
             onDismiss: () {}),
-        '살펴볼 게 있어요'
+        '주의'
       ),
       '멈춘 것 확인': (
         KioskDoneView(
@@ -188,7 +188,7 @@ void main() {
             reason: KioskFailureReason.stopped,
             stopLevel: 'verified',
             onDismiss: () {}),
-        '살펴볼 게 있어요'
+        '주의'
       ),
       '멈추라고 보냄': (
         KioskDoneView(
@@ -198,7 +198,7 @@ void main() {
             reason: KioskFailureReason.stopped,
             stopLevel: 'sent',
             onDismiss: () {}),
-        '살펴볼 게 있어요'
+        '주의'
       ),
     };
     for (final MapEntry(key: name, value: (view, word)) in cases.entries) {
@@ -211,7 +211,7 @@ void main() {
       });
     }
 
-    testWidgets("누름 보고만 — 제목 '버튼은 다 눌렀어요'(중립색, 파랑 아님), 할 일 '가전이 움직이는지 봐 주세요'",
+    testWidgets("누름 보고만 — 제목 '버튼을 모두 눌렀어요'(중립색, 파랑 아님), 할 일 '가전이 움직이는지 봐 주세요'",
         (tester) async {
       await _pump(
           tester,
@@ -222,7 +222,7 @@ void main() {
               target: kMicrowaveAppliance,
               resultConfirmation: 'reported',
               onDismiss: () {}));
-      final title = tester.widget<Text>(find.text('버튼은 다 눌렀어요'));
+      final title = tester.widget<Text>(find.text('버튼을 모두 눌렀어요'));
       expect(title.style?.color, isNot(KioskColors.running));
       expect(title.style?.color, isNot(KioskColors.confirmed));
       expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
@@ -257,7 +257,7 @@ void main() {
       expect(selected?.id, 'air');
     });
 
-    testWidgets("칩은 '연결 1곳을 봐 주세요'(사용자 결정 10/18) — 누르면 바로 그 연결 창, 읽기 말은 쉬운 말 '누름 장치 연결이 끊겼어요'", (tester) async {
+    testWidgets("칩은 '연결 1곳에 문제가 있어요'(사용자 결정 10/18) — 누르면 바로 그 연결 창, 읽기 말은 쉬운 말 '누름 장치 연결이 끊겼어요'", (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
@@ -265,7 +265,7 @@ void main() {
       await tester.tap(chip);
       await tester.pump();
       expect(opened?.id, 'press');
-      expect(connectionSummary(_pressDown).$1, '연결 1곳을 봐 주세요');
+      expect(connectionSummary(_pressDown).$1, '연결 1곳에 문제가 있어요');
       expect(connectionProblemText(_pressDown.firstWhere((c) => c.id == 'press')), '누름 장치 연결이 끊겼어요');
     });
   });
@@ -337,8 +337,8 @@ void main() {
     });
 
     // 평가 4차(10/18): '연습용 숫자예요 (9시 7분)'도 뜻을 몰랐다 — 연습 화면이라는 말 한 줄, 실제 값은 오전/오후 시각.
-    test("연습 값 시각 — '연습 화면이에요. 진짜 값이 아니에요'", () {
-      expect(thinqReadTimeLine(DateTime(2026, 10, 18, 9, 7), mock: true), '연습 화면이에요. 진짜 값이 아니에요');
+    test("연습 값 시각 — '연습 화면이에요. 실제 값이 아니에요'", () {
+      expect(thinqReadTimeLine(DateTime(2026, 10, 18, 9, 7), mock: true), '연습 화면이에요. 실제 값이 아니에요');
       expect(thinqReadTimeLine(DateTime(2026, 10, 18, 9, 7)), '오전 9시 7분 기준');
       expect(thinqReadTimeLine(DateTime(2026, 10, 18, 21, 0)), '오후 9시 기준');
     });
@@ -401,9 +401,9 @@ void main() {
           reason: '지금 누르는 칸에는 ✓를 달지 않는다');
     });
 
-    testWidgets("'눌렀어요, 확인하고 있어요' 아이콘은 눈 하나", (tester) async {
+    testWidgets("'눌렀어요. 눌렸는지 확인하고 있어요' 아이콘은 눈 하나", (tester) async {
       await _pump(tester, exec(confidence: 0.5));
-      expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
+      expect(find.text('눌렀어요. 눌렸는지 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
       expect(find.byIcon(Icons.manage_search), findsNothing);
     });

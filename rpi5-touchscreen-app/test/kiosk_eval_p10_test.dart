@@ -209,22 +209,22 @@ void main() {
       await _finish(tester, api, _done());
       expect(_result, findsOneWidget);
       expect(find.text('공기청정기가 켜졌어요'), findsOneWidget);
-      expect(find.text('가전에서 확인했어요'), findsOneWidget);
+      expect(find.text('가전 상태를 다시 읽어 확인했어요'), findsOneWidget);
       expect(find.text('가전에서 바뀐 것을 확인했어요'), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
     // 평가 11차(10/18): 제목에 가전 이름 — '켜 달라고 했어요'는 누가 누구에게인지 몰랐다.
-    // 평가 15차(10/18): '보냈어요'는 기계가 한 일 — '공기청정기에 켜 달라고 했어요'(가전 이름 포함). 무엇을 볼지는 번호 안내가 한 번만.
-    testWidgets('확인 못 함 — 공기청정기에 켜 달라고 했어요 / 켜졌는지는 아직 확인하지 못했어요, 자동으로 닫지 않는다', (tester) async {
+    // 평가 15차(10/18): '보냈어요'는 기계가 한 일 — '공기청정기에 켜기 명령을 보냈어요'(가전 이름 포함). 무엇을 볼지는 번호 안내가 한 번만.
+    testWidgets('확인 못 함 — 공기청정기에 켜기 명령을 보냈어요 / 켜졌는지는 아직 확인하지 못했어요, 자동으로 닫지 않는다', (tester) async {
       final api = await _start(tester, cards: [_powerOn]);
       await _approve(tester, api);
       await _finish(tester, api,
           _done(outcome: 'unconfirmed', confirmation: 'none', detail: '가전에 전했지만 설정이 바뀌었는지 확인하지 못했어요. 가전을 봐 주세요.'));
       expect(_result, findsOneWidget);
-      expect(find.text('공기청정기에 켜 달라고 했어요'), findsOneWidget);
+      expect(find.text('공기청정기에 켜기 명령을 보냈어요'), findsOneWidget);
       expect(find.text('켜졌는지는 아직 확인하지 못했어요'), findsOneWidget);
-      expect(_texts(tester).where((t) => t.contains('명령')), isEmpty);
+      expect(_texts(tester).where((t) => t.contains('확인했어요')), isEmpty);
       await tester.pump(const Duration(seconds: 30));
       expect(_result, findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());

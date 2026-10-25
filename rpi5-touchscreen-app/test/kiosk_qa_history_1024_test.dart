@@ -43,6 +43,6 @@ void helpMain() {
     expect(last, contains('기록 탭'));
     expect(last, isNot(contains('기록 보기')));
     expect(last, contains('자동 실행 끄기'));
-    expect(kHelpPages.first.body, contains('아래 탭'));
+    expect(kHelpPages.first.body, contains('화면 아래 단추'));
   });
 }

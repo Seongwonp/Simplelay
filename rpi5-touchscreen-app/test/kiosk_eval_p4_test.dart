@@ -312,7 +312,7 @@ void main() {
       expect(find.textContaining('멈추는 중이에요'), findsOneWidget);
     });
 
-    testWidgets('실행 환경을 모르는 누름 보고도 버튼은 다 눌렀어요 하나로(확인 수준은 그대로 확인해 주세요)', (tester) async {
+    testWidgets('실행 환경을 모르는 누름 보고도 버튼을 모두 눌렀어요 하나로(확인 수준은 그대로 확인해 주세요)', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -323,14 +323,14 @@ void main() {
               resultConfirmation: 'reported',
               onDismiss: () {}));
       expect(find.textContaining('알려 왔어요'), findsNothing);
-      expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
-      expect(find.text('살펴볼 게 있어요'), findsOneWidget);
+      expect(find.text('버튼을 모두 눌렀어요'), findsOneWidget);
+      expect(find.text('주의'), findsOneWidget);
       expect(finishedMessage(kind: ResultKind.success, executionMode: 'unknown'),
           isNot(contains('알려 왔어요')));
     });
 
     test('LG 가전 상세: 연습 시각 줄은 연습 화면이라는 말, 모드 청정 줄은 없다', () {
-      expect(thinqReadTimeLine(DateTime(2026, 10, 16, 9, 7), mock: true), '연습 화면이에요. 진짜 값이 아니에요');
+      expect(thinqReadTimeLine(DateTime(2026, 10, 16, 9, 7), mock: true), '연습 화면이에요. 실제 값이 아니에요');
       final rows = thinqStateRows({
         'operation': {'airPurifierOperationMode': 'POWER_ON'},
         'airPurifierJobMode': {'currentJobMode': 'CLEAN'},
@@ -340,12 +340,12 @@ void main() {
       expect(rows.map((r) => r.value), isNot(contains('청정')));
     });
 
-    test('콘센트는 전기 플러그', () {
-      expect(connectionShortName('plug'), '전기 플러그');
+    test('콘센트는 콘센트', () {
+      expect(connectionShortName('plug'), '콘센트');
     });
 
     // 휴리스틱 평가(10/18): 골라 누르기는 확실히 못 한 결과(연습 실패 등)에만 — 눌렸는지 모르면 가전을 보고 답한다.
-    testWidgets('실패 화면 글자 단추는 누름 장치로 골라 누르기', (tester) async {
+    testWidgets('실패 화면 글자 단추는 버튼 직접 고르기', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -357,7 +357,7 @@ void main() {
               onManual: () {},
               onDismiss: () {}));
       expect(find.text('화면으로 조작하기'), findsNothing);
-      expect(find.text('누름 장치로 골라 누르기'), findsOneWidget);
+      expect(find.text('버튼 직접 고르기'), findsOneWidget);
     });
 
     testWidgets("큰 글씨 버튼판 한 줄은 '누름 장치 위치' 대신 누름 장치가 어디 위에 있는지", (tester) async {

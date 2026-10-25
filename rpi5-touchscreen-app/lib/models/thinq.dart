@@ -128,7 +128,7 @@ class KioskAirReading {
             '초미세먼지 ${_num(pm25!)}${pm25Level != null ? ' ${kAirGradeWords[pm25Level]}' : ''}',
         ],
         // 종합이 보이는 먼지 등급보다 나쁘면 그 이유를 지어내지 않고 출처만 밝힌다(실패널 10/17 — 모두 '좋음'인데 종합 '보통').
-        if (_totalWorseThanShown) '종합 등급은 공기청정기가 정했어요',
+        if (_totalWorseThanShown) '종합 등급은 공기청정기 기준이에요',
         if (power == 'on') '공기청정기가 켜져 있어요',
         if (power == 'off') '공기청정기가 꺼져 있어요',
         if (mock) kPracticeNumbers,
@@ -279,14 +279,14 @@ String? thinqDustNote(Map<String, dynamic> state) {
 }
 /// 연습 값 표시(평가 3차·4차 10/18 — '연습 값'·'연습용 숫자예요'는 뜻을 몰랐다). 연습 실행(모의)에서는 LG 가전을
 /// 실제로 읽지 않는다 — 진짜 값이 아니라고 그대로 말한다.
-const kPracticeNumbers = '연습이라 진짜 값이 아니에요';
+const kPracticeNumbers = '연습이라 실제 값이 아니에요';
 
 /// LG 가전 상세의 읽은 시각 줄 — 연습이면 시각 대신 이 한 줄(평가 4차 10/18).
-const kPracticeReadLine = '연습 화면이에요. 진짜 값이 아니에요';
+const kPracticeReadLine = '연습 화면이에요. 실제 값이 아니에요';
 
 
 /// 읽은 시각 줄 — 실제 값은 '오전 9시 7분 기준'(시각은 오전/오후로 통일, 평가 4차 10/18), 연습은
-/// '연습 화면이에요. 진짜 값이 아니에요'(연습 시각은 뜻이 없다).
+/// '연습 화면이에요. 실제 값이 아니에요'(연습 시각은 뜻이 없다).
 String thinqReadTimeLine(DateTime t, {bool mock = false}) {
   if (mock) return kPracticeReadLine;
   return '${spokenTime(t.hour, t.minute)} 기준';
@@ -412,7 +412,7 @@ String? thinqCommandRefusal(int statusCode, String detail) {
 }
 
 /// 응답 없이 끝난 조작 요청(시간 초과·연결 끊김) — 허브가 이미 받았을 수 있다.
-const kThinqUnknownOutcome = '됐는지 확인하지 못했어요. 새로 보기를 눌러 봐 주세요.';
+const kThinqUnknownOutcome = "바뀌었는지 확인하지 못했어요. '새로 보기'를 눌러 주세요.";
 
 /// 응답을 잃은 조작을 요청 번호로 물었더니 본체가 그 조작을 접수하지 않았다고 했을 때(검토 10/19) — 보내지 않았다.
 const kThinqNotReceived = '본체가 받지 못했어요. 지금 상태를 보고 다시 눌러 주세요.';

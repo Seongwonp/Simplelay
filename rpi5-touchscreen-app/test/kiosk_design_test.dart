@@ -500,15 +500,15 @@ void main() {
     }
 
     // 평가 5차(10/18): 밑줄 글자 단추는 링크로 읽혔다 — 테두리 버튼(아이콘 + 글). 휴리스틱 평가(10/18): 눌렸는지 모르면
-    // '한 번 더 하기'는 '안 움직였어요' 뒤에만, 누름 장치로 골라 누르기는 확실히 못 한 결과(연습)에만.
-    testWidgets('실패 — 한 번 더 하기는 답한 뒤 테두리(48 이상), 누름 장치로 골라 누르기는 연습 실패의 테두리 버튼', (tester) async {
+    // '한 번 더 하기'는 '안 움직였어요' 뒤에만, 버튼 직접 고르기는 확실히 못 한 결과(연습)에만.
+    testWidgets('실패 — 한 번 더 하기는 답한 뒤 테두리(48 이상), 버튼 직접 고르기는 연습 실패의 테두리 버튼', (tester) async {
       await _pump15(tester, _done(success: false));
       await tester.tap(find.byKey(const ValueKey('done-check-no')));
       await tester.pump();
       expect(inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
       expect(tester.getSize(inButton<OutlinedButton>('한 번 더 하기')).height, greaterThanOrEqualTo(48));
       await _pump15(tester, _done(success: false, mode: 'mock'));
-      final manual = inButton<OutlinedButton>('누름 장치로 골라 누르기');
+      final manual = inButton<OutlinedButton>('버튼 직접 고르기');
       expect(manual, findsOneWidget);
       expect(tester.getSize(manual).height, greaterThanOrEqualTo(48));
     });

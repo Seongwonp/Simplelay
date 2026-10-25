@@ -266,7 +266,7 @@ void main() {
       expect(pressed, ['시작']);
 
       // 왼쪽 위 돌아가기도 확대 뒤 같은 자리에서 닿고, 가장자리 여백 안쪽이다
-      final back = find.bySemanticsLabel('대기 화면으로 돌아가기');
+      final back = find.bySemanticsLabel('처음 화면으로');
       final corner = tester.getRect(back);
       expect(corner.center.dx, lessThan(_panel.width / 4));
       expect(corner.center.dy, lessThan(_panel.height / 4));

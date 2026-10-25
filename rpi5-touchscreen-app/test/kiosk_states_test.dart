@@ -61,10 +61,10 @@ const _ambient = AmbientInfo(
 const _plugWeak = ConnectionItem(
   id: 'plug',
   state: 'warn',
-  // 서버 문장(쉬운 말 4차 b039967 — 콘센트 → 전기 플러그).
-  title: '전기 플러그 연결이 약해요',
+  // 서버 문장(쉬운 말 4차 b039967 — 콘센트 → 콘센트).
+  title: '콘센트 연결이 약해요',
   message: '가전이 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
-  fixes: ['전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요.', '그래도 안 되면 전기 플러그를 뽑았다가 10초 뒤 다시 꽂아 주세요.'],
+  fixes: ['콘센트가 벽에 끝까지 꽂혀 있는지 봐 주세요.', '그래도 안 되면 콘센트를 뽑았다가 10초 뒤 다시 꽂아 주세요.'],
   source: 'real',
 );
 
@@ -215,7 +215,7 @@ void main() {
       await _pump(tester, api);
 
       // 문제가 있을 때만 앰버 연결 문제 줄(결선 모의 평가 10/18 — 한 줄 제목) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
-      expect(find.text('전기 플러그를 봐 주세요'), findsOneWidget); // 한 줄 제목(결선 모의 평가 10/18)
+      expect(find.text('콘센트를 봐 주세요'), findsOneWidget); // 한 줄 제목(결선 모의 평가 10/18)
       expect(find.text('와이파이 연결이 끊겼어요'), findsNothing);
       expect(find.text('누름 장치 연결이 끊겼어요'), findsNothing);
 
@@ -223,22 +223,22 @@ void main() {
       await _settle(tester);
 
       expect(find.byType(KioskConnectionModal), findsOneWidget);
-      expect(find.text('전기 플러그 연결이 약해요'), findsOneWidget);
+      expect(find.text('콘센트 연결이 약해요'), findsOneWidget);
       expect(find.textContaining('알림이 늦거나 오지 않을 수 있어요'), findsOneWidget);
-      expect(find.text('전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요'), findsOneWidget);
+      expect(find.text('콘센트가 벽에 끝까지 꽂혀 있는지 봐 주세요'), findsOneWidget);
 
       // 다시 연결하기 = 연결 상태를 다시 묻는다(서버에 재연결 명령은 없다)
       final before = api.connectionsCalls;
       api.connectionsResult = [
         const ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
         const ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 연결돼 있어요', message: ''),
-        const ConnectionItem(id: 'plug', state: 'ok', title: '전기 플러그가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
+        const ConnectionItem(id: 'plug', state: 'ok', title: '콘센트가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
       ];
       await tester.tap(find.text('다시 연결해 보기'));
       await _settle(tester);
       expect(api.connectionsCalls, greaterThan(before));
-      expect(find.text('연결 1곳을 봐 주세요'), findsNothing); // 다 괜찮아지면 칩이 사라진다
-      expect(find.text('전기 플러그가 연결돼 있어요'), findsOneWidget);
+      expect(find.text('연결 1곳에 문제가 있어요'), findsNothing); // 다 괜찮아지면 칩이 사라진다
+      expect(find.text('콘센트가 연결돼 있어요'), findsOneWidget);
 
       await tester.tap(find.text('닫기'));
       await _settle(tester);
@@ -457,7 +457,7 @@ void main() {
       expect(find.textContaining('눌러 볼 수'), findsNothing);
       expect(find.text('빨간 정지를 눌러 보세요'), findsNothing);
       // 연습에는 가전 판정·끝나는 시간 줄을 두지 않는다 — 위 연습 띠('실제 가전은 그대로예요')와 부딪혔다(평가 4차 10/18).
-      expect(find.text('가전이 켜졌는지는 확인하지 못했어요'), findsNothing);
+      expect(find.text('가전이 켜졌는지 확인하지 못했어요'), findsNothing);
       expect(find.text('끝나는 시간은 확인하지 못했어요'), findsNothing);
       expect(find.textContaining(RegExp(r'\d+:\d\d')), findsNothing);
       // 모의를 실물처럼 보이지 않는다
@@ -567,7 +567,7 @@ void main() {
       expect(find.text('아침 데우기'), findsOneWidget);
       expect(find.text('빨래 시작'), findsNothing); // 다른 가전의 루틴
       // 여러 버튼을 한 번 묻고 한 번에 맡기는 길(루틴)을 판에서 알린다(첫 사용 검토 10/19 #6).
-      expect(find.text('여러 버튼을 한 번에 맡기려면 휴대폰 앱에서 루틴을 만들어요'), findsOneWidget);
+      expect(find.text('여러 버튼을 한 번에 누르려면 휴대폰 앱에서 루틴을 만들 수 있어요'), findsOneWidget);
 
       // 루틴을 눌러도 바로 실행하지 않는다 — 카드(승인)로 간다
       await tester.tap(find.byKey(const ValueKey('routine-morning')));
@@ -623,9 +623,9 @@ void main() {
       await tester.tap(find.text('해동'));
       await _settle(tester);
       expect(find.byType(KioskExecutingView), findsNothing);
-      expect(find.text("'해동' 버튼을 눌러 드릴까요?"), findsOneWidget);
+      expect(find.text("'해동' 버튼을 누를까요?"), findsOneWidget);
 
-      await tester.tap(find.text('그만두기'));
+      await tester.tap(find.text('닫기'));
       await _settle(tester);
       expect(find.byType(KioskExecutingView), findsNothing);
 
@@ -687,7 +687,7 @@ void main() {
       await tester.tap(find.text('해동'));
       await _settle(tester);
       _expectEdgeSafe(tester, '내 가전 누르기 확인');
-      await tester.tap(find.text('그만두기'));
+      await tester.tap(find.text('닫기'));
       await _settle(tester);
       await tester.tap(find.byKey(const ValueKey('kiosk-back')));
       await _settle(tester);

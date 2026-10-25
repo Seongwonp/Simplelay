@@ -370,7 +370,7 @@ class _StateCardState extends State<_StateCard> {
             const SizedBox(width: 10),
             Expanded(
               child: KioskText(
-                  '지금 상태를 못 봤어요. ${s.failure!.replaceFirst(RegExp(r'\.$'), '')}'
+                  '지금 상태를 불러오지 못했어요. ${s.failure!.replaceFirst(RegExp(r'\.$'), '')}'
                   "${onReread != null ? ". '새로 보기'로 다시 볼 수 있어요." : ''}",
                   textKey: const ValueKey('thinq-read-failed'),
                   style: TextStyle(fontSize: KioskType.body, color: KioskColors.ink, height: 1.3)),
@@ -455,7 +455,7 @@ class _StateCardState extends State<_StateCard> {
             if (total != null && kAirGradeWords.containsKey(total))
               Padding(
                 padding: EdgeInsets.only(top: 4),
-                child: KioskText('종합 등급은 공기청정기가 정한 거예요',
+                child: KioskText('종합 등급은 공기청정기 기준이에요',
                     textKey: ValueKey('thinq-air-total-note'),
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
               ),
@@ -799,7 +799,7 @@ class _ChangeConfirm extends StatelessWidget {
                       style: TextStyle(
                           fontSize: KioskType.status, fontWeight: FontWeight.w700, color: KioskColors.ink, height: 1.25)),
                   const SizedBox(height: 10),
-                  KioskText('LG 가전으로 보내요. 바뀌었는지는 보낸 뒤 다시 봐요.',
+                  KioskText('LG 가전에 보내요. 바뀌었는지는 보낸 뒤 다시 확인해요.',
                       style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted, height: 1.3)),
                   const SizedBox(height: 20),
                   Row(

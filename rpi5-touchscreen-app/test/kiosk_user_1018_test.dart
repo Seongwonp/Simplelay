@@ -136,10 +136,10 @@ void main() {
       expect(find.byKey(const ValueKey('idle-menu')), findsOneWidget);
     });
 
-    testWidgets("문제가 둘이면 '연결 2곳을 봐 주세요' — 누르면 무엇이 왜인지 연결 목록", (tester) async {
+    testWidgets("문제가 둘이면 '연결 2곳에 문제가 있어요' — 누르면 무엇이 왜인지 연결 목록", (tester) async {
       await _pumpView(tester, _idle(connections: _two));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('연결 2곳을 봐 주세요')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('연결 2곳에 문제가 있어요')), findsOneWidget);
       await tester.tap(chip);
       await tester.pump();
       expect(find.byKey(const ValueKey('conn-badge-network')), findsOneWidget);
@@ -411,7 +411,7 @@ void main() {
           );
       expect(v(reason: KioskFailureReason.execution).pastHeadline, '눌렸는지 확인하지 못했어요');
       expect(v(reason: KioskFailureReason.serverLost).pastHeadline, '어떻게 됐는지 확인하지 못했어요');
-      expect(v(reason: KioskFailureReason.unconfirmed, route: 'thinq').pastHeadline, '보냈지만 됐는지 확인하지 못했어요');
+      expect(v(reason: KioskFailureReason.unconfirmed, route: 'thinq').pastHeadline, '보냈지만 바뀌었는지는 확인하지 못했어요');
       expect(v(reason: KioskFailureReason.stopped, stopLevel: 'sent').pastHeadline, '누름 장치가 멈췄는지 확인하지 못했어요');
       expect(v(reason: KioskFailureReason.stopped, stopLevel: 'verified').pastHeadline, isNull);
       // 2차 독립 평가 C(10/18): 누름 보고만은 가전을 사람이 봐야 한다 — 답하지 않고 나가면 남긴다.
@@ -594,7 +594,7 @@ void main() {
       // 할 일 한 줄과 같은 크기(상태 크기)로 크게.
       expect(tester.widget<Text>(find.byKey(const ValueKey('done-recovery-step-0'))).style?.fontSize, KioskType.status);
       expect(tester.getSize(find.byKey(const ValueKey('done-recovery-more'))).height, greaterThanOrEqualTo(48));
-      expect(find.bySemanticsLabel(RegExp('손으로 누르세요')), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp('손으로 눌러 주세요')), findsWidgets);
       await openMore(tester);
       expect(steps(tester), kPressRecoverySteps);
       semantics.dispose();

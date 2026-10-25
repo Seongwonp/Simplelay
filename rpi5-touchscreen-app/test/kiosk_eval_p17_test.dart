@@ -126,7 +126,7 @@ void main() {
       final cases = <(Widget, String)>[
         (
           KioskDoneView(success: true, label: '즉석밥 데워줘', target: kMicrowaveAppliance, onDismiss: () {}),
-          '버튼은 다 눌렀어요'
+          '버튼을 모두 눌렀어요'
         ),
         (
           KioskDoneView(
@@ -279,7 +279,7 @@ void main() {
         panel: false);
     final chip = find.byKey(const ValueKey('idle-status-chip'));
     // 한 줄 제목은 어느 연결인지 말한다(결선 모의 평가 10/18 — 숫자 대신 원인).
-    expect(find.descendant(of: chip, matching: find.text('전기 플러그를 봐 주세요')), findsOneWidget);
+    expect(find.descendant(of: chip, matching: find.text('콘센트를 봐 주세요')), findsOneWidget);
   });
 
   testWidgets('7. 날씨 아이콘은 채움 양식 — 가는 선 날씨 아이콘 없음', (tester) async {

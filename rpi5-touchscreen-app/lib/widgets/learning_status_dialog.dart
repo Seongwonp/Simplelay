@@ -90,7 +90,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                               style: const TextStyle(fontSize: KioskType.body)),
                           Text(
                               routine.muted
-                                  ? '이 제안은 보이지 않게 해 뒀어요'
+                                  ? '이 제안은 띄우지 않기로 했어요'
                                   : routine.established
                                       ? '습관으로 기억했어요'
                                       : '습관을 알아 가고 있어요',

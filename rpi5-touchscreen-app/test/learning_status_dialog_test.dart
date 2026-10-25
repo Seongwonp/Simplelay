@@ -40,7 +40,7 @@ void main() {
       ),
     ))));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('생활 습관 알아가기'));
+    await tester.tap(find.text('생활 습관 보기'));
     await tester.pumpAndSettle();
     final context = tester.element(find.byType(LearningStatusDialog));
     expect(MediaQuery.textScalerOf(context).scale(10), 16);
@@ -48,7 +48,7 @@ void main() {
     await tester.tap(find.text('닫기'));
     await tester.pumpAndSettle();
     expect(find.byType(KioskSettingsOverlay), findsOneWidget);
-    expect(find.text('생활 습관 알아가기'), findsOneWidget);
+    expect(find.text('생활 습관 보기'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -64,7 +64,7 @@ void main() {
     // 기간을 같이 말한다(2026-10-15) — '2일 사용 · 5회'는 어느 기간인지 몰랐다.
     expect(find.text('최근 28일 중 2일, 모두 5번'), findsOneWidget);
     expect(find.text('주방 전자레인지 · 아침'), findsOneWidget);
-    expect(find.text('이 제안은 보이지 않게 해 뒀어요'), findsOneWidget);
+    expect(find.text('이 제안은 띄우지 않기로 했어요'), findsOneWidget);
     expect(find.textContaining('방해 금지가 켜져 있어'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

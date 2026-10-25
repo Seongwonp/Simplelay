@@ -100,8 +100,8 @@ void main() {
     await _start(tester);
     await _poll(tester);
     expect(find.byType(KioskExecutingView), findsOneWidget);
-    // 첫 차례는 말하지 않는다(10/24 QA — 차례가 하나뿐인 루틴에 '루틴 1번째 차례'가 헷갈렸다). 둘째 차례부터.
-    expect(find.text('루틴 1번째 차례'), findsNothing);
+    // 첫 차례는 말하지 않는다(10/24 QA — 차례가 하나뿐인 루틴에 '루틴 1번째 단계'가 헷갈렸다). 둘째 차례부터.
+    expect(find.text('루틴 1번째 단계'), findsNothing);
 
     job = _between();
     api.statusResult = const KioskStatus(running: false);
@@ -114,7 +114,7 @@ void main() {
     job = _live(segment: 2, segmentJob: 'job-2', button: '시작', total: 2, done: 0);
     api.statusResult = const KioskStatus(running: true, jobId: 'job-2', applianceId: 'microwave', currentButton: '시작');
     await _poll(tester);
-    expect(find.text('루틴 2번째 차례'), findsOneWidget);
+    expect(find.text('루틴 2번째 단계'), findsOneWidget);
     expect(_exec(tester).currentButton, '시작');
     expect(_exec(tester).doneButtons, isEmpty, reason: '앞 구간에서 누른 버튼을 이 구간의 누른 칸으로 세지 않는다');
 

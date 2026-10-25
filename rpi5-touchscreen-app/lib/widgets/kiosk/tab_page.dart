@@ -80,7 +80,7 @@ class KioskTabPage extends StatelessWidget {
                 key: const ValueKey('tab-page-reload'),
                 onPressed: onReload,
                 style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border),
-                child: const Text('다시 불러오기', style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),
+                child: const Text('새로 보기', style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),
               ),
             ],
           ],

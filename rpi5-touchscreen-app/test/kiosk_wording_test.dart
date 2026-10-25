@@ -137,7 +137,7 @@ void _expectOnScreen(WidgetTester tester, Finder f) {
 void main() {
   test('다시 시도 경고는 어느 가전에나 맞는 말 — 토글 전용 "꺼질 수 있어요"를 쓰지 않는다(UI 평가 10/17)', () {
     expect(kDontRetryIfOn, isNot(contains('꺼질')));
-    expect(kDontRetryIfOn, contains('한 번 더 하지 마세요'));
+    expect(kDontRetryIfOn, contains('다시 누르지 마세요'));
   });
 
   test('연습 띠는 경로를 가리지 않는 말이다 — ThinQ 연습 중에 "누르지"라 하지 않는다(2026-10-16 결함 ⑤)', () {
@@ -180,7 +180,7 @@ void main() {
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
       expect(_inButton<OutlinedButton>('처음 화면으로'), findsOneWidget);
       expect(find.text('한 번 더 하기'), findsNothing);
-      expect(find.text('누름 장치로 골라 누르기'), findsNothing);
+      expect(find.text('버튼 직접 고르기'), findsNothing);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('done-check-no')));
@@ -251,7 +251,7 @@ void main() {
       // 띠도 같은 수준 — '가전 상태 확인'은 한 단계 강했다(외부 평가 10/16 3차).
       expect(find.text('완료'), findsOneWidget);
       expect(find.text('가전 상태 확인'), findsNothing);
-      expect(find.text('원하는 대로 됐는지 봐 주세요'),
+      expect(find.text('원하는 대로 작동하는지 봐 주세요'),
           findsOneWidget);
       expect(find.textContaining('켜진 것'), findsNothing);
       expect(find.textContaining('동작도 확인'), findsNothing);
@@ -494,15 +494,15 @@ void main() {
         ..statusAfterAck = const KioskStatus(running: false);
       await _pumpKiosk(tester, api);
       expect(find.text('비상 버튼이 눌려 있어요'), findsNothing);
-      // 사전 변경(평가 4차 10/18): 콘센트 → 전기 플러그. 같은 말은 띠 한 곳 — 칩은 아이콘만(평가 5차 10/18).
-      expect(find.text('전기 플러그 전원이 꺼져 있어요'), findsOneWidget);
+      // 사전 변경(평가 4차 10/18): 콘센트 → 콘센트. 같은 말은 띠 한 곳 — 칩은 아이콘만(평가 5차 10/18).
+      expect(find.text('콘센트 전원이 꺼져 있어요'), findsOneWidget);
       await tester.tap(find.byKey(_ack));
       await _settle(tester);
-      expect(find.textContaining('풀면 전기 플러그 전원이 다시 켜져요'), findsOneWidget);
+      expect(find.textContaining('풀면 콘센트 전원이 다시 켜져요'), findsOneWidget);
       expect(find.textContaining('빨간 비상 버튼'), findsNothing);
       await tester.tap(find.byKey(_confirm));
       await _settle(tester);
-      expect(find.text('풀었어요. 전기 플러그 전원을 다시 켰어요.'), findsOneWidget);
+      expect(find.text('풀었어요. 콘센트 전원을 다시 켰어요.'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
@@ -623,7 +623,7 @@ void main() {
     testWidgets('숫자 근거(mA·dB·%) 없이 무엇을 보는지만 말한다', (tester) async {
       // 마지막 버튼의 확인 결과(10/19 — 확인 머리말은 다 누른 뒤에만).
       await _pumpView(tester, exec(button: '시작', completed: 1, confidence: 0.93, detail: '전류 +14mA · 소리 +9dB'));
-      expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
+      expect(find.text('눌렀어요. 눌렸는지 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
       expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing); // 위 상태와 같은 말 — 하나만(평가 15차 10/18)
       expect(find.textContaining('mA'), findsNothing);
       expect(find.textContaining('dB'), findsNothing);
@@ -708,7 +708,7 @@ void main() {
       expect(find.text('다음에'), findsNothing);
       // 버튼판 안내는 실행 화면과 같이 '화면은 누르지 않아도 돼요'까지(접근성 감사 10/18).
       expect(find.text('누름 장치가 누를 순서예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
-      expect(find.text("'지금 하기'를 누르지 않으면 아무것도 안 해요"), findsOneWidget);
+      expect(find.text("'지금 하기'를 누르기 전에는 아무것도 하지 않아요"), findsOneWidget);
       expect(find.text('20초 뒤 닫혀요'), findsOneWidget); // 남은 시간은 따로 크게(결선 모의 평가 10/18)
       // 서버 문장이 없을 때의 대체문 — 기간을 모르니 '최근'은 없다.
       expect(find.text('아침에 3번 하셨어요'), findsOneWidget);
@@ -753,7 +753,7 @@ void main() {
       expect(find.text('알림만'), findsOneWidget);
       expect(find.textContaining('단계'), findsNothing);
       // 여러 버튼을 한 번 묻고 한 번에 맡기는 길(루틴)을 판에서 알린다(첫 사용 검토 10/19 #6).
-      expect(find.text('여러 버튼을 한 번에 맡기려면 휴대폰 앱에서 루틴을 만들어요'), findsOneWidget);
+      expect(find.text('여러 버튼을 한 번에 누르려면 휴대폰 앱에서 루틴을 만들 수 있어요'), findsOneWidget);
       expect(find.textContaining('녹화'), findsNothing);
     });
 
@@ -773,8 +773,8 @@ void main() {
     });
 
     for (final (reason, readiness, todo) in [
-      ('버튼 자리를 아직 맞추지 않았어요', 'needs_setup', '휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요'),
-      ('확인한 지 오래돼 다시 확인해야 해요', 'needs_setup', '휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요'),
+      ('버튼 자리를 아직 맞추지 않았어요', 'needs_setup', '휴대폰 앱에서 이 가전의 버튼 자리를 맞춰 주세요'),
+      ('확인한 지 오래돼 다시 확인해야 해요', 'needs_setup', '휴대폰 앱에서 이 가전의 버튼 자리를 맞춰 주세요'),
       ('모터가 아직 준비되지 않았어요', 'needs_setup', '잠시 기다려 주세요. 계속되면 누름 장치를 다시 켜 주세요'),
       ('기기와 연결되지 않았어요', 'disconnected', '처음 화면 위쪽 연결 표시를 눌러 봐 주세요'),
     ]) {
@@ -844,7 +844,7 @@ void main() {
       await _pumpView(tester, DndOverlay(dndUntil: null, onSet: (_) {}, onClear: () {}, onDismiss: () {}));
       expect(find.text('방해 금지'), findsOneWidget);
       // 자동 계열 이름 하나로(평가 4차 10/18) — 문장 안에서는 '자동으로 하는 일'. 이름을 되돌린 조건(10/19): 범위 문장을 늘 둔다.
-      expect(find.text('새 제안과 자동으로 하는 일을 잠시 쉬어요. 직접 누르기와 정지는 그대로 돼요.'), findsOneWidget);
+      expect(find.text('새 제안을 띄우지 않고 자동 실행도 하지 않아요. 직접 누르기와 정지는 그대로 쓸 수 있어요.'), findsOneWidget);
       expect(find.textContaining('잠시 쉬기'), findsNothing);
       await _pumpView(
           tester,
@@ -855,7 +855,7 @@ void main() {
               onClear: () {},
               onDismiss: () {}));
       expect(find.text('방해 금지 끄기'), findsOneWidget);
-      expect(find.textContaining('새 제안만 쉬어요. 자동으로 하는 일은 그대로 해요.'), findsOneWidget);
+      expect(find.textContaining('새 제안만 띄우지 않아요. 자동 실행은 그대로 해요.'), findsOneWidget);
     });
 
     testWidgets('B4 — 연결 창: 다시 연결해 보기, 본체 풀이 줄 없음, 큰 글씨에서 잘리지 않고 막대가 보인다', (tester) async {
@@ -936,7 +936,7 @@ void main() {
       await tester.pumpAndSettle();
       const days = '최근 28일 중 2일, 모두 5번';
       expect(find.text(days), findsOneWidget);
-      expect(find.text('이 제안은 보이지 않게 해 뒀어요'), findsOneWidget);
+      expect(find.text('이 제안은 띄우지 않기로 했어요'), findsOneWidget);
       expect(find.text('추천 숨김'), findsNothing);
       expect(tester.widget<Text>(find.text(days)).style?.fontSize, greaterThanOrEqualTo(20));
       expect(find.textContaining('모의'), findsNothing);

@@ -99,7 +99,7 @@ String? confirmationLabel({
   }
   if (route == 'thinq') {
     if (receipt == 'not_dispatched') return '보내지 않았어요';
-    if (receipt == 'unknown') return '받았는지 확인하지 못했어요';
+    if (receipt == 'unknown') return '가전이 명령을 받았는지 확인하지 못했어요';
     if (receipt == 'accepted') {
       return kind == ResultKind.unconfirmed ? '받았어요' : '하지 못했어요';
     }
@@ -129,7 +129,7 @@ String? confirmationLabel({
     'operation_confirmed' => '가전이 전기를 쓰기 시작했어요',
     'press_confirmed' => '버튼을 눌렀어요',
     // 기계 말투('알려 왔어요') 대신 본 사실(평가 4차 10/18) — 누름 장치가 눌렀다는 것까지, 가전은 말하지 않는다.
-    'reported' => '누름 장치가 눌렀어요',
+    'reported' => '누름 장치가 버튼을 눌렀어요',
     'none' => '눌렸는지 확인하지 못했어요',
     _ => null,
   };
@@ -137,8 +137,8 @@ String? confirmationLabel({
 
 /// ThinQ 확인 못 함의 한 문장. 접수 불명이면 다시 보내기 전에 확인하라고 한다.
 String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
-    ? '가전이 받았는지 확인하지 못했어요. 다시 보내기 전에 가전을 봐 주세요.'
-    : '보냈지만 됐는지 확인하지 못했어요. 가전을 봐 주세요.';
+    ? '가전이 명령을 받았는지 확인하지 못했어요. 다시 보내기 전에 가전을 봐 주세요.'
+    : '보냈지만 바뀌었는지는 확인하지 못했어요. 가전을 봐 주세요.';
 
 /// 정지 확인 단계(2026-10-13)의 제목. 서버가 올리는 단계는
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
@@ -172,7 +172,7 @@ bool stopLevelConfirmed(String? level) => level == 'verified';
 /// 실패 화면에서 '다시 시도'를 보일 때 함께 쓰는 당부(2026-10-15, 열린 문제 R1) — 자동 재시도와 '다시 시도'는
 /// 가전 상태를 보지 않고 같은 버튼을 다시 누른다. 전원·시작 버튼이면 한 번 더 눌려 꺼질 수 있다.
 // 어느 가전에나 맞는 말(UI 평가 10/17 — 전자레인지 '시작'에 토글 전용 '꺼질 수 있어요'가 붙었다).
-const kDontRetryIfOn = '가전이 이미 움직이고 있으면 한 번 더 하지 마세요. 같은 버튼이 한 번 더 눌려요';
+const kDontRetryIfOn = '가전이 이미 작동 중이면 다시 누르지 마세요. 같은 버튼이 한 번 더 눌려요';
 
 /// 끝난 실행의 한 문장(상태 화면·음성 안내).
 ///
@@ -209,10 +209,10 @@ String finishedMessage({
       if (executionMode == 'mock') return '연습을 마쳤어요. 실제 가전은 누르지 않았어요.';
       // 실행 환경을 모를 때도 같은 말(평가 4차 10/18 — '누름 장치가 다 눌렀다고 알려 왔어요'는 기계 말투). 확인 수준은
       // 화면 띠('확인해 주세요')와 뒤 문장('가전이 움직이는지 봐 주세요')이 지킨다.
-      const head = '버튼은 다 눌렀어요.';
+      const head = '버튼을 모두 눌렀어요.';
       return operationVerified
           // 전력 변화(L3 실측)만 — 확인한 그대로 '전기를 쓰기 시작했어요'(폰과 같은 말, 10/18 §3-5).
-          ? '$head 가전이 전기를 쓰기 시작했어요. 원하는 대로 됐는지 봐 주세요.'
+          ? '$head 가전이 전기를 쓰기 시작했어요. 원하는 대로 작동하는지 봐 주세요.'
           : '$head 가전이 움직이는지 봐 주세요.'; // 폰과 같은 말(평가 14차 10/18)
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
@@ -261,8 +261,8 @@ String? motionAbortSentence(String? reason) {
   if (reason == 'motion_alarm: stall') return '누름 장치가 걸려 멈췄어요';
   if (reason.startsWith('motion_alarm')) return '누름 장치에 이상이 생겨 멈췄어요';
   return switch (reason) {
-    'motion_reset' => '누름 장치가 다시 켜져 멈췄어요',
-    'motion_timeout' => '누름 장치가 제때 답하지 않아 멈췄어요',
+    'motion_reset' => '누름 장치가 다시 시작돼서 멈췄어요',
+    'motion_timeout' => '누름 장치가 제때 응답하지 않아 멈췄어요',
     'motion_not_ready' => '누름 장치가 준비되지 않아 멈췄어요',
     'motion_position_mismatch' => '누름 장치 위치가 맞지 않아 멈췄어요',
     'motion_link_error' => '누름 장치 연결이 끊겨 멈췄어요',

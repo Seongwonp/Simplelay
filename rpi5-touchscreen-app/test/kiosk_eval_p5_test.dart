@@ -3,7 +3,7 @@
 // 1. 같은 말 두 번 없애기: 비상 버튼 띠가 있으면 상태 칩은 아이콘만(띠·풀기 안내는 그대로), LG 가전 상세의 연습 안내는
 //    한 곳, 연습 실패는 '연습이 중간에 멈췄어요' 한 줄.
 // 2. 실패 화면: 제목 한 줄 + 할 일 한 줄(무엇이었는지는 가전·이름 한 줄로), '다시 시도' → '한 번 더 하기'(확인 창 유지),
-//    '누름 장치로 골라 누르기'는 밑줄 링크가 아니라 버튼.
+//    '버튼 직접 고르기'는 밑줄 링크가 아니라 버튼.
 // 3. 연습 동작 중 화면: "정지를 누르면 '취소' 버튼을 누르는 연습을 해요" 대신 '정지를 눌러 보세요'.
 // 4. 평소 화면: 예보가 빠지면 다음 루틴 카드가 안내 바로 아래로 — 가운데가 비지 않는다. 맨 위 회색 줄 없음.
 //    가전이 5개 이상이면 4개 + 장 넘김(오른쪽이 비지 않게).
@@ -203,7 +203,7 @@ void main() {
     });
 
     // 휴리스틱 평가(10/18): 골라 누르기는 확실히 못 한 결과(연습 실패 등)에만 남는다.
-    testWidgets("'누름 장치로 골라 누르기'는 밑줄 링크가 아니라 버튼(아이콘·테두리)", (tester) async {
+    testWidgets("'버튼 직접 고르기'는 밑줄 링크가 아니라 버튼(아이콘·테두리)", (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -214,9 +214,9 @@ void main() {
               onRetry: () {},
               onManual: () {},
               onDismiss: () {}));
-      final text = tester.widget<Text>(find.text('누름 장치로 골라 누르기'));
+      final text = tester.widget<Text>(find.text('버튼 직접 고르기'));
       expect(text.style?.decoration, isNot(TextDecoration.underline));
-      final button = find.ancestor(of: find.text('누름 장치로 골라 누르기'), matching: find.byType(OutlinedButton));
+      final button = find.ancestor(of: find.text('버튼 직접 고르기'), matching: find.byType(OutlinedButton));
       expect(button, findsOneWidget);
       expect(find.descendant(of: button, matching: find.byType(Icon)), findsOneWidget);
     });

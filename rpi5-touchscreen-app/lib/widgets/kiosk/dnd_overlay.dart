@@ -11,10 +11,10 @@ const kDndName = '방해 금지';
 
 /// 방해 금지가 쉬는 범위 — 이름 아래에 늘 보인다. 10/15에 '방해 금지'를 제안만 멈추는 줄 알아 '잠시 쉬기'로 바꿨다가
 /// 10/19에 이름을 되돌렸다 — 그래서 이 문장은 빼거나 말줄임으로 자르지 않는다.
-const kDndScopeText = '새 제안과 자동으로 하는 일을 잠시 쉬어요. 직접 누르기와 정지는 그대로 돼요.';
+const kDndScopeText = '새 제안을 띄우지 않고 자동 실행도 하지 않아요. 직접 누르기와 정지는 그대로 쓸 수 있어요.';
 
 /// 업데이트 전에 켠 방해 금지를 이어받은 동안(서버 `dnd_scope=suggestions_only`) — 자동으로 하는 일은 막지 않는다.
-const kDndCarriedScopeText = '새 제안만 쉬어요. 자동으로 하는 일은 그대로 해요.';
+const kDndCarriedScopeText = '새 제안만 띄우지 않아요. 자동 실행은 그대로 해요.';
 
 /// 방해 금지(10/15~10/19 이름 '잠시 쉬기') — 새 제안과 아직 시작하지 않은 자동 실행을 잠시 쉰다.
 /// 이름만 보면 제안만 쉬는 줄 알아서, 쉬는 범위를 늘 바로 아래에 적는다.
@@ -98,7 +98,7 @@ class DndOverlay extends StatelessWidget {
                           ? kDndScopeText
                           : dndScope == 'suggestions_only'
                               ? '${_clockOf(dndUntil!)}까지 $kDndCarriedScopeText'
-                              : '${_clockOf(dndUntil!)}까지 새 제안과 자동으로 하는 일을 쉬어요. 직접 누르기와 정지는 그대로 돼요.',
+                              : '${_clockOf(dndUntil!)}까지 새 제안을 띄우지 않고 자동 실행도 하지 않아요. 직접 누르기와 정지는 그대로 쓸 수 있어요.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: KioskType.caption,

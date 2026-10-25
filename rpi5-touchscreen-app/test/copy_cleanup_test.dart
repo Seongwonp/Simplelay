@@ -301,7 +301,7 @@ void main() {
 
     testWidgets('버튼 누름 단계에 "경로 모름" 경고 칩을 붙이지 않는다', (tester) async {
       await pumpCard(tester, routineRun);
-      expect(find.text('어떻게 할지 확인하지 못했어요'), findsNothing);
+      expect(find.text('할 일을 불러오지 못했어요'), findsNothing);
     });
 
     testWidgets('내가 직접 시작한 루틴은 근거 줄이 없고 목록 제목은 "누를 버튼"', (tester) async {
@@ -328,7 +328,7 @@ void main() {
         id: 's2', purpose: '무언가', occurrences: 0,
         commands: [KioskSuggestionCommand(targetId: 'x', route: 'mystery', summary: '알 수 없는 동작')],
       ));
-      expect(find.text('어떻게 할지 확인하지 못했어요'), findsOneWidget);
+      expect(find.text('할 일을 불러오지 못했어요'), findsOneWidget);
     });
   });
 }

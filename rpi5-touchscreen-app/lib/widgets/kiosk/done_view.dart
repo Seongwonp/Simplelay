@@ -292,7 +292,7 @@ class KioskDoneView extends StatelessWidget {
       return copy.tone == ThinqResultTone.attention ? copy.headline : null;
     }
     if (success) {
-      if (_thinqUnconfirmed) return '됐는지 확인하지 못했어요'; // 이 화면의 LG 가전 성공 큰 글자와 같은 말
+      if (_thinqUnconfirmed) return '결과를 확인하지 못했어요'; // 이 화면의 LG 가전 성공 큰 글자와 같은 말
       if (_pressUnknown) return '눌렸는지 확인하지 못했어요';
       // 버튼 누름 보고만 — 가전은 사람이 본다(2차 독립 평가 C, 10/18). 답하지 않고 나가면 처음 화면에 남긴다.
       if (personCheck != null) return kPressDonePastHeadline;
@@ -422,7 +422,7 @@ class KioskDoneView extends StatelessWidget {
                 : thinqVerified
                     // 띠가 '됐어요'라 제목은 본 사실로(같은 말 두 번 금지, 평가 3차 10/18).
                     ? '가전 설정을 확인했어요'
-                    : '됐는지 확인하지 못했어요')
+                    : '결과를 확인하지 못했어요')
             : mock
                 ? '연습을 마쳤어요'
                 : executionMode == 'real'
@@ -433,18 +433,18 @@ class KioskDoneView extends StatelessWidget {
                         ? '${withSubject(target?.displayName ?? '가전')} 켜졌어요'
                         : pressCompleted
                             // 누름 보고만 — 버튼까지만 말한다. 가전은 사람이 본다(평가 3차 10/18).
-                            ? '버튼은 다 눌렀어요'
+                            ? '버튼을 모두 눌렀어요'
                             : '눌렸는지 확인하지 못했어요')
                     // 실행 환경을 모를 때도 같은 말 하나로(평가 4차 10/18 — '누름 장치가 다 눌렀다고 알려 왔어요'는 기계 말투).
                     // 확인 수준은 그대로다: 띠 '확인해 주세요'(앰버) + 아래 '가전이 움직이는지 봐 주세요'.
-                    : '버튼은 다 눌렀어요';
+                    : '버튼을 모두 눌렀어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
     // 연습은 위 띠가 '실제 가전은 움직이지 않아요'를 말한다 — 같은 말을 아래에 또 쓰지 않는다(10/18).
     // 사람 확인 흐름(휴리스틱 평가 10/18)이어도 이 할 일 줄은 남긴다(폰과 같은 말) — 아래 물음은 '전자레인지 화면·불빛·소리가 바뀌었나요?'만.
     final String? successSub = thinq || mock || steps != null
         ? null
         : operationVerified
-                ? '원하는 대로 됐는지 봐 주세요'
+                ? '원하는 대로 작동하는지 봐 주세요'
                 // 폰·서버와 같은 말(평가 14차 10/18 — 폰 '버튼은 다 눌렀어요, 움직이는지 봐 주세요'). 제목이 '버튼은 다 눌렀어요'.
                 : '가전이 움직이는지 봐 주세요';
     // 제목 바로 아래 근거 한 줄(결선 모의 평가 10/18) — 전력 실측으로 확인한 성공에만.
@@ -683,7 +683,7 @@ class KioskDoneView extends StatelessWidget {
             KioskText(
               stopAgain == 'failed'
                   ? '정지 요청 결과를 확인하지 못했어요. 가전 전원을 직접 꺼 주세요'
-                  : '한 번 더 멈추라고 했어요. 누름 장치를 봐 주세요',
+                  : '정지를 한 번 더 보냈어요. 누름 장치를 봐 주세요',
               textKey: const ValueKey('done-stop-again-note'),
               textAlign: ta,
               style: TextStyle(
@@ -813,7 +813,7 @@ class KioskDoneView extends StatelessWidget {
                     label: '다시 멈추기',
                     onPressed: onStopAgain,
                     buttonKey: const ValueKey('done-stop-again'),
-                    semanticsLabel: '다시 멈추기. 누름 장치에 한 번 더 멈추라고 해요')
+                    semanticsLabel: '다시 멈추기. 누름 장치에 정지를 한 번 더 보내요')
                 : null,
           );
     final who = kioskResultWho(context, target);
@@ -1076,8 +1076,8 @@ enum KioskFailureReason {
         KioskFailureReason.serverLost => '어떻게 됐는지 확인하지 못했어요',
         KioskFailureReason.stopped => stopLevelHeadline(null),
         KioskFailureReason.safetyStop => '버튼 눌림을 확인하지 못해 멈췄어요',
-        KioskFailureReason.unconfirmed => '보냈지만 됐는지 확인하지 못했어요',
-        KioskFailureReason.receiptUnknown => '가전이 받았는지 확인하지 못했어요',
+        KioskFailureReason.unconfirmed => '보냈지만 바뀌었는지는 확인하지 못했어요',
+        KioskFailureReason.receiptUnknown => '가전이 명령을 받았는지 확인하지 못했어요',
         KioskFailureReason.notExecuted => '가전을 바꾸지 못했어요',
       };
 
@@ -1279,7 +1279,7 @@ class _ThinqResult extends StatelessWidget {
 String autoReturnLine(int seconds) => '$seconds초 뒤 처음 화면으로 돌아가요';
 
 /// 화면을 만져 자동 복귀를 멈춘 뒤의 말.
-const kAutoReturnHeldLine = '자동으로 닫지 않아요';
+const kAutoReturnHeldLine = '이 화면은 저절로 닫히지 않아요';
 
 /// 성공 후 자동 복귀를 **글자로도** 말한다 — 남은 초를 숫자로, 본문 크기(접근성 감사 10/18 — 작은 글씨 한 단계 위).
 /// 화면을 만지면 멈춘다(종전, 시간 제한 조절). 기다리기 싫은 사람의 길은 옆의 '처음 화면으로'.
@@ -1624,7 +1624,7 @@ class KioskResultActions extends StatelessWidget {
 
 /// 결과 화면에서 버튼판(누름 장치가 누를 버튼을 고르는 화면)으로 가는 단추 이름(평가 8차 10/18).
 /// 짧게(평가 12차 10/18) — 누르는 것은 누름 장치라는 말은 남긴다(손으로 누르라는 말과 헷갈리지 않게, 평가 8차).
-const kManualEntryLabel = '누름 장치로 골라 누르기';
+const kManualEntryLabel = '버튼 직접 고르기';
 
 /// LG 가전에 부탁했지만 확인하지 못했을 때의 순서 안내(사용자 결정 10/18) — 짧은 말, 하나씩 해 볼 순서.
 /// 말끝을 서로 다르게·짧게(평가 15차 10/18 — 제목·번호 셋이 모두 '~봐 주세요'였다).
@@ -1702,14 +1702,14 @@ Future<void> confirmKioskRetry(BuildContext context,
   final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-            title: Text(mock ? '연습을 다시 할까요?' : '가전을 봐 주셨나요?',
+            title: Text(mock ? '연습을 다시 할까요?' : '한 번 더 보낼까요?',
                 style: const TextStyle(fontSize: KioskType.status)),
             content: Text(
                 mock
                     ? '실제 가전에는 보내지 않아요.'
                     // LG 가전은 버튼을 다시 누르는 것이 아니라 같은 설정을 다시 보낸다 — 이미 그 설정이면 바꾸지 않는다.
                     : thinq
-                        ? '같은 부탁을 가전에 한 번 더 보내요. 이미 그렇게 돼 있으면 그대로 둬요.'
+                        ? '같은 명령을 가전에 한 번 더 보내요. 이미 그 상태면 바꾸지 않아요.'
                         : toggle
                             ? '$kRetryToggleWarning. 같은 버튼이 한 번 더 눌려요.'
                             : '$kDontRetryIfOn.',
@@ -1881,7 +1881,7 @@ class _KioskCheckActionsState extends State<KioskCheckActions> {
             onTap: () => setState(() => _saidNo = true)),
       ];
     } else {
-      prompt = '${w.noSaid} 알려 주셨어요';
+      prompt = "'${w.no}'를 고르셨어요";
       final retry = widget.onRetry;
       pair = [
         _big(
@@ -1940,13 +1940,13 @@ class _KioskCheckActionsState extends State<KioskCheckActions> {
 const kPressRecoverySteps = [
   '가전 화면이 바뀌었는지 봐 주세요',
   '누름 장치가 버튼 앞에 있나요?',
-  '안 바뀌었으면 가전 버튼을 손으로 누르세요',
+  '안 바뀌었으면 가전 버튼을 손으로 눌러 주세요',
 ];
 
 /// 누름 장치가 멈췄는지 모를 때(사용자 정지, 확인 못 함)의 순서 안내(평가 15차 10/18) — 정지가 먼저, 그다음 가전.
 /// 누름 장치를 다시 움직이게 하는 일('누름 장치로 골라 누르기')은 권하지 않는다.
 const kStopUnknownSteps = [
-  "누름 장치가 아직 움직이면 '다시 멈추기'를 누르세요",
+  "누름 장치가 아직 움직이면 '다시 멈추기'를 눌러 주세요",
   '가전이 켜져 있으면 가전 정지 버튼을 손으로 눌러 주세요',
 ];
 

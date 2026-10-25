@@ -159,7 +159,7 @@ void main() {
     final h = tester.ensureSemantics();
     await _pump(tester, [_mw, _air], on: {'air'});
     expect(find.bySemanticsLabel(RegExp(r'^공기청정기, LG 가전, 켜져 있어요')), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'^전자레인지, 지금 누르고 있지 않아요')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^전자레인지, 대기 중')), findsOneWidget);
     await _pump(tester, [_mw, _air], off: {'air'}, running: {'mw'});
     expect(find.bySemanticsLabel(RegExp(r'^공기청정기, LG 가전, 꺼져 있어요')), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp(r'^전자레인지, 작동하고 있어요')), findsOneWidget);

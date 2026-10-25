@@ -54,7 +54,7 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
+    expect(find.text('버튼을 모두 눌렀어요'), findsOneWidget);
     expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
     // 무엇이었는지는 위 띠 오른쪽 한 줄(평가 17차 10/18). 제목은 명령문이 아니라 행동 이름(평가 4차 10/18).
     expect(find.text('전자레인지 · 즉석밥 데우기'), findsOneWidget);
@@ -83,10 +83,10 @@ void main() {
     );
 
     // 기계 말투('누름 장치가 다 눌렀다고 알려 왔어요') 대신 같은 말 하나로(평가 4차 10/18). 확인 수준은 띠가 지킨다 —
-    // 실제 확인이 아니므로 '됐어요'가 아니라 '살펴볼 게 있어요', 할 일은 '가전이 움직이는지 봐 주세요'.
+    // 실제 확인이 아니므로 '됐어요'가 아니라 '주의', 할 일은 '가전이 움직이는지 봐 주세요'.
     expect(find.textContaining('알려 왔어요'), findsNothing);
-    expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
-    expect(find.text('살펴볼 게 있어요'), findsOneWidget);
+    expect(find.text('버튼을 모두 눌렀어요'), findsOneWidget);
+    expect(find.text('주의'), findsOneWidget);
     expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
   });
 
@@ -152,12 +152,11 @@ void main() {
     expect(find.byKey(const ValueKey('done-check-yes')), findsOneWidget);
     expect(find.byKey(const ValueKey('done-check-no')), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('누름 장치로 골라 누르기'), findsNothing);
+    expect(find.text('버튼 직접 고르기'), findsNothing);
     expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsNothing);
     // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
-    // '살펴볼 게 있어요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 확인하지 못했어요').
-    expect(find.text('살펴볼 게 있어요'), findsOneWidget);
-    expect(find.text('주의'), findsNothing);
+    // '주의'(평가 3차 10/18), 제목은 본 사실('눌렸는지 확인하지 못했어요').
+    expect(find.text('주의'), findsOneWidget);
     expect(find.text('실패'), findsNothing);
     // 순서 안내가 있으면 큰 결과 원은 뺀다(사용자 결정 10/18) — 물음표는 위 띠가 말한다.
     expect(find.byIcon(Icons.help_outline), findsWidgets);
@@ -190,9 +189,9 @@ void main() {
     expect(find.text('누름 장치가 멈췄는지 확인하지 못했어요'), findsOneWidget);
     expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
     // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
-    // 멈췄는지 모르면 누름 장치를 다시 움직이게 하는 '누름 장치로 골라 누르기'도 두지 않는다(평가 15차 10/18, 안전).
+    // 멈췄는지 모르면 누름 장치를 다시 움직이게 하는 '버튼 직접 고르기'도 두지 않는다(평가 15차 10/18, 안전).
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('누름 장치로 골라 누르기'), findsNothing);
+    expect(find.text('버튼 직접 고르기'), findsNothing);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {
@@ -244,7 +243,7 @@ void main() {
       ),
     );
 
-    expect(find.text('LG 가전 · 연습 · 받았는지 확인하지 못했어요 · 확인 못 함'),
+    expect(find.text('LG 가전 · 연습 · 가전이 명령을 받았는지 확인하지 못했어요 · 확인 못 함'),
         findsOneWidget);
     // 보내지 않은 단계는 '확인하지 못했어요'이 아니라 '누르지 않았어요'. 물리 경로 배지는 달지 않는다(2026-10-14).
     expect(find.text('연습 · 누르지 않았어요 · 실패'),
@@ -344,7 +343,7 @@ void main() {
 
   group('L3 판정 출처 × 모션 실행 모드 (평가 M5)', () {
     // 확인한 것은 전력 변화다 — 물리 성공은 제목 바로 아래 한 줄이 말한다(2026-10-15).
-    const realSentence = '원하는 대로 됐는지 봐 주세요';
+    const realSentence = '원하는 대로 작동하는지 봐 주세요';
     // 연습(모션 mock)은 판정 줄이 없다(평가 4차 10/18) — 연습 띠 한 줄이 말한다.
     const mockMotion = kPracticeBandText;
     // 모의 L3와 출처 모름은 같은 말(직접 봐 달라) — 모의 출처는 아래 작은 글씨가 밝힌다.
@@ -390,7 +389,7 @@ void main() {
   group('동작 중 화면의 전력 판정 줄도 출처가 real일 때만 확인이라고 말한다 (평가 M5)', () {
     for (final (mode, source, expected) in <(String, String?, String)>[
       ('real', 'real', '가전이 켜졌어요'),
-      ('real', 'mock', '연습이라 가전은 보지 않아요'),
+      ('real', 'mock', '연습이라 실제 가전 상태는 확인하지 않아요'),
       ('real', null, '가전이 켜졌는지 봐 주세요'),
       // 연습은 판정 줄 대신 위 연습 띠 한 줄(평가 4차 10/18).
       ('mock', 'real', kPracticeBandText),

@@ -124,7 +124,7 @@ void main() {
     expect(find.descendant(of: _mark('gone'), matching: find.byIcon(Icons.priority_high_rounded)), findsOneWidget);
     expect(find.bySemanticsLabel('지금은 쓸 수 없어요. 연결을 확인해 주세요'), findsOneWidget);
     expect(find.descendant(of: _mark('washer'), matching: find.byIcon(Icons.settings_rounded)), findsOneWidget);
-    expect(find.bySemanticsLabel('버튼 자리를 아직 맞추지 않았어요. 가족이 휴대폰에서 설정해요'), findsOneWidget);
+    expect(find.bySemanticsLabel('버튼 자리를 아직 맞추지 않았어요. 휴대폰 앱에서 맞춰 주세요'), findsOneWidget);
     h.dispose();
   });
 
@@ -160,7 +160,7 @@ void main() {
 
   test("5. 문제 칩 원인 문장도 '쓸 수 없어요'", () {
     const press = ConnectionItem(id: 'press', state: 'error', title: '', message: '');
-    expect(connectionCauseLine(press, pressImpact: 4), '누름 장치가 끊겨 가전 4대를 쓸 수 없어요');
+    expect(connectionCauseLine(press, pressImpact: 4), '누름 장치 연결이 끊겨 가전 4대를 쓸 수 없어요');
   });
 
   testWidgets('5. 대기 화면에서도 상태 띠 글자 없음', (tester) async {

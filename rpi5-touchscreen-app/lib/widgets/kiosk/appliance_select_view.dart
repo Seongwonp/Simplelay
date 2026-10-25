@@ -54,7 +54,7 @@ class KioskApplianceSelectView extends StatelessWidget {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(
-                    '어느 가전을 조작할까요?',
+                    '어떤 가전을 쓸까요?',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -80,7 +80,7 @@ class KioskApplianceSelectView extends StatelessWidget {
                               size: 44, color: KioskColors.muted),
                           SizedBox(height: 14),
                           Text(
-                            '아직 조작할 가전이 없어요',
+                            '아직 등록한 가전이 없어요',
                             style: TextStyle(
                               fontSize: KioskType.body,
                               fontWeight: FontWeight.w600,

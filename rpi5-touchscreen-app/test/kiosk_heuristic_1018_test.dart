@@ -6,7 +6,7 @@
 //    확실한 실패는 다시 하는 것이 안전할 때만 '한 번 더 하기'가 주. 버튼 누름 보고만(C)도 같은 흐름 — 자동으로 닫지 않는다.
 // 2. 비상 띠 전체가 누르는 자리, '푸는 방법 보기'는 보조 단추 높이·본문 글자. 문제 칩 둘째 줄 본문 글자. 가전 타일 상태 본문 글자.
 // 3. '멈추는 중'에 돌아가는 표시와 기다림 상한(kiosk_screen이 실제로 끊는 시간).
-// 4. 직접 누르기 — 빈 칸은 점선, 판 위 '○○ 버튼 자리 그대로예요', 확인 창 '누름 장치가 ○○ □□ 버튼을 눌러요'.
+// 4. 직접 누르기 — 빈 칸은 점선, 판 위 '○○ 버튼 배치와 같아요', 확인 창 '누름 장치가 ○○ □□ 버튼을 눌러요'.
 // 5. 메뉴의 '사용 방법' 세 장.
 // 6. LG 가전 타일에 누름 장치의 손가락 '준비됐어요'를 쓰지 않는다. 연습 가전은 연습 색.
 // 7. 누름 장치 실행 화면은 그림이 없거나 큰 글씨여도 '화면은 누르지 않아도 돼요'.
@@ -125,7 +125,7 @@ void main() {
       expect(_isOutlined(tester, 'done-home'), isTrue);
       expect(tester.getSize(find.byKey(const ValueKey('done-home'))).height,
           lessThan(tester.getSize(yes).height));
-      // 다시 누르기는 답하기 전에는 없다(R1). 누름 장치로 골라 누르기도 두지 않는다.
+      // 다시 누르기는 답하기 전에는 없다(R1). 버튼 직접 고르기도 두지 않는다.
       expect(find.byKey(const ValueKey('done-retry')), findsNothing);
       expect(find.byKey(const ValueKey('done-manual')), findsNothing);
       expect(_plain(tester, find.byKey(const ValueKey('done-check-prompt'))), contains('전자레인지 화면·불빛·소리가 바뀌었나요?'));
@@ -147,7 +147,7 @@ void main() {
           ));
       await tester.tap(find.byKey(const ValueKey('done-check-no')));
       await tester.pump();
-      expect(_plain(tester, find.byKey(const ValueKey('done-check-prompt'))), contains('가전이 안 바뀌었다고'));
+      expect(_plain(tester, find.byKey(const ValueKey('done-check-prompt'))), contains("'안 바뀌었어요'를 고르셨어요"));
       final hand = find.byKey(const ValueKey('done-check-hand'));
       final retry = find.byKey(const ValueKey('done-retry'));
       expect(hand, findsOneWidget);
@@ -450,7 +450,7 @@ void main() {
           KioskManualView(appliance: _microwave, onExecute: (_) {}, onCancel: () {}));
       // 2x2 판에 버튼 셋 — 빈 자리 하나(0,1).
       expect(find.byKey(const ValueKey('manual-empty-0-1')), findsOneWidget);
-      expect(_plain(tester, find.byKey(const ValueKey('manual-layout-note'))), '전자레인지 버튼 자리 그대로예요');
+      expect(_plain(tester, find.byKey(const ValueKey('manual-layout-note'))), '전자레인지 버튼 배치와 같아요');
       await tester.tap(find.byKey(const ValueKey('manual-cell-즉석밥')));
       await tester.pump();
       expect(_plain(tester, find.byKey(const ValueKey('manual-press-note'))),
@@ -703,4 +703,4 @@ void main() {
 void _noop() {}
 
 /// 같은 버튼 재누름 경고(종전 정책 그대로, R1).
-const kDontRetryIfOnText = '가전이 이미 움직이고 있으면 한 번 더 하지 마세요. 같은 버튼이 한 번 더 눌려요';
+const kDontRetryIfOnText = '가전이 이미 작동 중이면 다시 누르지 마세요. 같은 버튼이 한 번 더 눌려요';

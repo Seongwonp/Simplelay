@@ -7,7 +7,7 @@
 //    손으로 누를 안내가 주 안내. 아직 정지 버튼 위면 '다시 멈추기' 유지. '전자레인지의' 번역투 없음.
 // 4. 연습을 마친 대기: '연습이 끝났어요', 버튼판 칸 강조 없음, 정지 단추는 같은 자리·이름 그대로.
 // 5. 성공 자동 복귀 말은 큰 글씨에서도 같은 말.
-// 6. 결과 띠는 짧은 명사 '살펴볼 게 있어요'.
+// 6. 결과 띠는 짧은 명사 '주의'.
 // 7. 비상 버튼 띠: '풀기 안내' 순환 대신 '푸는 방법 보기'.
 import 'dart:io';
 
@@ -200,7 +200,7 @@ void main() {
       expect(stop, findsOneWidget);
       expect(find.text('정지'), findsOneWidget);
       expect(t.widget<ElevatedButton>(stop).onPressed, isNull);
-      expect(_has(t, '이미 끝났어요'), isTrue);
+      expect(_has(t, '대기가 끝났어요'), isTrue);
     });
 
     testWidgets('연습에서 정지를 누른 뒤', (t) async {
@@ -242,7 +242,7 @@ void main() {
             onManual: () {},
             onDismiss: () {}),
         panel: true);
-    expect(_texts(t), contains('살펴볼 게 있어요'));
+    expect(_texts(t), contains('주의'));
     expect(_has(t, '확인해 주세요'), isFalse);
   });
 

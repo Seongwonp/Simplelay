@@ -40,7 +40,7 @@ void main() {
     _expectLabeledBack(tester);
     await tester.tap(find.byKey(const ValueKey('kiosk-back')));
     expect(cancelled, 1);
-    expect(find.bySemanticsLabel('대기 화면으로 돌아가기'), findsOneWidget);
+    expect(find.bySemanticsLabel('처음 화면으로'), findsOneWidget);
     expect(KioskColors.muted, isNot(KioskColors.ink));
   });
 

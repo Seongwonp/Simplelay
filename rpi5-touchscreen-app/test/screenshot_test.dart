@@ -158,7 +158,7 @@ final _mw = _served('microwave', '전자레인지', 'microwave', buttons: kMicro
 final _ind = _served('induction', '인덕션', 'induction',
     buttons: kInductionAppliance.buttons,
     readiness: 'needs_setup',
-    reasons: const ['누름 장치가 이 가전 위에 없어서 누를 수 없어요']);
+    reasons: const ['이 가전에는 누름 장치가 설치되어 있지 않아 누를 수 없어요']);
 final _washer = _served('washer', '세탁기', 'washing_machine');
 
 /// 휴대폰 앱에서 등록하고 사진 위 버튼 자리를 아직 맞추지 않은 가전 — 폰과 같이 '설정이 필요해요'.
@@ -412,20 +412,20 @@ void main() {
         Positioned.fill(child: _idle(connections: const [
           ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
           ConnectionItem(id: 'press', state: 'ok', title: '', message: ''),
-          ConnectionItem(id: 'plug', state: 'warn', title: '전기 플러그 연결이 약해요', message: ''),
+          ConnectionItem(id: 'plug', state: 'warn', title: '콘센트 연결이 약해요', message: ''),
         ])),
         Positioned.fill(
           child: KioskConnectionModal(
             item: const ConnectionItem(
               id: 'plug',
               state: 'warn',
-              // 서버가 실제로 보내는 문장(rpi/services/connections.py, 쉬운 말 4차 b039967 — 콘센트 → 전기 플러그).
-              title: '전기 플러그 연결이 약해요',
+              // 서버가 실제로 보내는 문장(rpi/services/connections.py, 쉬운 말 4차 b039967 — 콘센트 → 콘센트).
+              title: '콘센트 연결이 약해요',
               message: '가전이 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
               fixes: [
-                '전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요.',
-                '전기 플러그와 누름 장치를 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.',
-                '그래도 안 되면 전기 플러그를 뽑았다가 10초 뒤 다시 꽂아 주세요.',
+                '콘센트가 벽에 끝까지 꽂혀 있는지 봐 주세요.',
+                '콘센트와 누름 장치를 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.',
+                '그래도 안 되면 콘센트를 뽑았다가 10초 뒤 다시 꽂아 주세요.',
               ],
             ),
             checking: false,
@@ -1534,7 +1534,7 @@ void main() {
   // ── 제출용 장면(심사위원 시각 평가 10/18 §3-5) ─────────────────────────────────────────────
   // 위 골든의 가전 다섯(세탁기·선풍기·인덕션 등)은 화면 시험용 예시다. 제출 서류·발표 그림에는 지금 실물 구성
   // — 누름 장치가 누르는 전자레인지 1대 + LG 공기청정기 — 으로 만든 아래 장면만 쓴다. 결과는 지금 실물로 낼 수 있는
-  // 확인 수준(누름 장치 보고, 전력 판정 없음)이라 '버튼은 다 눌렀어요'까지만 말한다(콘센트 모듈 CT 미측정).
+  // 확인 수준(누름 장치 보고, 전력 판정 없음)이라 '버튼을 모두 눌렀어요'까지만 말한다(콘센트 모듈 CT 미측정).
   final submissionPurifier = _served('air_purifier', '공기청정기', 'air_purifier', control: 'thinq');
   const submissionAmbient = AmbientInfo(
     greeting: '좋은 저녁이에요.',

@@ -315,7 +315,7 @@ class _RoutinePanel extends StatelessWidget {
           // 판의 버튼은 하나씩 묻고 하나씩 누른다 — '30초 → 시작'처럼 여러 개를 한 번 묻고 한 번에 맡기는 길은 루틴이다
           // (첫 사용 검토 10/19 #6). 새 루틴은 폰에서 만든다.
           KioskText(
-            '여러 버튼을 한 번에 맡기려면 휴대폰 앱에서 루틴을 만들어요',
+            '여러 버튼을 한 번에 누르려면 휴대폰 앱에서 루틴을 만들 수 있어요',
             style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
           ),
         ],
@@ -345,7 +345,7 @@ class _PressConfirm extends StatelessWidget {
           scopesRoute: true,
           namesRoute: true,
           explicitChildNodes: true,
-          label: "'${button.label}' 버튼을 눌러 드릴까요?",
+          label: "'${button.label}' 버튼을 누를까요?",
           child: _box(),
         ),
       );
@@ -366,7 +366,7 @@ class _PressConfirm extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 KioskText(
-                  "'${button.label}' 버튼을 눌러 드릴까요?",
+                  "'${button.label}' 버튼을 누를까요?",
                   style: TextStyle(
                     fontSize: KioskType.status,
                     fontWeight: FontWeight.w700,
@@ -395,7 +395,7 @@ class _PressConfirm extends StatelessWidget {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('그만두기',
+                        child: const Text('닫기',
                             style: TextStyle(
                                 fontSize: KioskType.body, fontWeight: FontWeight.w500)),
                       ),
@@ -507,7 +507,7 @@ String? readinessTodo(ApplianceMap appliance) {
       reasons.contains('자리') ||
       reasons.contains('보정') ||
       reasons.contains('오래돼')) {
-    return '휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요';
+    return '휴대폰 앱에서 이 가전의 버튼 자리를 맞춰 주세요';
   }
   if (reasons.contains('모터') || reasons.contains('센서')) {
     return '잠시 기다려 주세요. 계속되면 누름 장치를 다시 켜 주세요';
@@ -584,7 +584,7 @@ class _ButtonGrid extends StatelessWidget {
 }
 
 /// 버튼판 위 한 줄 — '전자레인지 버튼 자리 그대로예요'(휴리스틱 평가 10/18).
-String manualLayoutNote(String applianceName) => '$applianceName 버튼 자리 그대로예요';
+String manualLayoutNote(String applianceName) => '$applianceName 버튼 배치와 같아요';
 
 /// 누르기 확인 창의 한 줄 — '누르면 누름 장치가 전자레인지 즉석밥 버튼을 눌러요'.
 String manualPressNote(String applianceName, String buttonLabel) =>

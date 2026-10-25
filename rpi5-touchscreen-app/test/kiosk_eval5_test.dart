@@ -60,7 +60,7 @@ void main() {
             executionMode: 'real',
             route: 'physical',
             resultConfirmation: 'reported'));
-    expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
+    expect(find.text('버튼을 모두 눌렀어요'), findsOneWidget);
     // 누름 보고만은 체크(확인)가 아니다 — 누른 손 아이콘(평가 3차 10/18, 확인 수준을 높여 보이지 않는다).
     expect(find.byIcon(Icons.check), findsNothing);
     expect(find.byKey(const ValueKey('done-ring')), findsNothing);
@@ -138,7 +138,7 @@ void main() {
   });
   testWidgets('환경 미상 성공은 회색 완료가 아니라 앰버 확인 필요다', (t) async {
     await show(t, const KioskDoneView(success: true, label: '데우기'));
-    expect(find.text('살펴볼 게 있어요'), findsOneWidget); // 결과 띠 말은 됐어요·확인해 주세요 두 가지(평가 3차 10/18)
+    expect(find.text('주의'), findsOneWidget); // 결과 띠 말은 됐어요·확인해 주세요 두 가지(평가 3차 10/18)
     final c =
         t.widget<Icon>(find.byKey(const ValueKey('status-band-icon'))).color!;
     expect(HSVColor.fromColor(c).hue, inInclusiveRange(25, 55));

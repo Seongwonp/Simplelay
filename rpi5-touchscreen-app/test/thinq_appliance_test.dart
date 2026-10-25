@@ -83,7 +83,7 @@ void main() {
     expect(find.widgetWithText(KioskRouteBadge, 'LG 가전'), findsOneWidget);
     expect(find.byType(KioskThinqPanel), findsOneWidget);
     // 상태를 읽을 길이 없으면 값·조작을 지어내지 않고 이유를 말한다.
-    expect(find.textContaining('지금 상태를 못 봤어요'), findsOneWidget);
+    expect(find.textContaining('지금 상태를 불러오지 못했어요'), findsOneWidget);
     expect(find.byKey(const ValueKey('thinq-set-set_power-POWER_ON')), findsNothing);
     expect(find.textContaining('누를 버튼이 없어요'), findsNothing);
     expect(find.textContaining('말로 맡겨'), findsNothing);

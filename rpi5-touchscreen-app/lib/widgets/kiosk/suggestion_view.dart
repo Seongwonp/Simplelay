@@ -105,7 +105,7 @@ class KioskSuggestionView extends StatelessWidget {
           KioskStatusBand(
             tone: KioskBandTone.neutral,
             icon: startedByUser ? Icons.touch_app_outlined : Icons.lightbulb_outline,
-            label: startedByUser ? '확인' : (suggestion.isDemo ? '제안 연습' : '제안'),
+            label: startedByUser ? '직접 실행' : (suggestion.isDemo ? '제안 연습' : '제안'),
           ),
           Expanded(child: _body(context, target, scenario, canExecute)),
         ],
@@ -456,7 +456,7 @@ class KioskSuggestionView extends StatelessWidget {
               Expanded(
                 child: KioskText(
                   canExecute
-                      ? "'지금 하기'를 누르지 않으면 아무것도 안 해요"
+                      ? "'지금 하기'를 누르기 전에는 아무것도 하지 않아요"
                       : scenario
                           ? (blockedWhy ?? '')
                           : '이 가전을 찾지 못해 할 수 없어요. 휴대폰 앱에서 가전을 봐 주세요',
@@ -704,7 +704,7 @@ class _CommandList extends StatelessWidget {
           // 버튼 누름(physical)은 칩 없이 — routeLabel이 null을 주지만 '경로를 모름'이 아니다(10/14 회귀 수리).
           final path = c.route == 'physical'
               ? null
-              : (routeLabel(c.route) ?? '어떻게 할지 확인하지 못했어요');
+              : (routeLabel(c.route) ?? '할 일을 불러오지 못했어요');
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

@@ -55,7 +55,7 @@ void main() {
     await tester.tap(find.text('시작'));
     await tester.pump();
     expect(pressed, isEmpty);
-    expect(find.text("'시작' 버튼을 눌러 드릴까요?"), findsOneWidget);
+    expect(find.text("'시작' 버튼을 누를까요?"), findsOneWidget);
     await tester.tap(find.text('누르기'));
     await tester.pump();
     expect(pressed, ['시작']);
@@ -99,11 +99,11 @@ void main() {
     expect(find.semantics.byLabel('10초 버튼 누르기'), findsNothing);
     // 창은 이름이 있는 한 화면으로 읽힌다.
     final node = tester.getSemantics(find.byKey(const ValueKey('manual-press-confirm')));
-    expect(node.label, contains("'시작' 버튼을 눌러 드릴까요?"));
+    expect(node.label, contains("'시작' 버튼을 누를까요?"));
     expect(node.flagsCollection.scopesRoute, isTrue);
     expect(node.flagsCollection.namesRoute, isTrue);
     // 실물을 움직이지 않는 쪽에 먼저 머문다.
-    expect(Focus.of(tester.element(find.text('그만두기'))).hasPrimaryFocus, isTrue);
+    expect(Focus.of(tester.element(find.text('닫기'))).hasPrimaryFocus, isTrue);
     handle.dispose();
   });
 
@@ -127,7 +127,7 @@ void main() {
     expect(find.text('아직 준비가 끝나지 않았어요'), findsOneWidget);
     expect(find.text('버튼 자리를 아직 맞추지 않았어요'), findsOneWidget);
     // 사유마다 할 일 한 줄(2026-10-15).
-    expect(find.text('휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요'), findsOneWidget);
+    expect(find.text('휴대폰 앱에서 이 가전의 버튼 자리를 맞춰 주세요'), findsOneWidget);
     await tester.tap(find.text('시작'), warnIfMissed: false);
     expect(pressed, isEmpty);
     expect(tester.takeException(), isNull);

@@ -82,7 +82,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   bool _showPairing = false;
   bool _saving = false;
 
-  /// '설치용' 칸(전기 플러그 연결 가전·주소)을 펼쳤나(10/24 QA) — 주소 입력은 설치하는 사람의 일이라 처음에는 접어 둔다.
+  /// '설치용' 칸(콘센트 연결 가전·주소)을 펼쳤나(10/24 QA) — 주소 입력은 설치하는 사람의 일이라 처음에는 접어 둔다.
   bool _showInstaller = false;
   String? _saveError;
   late TextEditingController _urlCtrl;
@@ -214,7 +214,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                           const SizedBox(height: 16),
                           TextButton.icon(
                             icon: const Icon(Icons.history),
-                            label: const Text('생활 습관 알아가기'),
+                            label: const Text('생활 습관 보기'),
                             onPressed: () => setState(() => _showLearning = true),
                           ),
                           const SizedBox(height: 16),
@@ -302,13 +302,13 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
               KioskText(
                 q == null
                     ? '정해 두지 않았어요. 휴대폰 앱 설정에서 정할 수 있어요.'
-                    : '매일 ${spokenHhmm(q.$1)}부터 ${spokenHhmm(q.$2)}까지 새 제안과 일반 안내 소리를 쉬고, '
+                    : '매일 ${spokenHhmm(q.$1)}부터 ${spokenHhmm(q.$2)}까지 새 제안과 일반 안내 소리를 내지 않고, '
                         '자동으로 하는 일도 하지 않아요. 휴대폰 앱 설정에서 바꿀 수 있어요.',
                 style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
               ),
               const SizedBox(height: 4),
               KioskText(
-                "지금부터 잠깐만 쉬게 하려면 처음 화면 메뉴의 '방해 금지'를 눌러 주세요.",
+                "지금 잠깐 조용히 하려면 처음 화면 메뉴의 '방해 금지'를 눌러 주세요.",
                 key: const ValueKey('settings-dnd-pointer'),
                 style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
               ),
@@ -386,7 +386,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   style: TextStyle(fontSize: KioskType.caption, color: KioskColors.ink),
                 ),
                 Text(
-                  '제안 카드가 저절로 닫히기까지 걸리는 시간이에요',
+                  '제안이 화면에 떠 있는 시간이에요',
                   style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                 ),
               ],
@@ -471,7 +471,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
         ],
       );
 
-  /// '설치용' 접힌 칸 머리(10/24 QA) — 전기 플러그 주소(192.168…)는 설치하는 사람이 넣는 값이라 평소에는 보이지 않게 접는다.
+  /// '설치용' 접힌 칸 머리(10/24 QA) — 콘센트 주소(192.168…)는 설치하는 사람이 넣는 값이라 평소에는 보이지 않게 접는다.
   /// 기능은 그대로 — 펼치면 예전 칸 그대로 쓴다. 키오스크에는 설치자·개발자 화면 구분이 따로 없어(서버 개발자 모드는 결선에서
   /// 끈다) 접기로 가른다.
   Widget _buildInstallerToggle() => Column(
@@ -517,7 +517,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   Widget _buildApplianceSection() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionLabel('전기 플러그를 연결할 가전'),
+          const _SectionLabel('콘센트를 연결할 가전'),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -581,7 +581,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
       children: [
         Row(
           children: [
-            _SectionLabel('${_selected.displayName} 전기 플러그'),
+            _SectionLabel('${_selected.displayName} 콘센트'),
             const Spacer(),
             if (registered != null)
               Container(

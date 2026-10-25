@@ -197,7 +197,7 @@ void main() {
       'control_path': 'physical',
       'can_execute': false,
       'readiness': 'needs_setup',
-      'readiness_reasons': ['누름 장치가 이 가전 위에 없어서 누를 수 없어요'],
+      'readiness_reasons': ['이 가전에는 누름 장치가 설치되어 있지 않아 누를 수 없어요'],
     });
     final practiceWasher = applianceFromServerJson({
       'id': 'washer',
@@ -218,7 +218,7 @@ void main() {
             appliances: [_purifier, kMicrowaveAppliance, notUnderGantry, practiceWasher],
             connections: pressDown,
           ));
-      expect(_texts(tester), contains('누름 장치가 끊겨 가전 1대를 쓸 수 없어요'));
+      expect(_texts(tester), contains('누름 장치 연결이 끊겨 가전 1대를 쓸 수 없어요'));
     });
 
     testWidgets('실내 값이 없으면(모의·모름) 실내 줄이 없다', (tester) async {

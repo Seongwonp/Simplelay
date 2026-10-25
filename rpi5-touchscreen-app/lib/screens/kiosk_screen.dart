@@ -53,7 +53,10 @@ const kSettingNotSavedNotice = '저장하지 못해 지금만 바뀌어요. 본�
 const kDndNotSentNotice = '방해 금지를 바꾸지 못했어요. 잠시 뒤 다시 눌러 주세요.';
 
 /// 실행 접수 응답을 받지 못했을 때(검토 10/19) — 본체가 이미 시작했을 수 있다. 정지 단추는 그대로 둔다.
-const kAdmitUnknownMessage = "본체 답을 받지 못했어요. 시작됐을 수 있어요. 멈추려면 '정지'를 누르세요.";
+const kAdmitUnknownMessage = "본체 응답을 받지 못했어요. 시작됐을 수 있어요. 멈추려면 '정지'를 누르세요.";
+
+/// 제안 음성 물음 — 행동 이름('공기청정기 켜기')이면 '…를 지금 할까요?', 모르는 문장이면 원문 그대로 묻는다.
+String _askNow(String name) => name.endsWith('기') ? '${withObject(name)} 지금 할까요?' : '$name, 지금 할까요?';
 
 const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
@@ -574,7 +577,7 @@ class _KioskScreenState extends State<KioskScreen> {
       ConnectionItem(
           id: 'plug',
           state: 'unreachable',
-          title: '전기 플러그 상태를 볼 수 없어요',
+          title: '콘센트 상태를 볼 수 없어요',
           message: '본체와 연결되면 볼 수 있어요.'),
     ];
     if (!_connectionsLoaded) {
@@ -1376,7 +1379,7 @@ class _KioskScreenState extends State<KioskScreen> {
     final text = autoRunNotice(run);
     _autoNoticeTimer?.cancel();
     setState(() => _autoNotice = text);
-    if (_health.speakGeneral) _tts.speak('자동으로 하기, $text'); // 조용한 시간·모름에는 소리 없이 한 줄만
+    if (_health.speakGeneral) _tts.speak('자동 실행, $text'); // 조용한 시간·모름에는 소리 없이 한 줄만
     _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
       if (mounted) setState(() => _autoNotice = null);
     });
@@ -1817,12 +1820,12 @@ class _KioskScreenState extends State<KioskScreen> {
     } on KioskApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e.detail.isNotEmpty ? e.detail : '루틴 카드를 만들지 못했어요.'),
+        content: Text(e.detail.isNotEmpty ? e.detail : '루틴을 열지 못했어요.'),
       ));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('루틴 카드를 만들지 못했어요. 연결을 봐 주세요.'),
+        content: Text('루틴을 열지 못했어요. 연결 상태를 봐 주세요.'),
       ));
     }
   }
@@ -1878,12 +1881,12 @@ class _KioskScreenState extends State<KioskScreen> {
       final ownName = suggestion.id == _ownCardId ? suggestion.routineName : null;
       // 직접 누른 저장된 동작이면 화면 질문과 같은 말('30초 데우기를 할까요?', 10/24 QA).
       if (ownName != null && ownName.isNotEmpty) {
-        _tts.speak('${withObject(ownName)} 할까요? 화면에서 지금 하기를 눌러 주세요.');
+        _tts.speak("${withObject(ownName)} 할까요? 하시려면 화면의 '지금 하기'를 눌러 주세요.");
       } else {
         // 스스로 뜬 제안만 알림음 뒤에 말한다(사용자 요청 10/25 — 화면 근처에 없어도 알게). 직접 누른 확인에는 알림음이 없다.
         _tts.announce(suggestion.isScenario
-            ? '${suggestion.purpose} 화면에서 지금 하기를 눌러 주세요.'
-            : '${actionName(suggestion.purpose)}, 지금 할까요? 화면에서 지금 하기를 눌러 주세요.');
+            ? "${suggestion.purpose} 하시려면 화면의 '지금 하기'를 눌러 주세요."
+            : "${_askNow(actionName(suggestion.purpose))} 하시려면 화면의 '지금 하기'를 눌러 주세요.");
       }
     }
     setState(() {
@@ -2330,7 +2333,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (mounted && _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("'이번엔 안 할게요'를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요."),
+          content: Text("'이번엔 안 할게요'가 본체에 전달되지 않았어요. 다시 눌러 주세요."),
         ));
       }
     } finally {

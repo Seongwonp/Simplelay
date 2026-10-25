@@ -3,7 +3,7 @@
 // - 위쪽 아이콘 4~5개 → 상태 칩 하나(모두 괜찮으면 없음 / 문제가 있을 때만 앰버 '확인 필요 N', 사용자 결정 10/18) + 메뉴(잠시 쉬기·설정).
 //   설정은 구석이 아니다(메뉴는 화면 가운데 큰 창으로 열린다). 누르는 자리는 48 이상.
 // - 가전 줄은 큰 사각 타일(아이콘·이름·상태 줄).
-// - 공기는 '공기 좋아요/보통이에요/나빠요' 한 줄 + 색. 숫자·'종합 등급은 공기청정기가 정한 거예요'은 LG 상세의 '자세히' 안.
+// - 공기는 '공기 좋아요/보통이에요/나빠요' 한 줄 + 색. 숫자·'종합 등급은 공기청정기 기준이에요'은 LG 상세의 '자세히' 안.
 // - LG 상세 상태 이름은 단추와 같은 말(약풍 → 약).
 // - 연결 창: 단추 '다시 연결해 보기', 화면이 직접 쓰는 끊김 안내는 할 일 두 단계(공유기 → 본체 껐다 켜기).
 import 'package:flutter/material.dart';
@@ -74,10 +74,10 @@ void main() {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('누름 장치가 끊겨 가전 2대를 쓸 수 없어요')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('누름 장치 연결이 끊겨 가전 2대를 쓸 수 없어요')), findsOneWidget);
       expect(tester.getSize(chip).height, greaterThanOrEqualTo(48));
       // 화면 읽기는 무엇이 문제인지까지 읽는다 — 원인이 하나면 원인과 영향(평가 15차 10/18).
-      expect(tester.getSemantics(chip).label, contains('누름 장치가 끊겨 가전 2대를 쓸 수 없어요'));
+      expect(tester.getSemantics(chip).label, contains('누름 장치 연결이 끊겨 가전 2대를 쓸 수 없어요'));
       final icon = tester.widget<Icon>(find.descendant(of: chip, matching: find.byType(Icon)).first);
       expect(icon.color, KioskColors.warning);
       await tester.tap(chip);
@@ -85,10 +85,10 @@ void main() {
       expect(opened?.id, 'press');
     });
 
-    testWidgets("문제가 둘이면 '연결 2곳을 봐 주세요' — 누르면 연결 목록, 항목을 누르면 그 연결 창", (tester) async {
+    testWidgets("문제가 둘이면 '연결 2곳에 문제가 있어요' — 누르면 연결 목록, 항목을 누르면 그 연결 창", (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _twoProblems, onOpen: (i) => opened = i));
-      expect(find.text('연결 2곳을 봐 주세요'), findsOneWidget);
+      expect(find.text('연결 2곳에 문제가 있어요'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await tester.pump();
       expect(find.byKey(const ValueKey('conn-network')), findsOneWidget);
@@ -149,7 +149,7 @@ void main() {
   });
 
   group('공기 — 한 줄 + 색', () {
-    testWidgets("'공기 나빠요' — 숫자·'종합 등급은 공기청정기가 정한 거예요'은 대기 화면에 없다", (tester) async {
+    testWidgets("'공기 나빠요' — 숫자·'종합 등급은 공기청정기 기준이에요'은 대기 화면에 없다", (tester) async {
       final air = KioskAirReading.fromJson({
         'appliance_id': 'air_purifier', 'grade': 'BAD', 'grade_source': 'total',
         'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'on', 'age_s': 3.0,
@@ -158,7 +158,7 @@ void main() {
       await _pump(tester, _idle(air: air));
       // 시안 B(10/24): 오른쪽 '공기질' 줄 값은 등급 말(명사형).
       expect(find.textContaining('나쁨'), findsOneWidget);
-      expect(find.textContaining('종합 등급은 공기청정기가 정한 거예요'), findsNothing);
+      expect(find.textContaining('종합 등급은 공기청정기 기준이에요'), findsNothing);
       expect(find.textContaining('미세먼지'), findsNothing);
     });
 
@@ -220,7 +220,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('thinq-air-more')));
       await tester.pump();
       expect(find.byKey(const ValueKey('thinq-row-초미세먼지')), findsOneWidget);
-      expect(find.textContaining('종합 등급은 공기청정기가 정한 거예요'), findsOneWidget);
+      expect(find.textContaining('종합 등급은 공기청정기 기준이에요'), findsOneWidget);
     });
   });
 

@@ -23,7 +23,7 @@ import 'kiosk_text.dart';
 String connectionShortName(String id) => switch (id) {
       'network' => '와이파이',
       'press' => '누름 장치',
-      'plug' => '전기 플러그',
+      'plug' => '콘센트',
       _ => '연결',
     };
 
@@ -84,7 +84,7 @@ bool _isHubDown(ConnectionItem i) =>
 
 /// 문제 칩 글 — '연결 확인 필요 2'(사용자 결정 10/18 '확인 필요 N', 평가 17차 10/18 — 칩은 연결 문제만 센다. 가전 문제(인덕션 멈춤 등)가
 /// 같이 보일 때 '확인 필요 1'이 화면의 문제 수와 어긋나 보였다).
-String kNeedsCheck(int n) => '연결 $n곳을 봐 주세요';
+String kNeedsCheck(int n) => '연결 $n곳에 문제가 있어요';
 
 /// 아직 연결을 다 보지 못했을 때 칩 글(정상이라고 하지 않는다).
 const kCheckingConnections = '연결을 확인하고 있어요';
@@ -100,7 +100,7 @@ String connectionProblemText(ConnectionItem p) {
 /// 들어가게), 모르면 '누름 장치 연결이 끊겼어요'.
 String connectionCauseLine(ConnectionItem p, {int? pressImpact}) {
   if (p.id == 'press' && p.state == 'error' && pressImpact != null && pressImpact > 0) {
-    return '누름 장치가 끊겨 가전 $pressImpact대를 쓸 수 없어요';
+    return '누름 장치 연결이 끊겨 가전 $pressImpact대를 쓸 수 없어요';
   }
   return connectionProblemText(p);
 }

@@ -6,7 +6,7 @@
 // 3. 성공 결과 자동 복귀 — 'N초 뒤 처음 화면으로 돌아가요'(실제 남은 초), 글자 한 단계 크게. 만지면 멈춤(종전).
 // 4. 조용한 시간 — 어두운 막을 글자 위에 덮지 않는다(배경만 어둡게). 남는 글자는 대비 4.5:1 이상.
 // 5. 본체 가전 카드 '설정이 필요해요'(앰버) → 중립 회색 '가족이 설정해요'. 문제 칩·확인 필요에 넣지 않는다.
-// 6. 표기 통일 — '살펴볼 게 있어요' 결과 제목은 같은 색(앰버). 연습 가전 이름은 '연습 세탁기'.
+// 6. 표기 통일 — '주의' 결과 제목은 같은 색(앰버). 연습 가전 이름은 '연습 세탁기'.
 // 8. 제안 버튼판에 '화면은 누르지 않아도 돼요', 큰 글씨 LG 가전 상세의 상태 줄이 첫 화면에, 처음 화면 경고 띠는 하나로.
 // 그 밖: '오늘은 건너뛰기'·'되돌리기'(글자 모양은 사용자 결정) 누르는 자리가 실패널에서 60px 이상.
 import 'dart:math' as math;
@@ -210,7 +210,7 @@ void main() {
       await openRetry(tester);
       final text = tester.widget<Text>(find.byKey(const ValueKey('done-retry-dialog-text'))).data!;
       expect(text, isNot(contains('꺼질')));
-      expect(text, contains('한 번 더 하지 마세요'));
+      expect(text, contains('다시 누르지 마세요'));
     });
   });
 
@@ -441,7 +441,7 @@ void main() {
       for (final a in [setup, unmapped]) {
         final issue = kioskTileIssue(a)!;
         expect(issue.mark, KioskTileMark.setup, reason: a.id);
-        expect(issue.text, contains('가족이 휴대폰에서 설정해요'), reason: a.id);
+        expect(issue.text, contains('휴대폰 앱에서'), reason: a.id);
       }
     });
 
@@ -461,7 +461,7 @@ void main() {
             onDndGesture: () {},
           ));
       expect(find.byKey(const ValueKey('idle-status-chip')), findsNothing);
-      expect(find.text('살펴볼 게 있어요'), findsNothing);
+      expect(find.text('주의'), findsNothing);
       expect(find.text('설정이 필요해요'), findsNothing);
       // 사용자 결정(10/19): 글자 띠 없이 톱니 표시 둘.
       expect(find.byKey(const ValueKey('tile-mark-intercom')), findsOneWidget);
@@ -470,7 +470,7 @@ void main() {
   });
 
   group('6. 표기 통일', () {
-    testWidgets("'살펴볼 게 있어요' 결과 제목은 같은 색 — 누름 보고만('버튼은 다 눌렀어요')도 앰버", (tester) async {
+    testWidgets("'주의' 결과 제목은 같은 색 — 누름 보고만('버튼을 모두 눌렀어요')도 앰버", (tester) async {
       Widget done({required bool success}) => KioskDoneView(
             success: success,
             reason: success ? null : KioskFailureReason.execution,
@@ -481,7 +481,7 @@ void main() {
             onDismiss: _noop,
           );
       await _pumpView(tester, done(success: true));
-      final reported = tester.widget<RichText>(_plain('버튼은 다 눌렀어요').first).text.style!.color;
+      final reported = tester.widget<RichText>(_plain('버튼을 모두 눌렀어요').first).text.style!.color;
       await _pumpView(tester, done(success: false));
       final unknown = tester.widget<RichText>(_plain('눌렸는지 확인하지 못했어요').first).text.style!.color;
       expect(unknown, KioskColors.warning);

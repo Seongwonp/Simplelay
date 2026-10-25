@@ -59,11 +59,11 @@ void main() {
   });
 
   // 2026-10-15 §3-1: 숫자(mA·dB·%)는 화면에서 뺀다 — 무엇을 보고 있는지만 작은 한 줄로.
-  testWidgets("검증 근거가 오면 '눌렀어요, 확인하고 있어요', 숫자는 화면에 없다",
+  testWidgets("검증 근거가 오면 '눌렀어요. 눌렸는지 확인하고 있어요', 숫자는 화면에 없다",
       (tester) async {
     await _pump(tester, confidence: 0.93, detail: '전류 +14mA · 소리 +9dB');
 
-    expect(find.text('눌렀어요, 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
+    expect(find.text('눌렀어요. 눌렸는지 확인하고 있어요'), findsOneWidget); // 결선 모의 평가 10/18 — 누른 뒤 확인 단계
     // 같은 뜻의 둘째 줄('가전이 켜지는지 보고 있어요')은 두지 않는다(평가 15차 10/18).
     expect(find.text('가전이 켜지는지 보고 있어요'), findsNothing);
     expect(find.textContaining('mA'), findsNothing);

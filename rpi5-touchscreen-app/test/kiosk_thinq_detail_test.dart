@@ -94,7 +94,7 @@ void main() {
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
         'pm25': 8, 'pm25_level': 'GOOD', 'power': 'on', 'age_s': 3.0,
       })!;
-      expect(r.details, ['초미세먼지 8 좋음', '종합 등급은 공기청정기가 정했어요', '공기청정기가 켜져 있어요']);
+      expect(r.details, ['초미세먼지 8 좋음', '종합 등급은 공기청정기 기준이에요', '공기청정기가 켜져 있어요']);
       // 가전의 종합 등급임을 밝힌다 — '보통' 밑 '초미세먼지 좋음'이 모순처럼 읽혔다(외부 평가 10/16 3차).
       expect(r.headline, '실내 공기가 보통이에요(종합)');
       // 모르는 등급 값은 붙이지 않는다.
@@ -124,7 +124,7 @@ void main() {
         'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'off', 'age_s': 3.0,
       })!;
       // 두 먼지 등급이 같으면 한 줄로 — 줄이 넷이면 실패널에서 마지막 줄이 잘렸다(10/17 09:33).
-      expect(r.details, ['미세·초미세먼지 모두 좋음', '종합 등급은 공기청정기가 정했어요', '공기청정기가 꺼져 있어요']);
+      expect(r.details, ['미세·초미세먼지 모두 좋음', '종합 등급은 공기청정기 기준이에요', '공기청정기가 꺼져 있어요']);
       // 같으면 붙이지 않는다.
       final same = KioskAirReading.fromJson({
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
@@ -143,7 +143,7 @@ void main() {
       final mock = KioskAirReading.fromJson(
           {'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'pm25': 20, 'age_s': 0},
           mock: true)!;
-      expect(mock.line, '실내 공기가 보통이에요 · 초미세먼지 20 · 연습이라 진짜 값이 아니에요');
+      expect(mock.line, '실내 공기가 보통이에요 · 초미세먼지 20 · 연습이라 실제 값이 아니에요');
     });
 
     test('모르는 등급·등급 없음·오래된 값은 null(보이지 않는다)', () {
@@ -520,7 +520,7 @@ void main() {
       calls++;
       return const KioskThinqStatus(failure: '상태를 읽지 못했어요 — 가전·인터넷 연결을 확인해 주세요');
     });
-    expect(find.textContaining('지금 상태를 못 봤어요. 상태를 읽지 못했어요'), findsOneWidget);
+    expect(find.textContaining('지금 상태를 불러오지 못했어요. 상태를 읽지 못했어요'), findsOneWidget);
     expect(find.byKey(const ValueKey('thinq-controls-unknown')), findsOneWidget);
     expect(find.byKey(const ValueKey('thinq-set-set_power-POWER_ON')), findsNothing);
     expect(find.byKey(const ValueKey('thinq-row-전원')), findsNothing);
@@ -545,12 +545,12 @@ void main() {
     expect(r.accepted, isEmpty);
   });
 
-  // 평가 5차(10/18): 연습 안내는 한 곳(조작 칸 위) — 지금 상태 칸의 '연습 화면이에요. 진짜 값이 아니에요'는 같은 말이었다.
+  // 평가 5차(10/18): 연습 안내는 한 곳(조작 칸 위) — 지금 상태 칸의 '연습 화면이에요. 실제 값이 아니에요'는 같은 말이었다.
   testWidgets('상세: 모의면 연습 표시 — 제목·연습 칸 한 곳', (tester) async {
     await pumpPanel(tester, read: () async => _ok(_state(), mode: 'mock'));
     expect(find.text('지금 상태'), findsOneWidget);
     expect(find.text('지금 상태 (연습)'), findsNothing);
-    expect(find.text('연습 화면이에요. 진짜 값이 아니에요'), findsNothing);
+    expect(find.text('연습 화면이에요. 실제 값이 아니에요'), findsNothing);
     expect(find.byKey(const ValueKey('thinq-practice')), findsOneWidget);
     expect(tester.widget<Icon>(find.descendant(
             of: find.byKey(const ValueKey('thinq-practice')), matching: find.byType(Icon))).color,

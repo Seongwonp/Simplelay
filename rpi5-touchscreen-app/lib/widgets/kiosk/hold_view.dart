@@ -172,7 +172,7 @@ class KioskHoldView extends StatelessWidget {
       return KioskStatusBand(
           tone: KioskBandTone.danger,
           icon: Icons.error_outline,
-          label: _fault ? '누름 장치에 문제가 있어요' : '정지 요청 확인 필요',
+          label: _fault ? '누름 장치에 문제가 있어요' : '정지 확인 못 함',
           practice: _mock);
     }
     if (_unconfirmed) {
@@ -187,18 +187,18 @@ class KioskHoldView extends StatelessWidget {
     return KioskStatusBand(
       tone: KioskBandTone.neutral,
       icon: Icons.pan_tool_outlined,
-      label: waiting ? '작동 중' : '기다림이 끝났어요',
+      label: waiting ? '작동 중' : '대기 끝남',
     );
   }
 
   String get _operationLine {
     final ok = operationConfirmed;
-    if (ok == null) return '가전이 켜졌는지는 확인하지 못했어요';
+    if (ok == null) return '가전이 켜졌는지 확인하지 못했어요';
     if (!ok) return '가전이 켜졌는지 확인하지 못했어요';
     // 외부 평가 2026-10-13 M5: 출처가 real일 때만 확인이라고 말한다. 모의 실행·모의 입력은 연습 값,
     // 출처를 모르면 단정하지 않는다.
     if (_mock || operationSource == 'mock') {
-      return '연습이라 가전은 보지 않아요';
+      return '연습이라 실제 가전 상태는 확인하지 않아요';
     }
     return operationSource == 'real'
         ? '가전이 켜졌어요'
@@ -494,7 +494,7 @@ class _Lines extends StatelessWidget {
 }
 
 /// 연습이 끝난 대기에서 흐린 정지 단추를 말하는 작은 글(2차 독립 평가 D, 10/18).
-const kPracticeDoneStopNote = '이미 끝났어요. 정지는 누르지 않아도 돼요';
+const kPracticeDoneStopNote = '대기가 끝났어요. 정지를 누르지 않아도 돼요';
 
 /// 그림 위 안내 — 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §2-2).
 const kPanelCaption = '누름 장치가 누르는 자리예요. 화면은 누르지 않아도 돼요';

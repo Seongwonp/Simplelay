@@ -54,7 +54,7 @@ class KioskExecutingView extends StatelessWidget {
   /// 첫 차례에는 말하지 않는다(10/24 QA) — 차례가 하나뿐인 루틴에 '루틴 1번째 차례'가 버튼 순서와 겹쳐 헷갈렸다. 둘째
   /// 차례부터 말한다(차례가 여럿인 루틴만 거기에 닿는다).
   String? get _routineLine =>
-      routineSegment == null || routineSegment! < 2 ? null : '루틴 $routineSegment번째 차례';
+      routineSegment == null || routineSegment! < 2 ? null : '루틴 $routineSegment번째 단계';
 
   /// 정지를 누른 뒤의 상태(검토 10/19) — 위 띠가 '멈추는 중' 또는 '정지 요청 결과를 확인하지 못했어요'로 바뀐다. 정지 단추는 그대로 남는다.
   /// 멈췄는지는 서버 보고를 받은 결과 화면이 말한다.
@@ -413,7 +413,7 @@ enum KioskExecStop { none, stopping, failed }
 const kExecStopFailed = '정지 요청 결과를 확인하지 못했어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.';
 
 /// 루틴 구간 사이 상태(검토 10/19) — 앞 차례를 마치고 다음 차례를 기다린다(가전이 끝나기를 기다릴 수도 있다).
-const kExecRoutineWaiting = '다음 차례를 기다리고 있어요';
+const kExecRoutineWaiting = '다음 단계를 기다리고 있어요';
 
 /// 실행 중 버튼판 위 한 줄(출시 검토 10/18) — 세 줄 설명 대신 할 일만. 연습도 같은 말(연습은 위 청록 띠가 말한다).
 const kExecPanelCaption = '화면은 누르지 않아도 돼요';
@@ -422,7 +422,7 @@ const kExecPanelCaption = '화면은 누르지 않아도 돼요';
 const kExecPressing = '누르고 있어요';
 
 /// 실행 중 상태 — 누른 뒤 확인 결과가 온 단계. 눌렸다고 단정하지 않는다(확인은 서버·결과 화면이 말한다).
-const kExecPressedChecking = '눌렀어요, 확인하고 있어요';
+const kExecPressedChecking = '눌렀어요. 눌렸는지 확인하고 있어요';
 
 // ── 진행 · 지금 버튼 · 한 줄 ─────────────────────────────────────────────────
 

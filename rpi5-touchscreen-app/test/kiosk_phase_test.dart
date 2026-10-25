@@ -603,7 +603,7 @@ void main() {
     await tester.pump();
     expect(find.byType(KioskSuggestionView), findsOneWidget);
     // 문구 통일(3c064ec) 뒤에도 실패를 알리고 카드를 남긴다.
-    expect(find.textContaining("'이번엔 안 할게요'를 보내지 못했어요"), findsOneWidget);
+    expect(find.textContaining("'이번엔 안 할게요'가 본체에 전달되지 않았어요"), findsOneWidget);
     api.rejectError = null;
     await tester.tap(find.byKey(_laterKey));
     await tester.pump();
@@ -841,7 +841,7 @@ void main() {
     await tester.pump(KioskTimings.doneReturn * 2);
     expect(find.byType(KioskDoneView), findsOneWidget, reason: '만진 뒤에는 저절로 닫히지 않는다');
     expect(find.textContaining('뒤 처음 화면으로'), findsNothing);
-    expect(find.text('자동으로 닫지 않아요'), findsOneWidget);
+    expect(find.text('이 화면은 저절로 닫히지 않아요'), findsOneWidget);
 
     await tester.tap(find.text('처음 화면으로'));
     await tester.pump();
@@ -1131,7 +1131,7 @@ void main() {
     // 제안 도착 발화 — 목적이 포함된 문장
     // 화면 질문과 같은 할 일 이름(평가 8차 10/18).
     expect(tts.utterances.single, contains('즉석밥 데우기'));
-    expect(tts.utterances.single, contains('지금 하기를 눌러'));
+    expect(tts.utterances.single, contains("화면의 '지금 하기'를 눌러"));
 
     api.suggestionList = [];
     await tester.tap(find.byKey(_approveKey));
@@ -1149,8 +1149,8 @@ void main() {
     // 완료 발화
     // 화면과 같은 말 -- '완료되었습니다'는 조리·세탁이 끝났다고 들린다.
     // 실행 환경을 모르면 눌렀다고 단정하지 않고(누름 장치의 보고까지) 가전 확인을 부탁한다.
-    // 음성도 화면과 같은 말 — 기계 말투 대신 '버튼은 다 눌렀어요', 이름은 행동 이름(평가 4차 10/18).
-    expect(tts.utterances.last, contains('버튼은 다 눌렀어요'));
+    // 음성도 화면과 같은 말 — 기계 말투 대신 '버튼을 모두 눌렀어요', 이름은 행동 이름(평가 4차 10/18).
+    expect(tts.utterances.last, contains('버튼을 모두 눌렀어요'));
     expect(tts.utterances.last, isNot(contains('알려 왔어요')));
     expect(tts.utterances.last, contains('가전이 움직이는지 봐 주세요'));
     expect(tts.utterances.last, isNot(contains('완료')));
@@ -1320,7 +1320,7 @@ void main() {
   });
 
   // 휴리스틱 평가(10/18): 본체와 끊겨 어떻게 됐는지 모르면 가전을 보고 답한다 — '안 움직였어요' 뒤 '손으로 할게요'는 처음 화면으로.
-  // 본체에 닿지 않으니 다시 하기는 없다. 누름 장치로 골라 누르기는 확실히 못 한 결과(연습 실패 등)에만 남는다.
+  // 본체에 닿지 않으니 다시 하기는 없다. 버튼 직접 고르기는 확실히 못 한 결과(연습 실패 등)에만 남는다.
   testWidgets('본체와 끊긴 실패 — 가전을 보고 답하고, 다시 하기는 없다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()
@@ -1337,7 +1337,7 @@ void main() {
 
     // 서버 연결 실패는 '다시 시도'가 또 실패할 가능성이 높아 숨긴다
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('누름 장치로 골라 누르기'), findsNothing);
+    expect(find.text('버튼 직접 고르기'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('done-check-no')));
     await tester.pump();
     expect(find.text('한 번 더 하기'), findsNothing);
@@ -1347,7 +1347,7 @@ void main() {
     expect(find.byKey(const ValueKey('idle-past-result')), findsNothing); // 답했으니 지난 일로 남기지 않는다
   });
 
-  testWidgets('확실히 못 한 결과(연습 실패)의 누름 장치로 골라 누르기가 수동 화면으로 보낸다', (tester) async {
+  testWidgets('확실히 못 한 결과(연습 실패)의 버튼 직접 고르기가 수동 화면으로 보낸다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()..suggestionList = [_sug];
     await _pumpKiosk(tester, api);
@@ -1360,7 +1360,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.byType(KioskDoneView), findsOneWidget);
-    await tester.tap(find.text('누름 장치로 골라 누르기'));
+    await tester.tap(find.text('버튼 직접 고르기'));
     await tester.pump();
     expect(find.text('전자레인지'), findsOneWidget);
   });
@@ -1422,7 +1422,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     expect(KioskTimings.countdownSeconds, 40); // 결선 모의 평가 10/18 — 20초도 짧았다
-    expect(find.text("'지금 하기'를 누르지 않으면 아무것도 안 해요"), findsOneWidget);
+    expect(find.text("'지금 하기'를 누르기 전에는 아무것도 하지 않아요"), findsOneWidget);
     expect(find.text('40초 뒤 닫혀요'), findsOneWidget);
   });
 
@@ -1494,7 +1494,7 @@ void main() {
     expect(find.byKey(const ValueKey('settings-quiet')), findsOneWidget);
     expect(find.text('조용한 시간'), findsOneWidget);
     expect(find.textContaining('휴대폰 앱 설정에서'), findsOneWidget);
-    expect(find.text("지금부터 잠깐만 쉬게 하려면 처음 화면 메뉴의 '방해 금지'를 눌러 주세요."), findsOneWidget);
+    expect(find.text("지금 잠깐 조용히 하려면 처음 화면 메뉴의 '방해 금지'를 눌러 주세요."), findsOneWidget);
     expect(find.byIcon(Icons.pause_circle_outline), findsNothing);
   });
 
@@ -1529,7 +1529,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('strip-induction')));
     await tester.pump();
 
-    expect(find.text('어느 가전을 조작할까요?'), findsNothing);
+    expect(find.text('어떤 가전을 쓸까요?'), findsNothing);
     expect(find.text('화력+'), findsOneWidget); // 인덕션 버튼
   });
 
@@ -1597,7 +1597,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('strip-microwave')));
     await tester.pump();
 
-    expect(find.text('어느 가전을 조작할까요?'), findsNothing);
+    expect(find.text('어떤 가전을 쓸까요?'), findsNothing);
     expect(find.text('즉석밥'), findsOneWidget); // 전자레인지 조작판
   });
 
@@ -1666,8 +1666,8 @@ void main() {
     expect(find.text('약풍'), findsOneWidget); // 유지
   });
 
-  /// 제안 승인 → 연습 실패 → 실패 화면의 '누름 장치로 골라 누르기' → 가전 선택. 그 뒤 실행 요청은 실패하게 둔다(server down).
-  /// 휴리스틱 평가(10/18) 뒤 '누름 장치로 골라 누르기'는 확실히 못 한 결과에만 있다 — 본체 끊김(모름)은 가전을 보고 답한다.
+  /// 제안 승인 → 연습 실패 → 실패 화면의 '버튼 직접 고르기' → 가전 선택. 그 뒤 실행 요청은 실패하게 둔다(server down).
+  /// 휴리스틱 평가(10/18) 뒤 '버튼 직접 고르기'는 확실히 못 한 결과에만 있다 — 본체 끊김(모름)은 가전을 보고 답한다.
   Future<void> failToManual(WidgetTester tester, FakeKioskApi api) async {
     api
       ..suggestionList = [_sug]
@@ -1685,9 +1685,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
     api.executeError = Exception('server down');
     // 큰 글씨에서는 보조 단추가 할 일 아래 같은 스크롤 흐름에 있다(2026-10-16 §1-8) — 보이게 굴린 뒤 누른다.
-    await tester.ensureVisible(find.text('누름 장치로 골라 누르기'));
+    await tester.ensureVisible(find.text('버튼 직접 고르기'));
     await tester.pump();
-    await tester.tap(find.text('누름 장치로 골라 누르기'));
+    await tester.tap(find.text('버튼 직접 고르기'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
   }
@@ -1812,7 +1812,7 @@ void main() {
     await tester.tap(find.text('해동')); // 누르기 확인
     await tester.pump();
     expect(find.text('누르기'), findsOneWidget);
-    await tester.tap(find.text('그만두기'));
+    await tester.tap(find.text('닫기'));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('kiosk-back')));
     await tester.pump();
@@ -2406,7 +2406,7 @@ void main() {
     expect(find.descendant(of: find.byKey(const ValueKey('thinq-result')), matching: find.byIcon(Icons.check)),
         findsNothing);
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('누름 장치로 골라 누르기'), findsNothing);
+    expect(find.text('버튼 직접 고르기'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -2429,7 +2429,7 @@ void main() {
     );
     expect(done.reason, KioskFailureReason.receiptUnknown);
     // 받았는지 모름 — 확인됨으로 올리지 않고, 다시 보내기 전에 보라고(LG 가전 결과 창, 사용자 요청 10/18).
-    expect(find.text('가전이 받았는지 확인하지 못했어요'), findsOneWidget);
+    expect(find.text('가전이 명령을 받았는지 확인하지 못했어요'), findsOneWidget);
     expect(find.text('다시 하기 전에 가전을 봐 주세요'), findsOneWidget);
     expect(find.textContaining('설정 변경을 확인했어요'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -2494,7 +2494,7 @@ void main() {
     );
     expect(done.operationConfirmed, isTrue);
     expect(find.text('전자레인지가 켜졌어요'), findsOneWidget);
-    expect(find.text('원하는 대로 됐는지 봐 주세요'),
+    expect(find.text('원하는 대로 작동하는지 봐 주세요'),
         findsOneWidget);
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
     expect(find.textContaining('켜진 것을 확인'), findsNothing);
@@ -2564,9 +2564,9 @@ void main() {
           lastConfirmation: 'none'),
     );
     expect(find.text('다 눌렀어요'), findsNothing);
-    // 실행 환경을 몰라도 같은 말 하나(평가 4차 10/18) — 확인 수준은 띠 '살펴볼 게 있어요'가 지킨다.
-    expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
-    expect(find.text('살펴볼 게 있어요'), findsOneWidget);
+    // 실행 환경을 몰라도 같은 말 하나(평가 4차 10/18) — 확인 수준은 띠 '주의'가 지킨다.
+    expect(find.text('버튼을 모두 눌렀어요'), findsOneWidget);
+    expect(find.text('주의'), findsOneWidget);
     expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());

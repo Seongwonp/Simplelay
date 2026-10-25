@@ -156,7 +156,7 @@ void main() {
       // 무엇을 부탁했는지 모르면(서버 문장에 설정이 없으면) 일반 문장 — 지어내지 않는다.
       // 제목에 가전 이름(평가 11차 10/18 — '…달라고 했어요'는 누가 누구에게인지 몰랐다).
       // 평가 15차(10/18): '보냈어요' 대신 '해 달라고 했어요', 무엇을 볼지는 결과 화면 번호 안내가 한 번만.
-      expect(c.headline, '공기청정기에 설정을 바꿔 달라고 했어요');
+      expect(c.headline, '공기청정기에 설정 변경 명령을 보냈어요');
       expect(c.sub, '바뀌었는지는 아직 확인하지 못했어요');
       expect(c.tone, ThinqResultTone.attention);
       final on = thinqResultCopy(
@@ -166,9 +166,9 @@ void main() {
           confirmation: 'none',
           executionMode: 'real',
           action: thinqActionOf('공기청정기', ['공기청정기 전원 켜기']))!;
-      expect(on.headline, '공기청정기에 켜 달라고 했어요');
+      expect(on.headline, '공기청정기에 켜기 명령을 보냈어요');
       expect(on.sub, '켜졌는지는 아직 확인하지 못했어요');
-      expect(copy('none', '', kind: ResultKind.unconfirmed, receipt: 'unknown')!.headline, '공기청정기가 받았는지 확인하지 못했어요');
+      expect(copy('none', '', kind: ResultKind.unconfirmed, receipt: 'unknown')!.headline, '공기청정기가 명령을 받았는지 확인하지 못했어요');
     });
 
     test('실행 환경을 모르면 확인으로 올리지 않는다 · 연습은 연습 · 실패는 기존 화면(null)', () {
@@ -217,7 +217,7 @@ void main() {
       expect(find.byType(KioskDoneView), findsOneWidget);
       expect(_result, findsOneWidget);
       expect(find.text('공기청정기가 켜졌어요'), findsOneWidget);
-      expect(find.text('가전에서 확인했어요'), findsOneWidget);
+      expect(find.text('가전 상태를 다시 읽어 확인했어요'), findsOneWidget);
       // 평가 14차(10/18): 큰 결과 원·상자는 없다 — 초록 체크는 위 띠가 말한다.
       expect(find.byKey(const ValueKey('thinq-result-ring')), findsNothing);
       final icon = tester.widget<Icon>(find.descendant(
@@ -234,7 +234,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('끝: 확인 못 함 → 체크 없이 공기청정기에 켜 달라고 했어요 / 켜졌는지는 아직 확인하지 못했어요, 처음 화면으로', (tester) async {
+    testWidgets('끝: 확인 못 함 → 체크 없이 공기청정기에 켜기 명령을 보냈어요 / 켜졌는지는 아직 확인하지 못했어요, 처음 화면으로', (tester) async {
       final api = await _start(tester, _powerOn);
       await _approveAndRun(tester, api);
       await _finish(
@@ -245,7 +245,7 @@ void main() {
               confirmation: 'none',
               detail: '가전에 전했지만 설정이 바뀌었는지 확인하지 못했어요. 가전을 봐 주세요.'));
       expect(_result, findsOneWidget);
-      expect(find.text('공기청정기에 켜 달라고 했어요'), findsOneWidget);
+      expect(find.text('공기청정기에 켜기 명령을 보냈어요'), findsOneWidget);
       expect(find.text('켜졌는지는 아직 확인하지 못했어요'), findsOneWidget);
       expect(find.descendant(of: _result, matching: find.byIcon(Icons.check)), findsNothing);
       expect(find.text('한 번 더 하기'), findsNothing);

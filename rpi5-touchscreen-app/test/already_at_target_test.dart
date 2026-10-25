@@ -45,7 +45,7 @@ void main() {
     _notChangedOrFailed(already);
     expect(autoRunNotice(_run('state_confirmed')), '공기청정기를 강풍으로 바꿨어요');
     final seen = autoRunNotice(_run('state_confirmed_unknown_before'));
-    expect(seen, '공기청정기가 강풍으로 된 것을 봤어요');
+    expect(seen, '공기청정기가 강풍으로 된 것을 확인했어요');
     expect(seen, isNot(contains('바꿨')));
     expect(autoRunNotice(_run('none', status: 'unconfirmed')), '공기청정기 설정이 바뀌었는지 확인하지 못했어요');
     // 옛 서버(설정 이름 없음)는 속성 이름을 붙인다.

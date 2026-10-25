@@ -571,8 +571,8 @@ const kTileUnusablePress = '지금은 쓸 수 없어요. 누름 장치 연결을
 const kTileUnusableEstop = '지금은 쓸 수 없어요. 비상 버튼이 눌려 있어요';
 const kTileUnusableLink = '지금은 쓸 수 없어요. 연결을 확인해 주세요';
 const kTileLastFailed = '지난번에 끝까지 하지 못했어요. 가전을 한번 봐 주세요';
-const kTilePanelSetup = '버튼 자리를 아직 맞추지 않았어요. 가족이 휴대폰에서 설정해요';
-const kTileSetupLeft = '아직 설정이 남았어요. 가족이 휴대폰에서 설정해요';
+const kTilePanelSetup = '버튼 자리를 아직 맞추지 않았어요. 휴대폰 앱에서 맞춰 주세요';
+const kTileSetupLeft = '아직 설정이 끝나지 않았어요. 휴대폰 앱에서 마저 설정해 주세요';
 const kTilePowerUnknown = '켜져 있는지 아직 확인하지 못했어요';
 const kTileReadyUnknown = '쓸 수 있는지 아직 확인하지 못했어요';
 
@@ -619,7 +619,7 @@ String? kioskTileStateWord(ApplianceMap a, {bool running = false, bool on = fals
   if (running) return a.isThinq ? '바꾸고 있어요' : '작동하고 있어요';
   if (on) return '켜져 있어요';
   if (off && a.isThinq) return '꺼져 있어요';
-  if (!a.isThinq) return '지금 누르고 있지 않아요';
+  if (!a.isThinq) return '대기 중';
   return null;
 }
 

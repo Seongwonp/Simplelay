@@ -77,20 +77,20 @@ class EstopAckResult {
   /// 자동 실행 허용 규칙은 꺼지지 않으므로 그렇다고 말하지 않는다(2026-10-15 문구 개선 원칙 0-6).
   String messageFor({bool powerRestore = false}) => switch (outcome) {
         EstopAckOutcome.cleared => powerRestore
-            ? '풀었어요. 전기 플러그 전원을 다시 켰어요.'
+            ? '풀었어요. 콘센트 전원을 다시 켰어요.'
             : '풀었어요. 멈췄던 일은 이어서 하지 않아요. 가전 전원은 직접 켜 주세요.',
         EstopAckOutcome.buttonPressed =>
           "빨간 비상 버튼이 아직 눌려 있어요. 버튼을 돌려서 푼 뒤 화면의 '풀기'를 다시 눌러 주세요.",
         EstopAckOutcome.outletUnreachable =>
-          '전기 플러그가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
+          '콘센트가 응답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.retriggered =>
           '푸는 사이 비상 정지가 다시 걸렸어요. 주변을 보고 다시 풀어 주세요.',
         EstopAckOutcome.stillLatched =>
           '아직 풀리지 않았어요. 빨간 비상 버튼과 주변을 보고 다시 풀어 주세요.',
         EstopAckOutcome.notLatched =>
-          '본체에 걸린 비상 정지가 없어 풀지 않았어요. 잠시 뒤 다시 봐 주세요.',
+          '이미 풀려 있어 따로 풀지 않았어요.',
         EstopAckOutcome.noAnswer =>
-          '누름 장치가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
+          '누름 장치가 응답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.failed =>
           '풀기를 보내지 못했어요. 연결을 보고 다시 해 주세요.',
       };
@@ -115,7 +115,7 @@ String? estopDetailLine(String? detail) {
 
 /// 걸림 띠 제목(2026-10-15 문구 개선 §2-3) — '비상정지' 대신 손에 보이는 물건 이름으로.
 const kEstopTitle = '비상 버튼이 눌려 있어요';
-const kEstopPowerTitle = '전기 플러그 전원이 꺼져 있어요';
+const kEstopPowerTitle = '콘센트 전원이 꺼져 있어요';
 String estopTitleFor(String? detail) =>
     estopIsPowerLoss(detail) ? kEstopPowerTitle : kEstopTitle;
 
@@ -126,7 +126,7 @@ const kEstopConfirmQuestion =
     '풀어도 멈췄던 일은 이어서 하지 않아요.\n'
     '가전 전원은 직접 켜 주세요.';
 const kEstopPowerConfirmQuestion =
-    '가전 주변이 안전한지 봐 주세요.\n풀면 전기 플러그 전원이 다시 켜져요.';
+    '가전 주변이 안전한지 봐 주세요.\n풀면 콘센트 전원이 다시 켜져요.';
 String estopConfirmFor(String? detail) => estopIsPowerLoss(detail)
     ? kEstopPowerConfirmQuestion
     : kEstopConfirmQuestion;
@@ -137,6 +137,6 @@ const kEstopConfirmLabel = '풀기';
 
 /// 걸림이 새로 생길 때 한 번 말하는 안내(키오스크 음성).
 const kEstopSpoken = '비상 버튼이 눌렸어요. 주변을 본 뒤 화면에서 풀어 주세요.';
-const kEstopPowerSpoken = '전기 플러그 전원이 꺼졌어요. 주변을 본 뒤 화면에서 풀어 주세요.';
+const kEstopPowerSpoken = '콘센트 전원이 꺼졌어요. 주변을 본 뒤 화면에서 풀어 주세요.';
 String estopSpokenFor(String? detail) =>
     estopIsPowerLoss(detail) ? kEstopPowerSpoken : kEstopSpoken;

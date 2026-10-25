@@ -134,8 +134,8 @@ void main() {
       }
       expect(find.textContaining('다시 시도하지 마세요'), findsNothing);
     }
-    // 누름 보고만 받은 성공은 켜졌다고 하지 않는다 — 버튼은 다 눌렀어요 + 가전이 움직이는지 봐 주세요.
-    expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
+    // 누름 보고만 받은 성공은 켜졌다고 하지 않는다 — 버튼을 모두 눌렀어요 + 가전이 움직이는지 봐 주세요.
+    expect(find.text('버튼을 모두 눌렀어요'), findsOneWidget);
     expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
     expect(find.text('가전이 켜졌어요'), findsNothing);
   });

@@ -1,5 +1,5 @@
 // 키오스크 QA(2026-10-24) — 저장된 동작(루틴) 실행 화면의 버튼 수. 본체는 승인 명령 수를 단계 수로 실어 '30초 → 시작'(명령 하나에
-// 버튼 둘)이 '누를 버튼 1개 중 1번째'로 보였다. 카드에 묶인 버튼으로 센다. 첫 차례뿐이면 '루틴 1번째 차례'를 말하지 않는다.
+// 버튼 둘)이 '누를 버튼 1개 중 1번째'로 보였다. 카드에 묶인 버튼으로 센다. 첫 차례뿐이면 '루틴 1번째 단계'를 말하지 않는다.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
@@ -43,7 +43,7 @@ KioskStatus _live(String button, {int done = 0}) => KioskStatus.fromJson({
 
 void main() {
   cardMain();
-  testWidgets("루틴 '30초 → 시작'은 누를 버튼 2개 — 첫 차례뿐이면 '루틴 1번째 차례'가 없다", (tester) async {
+  testWidgets("루틴 '30초 → 시작'은 누를 버튼 2개 — 첫 차례뿐이면 '루틴 1번째 단계'가 없다", (tester) async {
     tester.view.physicalSize = const Size(800, 480);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -65,7 +65,7 @@ void main() {
     expect(find.byType(KioskExecutingView), findsOneWidget);
     expect(find.text('누를 버튼 2개 중 1번째'), findsOneWidget);
     expect(find.text('누를 버튼 1개 중 1번째'), findsNothing);
-    expect(find.text('루틴 1번째 차례'), findsNothing);
+    expect(find.text('루틴 1번째 단계'), findsNothing);
 
     job = _live('시작');
     api.statusResult = const KioskStatus(running: true, jobId: 'job-1', applianceId: 'microwave', currentButton: '시작');
@@ -110,7 +110,7 @@ void cardMain() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(KioskSuggestionView), findsOneWidget);
-    expect(_band('확인'), findsOneWidget);
+    expect(_band('직접 실행'), findsOneWidget);
     expect(_band('제안'), findsNothing);
     expect(find.text('30초 데우기를 할까요?'), findsOneWidget);
     expect(find.textContaining('루틴을 실행할까요'), findsNothing);

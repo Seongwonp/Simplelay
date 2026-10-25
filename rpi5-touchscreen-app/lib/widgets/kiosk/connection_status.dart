@@ -68,14 +68,14 @@ class KioskTopIconLabel extends StatelessWidget {
 String _shortName(String id) => switch (id) {
       'network' => '와이파이',
       'press' => '누름 장치',
-      'plug' => '전기 플러그',
+      'plug' => '콘센트',
       _ => '연결',
     };
 
 String _name(String id) => switch (id) {
       'network' => '와이파이',
       'press' => '누름 장치',
-      'plug' => '전기 플러그',
+      'plug' => '콘센트',
       _ => '연결',
     };
 
@@ -117,7 +117,7 @@ class _ConnectionIcon extends StatelessWidget {
                   if (item.state != 'unknown')
                     KioskTopIconLabel(_shortName(item.id), color: color)
                   else
-                    Text('모름',
+                    Text('확인 못 함',
                         maxLines: 1,
                         softWrap: false,
                         style: TextStyle(
@@ -296,7 +296,7 @@ class KioskConnectionModal extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12)),
                       ),
                       child: Text(
-                        checking ? '연결해 보고 있어요' : '다시 연결해 보기',
+                        checking ? '연결하고 있어요' : '다시 연결해 보기',
                         style: const TextStyle(
                             fontSize: KioskType.body, fontWeight: FontWeight.w700),
                       ),

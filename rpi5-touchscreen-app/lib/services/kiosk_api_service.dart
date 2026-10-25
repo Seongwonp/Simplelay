@@ -1090,7 +1090,7 @@ class KioskApiService {
         readAt: DateTime.now(),
       );
     } on TimeoutException {
-      return const KioskThinqStatus(failure: '답이 늦어요. 가전과 인터넷 연결을 봐 주세요');
+      return const KioskThinqStatus(failure: '응답이 늦어요. 가전과 인터넷 연결을 봐 주세요');
     } catch (_) {
       return const KioskThinqStatus(failure: '본체에 연결되지 않았어요');
     }

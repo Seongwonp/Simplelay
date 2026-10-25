@@ -303,7 +303,7 @@ void main() {
       await tester.pump();
       expect(pressed, isEmpty);
       expect(find.byKey(const ValueKey('manual-press-confirm')), findsOneWidget);
-      await tester.tap(find.text('그만두기'));
+      await tester.tap(find.text('닫기'));
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('kiosk-back')));
       await tester.pump();
