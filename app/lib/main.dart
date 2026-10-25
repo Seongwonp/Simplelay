@@ -78,7 +78,9 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
               routes: [
                 GoRoute(
                   path: 'voice',
-                  builder: (_, __) => const VoiceScreen(),
+                  // 홈의 '말로 하기' — 특정 가전에 묶지 않는다(10/26).
+                  builder: (_, __) =>
+                      const VoiceScreen(targetSelectedAppliance: false),
                 ),
               ],
             ),

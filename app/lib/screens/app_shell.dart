@@ -73,7 +73,10 @@ class AppShell extends ConsumerWidget {
             onTab: (i) {
               // 다른 기기(키오스크 등)의 실행도 보이게, 기록 탭에 들어갈 때마다 다시 받는다.
               if (i == historyTabIndex) ref.invalidate(historyProvider);
-              navigationShell.goBranch(i);
+              // 지금 탭을 다시 누르면 그 탭의 첫 화면으로(10/26 실기기: '말로 하기'는 홈 탭 위에 얹혀 있어 홈을 눌러도
+              // 그대로 머물렀다). 화면을 떠나면 음성 화면이 듣기·생각 중 요청을 스스로 정리한다.
+              navigationShell.goBranch(i,
+                  initialLocation: i == navigationShell.currentIndex);
             },
           ),
         ],

@@ -27,7 +27,12 @@ import '../widgets/no_appliance_notice.dart';
 import '../theme/app_tokens.dart';
 
 class VoiceScreen extends ConsumerStatefulWidget {
-  const VoiceScreen({super.key});
+  const VoiceScreen({super.key, this.targetSelectedAppliance = true});
+
+  /// true면 고른 가전에게 말한다(머리말 '<가전>에게', 본체에 가전 번호를 함께 보냄).
+  /// 홈의 '말로 하기'(`/voice`)는 false — 본체가 모든 가전 가운데서 알아듣고 확인을 묻는다(10/26 실기기: 홈에서 열었는데
+  /// 마지막에 고른 '인덕션에게'가 떠 헷갈렸다).
+  final bool targetSelectedAppliance;
 
   @override
   ConsumerState<VoiceScreen> createState() => _VoiceScreenState();
@@ -58,11 +63,15 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   // (ref가 아직 유효할 때) 미리 읽어 필드에 캐시해두고 dispose에서는 이
   // 필드만 쓴다.
   late final VoiceService _voiceService;
+  late final StateController<bool> _listeningState;
+  late final StateController<String> _textState;
 
   @override
   void initState() {
     super.initState();
     _voiceService = ref.read(voiceServiceProvider);
+    _listeningState = ref.read(voiceListeningProvider.notifier);
+    _textState = ref.read(voiceTextProvider.notifier);
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -228,6 +237,10 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       return;
     }
 
+    if (rpiApi != null && !widget.targetSelectedAppliance) {
+      await _sendToHub(rpiApi, null, trimmed);
+      return;
+    }
     if (appliance.isCustom && rpiApi == null) {
       // 사용자 정의 가전은 서버 고정 규칙이 없어서 LLM으로 해석해야 하고,
       // BLE 릴레이(ESP32)는 의도 해석을 못 하므로 RPi5 HTTP 직통만 지원한다
@@ -266,13 +279,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   /// 블루투스로 같은 말을 또 보내 두 번 눌리거나 켠 것을 도로 끌 수 있었다. 이제 블루투스로 다시 보내지 않고 '모름'으로 두어
   /// 정지를 남긴다. 같은 요청을 가려낼 요청 번호가 본체에 생기기 전까지는 다시 보내지 않는다.
   Future<void> _sendToHub(
-      RpiApiService rpiApi, ApplianceMap appliance, String text) async {
+      RpiApiService rpiApi, ApplianceMap? appliance, String text) async {
     final serial = ++_sendSerial;
     final execution = ref.read(executionStatusProvider.notifier);
     final requestId = execution.beginSubmitting(api: rpiApi, label: text);
     try {
       // RPi HTTP 직통 — 즉시 접수(job_id) 후 상태 화면에서 진행 확인
-      final accepted = appliance.isCustom
+      final accepted = appliance != null && appliance.isCustom
           ? await rpiApi.executeForAppliance(
               text,
               appliance.buttons.map((b) => b.label).toList(),
@@ -281,14 +294,15 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
             )
           : await rpiApi.execute(text,
               source: 'voice',
-              applianceId: appliance.id,
+              applianceId: appliance?.id,
               clientRequestId: requestId);
       if (accepted.stopped) execution.abandonSubmission(requestId);
       _trackOrShowStop(rpiApi, accepted, text, requestId);
     } on RpiApiException catch (error) {
       execution.abandonSubmission(requestId); // 본체가 답했다 — 받지 않았다
       final help = NotUnderstoodHelp.fromException(error);
-      final unconfiguredLegacyParser = appliance.isCustom &&
+      final unconfiguredLegacyParser = appliance != null &&
+          appliance.isCustom &&
           error.statusCode == 503 &&
           error.message.startsWith('no LLM client configured');
       if (help != null || error.statusCode == 422 || unconfiguredLegacyParser) {
@@ -354,17 +368,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     final selected = proposal;
     final accepted = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-              title: Text(selected.question),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('아니요')),
-                FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('네')),
-              ],
-            ));
+        builder: (context) => _ProposalConfirmDialog(proposal: selected));
     if (!current()) return true;
     _cancelPending();
     if (accepted != true) return true;
@@ -519,6 +523,15 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     _intentGeneration++;
     WidgetsBinding.instance.removeObserver(this);
     _voiceService.cancel();
+    // 하단 탭 등으로 화면을 아예 떠나면(10/26) 듣는 중 표시·확인 대기 문장도 비운다 — 다시 열었을 때 옛 문장을 실행하지 않게.
+    // 위젯 정리 중에는 provider를 바꿀 수 없어 한 박자 뒤로 미룬다.
+    final listening = _listeningState, pending = _textState;
+    Future.microtask(() {
+      try {
+        listening.state = false;
+        pending.state = '';
+      } catch (_) {/* 앱 전체가 닫히는 중이면 비울 것도 없다. */}
+    });
     _soundLevel.dispose();
     super.dispose();
   }
@@ -590,19 +603,54 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     // 꺾인다. 세로로 쌓고 주 행동을 위에 둔다(제안 화면과 같은 규칙).
     final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
 
+    // 본체가 말을 다시 알아보는 동안에는 이 한 가지 상태만 가운데에 둔다(10/26 실기기: 위에 끼인 문구 아래로 옛 '이대로
+    // 할까요?'와 눌리지 않는 '보내는 중…'이 함께 남아 어지러웠다). 그만둘 길은 '취소' 하나다.
+    if (_thinking) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('말로 하기')),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox.square(
+                    dimension: 48, child: CircularProgressIndicator()),
+                const SizedBox(height: AppSpace.xl),
+                Semantics(
+                  liveRegion: true,
+                  child: Text('생각하고 있어요…',
+                      style: AppText.title, textAlign: TextAlign.center),
+                ),
+                if (text.trim().isNotEmpty) ...[
+                  const SizedBox(height: AppSpace.sm),
+                  Text(
+                    text,
+                    key: const Key('intent-thinking-text'),
+                    style: TextStyle(
+                        color: context.appMuted, fontSize: AppFont.caption),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: AppSpace.xxl),
+                OutlinedButton(
+                  key: const Key('intent-cancel'),
+                  onPressed: _cancelIntent,
+                  child: const Text('취소'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('말로 하기')),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl),
         child: Column(
           children: [
-            if (_thinking) ...[
-              Semantics(liveRegion: true, child: const Text('생각하고 있어요…')),
-              TextButton(
-                  key: const Key('intent-cancel'),
-                  onPressed: _cancelIntent,
-                  child: const Text('취소')),
-            ],
             // 인식 문장이 길거나 글씨를 키우면 내용이 화면을 넘긴다.
             // 본문은 스크롤하고, 실행/취소는 아래에 고정해 항상 닿게 한다.
             Expanded(
@@ -614,7 +662,16 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                     // ── 어느 가전에게 말하는가 ─────────────────────────────
                     // 여러 가전을 다루므로 말이 어디로 가는지 먼저 보여야
                     // 한다. 엉뚱한 가전에 대고 말한 뒤에 알면 늦다.
-                    _TargetLine(appliance: appliance),
+                    if (widget.targetSelectedAppliance)
+                      _TargetLine(appliance: appliance)
+                    else
+                      Text(
+                        '무엇을 할까요?',
+                        key: const Key('voice-neutral-target'),
+                        style: TextStyle(
+                            fontSize: AppFont.caption, color: context.appMuted),
+                        textAlign: TextAlign.center,
+                      ),
                     const SizedBox(height: AppSpace.xl),
 
                     // ── 웨이브 비주얼라이저 ────────────────────────────────────────
@@ -648,7 +705,9 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                               ? _NotUnderstoodPanel(
                                   key: const ValueKey('not-understood'),
                                   help: _notUnderstood!,
-                                  applianceName: appliance.displayName,
+                                  applianceName: widget.targetSelectedAppliance
+                                      ? appliance.displayName
+                                      : null,
                                   onPick: _sending ? null : _pickPurpose,
                                 )
                               : _recognitionError == null
@@ -753,6 +812,57 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── 알아들은 일 확인 ──────────────────────────────────────────────────────
+
+/// 본체가 만든 질문(`question`)을 **그대로** 묻고, 같은 높이의 두 버튼을 나란히 둔다:
+/// 왼쪽 '아니요'(테두리) | 오른쪽 '네'(채움) — 키오스크 제안 카드와 같은 배치(10/26 실기기: 작은 '아니요'가 오른쪽 위,
+/// 큰 '네'가 아래에 따로 있어 어긋나 보였다).
+class _ProposalConfirmDialog extends StatelessWidget {
+  const _ProposalConfirmDialog({required this.proposal});
+
+  final IntentProposal proposal;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = proposal.label.trim();
+    return AlertDialog(
+      title: Text(proposal.question),
+      actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpace.xl, 0, AppSpace.xl, AppSpace.xl),
+      actions: [
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52)),
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text('아니요',
+                      textAlign: TextAlign.center,
+                      semanticsLabel: label.isEmpty ? '아니요' : '아니요. 하지 않아요'),
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52)),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: Text('네',
+                      textAlign: TextAlign.center,
+                      semanticsLabel: label.isEmpty ? '네' : '네. $label'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -914,13 +1024,15 @@ class _NotUnderstoodPanel extends StatelessWidget {
   });
 
   final NotUnderstoodHelp help;
-  final String applianceName;
+  /// null이면 가전에 묶지 않은 화면 — 이름 없이 '할 수 있는 일이에요'.
+  final String? applianceName;
   final ValueChanged<String>? onPick;
 
   @override
   Widget build(BuildContext context) {
     final suggestion = help.suggestion;
     final pick = onPick;
+    final name = applianceName;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -938,7 +1050,9 @@ class _NotUnderstoodPanel extends StatelessWidget {
         if (help.choices.isNotEmpty) ...[
           const SizedBox(height: AppSpace.lg),
           Text(
-            '$applianceName${_subjectParticle(applianceName)} 할 수 있는 일이에요',
+            name == null
+                ? '할 수 있는 일이에요'
+                : '$name${_subjectParticle(name)} 할 수 있는 일이에요',
             style: AppText.body.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: AppSpace.sm),
