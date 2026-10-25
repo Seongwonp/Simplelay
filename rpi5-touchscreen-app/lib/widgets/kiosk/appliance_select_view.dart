@@ -24,7 +24,7 @@ class KioskApplianceSelectView extends StatelessWidget {
     required this.appliances,
     required this.lastUsedId,
     required this.onSelect,
-    required this.onCancel,
+    this.onCancel,
     this.onMenu,
   });
 
@@ -36,7 +36,8 @@ class KioskApplianceSelectView extends StatelessWidget {
   /// 지난번에 조작한 가전 — 카드에 "지난번" 배지로 표시해 재선택을 돕는다.
   final String? lastUsedId;
   final ValueChanged<ApplianceMap> onSelect;
-  final VoidCallback onCancel;
+  /// '뒤로'. null이면 두지 않는다 — 아래 '가전' 탭 화면이라 탭으로 오간다(10/25 사용자: 탭 화면에 뒤로가 어색).
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -50,8 +51,7 @@ class KioskApplianceSelectView extends StatelessWidget {
             Row(
               children: [
                 // 뒤로가기 — 수동 조작 화면과 같은 단추(흰 화살표 + '뒤로', UI 평가 4차 10/17)
-                KioskBackButton(onTap: onCancel),
-                const SizedBox(width: 14),
+                if (onCancel case final back?) ...[KioskBackButton(onTap: back), const SizedBox(width: 14)],
                 Expanded(
                   child: Text(
                     '어떤 가전을 쓸까요?',

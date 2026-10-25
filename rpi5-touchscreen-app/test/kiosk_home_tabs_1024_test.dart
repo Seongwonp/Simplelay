@@ -14,6 +14,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/auto_run_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/history_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_back_button.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
@@ -159,6 +160,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(KioskApplianceSelectView), findsOneWidget);
       expect(_tabs, findsOneWidget);
+      // 탭 화면에는 '뒤로'를 두지 않는다 — 아래 탭으로 오간다(10/25 사용자).
+      expect(find.descendant(of: find.byType(KioskApplianceSelectView), matching: find.byType(KioskBackButton)),
+          findsNothing);
 
       await tester.tap(_tab('auto'));
       await tester.pump();

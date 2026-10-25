@@ -2968,7 +2968,7 @@ class _KioskScreenState extends State<KioskScreen> {
               appliances: _appliances,
               lastUsedId: _currentAppliance.id,
               onSelect: _onManualApplianceSelected,
-              onCancel: _fromManual,
+              // '가전' 탭 화면 — 뒤로 단추 없이 탭으로 오간다(10/25 사용자)
               onMenu: openMenu,
             ),
           );
