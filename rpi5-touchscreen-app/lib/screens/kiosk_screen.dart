@@ -82,6 +82,9 @@ const kQuietWakeDuration = Duration(seconds: 30);
 /// 제안 화면 '시간 더 주기'가 늘리는 초(접근성 감사 10/18).
 const kSuggestionExtendSeconds = 60;
 
+/// '시간 더 주기'로 남길 수 있는 최대 초(10/25 — 누를 때마다 끝없이 늘어 3,000초를 넘었다). 다 차면 단추를 숨긴다.
+const kSuggestionMaxSeconds = 300;
+
 class KioskScreen extends StatefulWidget {
   const KioskScreen({
     super.key,
@@ -1912,7 +1915,7 @@ class _KioskScreenState extends State<KioskScreen> {
   void _extendSuggestion() {
     if (_phase != KioskPhase.suggestion) return;
     setState(() {
-      _cdRemaining += kSuggestionExtendSeconds;
+      _cdRemaining = (_cdRemaining + kSuggestionExtendSeconds).clamp(0, kSuggestionMaxSeconds);
       if (_cdRemaining > _cdTotal) _cdTotal = _cdRemaining;
     });
   }
@@ -2978,7 +2981,7 @@ class _KioskScreenState extends State<KioskScreen> {
           cdRemaining: _cdRemaining,
           cdTotal: _cdTotal,
           onTouch: _touchSuggestion,
-          onExtend: _extendSuggestion,
+          onExtend: _cdRemaining < kSuggestionMaxSeconds ? _extendSuggestion : null,
           scenarioName: _scenarioNames[suggestion.scenarioId],
           blockedWhy: suggestion.isScenario ? _scenarioBlockedWhy : null,
           onApprove: _onApprove,

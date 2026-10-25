@@ -252,6 +252,13 @@ void main() {
       final bar = tester.widget<LinearProgressIndicator>(
           find.descendant(of: find.byType(KioskSuggestionView), matching: find.byType(LinearProgressIndicator)));
       expect(bar.value, lessThanOrEqualTo(1.0));
+      // 끝없이 늘지 않는다(10/25 — 막 누르니 3,000초를 넘었다) — 5분에서 멈추고 단추가 사라진다.
+      for (var i = 0; i < 5; i++) {
+        await tester.tap(more);
+        await tester.pump();
+      }
+      expect(seconds(tester), startsWith('300초'));
+      expect(more, findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     });
   });
