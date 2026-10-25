@@ -53,7 +53,8 @@ class _KioskRoomSleepState extends State<KioskRoomSleep> {
         key: const ValueKey('room-sleep'),
         behavior: HitTestBehavior.opaque,
         onTap: widget.onWake,
-        child: ColoredBox(
+        // Material — 화면 틀(Scaffold) 밖에 놓여도 글자에 노란 밑줄(기본 글자 모양 없음 표시)이 생기지 않게(10/26 실패널).
+        child: Material(
           color: KioskRoomSleep.sleepColor,
           child: Stack(children: [
             Center(

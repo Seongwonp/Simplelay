@@ -36,4 +36,13 @@ void main() {
     final text = tester.widget<Text>(find.text('내일부터 또 한 주예요. 오늘은 푹 쉬세요.'));
     expect(text.style?.fontSize, KioskType.caption);
   });
+
+  testWidgets('화면 틀 밖에 놓여도 글자에 노란 밑줄이 없다(10/26 실패널)', (tester) async {
+    await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: KioskRoomSleep(onWake: () {}, now: () => DateTime(2026, 10, 26, 22, 3))));
+    final style = DefaultTextStyle.of(tester.element(find.text('10:03'))).style;
+    expect(style.decoration, isNot(TextDecoration.underline));
+    expect(find.byType(Material), findsOneWidget);
+  });
 }
