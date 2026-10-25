@@ -23,7 +23,14 @@ class Suggestion {
     this.autoRuleOffer,
     this.signals = const [],
     this.canMarkDone = false,
+    this.kind = 'action',
   });
+
+  /// 'action'(승인하면 실행) · 'advice'(조언 — 실행 없음, '알겠어요'·'괜찮아요'만, 본체 `kind` 2026-10-26).
+  final String kind;
+
+  /// 조언 카드인가 — '네'가 없고 닫기만 한다.
+  bool get isAdvice => kind == 'advice';
 
   /// '왜 지금' 신호(본체 `signals`, 2026-10-26) — 이 카드를 띄운 근거들. 본체가 만든 그대로만 보인다(화면에서 만들지 않음).
   final List<SuggestionSignal> signals;
@@ -132,7 +139,7 @@ class Suggestion {
       );
 }
 
-/// 카드를 띄운 신호 하나(본체 `signals[]`) — 예: '사람 있음', '최근 7일 중 5일'.
+/// 카드를 띄운 신호 하나(본체 `signals[]`) — 예: '집에 계심', '최근 7일 중 5일'.
 class SuggestionSignal {
   const SuggestionSignal({required this.label, this.ok = true});
 

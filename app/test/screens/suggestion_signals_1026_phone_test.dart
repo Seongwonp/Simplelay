@@ -16,7 +16,7 @@ import 'package:simplelay/widgets/signal_chips.dart';
 import '../helpers/test_helpers.dart';
 
 const _signals = [
-  SuggestionSignal(label: '사람 있음'),
+  SuggestionSignal(label: '집에 계심'),
   SuggestionSignal(label: '평소 오후 10시쯤'),
   SuggestionSignal(label: '최근 7일 중 5일'),
   SuggestionSignal(label: '평일'),
@@ -80,13 +80,13 @@ void main() {
       'time_band': '저녁',
       'occurrences': 1,
       'signals': [
-        {'label': '사람 있음', 'ok': true},
+        {'label': '집에 계심', 'ok': true},
         {'label': '', 'ok': true},
-        {'label': '방이 어두움', 'ok': false},
+        {'label': '불을 끄심', 'ok': false},
       ],
       'can_mark_done': true,
     });
-    expect(r.signals.map((s) => s.label), ['사람 있음', '방이 어두움']);
+    expect(r.signals.map((s) => s.label), ['집에 계심', '불을 끄심']);
     expect(r.signals.last.ok, isFalse);
     expect(r.canMarkDone, isTrue);
     final old = RpiSuggestion.fromJson({'id': 'y', 'purpose': 'p', 'time_band': '저녁', 'occurrences': 1});
@@ -114,7 +114,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(SuggestionSignalChips), findsOneWidget);
     expect(_chips, findsNWidgets(4));
-    expect(find.text('사람 있음'), findsOneWidget);
+    expect(find.text('집에 계심'), findsOneWidget);
     expect(find.text('다섯째 신호'), findsNothing);
   });
 

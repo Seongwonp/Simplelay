@@ -344,10 +344,14 @@ class RpiSuggestion {
     this.autoRuleOffer,
     this.signals = const [],
     this.canMarkDone = false,
+    this.kind = 'action',
   });
   final bool isDemo;
   final String id;
   final String purpose;
+
+  /// 'action' · 'advice'(조언 — 실행 없음, 2026-10-26). 옛 본체는 칸이 없어 'action'.
+  final String kind;
 
   /// '왜 지금' 신호(2026-10-26) — 본체가 만든 그대로. 없으면 빈 목록.
   final List<SuggestionSignal> signals;
@@ -399,6 +403,7 @@ class RpiSuggestion {
         autoRuleOffer: AutoRuleOffer.fromJson(json['auto_rule_offer']),
         signals: SuggestionSignal.listFromJson(json['signals']),
         canMarkDone: json['can_mark_done'] == true,
+        kind: json['kind'] == 'advice' ? 'advice' : 'action',
       );
 }
 

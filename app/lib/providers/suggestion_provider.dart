@@ -137,6 +137,7 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
       autoRuleOffer: r.autoRuleOffer,
       signals: r.signals,
       canMarkDone: r.canMarkDone,
+      kind: r.kind,
       commands: [
         for (final c in r.commands)
           SuggestionCommand(

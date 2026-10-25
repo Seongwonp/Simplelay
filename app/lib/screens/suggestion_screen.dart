@@ -305,6 +305,16 @@ class SuggestionScreen extends ConsumerWidget {
       );
     }
 
+    // 조언 카드(2026-10-26)는 실행이 없다 — '알겠어요'·'괜찮아요'로 닫기만.
+    if (suggestion.isAdvice) {
+      return _AdviceScreen(
+        suggestion: suggestion,
+        onAcknowledge: () =>
+            _dismissSuggestion(context, ref, suggestion, mute: false, reason: 'acknowledged'),
+        onDismiss: () => _dismissSuggestion(context, ref, suggestion, mute: false),
+      );
+    }
+
     // 시나리오 카드는 서버가 확정한 명령(대상·경로·동작)을 그대로 보여 주고
     // 승인한다. ThinQ 가전은 폰의 가전 목록(버튼맵)에 없으므로 아래의 버튼맵
     // 규칙으로 그리면 '대상을 찾지 못함'이 된다.
@@ -837,6 +847,62 @@ class _UnknownTargetScreen extends StatelessWidget {
               label: const Text('가전 목록 보기'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 조언 카드(2026-10-26) ─────────────────────────────────────────────────
+
+/// 조언 — 가전을 움직이지 않는 말 한마디. '알겠어요'(본체에 알겠어요로 남김)·'괜찮아요'(이번만 닫기) 둘뿐이다.
+class _AdviceScreen extends StatelessWidget {
+  const _AdviceScreen({required this.suggestion, required this.onAcknowledge, required this.onDismiss});
+
+  final Suggestion suggestion;
+  final VoidCallback onAcknowledge;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('조언')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(AppSpace.xxl, AppSpace.xl, AppSpace.xxl, AppSpace.xxxl),
+        children: [
+          Text(suggestion.title, key: const Key('advice-title'), style: AppText.heading),
+          if (suggestion.reason.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.md),
+            Text(suggestion.reason, key: const Key('advice-text')),
+          ],
+          if (suggestion.signals.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.md),
+            SuggestionSignalChips(signals: suggestion.signals),
+          ],
+          const SizedBox(height: AppSpace.lg),
+          Text('가전은 움직이지 않아요.', style: TextStyle(color: context.appMuted)),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpace.xxl, AppSpace.sm, AppSpace.xxl, AppSpace.lg),
+          child: Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                key: const Key('advice-dismiss'),
+                onPressed: onDismiss,
+                child: const Text('괜찮아요'),
+              ),
+            ),
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: FilledButton(
+                key: const Key('advice-acknowledge'),
+                onPressed: onAcknowledge,
+                child: const Text('알겠어요'),
+              ),
+            ),
+          ]),
         ),
       ),
     );

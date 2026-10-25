@@ -8,7 +8,11 @@ class _SuggestionCard extends StatelessWidget {
     required this.onRun,
     required this.onLater,
     this.onMarkDone,
+    this.onAcknowledge,
   });
+
+  /// 조언 카드(2026-10-26)의 '알겠어요' — 실행 없이 닫는다. 조언 카드에는 '지금 하기' 대신 이 단추가 있다.
+  final VoidCallback? onAcknowledge;
 
   final Suggestion suggestion;
   final ApplianceMap? appliance;
@@ -40,7 +44,11 @@ class _SuggestionCard extends StatelessWidget {
               const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(
-                  a == null ? '지금 할 일' : '지금 할 일 · ${a.displayName}',
+                  suggestion.isAdvice
+                      ? '조언'
+                      : a == null
+                          ? '지금 할 일'
+                          : '지금 할 일 · ${a.displayName}',
                   style: context.appCaption,
                 ),
               ),
@@ -63,13 +71,14 @@ class _SuggestionCard extends StatelessWidget {
           const SizedBox(height: AppSpace.lg),
           // 화면 글자는 짧게, 읽는 이름에는 대상을(2026-10-14, 발견 5).
           Semantics(
-            label: '${suggestion.title} 지금 하기',
+            label: suggestion.isAdvice ? '${suggestion.title} 알겠어요' : '${suggestion.title} 지금 하기',
             container: true,
             button: true,
             excludeSemantics: true,
             child: FilledButton(
-              onPressed: onRun,
-              child: const Text('지금 하기'),
+              key: const Key('home-suggestion-primary'),
+              onPressed: suggestion.isAdvice ? (onAcknowledge ?? onLater) : onRun,
+              child: Text(suggestion.isAdvice ? '알겠어요' : '지금 하기'),
             ),
           ),
           const SizedBox(height: AppSpace.xs),
@@ -79,16 +88,17 @@ class _SuggestionCard extends StatelessWidget {
               spacing: AppSpace.sm,
               children: [
                 Semantics(
-                  label: '${suggestion.title} 다음에',
+                  label: suggestion.isAdvice ? '${suggestion.title} 괜찮아요' : '${suggestion.title} 다음에',
                   container: true,
                   button: true,
                   excludeSemantics: true,
                   child: TextButton(
                     onPressed: onLater,
-                    child: Text('이번엔 안 할게요', style: TextStyle(color: context.appMuted)),
+                    child: Text(suggestion.isAdvice ? '괜찮아요' : '이번엔 안 할게요',
+                        style: TextStyle(color: context.appMuted)),
                   ),
                 ),
-                if (onMarkDone != null && suggestion.canMarkDone)
+                if (onMarkDone != null && suggestion.canMarkDone && !suggestion.isAdvice)
                   Semantics(
                     label: '${suggestion.title} 이미 했어요. 오늘은 다시 묻지 않아요',
                     container: true,

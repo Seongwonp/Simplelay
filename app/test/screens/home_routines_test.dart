@@ -577,7 +577,7 @@ void main() {
         {
           ..._suggestionJson,
           'signals': [
-            {'label': '사람 있음', 'ok': true},
+            {'label': '집에 계심', 'ok': true},
             {'label': '최근 7일 중 5일', 'ok': true},
           ],
           'can_mark_done': true,
@@ -590,13 +590,13 @@ void main() {
         label: '즉석밥 데우기',
         steps: ['BT-08'],
         source: SuggestionSource.http,
-        signals: [SuggestionSignal(label: '사람 있음'), SuggestionSignal(label: '최근 7일 중 5일')],
+        signals: [SuggestionSignal(label: '집에 계심'), SuggestionSignal(label: '최근 7일 중 5일')],
         canMarkDone: true,
       ),
     ]));
     await _settle(tester);
     final card = find.byKey(const Key('home-suggestion'));
-    expect(find.descendant(of: card, matching: find.text('사람 있음')), findsOneWidget);
+    expect(find.descendant(of: card, matching: find.text('집에 계심')), findsOneWidget);
     final done = find.byKey(const Key('home-suggestion-already-done'));
     expect(done, findsOneWidget);
     await tester.tap(done);

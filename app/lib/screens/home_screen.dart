@@ -204,6 +204,9 @@ class HomeScreen extends ConsumerWidget {
                 onMarkDone: suggestion.canMarkDone && suggestion.source == SuggestionSource.http
                     ? () => _later(context, ref, suggestion, reason: 'already_done')
                     : null,
+                onAcknowledge: suggestion.isAdvice
+                    ? () => _later(context, ref, suggestion, reason: 'acknowledged')
+                    : null,
               ),
               const SizedBox(height: AppSpace.xxl),
             ],
