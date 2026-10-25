@@ -2172,3 +2172,8 @@ router.include_router(thinq_router)
 from .routines_router import router as routines_router  # noqa: E402
 
 router.include_router(routines_router)
+
+# 키오스크 음성 안내(2026-10-25) — 같은 인증 의존성 아래.
+from .tts_router import router as tts_router  # noqa: E402
+
+router.include_router(tts_router)
