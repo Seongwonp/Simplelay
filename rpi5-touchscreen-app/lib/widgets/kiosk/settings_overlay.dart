@@ -21,6 +21,8 @@ class KioskSettingsOverlay extends StatefulWidget {
     required this.onDismiss,
     this.ttsEnabled = true,
     this.onTtsChanged,
+    this.muted = false,
+    this.onMutedChanged,
     this.largeTextEnabled = false,
     this.onLargeTextChanged,
     this.highContrastEnabled = false,
@@ -43,6 +45,10 @@ class KioskSettingsOverlay extends StatefulWidget {
   /// 음성 안내(espeak-ng) 켜짐 여부 + 토글 콜백
   final bool ttsEnabled;
   final ValueChanged<bool>? onTtsChanged;
+
+  /// 소리 끄기(2026-10-25) — 켜면 알림음·음성 안내가 모두 나지 않는다.
+  final bool muted;
+  final ValueChanged<bool>? onMutedChanged;
 
   /// 큰 글씨 모드 켜짐 여부 + 토글 콜백
   final bool largeTextEnabled;
@@ -316,9 +322,19 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   Widget _buildTtsSection() => Column(
         children: [
           _toggleRow(
+            icon: Icons.volume_off,
+            title: '소리 끄기',
+            subtitle: '알림음과 음성 안내를 모두 내지 않아요',
+            value: widget.muted,
+            onChanged: widget.onMutedChanged,
+          ),
+          const SizedBox(height: 4),
+          _toggleRow(
             icon: Icons.record_voice_over,
             title: '음성 안내',
-            subtitle: '제안과 결과, 위험 경보를 소리로 읽어 줘요',
+            subtitle: widget.muted
+                ? '소리 끄기가 켜져 있어 지금은 들리지 않아요'
+                : '제안과 결과, 위험 경보를 소리로 읽어 줘요. 끄면 제안이 뜰 때 알림음만 울려요',
             value: widget.ttsEnabled,
             onChanged: widget.onTtsChanged,
           ),

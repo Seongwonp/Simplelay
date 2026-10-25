@@ -19,3 +19,6 @@ Future<void> runTtsCommand(List<String> command) async {
     ..volume = 1.0;
   synth.speak(utterance);
 }
+
+/// 웹(브라우저 점검)에는 알림음이 없다.
+Future<void> playChime() async {}

@@ -17,6 +17,7 @@ import '../widgets/kiosk/kiosk_timings.dart';
 class KioskSettings {
   const KioskSettings({
     this.ttsEnabled = true,
+    this.muted = false,
     this.largeText = false,
     this.highContrast = false,
     this.darkMode = false,
@@ -25,6 +26,9 @@ class KioskSettings {
   });
 
   final bool ttsEnabled;
+
+  /// 소리 끄기(2026-10-25) — 알림음·음성 안내를 모두 끈다.
+  final bool muted;
   final bool largeText;
 
   /// 고대비(사용자 결정 10/18) — 큰 글씨와 같은 파일에 같은 방식으로 저장한다.
@@ -41,6 +45,7 @@ class KioskSettings {
 
   KioskSettings copyWith({
     bool? ttsEnabled,
+    bool? muted,
     bool? largeText,
     bool? highContrast,
     bool? darkMode,
@@ -49,6 +54,7 @@ class KioskSettings {
   }) =>
       KioskSettings(
         ttsEnabled: ttsEnabled ?? this.ttsEnabled,
+        muted: muted ?? this.muted,
         largeText: largeText ?? this.largeText,
         highContrast: highContrast ?? this.highContrast,
         darkMode: darkMode ?? this.darkMode,
@@ -60,6 +66,7 @@ class KioskSettings {
         ttsEnabled: json['tts_enabled'] is bool
             ? json['tts_enabled'] as bool
             : true,
+        muted: json['muted'] is bool ? json['muted'] as bool : false,
         largeText:
             json['large_text'] is bool ? json['large_text'] as bool : false,
         highContrast:
@@ -78,6 +85,7 @@ class KioskSettings {
 
   Map<String, dynamic> toJson() => {
         'tts_enabled': ttsEnabled,
+        'muted': muted,
         'large_text': largeText,
         'high_contrast': highContrast,
         'dark_mode': darkMode,

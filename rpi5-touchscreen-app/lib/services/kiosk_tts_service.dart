@@ -21,10 +21,31 @@ import 'kiosk_tts_runner_io.dart'
 typedef TtsProcessRunner = Future<void> Function(List<String> command);
 
 class KioskTtsService {
-  KioskTtsService({TtsProcessRunner? runner})
-      : _runner = runner ?? platform_tts.runTtsCommand;
+  KioskTtsService({TtsProcessRunner? runner, Future<void> Function()? chimeRunner})
+      : _runner = runner ?? platform_tts.runTtsCommand,
+        _chimeRunner = chimeRunner ?? platform_tts.playChime;
 
   final TtsProcessRunner _runner;
+  final Future<void> Function() _chimeRunner;
+
+  /// 소리 끄기(2026-10-25 사용자 요청) — 알림음·음성 안내를 모두 내지 않는다. 음성 안내([enabled])를 꺼도 알림음은 울린다.
+  bool muted = false;
+
+  /// 짧은 알림음(딩동, 2026-10-25 사용자 요청 — 제안이 뜰 때만). 음성 안내가 꺼져 있어도 울리고, 소리 끄기면 울리지 않는다.
+  Future<void> chime() async {
+    if (muted) return;
+    try {
+      await _chimeRunner();
+    } catch (_) {
+      // 알림음은 보조 — 실패는 조용히 넘어간다
+    }
+  }
+
+  /// 제안 도착 — 알림음 뒤에 안내 말(겹치지 않게 알림음이 끝난 뒤 말한다).
+  Future<void> announce(String text) async {
+    await chime();
+    await speak(text);
+  }
 
   /// 설정 오버레이의 "음성 안내" 토글과 연결. 키오스크는 로컬 저장소가
   /// 없어(elinux에서 shared_preferences 미검증) 이 필드 자체는 메모리지만,
@@ -34,7 +55,7 @@ class KioskTtsService {
 
   Future<void> speak(String text) async {
     final trimmed = text.trim();
-    if (!enabled || trimmed.isEmpty) return;
+    if (!enabled || muted || trimmed.isEmpty) return;
     try {
       // -v ko: 한국어 음성, -s 150: 고령 사용자 기준 약간 느린 속도,
       // -a 150: 키오스크 스피커에서 들리도록 볼륨 상향

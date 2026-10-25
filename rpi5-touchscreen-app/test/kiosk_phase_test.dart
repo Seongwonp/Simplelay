@@ -474,6 +474,12 @@ class FakeEventStream extends KioskEventStream {
 // 음성 안내 — 실제 espeak 프로세스 대신 발화 내용만 기록
 class FakeTts extends KioskTtsService {
   final utterances = <String>[];
+  int chimes = 0;
+
+  @override
+  Future<void> chime() async {
+    if (!muted) chimes++;
+  }
 
   @override
   Future<void> speak(String text) async {

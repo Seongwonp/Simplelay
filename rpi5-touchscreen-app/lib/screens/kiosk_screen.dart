@@ -404,6 +404,7 @@ class _KioskScreenState extends State<KioskScreen> {
   void _persistSettings() {
     widget.settings?.save(KioskSettings(
       ttsEnabled: _tts.enabled,
+      muted: _tts.muted,
       largeText: _largeText,
       highContrast: _highContrast,
       darkMode: _darkMode,
@@ -421,6 +422,7 @@ class _KioskScreenState extends State<KioskScreen> {
     final saved = widget.settings?.load();
     if (saved != null) {
       _tts.enabled = saved.ttsEnabled;
+      _tts.muted = saved.muted;
       _largeText = saved.largeText;
       _highContrast = saved.highContrast;
       _darkMode = saved.darkMode;
@@ -1872,11 +1874,14 @@ class _KioskScreenState extends State<KioskScreen> {
     if (_health.speakGeneral) {
       final ownName = suggestion.id == _ownCardId ? suggestion.routineName : null;
       // 직접 누른 저장된 동작이면 화면 질문과 같은 말('30초 데우기를 할까요?', 10/24 QA).
-      _tts.speak(ownName != null && ownName.isNotEmpty
-          ? '${withObject(ownName)} 할까요? 화면에서 지금 하기를 눌러 주세요.'
-          : suggestion.isScenario
-          ? '${suggestion.purpose} 화면에서 지금 하기를 눌러 주세요.'
-          : '${actionName(suggestion.purpose)}, 지금 할까요? 화면에서 지금 하기를 눌러 주세요.');
+      if (ownName != null && ownName.isNotEmpty) {
+        _tts.speak('${withObject(ownName)} 할까요? 화면에서 지금 하기를 눌러 주세요.');
+      } else {
+        // 스스로 뜬 제안만 알림음 뒤에 말한다(사용자 요청 10/25 — 화면 근처에 없어도 알게). 직접 누른 확인에는 알림음이 없다.
+        _tts.announce(suggestion.isScenario
+            ? '${suggestion.purpose} 화면에서 지금 하기를 눌러 주세요.'
+            : '${actionName(suggestion.purpose)}, 지금 할까요? 화면에서 지금 하기를 눌러 주세요.');
+      }
     }
     setState(() {
       _phase = KioskPhase.suggestion;
@@ -2630,6 +2635,11 @@ class _KioskScreenState extends State<KioskScreen> {
                           ttsEnabled: _tts.enabled,
                           onTtsChanged: (enabled) {
                             setState(() => _tts.enabled = enabled);
+                            _persistSettings();
+                          },
+                          muted: _tts.muted,
+                          onMutedChanged: (muted) {
+                            setState(() => _tts.muted = muted);
                             _persistSettings();
                           },
                           largeTextEnabled: _largeText,
