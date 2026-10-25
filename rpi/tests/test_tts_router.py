@@ -6,7 +6,16 @@ import subprocess
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import pytest
+
 from rpi.api import tts_router as mod
+
+
+@pytest.fixture(autouse=True)
+def _fresh_cache():
+    mod._cache.clear()
+    yield
+    mod._cache.clear()
 
 
 def _client() -> TestClient:
@@ -55,7 +64,7 @@ def test_chime_is_a_short_wav():
     assert res.status_code == 200 and res.headers["content-type"] == "audio/wav"
     with wave.open(io.BytesIO(res.content)) as w:
         seconds = w.getnframes() / w.getframerate()
-    assert 0.3 < seconds < 1.5
+    assert 0.3 < seconds <= 2.0  # 종 같은 두 음 + 짧은 잔향(10/25)
 
 
 def test_play_queues_chime_then_speech_in_order(monkeypatch):
@@ -69,3 +78,14 @@ def test_play_queues_chime_then_speech_in_order(monkeypatch):
     mod._play_queue.join()
     assert played == [b"RIFF", b"SPEE"]  # 알림음(wav) 뒤에 말
     assert c.post("/tts/play", json={}).status_code == 422
+
+
+def test_same_sentence_is_made_once(monkeypatch):
+    calls = []
+    monkeypatch.setattr(mod.shutil, "which", lambda name: "/usr/bin/espeak-ng")
+    monkeypatch.setattr(mod.subprocess, "run",
+                        lambda cmd, **kw: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0, stdout=b"RIFF", stderr=b""))
+    c = _client()
+    for _ in range(2):
+        assert c.post("/tts", json={"text": "공기청정기를 켤까요?"}).status_code == 200
+    assert len(calls) == 1

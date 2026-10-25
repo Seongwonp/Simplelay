@@ -31,7 +31,10 @@ RUN pip install --no-cache-dir \
     "sounddevice>=0.4,<1" \
     "adafruit-circuitpython-ads1x15>=2,<3" \
     "adafruit-blinka>=8,<9" \
-    "thinqconnect==1.0.14"
+    "thinqconnect==1.0.14" \
+    "supertonic==1.3.1"
+# supertonic: 키오스크 음성 안내의 자연스러운 한국어 목소리(온디바이스, 코드 MIT·모델 OpenRAIL-M, 2026-10-25).
+# 모델 파일(약 385MB)은 이미지에 넣지 않고 데이터 폴더 /data/tts-models에 둔다. 없으면 espeak-ng로 대신 읽는다.
 # thinqconnect: ThinQ 공식 SDK(pyproject [thinq]와 같은 고정 버전, 2026-10-15). 없으면 SIMPLELAY_THINQ_MODE=real·
 # fake_cloud에서 서버가 기동을 거절한다. 꺼짐·mock 모드에서는 불러오지 않는다.
 

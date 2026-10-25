@@ -1,8 +1,8 @@
-"""키오스크 음성 안내(2026-10-25) — 문장을 한국어 음성(wav)으로 만들어 돌려준다.
+"""키오스크 음성 안내(2026-10-25) — 문장을 한국어 음성으로 만들어 보드 스피커로 튼다(POST /tts/play), wav로도 돌려준다(POST /tts).
 
-키오스크는 RPi5 위에서 ``espeak-ng``를 직접 부르도록 만들어졌지만, 보드 기본 이미지에는 그 프로그램이 없어 실패널에서 음성이
-한 번도 나오지 않았다(10/25 확인 — 소리 출력·스피커는 정상). 그래서 음성 합성은 본체 컨테이너(espeak-ng 설치)가 하고, 키오스크는
-받은 wav를 보드의 재생 도구로 튼다. 같은 인증 의존성 아래(키오스크는 보드 루프백이라 면제).
+키오스크는 RPi5 위에서 ``espeak-ng``를 직접 부르도록 만들어졌지만, 보드 기본 이미지에는 그 프로그램이 없고 키오스크 앱은 격리돼
+재생 도구도 쓰지 못해 실패널에서 음성이 한 번도 나오지 않았다(10/25 확인 — 소리 출력·스피커는 정상). 그래서 본체 컨테이너가
+목소리를 만들고(Supertonic, 없으면 espeak-ng) 보드 소리 서버로 직접 튼다. 같은 인증 의존성 아래(키오스크는 보드 루프백이라 면제).
 """
 from __future__ import annotations
 
@@ -33,20 +33,101 @@ def espeak_command(text: str) -> list[str]:
     return ["espeak-ng", "-v", "ko", "-s", "150", "-a", "150", "--stdout", text]
 
 
+# 자연스러운 목소리(10/25 사용자 — espeak는 '외국인이 억지로 한국어 하는 느낌'). 온디바이스 Supertonic, 모델이 없으면 espeak-ng.
+TTS_MODEL_DIR = os.environ.get("SIMPLELAY_TTS_MODEL_DIR", "/data/tts-models")
+TTS_VOICE = os.environ.get("SIMPLELAY_TTS_VOICE", "F1")
+#: 합성 단계 — 보드(RPi5)에서 한 문장 8단계 약 5초·5단계 약 3초(10/25 실측). 5에서도 귀로 차이가 작았다.
+TTS_STEPS = 5
+_engine_lock = threading.Lock()
+_engine: object | None = None
+_engine_failed = False
+_cache: dict[str, bytes] = {}
+_CACHE_MAX = 32
+
+
+def _load_engine():
+    global _engine, _engine_failed
+    with _engine_lock:
+        if _engine is None and not _engine_failed:
+            try:
+                if not os.path.isdir(TTS_MODEL_DIR):
+                    raise FileNotFoundError(TTS_MODEL_DIR)
+                import supertonic  # 이미지에만 있다 — 개발 PC·시험에서는 espeak-ng 경로
+
+                tts = supertonic.TTS(model="supertonic-3", model_dir=TTS_MODEL_DIR, auto_download=False)
+                _engine = (tts, tts.get_voice_style(TTS_VOICE))
+            except Exception:  # noqa: BLE001 - 목소리가 없으면 espeak-ng로 읽는다(음성은 보조 채널)
+                _engine_failed = True
+        return _engine
+
+
+def synthesize_wav(text: str) -> bytes | None:
+    """문장 → wav. 같은 문장은 기억해 둔 것을 쓴다(안내 문장은 몇 가지가 반복된다)."""
+    if text in _cache:
+        return _cache[text]
+    data: bytes | None = None
+    engine = _load_engine()
+    if engine is not None:
+        tts, style = engine
+        try:
+            wav, _ = tts.synthesize(text, style, total_steps=TTS_STEPS, lang="ko")
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                path = f.name
+            try:
+                tts.save_audio(wav, path)
+                with open(path, "rb") as f:
+                    data = f.read()
+            finally:
+                os.unlink(path)
+        except Exception:  # noqa: BLE001
+            data = None
+    if data is None and shutil.which("espeak-ng") is not None:
+        try:
+            out = subprocess.run(espeak_command(text), capture_output=True, timeout=TTS_TIMEOUT_S)
+            data = out.stdout if out.returncode == 0 and out.stdout else None
+        except (subprocess.SubprocessError, OSError):
+            data = None
+    if data is not None:
+        if len(_cache) >= _CACHE_MAX:
+            _cache.pop(next(iter(_cache)))
+        _cache[text] = data
+    return data
+
+
 def chime_wav(rate: int = 22050) -> bytes:
-    """짧은 '딩동' 알림음(두 음, 약 0.6초) — 제안이 뜰 때 키오스크가 음성 앞에 튼다(사용자 요청 10/25). 파일 없이 만들어 쓴다."""
+    """짧은 '딩동' 알림음(두 음, 약 1.6초) — 제안이 뜰 때 키오스크가 음성 앞에 튼다(사용자 요청 10/25). 파일 없이 만들어 쓴다."""
     import io
     import math
     import struct
     import wave
 
-    frames = bytearray()
-    for freq, dur in ((988.0, 0.22), (784.0, 0.38)):  # B5 → G5
-        n = int(rate * dur)
-        for i in range(n):
+    # 10/25 사용자 요청 '고급스럽게' — 삑 소리 같던 사인파 두 개 대신 유리 종 같은 두 음(A5 → E5)을 겹쳐 울리고 짧은 잔향을 둔다.
+    total = int(rate * 1.6)
+    dry = [0.0] * total
+    partials = ((1.0, 1.0), (2.0, 0.22), (3.01, 0.06), (4.2, 0.025))  # 기음 + 약한 배음(종의 맑은 끝)
+    for start_s, freq, gain in ((0.0, 880.0, 0.9), (0.26, 659.26, 1.0)):
+        s0 = int(rate * start_s)
+        for i in range(total - s0):
             t = i / rate
-            env = min(1.0, i / (rate * 0.01)) * math.exp(-4.0 * t)  # 짧은 시작 · 부드러운 감쇠
-            frames += struct.pack("<h", int(0.45 * 32767 * env * math.sin(2 * math.pi * freq * t)))
+            attack = min(1.0, i / (rate * 0.006))
+            v = 0.0
+            for mult, amp in partials:
+                v += amp * math.exp(-t * (2.2 + 1.6 * mult)) * math.sin(2 * math.pi * freq * mult * t)
+            dry[s0 + i] += gain * attack * v
+    wet = dry[:]
+    for delay_s, fb in ((0.0297, 0.32), (0.0371, 0.28), (0.0411, 0.25)):  # 짧은 빗살 잔향 — 방 안에서 울리는 느낌
+        d = int(rate * delay_s)
+        buf = [0.0] * total
+        for i in range(total):
+            buf[i] = dry[i] + (fb * buf[i - d] if i >= d else 0.0)
+        for i in range(total):
+            wet[i] += 0.18 * (buf[i] - dry[i])
+    fade = int(rate * 0.25)
+    peak = max(abs(x) for x in wet) or 1.0
+    frames = bytearray()
+    for i, x in enumerate(wet):
+        g = min(1.0, (total - i) / fade)
+        frames += struct.pack("<h", int(0.32 * 32767 * g * x / peak))
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)
@@ -103,12 +184,18 @@ def _worker(q: "queue.Queue[tuple[bool, str | None]]") -> None:
     while True:
         chime_first, text = q.get()
         try:
+            # 알림음이 울리는 동안 말을 미리 만든다(보드에서 한 문장 약 3초) — 알림음 뒤 기다림을 줄인다.
+            result: dict[str, bytes | None] = {}
+            maker = None
+            if text:
+                maker = threading.Thread(target=lambda: result.update(wav=synthesize_wav(text)), daemon=True)
+                maker.start()
             if chime_first:
                 _play_wav(_chime_bytes())
-            if text and shutil.which("espeak-ng") is not None:
-                out = subprocess.run(espeak_command(text), capture_output=True, timeout=TTS_TIMEOUT_S)
-                if out.returncode == 0:
-                    _play_wav(out.stdout)
+            if maker is not None:
+                maker.join(TTS_TIMEOUT_S + 5)
+                if result.get("wav"):
+                    _play_wav(result["wav"])
         except Exception:  # noqa: BLE001 - 소리는 보조 — 재생 줄은 죽지 않는다
             pass
         finally:
@@ -142,10 +229,12 @@ def synthesize_speech(body: TtsRequest) -> Response:
     text = body.text.strip()
     if not text:
         raise HTTPException(status_code=422, detail="읽을 문장이 없어요")
-    if shutil.which("espeak-ng") is None:
-        raise HTTPException(status_code=503, detail="음성 합성 프로그램이 없어요")
-    try:
-        out = subprocess.run(espeak_command(text), capture_output=True, timeout=TTS_TIMEOUT_S, check=True)
-    except (subprocess.SubprocessError, OSError) as exc:
-        raise HTTPException(status_code=503, detail="음성을 만들지 못했어요") from exc
-    return Response(content=out.stdout, media_type="audio/wav")
+    data = synthesize_wav(text)
+    if data is None:
+        raise HTTPException(status_code=503, detail="음성을 만들지 못했어요")
+    return Response(content=data, media_type="audio/wav")
+
+
+# 보드에서는 서버가 뜰 때 목소리를 미리 불러 둔다(약 2초·메모리 약 500MB, 10/25 실측) — 첫 안내가 늦지 않게.
+if os.path.isdir(TTS_MODEL_DIR):
+    threading.Thread(target=_load_engine, daemon=True, name="tts-warm").start()
