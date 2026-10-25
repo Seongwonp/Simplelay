@@ -366,12 +366,40 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     setState(() => _thinking = false);
     if (proposal == null) return false;
     final selected = proposal;
-    final accepted = await showDialog<bool>(
+    final answer = await showDialog<_ProposalAnswer>(
         context: context,
-        builder: (context) => _ProposalConfirmDialog(proposal: selected));
+        builder: (context) => _ProposalConfirmDialog(proposal: selected, api: api));
     if (!current()) return true;
     _cancelPending();
-    if (accepted != true) return true;
+    final id = selected.proposalId;
+    if (answer == _ProposalAnswer.decidedElsewhere) {
+      _notice('본체 화면에서 이미 정했어요');
+      return true;
+    }
+    if (answer == _ProposalAnswer.expired) {
+      _notice('시간이 지났어요. 다시 말해 주세요.');
+      return true;
+    }
+    if (answer != _ProposalAnswer.yes) {
+      // 아니요(창 밖을 눌러 닫은 것 포함) — 키오스크에서도 같은 질문을 내린다. 실패해도 60초 뒤 저절로 사라진다.
+      if (id != null) unawaited(api.resolveIntentProposal(id, yes: false).then((_) {}, onError: (_) {}));
+      return true;
+    }
+    if (id != null) {
+      // 키오스크와 나눈 질문 — 먼저 정해야만 실행한다(둘 다 실행하지 않게). 본체는 정하기만 하고 실행하지 않는다.
+      try {
+        await api.resolveIntentProposal(id, yes: true);
+      } on RpiApiException catch (error) {
+        if (current()) {
+          _notice(error.statusCode == 409 ? '본체 화면에서 이미 정했어요' : '시간이 지났어요. 다시 말해 주세요.');
+        }
+        return true;
+      } catch (_) {
+        if (current()) _notice('본체에 보내지 못했어요. 연결을 봐 주세요.');
+        return true;
+      }
+      if (!current()) return true;
+    }
     await _executeProposal(api, selected, current);
     return true;
   }
@@ -821,13 +849,61 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
 /// 본체가 만든 질문(`question`)을 **그대로** 묻고, 같은 높이의 두 버튼을 나란히 둔다:
 /// 왼쪽 '아니요'(테두리) | 오른쪽 '네'(채움) — 키오스크 제안 카드와 같은 배치(10/26 실기기: 작은 '아니요'가 오른쪽 위,
 /// 큰 '네'가 아래에 따로 있어 어긋나 보였다).
-class _ProposalConfirmDialog extends StatelessWidget {
-  const _ProposalConfirmDialog({required this.proposal});
+/// 확인 창의 답. [decidedElsewhere]는 키오스크가 먼저 정한 것, [expired]는 질문 시간이 지난 것(둘 다 실행하지 않는다).
+enum _ProposalAnswer { yes, no, decidedElsewhere, expired }
+
+class _ProposalConfirmDialog extends StatefulWidget {
+  const _ProposalConfirmDialog({required this.proposal, required this.api});
 
   final IntentProposal proposal;
+  final RpiApiService api;
+
+  @override
+  State<_ProposalConfirmDialog> createState() => _ProposalConfirmDialogState();
+}
+
+class _ProposalConfirmDialogState extends State<_ProposalConfirmDialog> {
+  Timer? _watch;
+  bool _checking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 키오스크도 같은 질문을 띄운다(10/26) — 2초마다 보고 저쪽에서 정했으면 창을 닫는다.
+    if (widget.proposal.proposalId != null) {
+      _watch = Timer.periodic(const Duration(seconds: 2), (_) => _check());
+    }
+  }
+
+  Future<void> _check() async {
+    final id = widget.proposal.proposalId;
+    if (id == null || _checking) return;
+    _checking = true;
+    try {
+      final state = await widget.api.intentProposalState(id);
+      if (!mounted || state == 'pending') return;
+      _close(state == 'yes' || state == 'no' ? _ProposalAnswer.decidedElsewhere : _ProposalAnswer.expired);
+    } catch (_) {
+      // 한 번 못 읽어도 창은 그대로 — '네'를 누르면 본체가 다시 가린다.
+    } finally {
+      _checking = false;
+    }
+  }
+
+  void _close(_ProposalAnswer answer) {
+    _watch?.cancel();
+    if (mounted) Navigator.pop(context, answer);
+  }
+
+  @override
+  void dispose() {
+    _watch?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final proposal = widget.proposal;
     final label = proposal.label.trim();
     return AlertDialog(
       title: Text(proposal.question),
@@ -842,7 +918,7 @@ class _ProposalConfirmDialog extends StatelessWidget {
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(52)),
-                  onPressed: () => Navigator.pop(context, false),
+                  onPressed: () => _close(_ProposalAnswer.no),
                   child: Text('아니요',
                       textAlign: TextAlign.center,
                       semanticsLabel: label.isEmpty ? '아니요' : '아니요. 하지 않아요'),
@@ -853,7 +929,7 @@ class _ProposalConfirmDialog extends StatelessWidget {
                 child: FilledButton(
                   style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(52)),
-                  onPressed: () => Navigator.pop(context, true),
+                  onPressed: () => _close(_ProposalAnswer.yes),
                   child: Text('네',
                       textAlign: TextAlign.center,
                       semanticsLabel: label.isEmpty ? '네' : '네. $label'),

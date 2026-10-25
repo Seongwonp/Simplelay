@@ -1106,6 +1106,27 @@ class RpiApiService {
     return IntentProposal.parse(_decodeMap(res));
   }
 
+  /// POST /intent/proposals/{id}/resolve — 키오스크와 나눈 질문을 먼저 정한다(10/26). 정한 상태('yes'·'no')를 돌려준다.
+  /// 키오스크가 먼저 정했거나 시간이 지났으면 409([RpiApiException]). 본체는 실행하지 않는다 — '네'를 이긴 쪽이 실행한다.
+  Future<String> resolveIntentProposal(String id, {required bool yes}) async {
+    final res = await _client
+        .post(_base.replace(path: '/intent/proposals/$id/resolve'),
+            headers: _jsonHeaders, body: jsonEncode({'result': yes ? 'yes' : 'no'}))
+        .timeout(_timeout);
+    _checkStatus(res);
+    return _decodeMap(res)['state'] as String? ?? (yes ? 'yes' : 'no');
+  }
+
+  /// GET /intent/proposals/{id} — 확인 창이 떠 있는 동안 키오스크가 먼저 정했는지 본다. 없어진 질문(404)은 'expired'.
+  Future<String> intentProposalState(String id) async {
+    final res = await _client
+        .get(_base.replace(path: '/intent/proposals/$id'), headers: _jsonHeaders)
+        .timeout(_timeout);
+    if (res.statusCode == 404) return 'expired';
+    _checkStatus(res);
+    return _decodeMap(res)['state'] as String? ?? 'pending';
+  }
+
   Future<RpiJobAccepted> execute(
     String text, {
     String source = 'voice',

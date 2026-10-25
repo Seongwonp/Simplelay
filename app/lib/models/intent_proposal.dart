@@ -9,13 +9,38 @@ class IntentProposal {
       this.action,
       this.args = const {},
       this.routineId,
-      this.fingerprint});
+      this.fingerprint,
+      this.proposalId});
   final String kind, label, question;
   final String? applianceId, action, routineId, fingerprint;
+
+  /// 본체가 키오스크와 나눠 둔 같은 질문의 번호(10/26). 있으면 '네'·'아니요'를 먼저 본체에 정한다 —
+  /// 키오스크가 먼저 정했으면 폰은 실행하지 않는다. 옛 본체는 보내지 않는다(null).
+  final String? proposalId;
+
+  IntentProposal _withId(String? id) => id == null
+      ? this
+      : IntentProposal(
+          kind: kind,
+          label: label,
+          question: question,
+          applianceId: applianceId,
+          buttons: buttons,
+          action: action,
+          args: args,
+          routineId: routineId,
+          fingerprint: fingerprint,
+          proposalId: id);
+
+  static IntentProposal? parse(Map<String, dynamic> json) {
+    final id = json['proposal_id'];
+    return _parse(json)?._withId(
+        id is String && RegExp(r'^[A-Za-z0-9_-]{1,64}$').hasMatch(id) ? id : null);
+  }
   final List<String> buttons;
   final Map<String, String> args;
 
-  static IntentProposal? parse(Map<String, dynamic> json) {
+  static IntentProposal? _parse(Map<String, dynamic> json) {
     if (json['understood'] != true ||
         !['llm', 'rules'].contains(json['source'])) {
       return null;
