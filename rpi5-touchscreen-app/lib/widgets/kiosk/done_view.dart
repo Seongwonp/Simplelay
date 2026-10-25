@@ -779,6 +779,7 @@ class KioskDoneView extends StatelessWidget {
         : KioskResultActions(
             onHome: onDismiss,
             homeCompact: showStopAgain,
+            homeLabel: continueFirst ? '홈 화면' : '처음 화면으로',
             stacked: stacked,
             primary: retryFirst
                 ? KioskRetryPrimary(onTap: () => _confirmRetry(context, mock))
@@ -789,7 +790,7 @@ class KioskDoneView extends StatelessWidget {
                 ? (autoReturnHeld ? const _AutoReturnHeld() : _AutoReturn(seconds: autoReturnSeconds))
                 : null,
             secondaries: success
-                ? [if (continueFirst && onPickOther != null) kioskPickOtherAction(onPickOther!)]
+                ? const <KioskSecondaryAction>[]
                 : [
                     if (manual != null)
                       KioskSecondaryAction(
@@ -1256,11 +1257,11 @@ class _ThinqResult extends StatelessWidget {
                   : KioskResultActions(
                 onHome: onClose,
                 homeKey: const ValueKey('thinq-result-close'),
+                homeLabel: success && onContinue != null ? '홈 화면' : '처음 화면으로',
                 primary: success && onContinue != null
                     ? KioskContinuePrimary(name: continueName, onTap: onContinue!)
                     : null,
                 secondaries: [
-                  if (success && onContinue != null && onPickOther != null) kioskPickOtherAction(onPickOther!),
                 ],
                 note: success && onContinue == null
                     ? (held ? const _AutoReturnHeld() : _AutoReturn(seconds: autoReturnSeconds))
@@ -1350,7 +1351,10 @@ const kResultActionsPadding =
 /// 골드 면은 앰버·빨강 띠 아래에서 '잘 됐으니 다음으로'처럼 읽혔다(10/18). 연습 대기(hold_view)도 같은 단추를 쓴다.
 class KioskHomeButton extends StatelessWidget {
   const KioskHomeButton(
-      {super.key, this.buttonKey = const ValueKey('done-home'), required this.onTap, this.compact = false});
+      {super.key, this.buttonKey = const ValueKey('done-home'), required this.onTap, this.compact = false, this.label = '처음 화면으로'});
+
+  /// 단추 글자 — 같은 가전으로 돌아가는 결과 화면은 '홈 화면'(사용자 결정 10/25, '확인'과 짝).
+  final String label;
 
   /// 단추 자체의 키(시험이 쓰는 'done-home'·'hold-home'·'thinq-result-close').
   final Key buttonKey;
@@ -1367,7 +1371,7 @@ class KioskHomeButton extends StatelessWidget {
         key: buttonKey,
         onPressed: onTap,
         icon: Icon(Icons.home_outlined, size: size),
-        label: Text('처음 화면으로',
+        label: Text(label,
             maxLines: 1, softWrap: false, style: TextStyle(fontSize: size, fontWeight: FontWeight.w700)),
         style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.muted).copyWith(
           padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)),
@@ -1378,7 +1382,7 @@ class KioskHomeButton extends StatelessWidget {
       key: buttonKey,
       onPressed: onTap,
       icon: Icon(Icons.home_outlined, size: size),
-      label: Text('처음 화면으로',
+      label: Text(label,
           maxLines: 1, softWrap: false, style: TextStyle(fontSize: size, fontWeight: FontWeight.w800)),
       // 주 행동은 모두 primary 청록 한 색(10/24 시각 QA — 짙은 회색 면이 섞여 있었다).
       style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent).copyWith(
@@ -1448,6 +1452,7 @@ class KioskResultActions extends StatelessWidget {
     required this.onHome,
     this.homeKey = const ValueKey('done-home'),
     this.homeCompact = false,
+    this.homeLabel = '처음 화면으로',
     this.note,
     this.secondaries = const [],
     this.stop,
@@ -1458,6 +1463,7 @@ class KioskResultActions extends StatelessWidget {
   final VoidCallback? onHome;
   final Key homeKey;
   final bool homeCompact;
+  final String homeLabel;
   final Widget? note;
   final List<KioskSecondaryAction> secondaries;
   final Widget? stop;
@@ -1470,7 +1476,7 @@ class KioskResultActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final homeButton =
-        onHome == null ? null : KioskHomeButton(buttonKey: homeKey, onTap: onHome!, compact: homeCompact || primary != null);
+        onHome == null ? null : KioskHomeButton(buttonKey: homeKey, onTap: onHome!, compact: homeCompact || primary != null, label: homeLabel);
     // 주 단추가 따로 있으면 [주 단추 · 처음 화면으로(보조)]가 한 묶음으로 왼쪽 주 자리에.
     final Widget? home = primary == null
         ? homeButton
@@ -1735,18 +1741,21 @@ class KioskContinuePrimary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final who = (name == null || name!.isEmpty) ? '이 가전' : name!;
-    return ElevatedButton.icon(
-      key: const ValueKey('done-continue'),
-      onPressed: onTap,
-      icon: const Icon(Icons.touch_app_outlined, size: KioskType.status),
-      // 긴 가전 이름도 잘리지 않게 — 한 줄에 다 들어가도록 글자만 줄인다(단추 크기는 그대로).
-      label: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Text('$who 계속 조작',
-            maxLines: 1, softWrap: false, style: const TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
+    // 결과 뒤 단추는 '확인'·'홈 화면' 둘(사용자 결정 10/25 — 세 단추가 어수선했다). '확인'은 쓰던 가전 화면으로 돌아간다(다시 보내지
+    // 않는다). 읽을 때는 어디로 가는지까지.
+    return Semantics(
+      button: true,
+      label: '확인. $who 조작 화면으로 돌아가요',
+      excludeSemantics: true,
+      child: ElevatedButton.icon(
+        key: const ValueKey('done-continue'),
+        onPressed: onTap,
+        icon: const Icon(Icons.check, size: KioskType.status),
+        label: const Text('확인',
+            maxLines: 1, softWrap: false, style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
+        // 성공 뒤 주 행동 — 강조색(시안 B ④ 10/24, 폰과 같은 청록).
+        style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent),
       ),
-      // 성공 뒤 할 일이 정해진 주 행동 — 강조색(시안 B ④ 10/24, 폰과 같은 청록).
-      style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent),
     );
   }
 }

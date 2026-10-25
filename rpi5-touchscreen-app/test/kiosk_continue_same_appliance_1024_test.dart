@@ -57,7 +57,9 @@ void main() {
     await _pressAndSucceed(tester, api);
     expect(api.executeCalls, 1);
     expect(_continue, findsOneWidget);
-    expect(find.text('전자레인지 계속 조작'), findsOneWidget);
+    // 결과 뒤 단추는 '확인'(쓰던 가전으로)·'홈 화면' 둘(사용자 결정 10/25).
+    expect(find.descendant(of: _continue, matching: find.text('확인')), findsOneWidget);
+    expect(find.text('홈 화면'), findsOneWidget);
     expect(find.byKey(const ValueKey('done-auto-return')), findsNothing);
 
     // 예전 자동 복귀(10초·큰 글씨 20초)를 넘겨도 결과에 머문다.
@@ -73,13 +75,14 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets("'다른 가전 고르기'는 가전 고르기로 — 명령은 다시 보내지 않는다", (tester) async {
+  testWidgets("결과 뒤 단추는 '확인'·'홈 화면' 둘 — '다른 가전 고르기'는 두지 않고 '홈 화면'은 처음 화면으로", (tester) async {
     final api = await _pumpKiosk(tester);
     await _pressAndSucceed(tester, api);
-    await tester.tap(find.byKey(const ValueKey('done-pick-other')));
+    expect(find.byKey(const ValueKey('done-pick-other')), findsNothing);
+    await tester.tap(find.text('홈 화면'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byType(KioskApplianceSelectView), findsOneWidget);
+    expect(find.byType(KioskIdleView), findsOneWidget);
     expect(api.executeCalls, 1);
     await tester.pumpWidget(const SizedBox.shrink());
   });
