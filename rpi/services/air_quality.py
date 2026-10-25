@@ -29,6 +29,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 import threading
@@ -112,6 +113,12 @@ class AirReading:
         last = name[-1:]
         subject = "이" if "가" <= last <= "힣" and (ord(last) - 0xAC00) % 28 else "가"
         return f"공기청정기가 재 보니 {name}{subject} {state}"
+
+    def signals(self) -> tuple:
+        """'왜 지금' 칩 — 나쁜 칸 맨 앞 하나의 등급(가전이 매긴 그대로)과 전원 상태. 근거 문장과 같은 사실만."""
+        name, _value, level = self.bad[0]
+        return ((f"{name} {LEVEL_WORDS.get(level, level)}", True),
+                ("공기청정기 꺼짐" if self.power_off else "공기청정기 켜짐", True))
 
 
 def _section(state, key: str) -> dict | None:
@@ -200,6 +207,11 @@ class AirQualityMonitor:
         self._offer = offer
         self._monotonic = monotonic or time.monotonic
         self._card_quiet_s = card_quiet_s
+        try:
+            params = inspect.signature(offer).parameters.values()
+            self._offer_takes_signals = any(p.name == "signals" or p.kind is p.VAR_KEYWORD for p in params)
+        except (TypeError, ValueError):
+            self._offer_takes_signals = False
         self._lock = threading.Lock()
         self._armed = True
         self._last_card_at: float | None = None
@@ -274,7 +286,8 @@ class AirQualityMonitor:
         now = self._monotonic()
         if self.card_recent():
             return "card_quiet"
-        card = self._offer(reading.reason(), power_off=reading.power_off)
+        extra = {"signals": reading.signals()} if self._offer_takes_signals else {}
+        card = self._offer(reading.reason(), power_off=reading.power_off, **extra)
         if card is None:
             return "not_offered"
         self._armed = False

@@ -5,7 +5,7 @@ from datetime import datetime, time, timedelta
 from statistics import median
 
 from .habit_words import day_kind, when_text
-from .habit_timing import adaptation, clock_text, clusters, distance, minute, parse_time
+from .habit_timing import adaptation, clock_text, clusters, day_matches, distance, minute, parse_time
 from .models import ExecutionMode, PatternCandidate, PatternConfig, UsageOutcome, UsageSource
 from .ports import Clock, UsageLog
 
@@ -51,6 +51,10 @@ class PatternDetector:
             if not self._is_established(candidate) or candidate.paused_until:
                 continue
             bounds = self.ask_window(candidate, now)
+            # 평일만 하던 습관은 주말에, 주말만 하던 습관은 평일에 묻지 않는다(묻지 않고 기록에서 알아낸다, 2026-10-26).
+            # '알게 된 것'의 '평일 오후 10시쯤'과 같은 판정(``day_kind`` — 쓴 날 전체)이다.
+            if bounds is not None and not day_matches(day_kind(candidate.recent_days), bounds[0].date()):
+                continue
             if bounds is not None and bounds[0] <= now < bounds[1]:
                 result.append(replace(candidate, available_from=bounds[0], available_until=bounds[1]))
         return tuple(result)
@@ -132,7 +136,7 @@ class PatternDetector:
                     confident=confident, ask_time=clock_text(ask),
                     recent_days=tuple(d.isoformat() for d in days)))
             for candidate in peers:
-                pause, shift = adaptation(candidate, peers, events, cluster_records[candidate.usual_time],
+                pause, shift, pause_reason = adaptation(candidate, peers, events, cluster_records[candidate.usual_time],
                                           now, self._config.ask_lead_minutes or 0)
                 ask = parse_time(candidate.ask_time)
                 # Uncertain habits never move outside their observed window.
@@ -142,6 +146,6 @@ class PatternDetector:
                     width = (parse_time(candidate.window_end) - ask) % 1440
                     ask += max(0, min(width, shift))
                 result.append(replace(candidate, paused_until=pause,
-                                      pause_reason='consecutive_rejections' if pause else None,
+                                      pause_reason=pause_reason,
                                       ask_shift_minutes=shift, ask_time=clock_text(ask)))
         return tuple(result)

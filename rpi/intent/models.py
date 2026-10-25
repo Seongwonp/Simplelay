@@ -151,3 +151,5 @@ class ProactiveSuggestion:
     target_snapshot: tuple = ()
     habit_time: str | None = None
     habit_start: datetime | None = None
+    #: '왜 지금' 신호(2026-10-26) — ``((사람 말 이름, 맞음), …)``, 최대 4개. 카드를 만들 때 실제로 본 신호만(지어내지 않는다).
+    signals: tuple = ()

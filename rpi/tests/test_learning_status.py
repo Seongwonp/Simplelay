@@ -152,8 +152,9 @@ def test_habit_card_waits_until_ten_minutes_before_the_usual_time():
                            time_bands=(TimeBand("저녁", dtime(17), dtime(21)),))
 
     def at(h, m):
+        # 26일(월요일) — 쓴 날(20~23일)이 모두 평일이라 일요일(25일)에는 묻지 않는다(2026-10-26 평일/주말 판정).
         return PatternDetector(InMemoryUsageLog(records),
-                               FixedClock(datetime(2026, 10, 25, h, m, tzinfo=kst)), config).candidates()
+                               FixedClock(datetime(2026, 10, 26, h, m, tzinfo=kst)), config).candidates()
 
     assert at(17, 0) == ()
     assert at(19, 19) == ()

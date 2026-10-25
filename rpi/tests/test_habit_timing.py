@@ -43,7 +43,8 @@ def test_boundary_cluster_and_lead_cross_display_band(times, now, usual, start, 
     if start == '23:50':
         records = [UsageRecord(at(day, value), '켜기', UsageOutcome.SUCCEEDED,
                                'fan', ExecutionMode.REAL, UsageSource.DIRECT)
-                   for day, value in zip((1, 3, 5), times)]
+                   # 4일(일요일)을 넣어 평일/주말이 섞이게 한다 — 평일만 쓴 습관은 토요일(10일)에 묻지 않는다(2026-10-26).
+                   for day, value in zip((1, 3, 4), times)]
     detector, clock, service, executor, _ = build(times, now, records=records)
     candidate, = detector.candidates()
     assert candidate.occurrences == 3

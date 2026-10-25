@@ -2,18 +2,20 @@
 
 import json
 import logging
+import os
 import threading
 from collections import OrderedDict
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from uuid import uuid4
 
 from .base import IntentResolver
 from .models import ProactiveSuggestion, SuggestionStatus, UsageSource
 from .patterns import PatternDetector
 from .habit_timing import reason_time
+from .habit_words import day_kind
 from .ports import Clock, PurposeExecutor, SuppressionStore
 from .rules import RuleBasedIntentResolver, UnknownIntentError
 from .cooldowns import SuggestionCooldowns
@@ -29,6 +31,53 @@ PAUSE_SCOPE_ALL = "suggestions_and_auto"
 #: 업데이트 전 서버에서 켠 잠시 쉬기를 이어받은 것 — 남은 시간 동안 옛 범위(새 제안만 쉼) 그대로, 자동 실행은 막지 않는다.
 PAUSE_SCOPE_SUGGESTIONS = "suggestions_only"
 _PAUSE_SCOPES = (PAUSE_SCOPE_ALL, PAUSE_SCOPE_SUGGESTIONS)
+
+
+#: 하루에 먼저 묻는 카드 상한(2026-10-26 — 허브는 갈수록 덜 묻는다). ``0``·``off``면 상한 없음. 틀린 값은 기본값.
+DAILY_ASK_LIMIT_ENV = "SIMPLELAY_DAILY_ASK_LIMIT"
+DEFAULT_DAILY_ASK_LIMIT = 3
+#: 하루 상한에 세는 '먼저 묻는' 카드의 생성 사유 — 습관·온습도·상황(공기질·환경 규칙·가전 끝) 카드.
+#: 사용자가 직접 요청한 카드(``user_request``)·저장한 루틴의 '물어보기'(시간대 ``루틴``)·연습/시연 카드는 세지 않는다.
+PROACTIVE_REASONS = ("habit_pattern", "environment_condition", "scenario_trigger")
+#: 카드에 실은 '왜 지금' 신호 칩 최대 개수.
+MAX_SIGNALS = 4
+#: '이미 했어요' 거절 사유(2026-10-26).
+REJECT_ALREADY_DONE = "already_done"
+#: 사람이 답한 것(예·아니요·이미 했어요·쉬기·숨기기) — 무시(답 없이 만료) 연속을 끊는다.
+_ANSWERS = ("dismissed", "snoozed", "approval_requested", "muted", "already_done", "submitted",
+            "execution_returned")
+
+
+def daily_ask_limit_from_env(env=None) -> int | None:
+    """``SIMPLELAY_DAILY_ASK_LIMIT`` — 양의 정수면 그 값, ``0``·``off``면 상한 없음(None), 비었거나 틀리면 기본 3."""
+    env = os.environ if env is None else env
+    raw = (env.get(DAILY_ASK_LIMIT_ENV) or "").strip().lower()
+    if not raw:
+        return DEFAULT_DAILY_ASK_LIMIT
+    if raw in ("0", "off"):
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        log.warning("%s 값이 숫자가 아니라 기본 %d로 읽어요", DAILY_ASK_LIMIT_ENV, DEFAULT_DAILY_ASK_LIMIT)
+        return DEFAULT_DAILY_ASK_LIMIT
+    return value if value > 0 else DEFAULT_DAILY_ASK_LIMIT
+
+
+def is_habit_card(suggestion: ProactiveSuggestion) -> bool:
+    """'이미 했어요'를 둘 습관 카드인가 — 사용 기록에서 나온 카드(시나리오·온습도·시연·직접 요청·바꾼 카드 아님)."""
+    return (suggestion.scenario_id is None and suggestion.time_band not in ("데모", "환경")
+            and not suggestion.is_demo and not suggestion.user_started and suggestion.revised_from is None)
+
+
+def signal_tuple(signals) -> tuple:
+    """``[(이름, 맞음)]`` 또는 이름만 → 빈 이름을 뺀 튜플(최대 4개)."""
+    out = []
+    for item in signals or ():
+        label, ok = (item, True) if isinstance(item, str) else (item[0], bool(item[1]))
+        if isinstance(label, str) and label.strip():
+            out.append((label.strip(), ok))
+    return tuple(out[:MAX_SIGNALS])
 
 
 #: 승인 영수증(제안 번호 → 실행 번호)을 기억하는 최근 건수(검토 10/19 A).
@@ -85,7 +134,12 @@ class ProactiveSuggestionService:
         completed_actions: CompletedActions | None = None,
         feedback: SuggestionFeedback | None = None,
         scenario_resolver=None,
+        daily_ask_limit: int | None = None,
     ) -> None:
+        #: 하루에 먼저 묻는 카드 상한(None이면 없음). API 배선은 ``SIMPLELAY_DAILY_ASK_LIMIT``(기본 3)를 넘긴다.
+        self._daily_ask_limit = daily_ask_limit
+        #: 상한에 걸려 미룬 카드 — 같은 날 같은 카드는 기록을 한 번만 남긴다(판독마다 쌓이지 않게).
+        self._deferred_logged: set = set()
         # 시나리오 ID → **지금** 정의대로 만든 명령들. 승인 시 카드가 들고 있는
         # 명령과 지문을 대조한다(달라졌으면 재승인). None이면 대조를 건너뛴다.
         self._scenario_resolver = scenario_resolver
@@ -310,7 +364,12 @@ class ProactiveSuggestionService:
             if self._suppression_store is not None
             else frozenset()
         )
-        for candidate in self._detector.candidates():
+        # 하루 상한 안에서 고를 때: 지금 살아 있는 신호(온습도)가 습관보다 먼저, 습관은 확실한 것부터(2026-10-26).
+        self._create_environment(created, muted)
+        candidates = sorted(self._detector.candidates(),
+                            key=lambda c: (not c.confident, -c.distinct_days, c.spread_minutes or 0.0,
+                                           c.purpose))
+        for candidate in candidates:
             if self._is_muted(candidate.purpose, muted):
                 continue  # 사용자가 이 루틴을 "다시 추천 안 함"으로 내렸다
             # 미리보기 해석(느릴 수 있음)은 락 밖에서
@@ -342,6 +401,8 @@ class ProactiveSuggestionService:
                 if existing is not None:
                     created.append(existing)
                     continue
+                if not self._budget_allows_locked(key):
+                    continue
                 suggestion = ProactiveSuggestion(
                     suggestion_id=f"suggestion-{self._id_prefix}-{self._next_id}",
                     purpose=candidate.purpose,
@@ -362,63 +423,142 @@ class ProactiveSuggestionService:
                     routine_id=routine[0] if routine else None,
                     routine_name=routine[1] if routine else None,
                     target_snapshot=self._target_snapshot(candidate.appliance_id, commands),
+                    signals=self._habit_signals(candidate),
                 )
                 self._next_id += 1
                 self._suggestions[suggestion.suggestion_id] = suggestion
                 self._record(suggestion, "created", "habit_pattern")
             created.append(suggestion)
-        # 온습도 기반 제안 -- 지금 공간이 더우면 냉방을 선제 제안한다.
-        env = self._current_environment()
-        if env is not None and not self._is_muted(env.purpose, muted):
-            steps = self._preview_steps(env.purpose)
-            env_commands, env_summaries = self._purpose_commands(env.purpose, env.appliance_id)
-            self._refresh_environment()
-            with self._state_lock:
-                self._expire_locked()
-                current = self._current_environment()
-                if (current is None or current.purpose != env.purpose
-                        or current.appliance_id != env.appliance_id
-                        or not self._context_valid(env.purpose, "환경", env.appliance_id)):
-                    return self._created_pending_locked(created)
-                env = current
-                if self._already_completed(env.purpose, "환경", env.appliance_id, steps):
-                    return self._created_pending_locked(created)
-                if (self._suppression_store is not None
-                        and self._is_muted(env.purpose, self._suppression_store.muted())):
-                    return self._created_pending_locked(created)
-                key = self._cooldowns.key(
-                    env.purpose, "시연환경" if getattr(env, "is_demo", False) else "환경", env.appliance_id,
-                )
-                if self._cooldowns.blocked(key, self._clock.now()):
-                    return self._created_pending_locked(created)
-                existing = self._pending_for(env.purpose, "환경", env.appliance_id)
-                if existing is not None:
-                    created.append(existing)
-                else:
-                    env_suggestion = ProactiveSuggestion(
-                        suggestion_id=f"suggestion-{self._id_prefix}-{self._next_id}",
-                        purpose=env.purpose,
-                        time_band="환경",
-                        occurrences=0,
-                        created_at=self._clock.now(),
-                        steps=steps,
-                        reason=env.reason,
-                        is_demo=getattr(env, "is_demo", False),
-                        appliance_id=env.appliance_id,
-                        expires_at=self._clock.now() + timedelta(minutes=15),
-                        commands=env_commands,
-                        command_summaries=env_summaries,
-                        target_snapshot=self._target_snapshot(env.appliance_id, env_commands),
-                    )
-                    self._next_id += 1
-                    self._suggestions[env_suggestion.suggestion_id] = (
-                        env_suggestion
-                    )
-                    self._record(env_suggestion, "created", "environment_condition")
-                    created.append(env_suggestion)
         with self._state_lock:
             self._expire_locked()
             return self._created_pending_locked(created)
+
+    def _habit_signals(self, candidate) -> tuple:
+        """습관 카드의 '왜 지금' — 사람 감지(게이트가 켜져 있고 통과했을 때만)·평소 시각·최근 며칠·평일/주말."""
+        signals = []
+        if self._presence_gate is not None:
+            signals.append(("사람 있음", True))  # 게이트가 막지 않았다(``_context_valid``) — 감지가 꺼져 있으면 말하지 않는다
+        signals.append((f"평소 {reason_time(candidate)}", True))
+        signals.append((f"최근 {candidate.window_days}일 중 {candidate.distinct_days}일", True))
+        kind = day_kind(candidate.recent_days)
+        if kind is not None:
+            signals.append(("평일 습관" if kind == "weekday" else "주말 습관", True))
+        return signal_tuple(signals)
+
+    def _create_environment(self, created: list, muted) -> None:
+        """온습도 기반 제안 -- 지금 공간이 더우면 냉방을 선제 제안한다. 만든(또는 떠 있던) 카드를 ``created``에 넣는다."""
+        env = self._current_environment()
+        if env is None or self._is_muted(env.purpose, muted):
+            return
+        steps = self._preview_steps(env.purpose)
+        env_commands, env_summaries = self._purpose_commands(env.purpose, env.appliance_id)
+        self._refresh_environment()
+        with self._state_lock:
+            self._expire_locked()
+            current = self._current_environment()
+            if (current is None or current.purpose != env.purpose
+                    or current.appliance_id != env.appliance_id
+                    or not self._context_valid(env.purpose, "환경", env.appliance_id)):
+                return
+            env = current
+            if self._already_completed(env.purpose, "환경", env.appliance_id, steps):
+                return
+            if (self._suppression_store is not None
+                    and self._is_muted(env.purpose, self._suppression_store.muted())):
+                return
+            key = self._cooldowns.key(
+                env.purpose, "시연환경" if getattr(env, "is_demo", False) else "환경", env.appliance_id,
+            )
+            if self._cooldowns.blocked(key, self._clock.now()):
+                return
+            existing = self._pending_for(env.purpose, "환경", env.appliance_id)
+            if existing is not None:
+                created.append(existing)
+                return
+            is_demo = getattr(env, "is_demo", False)
+            if not is_demo and (self._ignore_paused_locked(env.purpose, key)
+                                or not self._budget_allows_locked(key)):
+                return
+            env_suggestion = ProactiveSuggestion(
+                suggestion_id=f"suggestion-{self._id_prefix}-{self._next_id}",
+                purpose=env.purpose,
+                time_band="환경",
+                occurrences=0,
+                created_at=self._clock.now(),
+                steps=steps,
+                reason=env.reason,
+                is_demo=is_demo,
+                appliance_id=env.appliance_id,
+                expires_at=self._clock.now() + timedelta(minutes=15),
+                commands=env_commands,
+                command_summaries=env_summaries,
+                target_snapshot=self._target_snapshot(env.appliance_id, env_commands),
+                signals=signal_tuple(getattr(env, "signals", ())),
+            )
+            self._next_id += 1
+            self._suggestions[env_suggestion.suggestion_id] = env_suggestion
+            self._record(env_suggestion, "created", "environment_condition")
+            created.append(env_suggestion)
+
+    # ── 하루 상한·무시 물러서기(2026-10-26 — 허브는 갈수록 덜 묻는다, 새 질문은 없다) ─────────────────
+    def asked_today(self) -> int:
+        """오늘(지역 날짜) 먼저 물은 카드 수 — 제안 기록에서 센다(재시작해도 이어진다). 연습·시연·직접 요청·루틴 물어보기 제외."""
+        now = self._clock.now()
+        count = 0
+        for event in self._feedback.snapshot():
+            if (event.action != "created" or event.reason not in PROACTIVE_REASONS
+                    or event.origin == "demo" or event.time_band == "루틴"):
+                continue
+            try:
+                at = datetime.fromisoformat(event.occurred_at).astimezone(now.tzinfo)
+            except (TypeError, ValueError):
+                continue
+            if at.date() == now.date():
+                count += 1
+        return count
+
+    def _budget_allows_locked(self, key: str) -> bool:
+        """하루 상한 안인가. 넘었으면 카드를 만들지 않고 미룬다(같은 날 같은 카드는 기록 한 번)."""
+        limit = self._daily_ask_limit
+        if limit is None or self.asked_today() < limit:
+            return True
+        self._note_deferred(key, "daily_ask_limit")
+        return False
+
+    def _note_deferred(self, key: str, why: str) -> None:
+        marker = (self._clock.now().date().isoformat(), key, why)
+        if marker not in self._deferred_logged:
+            if len(self._deferred_logged) > 512:
+                self._deferred_logged.clear()
+            self._deferred_logged.add(marker)
+            log.info("suggestion deferred (%s): %s", why, key)
+
+    def _ignore_paused_locked(self, purpose: str, key: str) -> bool:
+        """같은 제안(질문 문장)이 연달아 두 날 답 없이 지나갔으면 다음 날 하루는 묻지 않는다(하루걸러 묻기).
+        답(예·아니요·이미 했어요…)이 한 번 오면 풀린다. 습관 카드는 학습 쪽(``habit_timing.ignore_pause``)이 같은 규칙을 맡는다."""
+        now = self._clock.now()
+        days: dict = {}
+        shown: dict = {}
+        target = purpose.strip()
+        for event in self._feedback.snapshot():
+            if event.origin == "demo" or event.purpose.strip() != target:
+                continue
+            try:
+                at = datetime.fromisoformat(event.occurred_at).astimezone(now.tzinfo)
+            except (TypeError, ValueError):
+                continue
+            if event.action == "created":
+                shown[event.suggestion_id] = at
+            elif event.action == "expired":
+                days[shown.get(event.suggestion_id, at).date()] = "ignored"
+            elif event.action in _ANSWERS:
+                days[at.date()] = "answered"
+        ordered = sorted(days.items())
+        if (len(ordered) >= 2 and ordered[-1][1] == "ignored" and ordered[-2][1] == "ignored"
+                and now.date() == ordered[-1][0] + timedelta(days=1)):
+            self._note_deferred(key, "ignored_twice")
+            return True
+        return False
 
     def _created_pending_locked(self, created):
         return tuple(self._suggestions[s.suggestion_id] for s in created
@@ -528,6 +668,7 @@ class ProactiveSuggestionService:
         routine_name: str | None = None,
         time_band: str = "시나리오",
         user_started: bool = False,
+        signals=(),
     ) -> ProactiveSuggestion | None:
         """시나리오 제안 — **확정 명령**을 들고 다니는 카드. 자동 실행하지 않는다.
 
@@ -556,6 +697,10 @@ class ProactiveSuggestionService:
             )
             if existing is not None:
                 return existing
+            # 먼저 묻는 상황 카드만 하루 상한·무시 물러서기를 따른다 — 직접 요청·저장한 루틴 물어보기·연습/시연 카드는 아니다.
+            if not user_started and not is_demo and time_band != "루틴":
+                if self._ignore_paused_locked(purpose, scenario_id) or not self._budget_allows_locked(scenario_id):
+                    return None
             now = self._clock.now()
             suggestion = ProactiveSuggestion(
                 suggestion_id=f"suggestion-{self._id_prefix}-{self._next_id}",
@@ -575,6 +720,7 @@ class ProactiveSuggestionService:
                 routine_name=routine_name,
                 user_started=user_started,
                 target_snapshot=self._target_snapshot(commands[0].target_id, commands),
+                signals=signal_tuple(signals),
             )
             self._next_id += 1
             self._suggestions[suggestion.suggestion_id] = suggestion
@@ -661,7 +807,7 @@ class ProactiveSuggestionService:
             approval_guard=self._approval_options(suggestion).get("approval_guard"),
         )
 
-    def reject(self, suggestion_id: str, mute: bool = False) -> None:
+    def reject(self, suggestion_id: str, mute: bool = False, reason: str | None = None) -> None:
         """실행 없이 pending에서 제거(dismiss). 없는 id이거나 이미 승인된
         제안이면 UnknownSuggestionError — 기존 라우터의 pending 전용
         404 의미를 그대로 보존한다. 확인+제거가 락 안이라 승인과 원자적.
@@ -678,6 +824,18 @@ class ProactiveSuggestionService:
             ):
                 raise UnknownSuggestionError(suggestion_id)
             purpose = suggestion.purpose
+            if reason == REJECT_ALREADY_DONE and not mute:
+                # '이미 했어요'(2026-10-26): 오늘은 이 습관을 다 한 것으로 — 오늘 다시 묻지 않고, 거절로 세지 않는다
+                # (연달아 두 번 거절의 잠시 묻지 않음에 넣지 않는다). 습관 카드에만 둔다.
+                if not is_habit_card(suggestion):
+                    raise ValueError("already_done is only for habit cards")
+                now = self._clock.now()
+                midnight = datetime.combine(now.date() + timedelta(days=1), time(0), now.tzinfo)
+                until = max(midnight, suggestion.expires_at) if suggestion.expires_at is not None else midnight
+                self._cooldowns.remember(self._key(suggestion), until, now)
+                self._suggestions.pop(suggestion_id)
+                self._record(suggestion, "already_done", "user_already_done")
+                return
             if mute and self._suppression_store is not None:
                 # 생성과 같은 락 안에서 저장해야 거절 중 새 제안이 끼지 않는다.
                 self._suppression_store.mute(purpose)
@@ -1051,7 +1209,8 @@ class ProactiveSuggestionService:
                             or getattr(current, "is_demo", False) != suggestion.is_demo):
                         self._record(suggestion, "withdrawn", "environment_changed")
                         continue
-                    suggestion = replace(suggestion, reason=current.reason)
+                    suggestion = replace(suggestion, reason=current.reason,
+                                         signals=signal_tuple(getattr(current, "signals", ())))
             elif suggestion.expires_at is not None and now >= suggestion.expires_at:
                 # Cleaning up an approved card is not unanswered expiry.
                 continue

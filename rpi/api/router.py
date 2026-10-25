@@ -153,7 +153,7 @@ from .service import (
 from .job_receipts import CLIENT_REQUEST_ID_PATTERN, ledger_of
 from .readiness_view import readiness_view
 from .stop_lane import resolve_without_shared_pool, run_on_stop_lane
-from .thinq_router import command_payloads
+from .thinq_router import command_payloads, is_habit_card, signal_payloads
 from .thinq_router import router as thinq_router
 
 log = logging.getLogger(__name__)
@@ -1418,6 +1418,8 @@ async def list_suggestions(
             commands=command_payloads(s),
             routine_id=s.routine_id,
             routine_name=s.routine_name,
+            signals=signal_payloads(s),
+            can_mark_done=is_habit_card(s),
         )
         for s in pending
     ]
@@ -1492,9 +1494,12 @@ def reject_suggestion(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> OkResponse:
     try:
-        svc.reject(suggestion_id, mute=body.mute if body is not None else False)
+        svc.reject(suggestion_id, mute=body.mute if body is not None else False,
+                   reason=body.reason if body is not None else None)
     except UnknownSuggestionError:
         raise HTTPException(status_code=404, detail="suggestion not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="'이미 했어요'는 습관 카드에만 쓸 수 있어요") from exc
     return OkResponse()
 
 

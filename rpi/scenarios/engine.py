@@ -106,7 +106,8 @@ class ScenarioEngine:
                 offered.append(card)
         return offered
 
-    def on_air_quality(self, appliance_id: str, reason: str, is_demo: bool, *, power_off: bool = False):
+    def on_air_quality(self, appliance_id: str, reason: str, is_demo: bool, *, power_off: bool = False,
+                       signals=()):
         """공기청정기 센서 나쁨 판독(``rpi/services/air_quality.py``) → ``air_quality`` 트리거 카드(2026-10-15).
 
         근거 문장은 판독이 만든 그대로(가전 등급·값). 판정·재알림은 판독 쪽이 하고, 여기서는 종전 시나리오 카드처럼
@@ -120,10 +121,10 @@ class ScenarioEngine:
             if (trigger.kind != "air_quality" or trigger.appliance_id != appliance_id
                     or trigger.event != event):
                 continue
-            card = self._offer(definition, reason, is_demo) or card
+            card = self._offer(definition, reason, is_demo, signals=signals) or card
         return card
 
-    def on_context(self, scenario_id: str, reason: str, is_demo: bool):
+    def on_context(self, scenario_id: str, reason: str, is_demo: bool, *, signals=()):
         """환경 제안 판정(``rpi/services/context_suggestions.py``) → ``context`` 트리거 카드(2026-10-26).
 
         판정·쉬는 시간은 판정 쪽이 하고, 여기서는 종전 시나리오 카드처럼 준비 상태를 보고 만든다 — 조용한 시간·잠시 쉬기·
@@ -131,7 +132,7 @@ class ScenarioEngine:
         definition = self._catalog.get(scenario_id)
         if definition is None or definition.trigger.kind != "context":
             return None
-        return self._offer(definition, reason, is_demo)
+        return self._offer(definition, reason, is_demo, signals=signals)
 
     def _approval_count(self, definition: ScenarioDefinition) -> int:
         """같은 제안(질문 문장)을 승인한 횟수 — 제안 기록(``feedback_events``, 최근 200건)에서 센 그대로. 모르면 0."""
@@ -174,7 +175,7 @@ class ScenarioEngine:
 
     # ── 제안 만들기 ───────────────────────────────────────────────────────
     def _offer(self, definition: ScenarioDefinition, reason: str, is_demo: bool,
-               *, raise_unavailable: bool = False):
+               *, raise_unavailable: bool = False, signals=()):
         try:
             commands = definition.commands()
             problems = self._unavailable(commands)
@@ -188,6 +189,7 @@ class ScenarioEngine:
                 scenario_id=definition.scenario_id, purpose=definition.question,
                 commands=commands, summaries=summaries, reason=reason, is_demo=is_demo,
                 valid_minutes=definition.valid_minutes,
+                **({"signals": tuple(signals)} if signals else {}),
             )
         except ScenarioUnavailableError:
             raise

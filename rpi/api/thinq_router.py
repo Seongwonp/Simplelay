@@ -360,7 +360,20 @@ def suggestion_payload(s) -> dict:
         "appliance_id": s.appliance_id, "is_demo": s.is_demo or s.time_band == "데모",
         "scenario_id": s.scenario_id,
         "commands": command_payloads(s),
+        "signals": signal_payloads(s),
+        "can_mark_done": is_habit_card(s),
     }
+
+
+def signal_payloads(s) -> list[dict]:
+    """'왜 지금' 신호 → [{label, ok}](2026-10-26). 서버가 카드를 만들 때 본 것만, 최대 4개."""
+    return [{"label": label, "ok": bool(ok)} for label, ok in tuple(getattr(s, "signals", ()) or ())[:4]]
+
+
+def is_habit_card(s) -> bool:
+    from rpi.intent.suggestions import is_habit_card as _is_habit  # noqa: PLC0415
+
+    return _is_habit(s)
 
 
 def command_payloads(s) -> list[dict]:

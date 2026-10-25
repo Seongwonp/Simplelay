@@ -98,7 +98,7 @@ def blocked_reason() -> str | None:
     return None
 
 
-def offer(scenario_id: str, reason: str):
+def offer(scenario_id: str, reason: str, *, signals=()):
     """규칙 → 시나리오 카드. 막혔으면 None(조용한 시간·잠시 쉬기·다시 받지 않기·부재·준비 안 됨). 실행하지 않는다."""
     from rpi.controller.models import ExecutionMode  # noqa: PLC0415
 
@@ -110,7 +110,7 @@ def offer(scenario_id: str, reason: str):
     if controller is None or engine is None:
         return None
     is_demo = controller.execution_mode is not ExecutionMode.REAL
-    return engine.on_context(scenario_id, reason + (MOCK_SUFFIX if is_demo else ""), is_demo)
+    return engine.on_context(scenario_id, reason + (MOCK_SUFFIX if is_demo else ""), is_demo, signals=signals)
 
 
 def get_monitor():

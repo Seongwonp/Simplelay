@@ -26,7 +26,7 @@ from rpi.intent.log import InMemoryUsageLog
 from rpi.intent.models import PatternConfig, TimeBand
 from rpi.intent.patterns import PatternDetector
 from rpi.intent.ports import UsageLog
-from rpi.intent.suggestions import ProactiveSuggestionService
+from rpi.intent.suggestions import ProactiveSuggestionService, daily_ask_limit_from_env
 
 PAUSE_SETTING = "suggestion_pause"  # 잠시 쉬기 끝 시각·범위(2026-10-14 마감 2번)
 from rpi.intent.completed_actions import CompletedActions
@@ -937,6 +937,8 @@ def get_suggestion_service() -> ProactiveSuggestionService:
             load=db.suggestion_events if db else None,
             save=db.append_suggestion_event if db else None,
         ),
+        # 하루에 먼저 묻는 카드 상한(2026-10-26, 기본 3 — ``SIMPLELAY_DAILY_ASK_LIMIT``, 0·off면 없음).
+        daily_ask_limit=daily_ask_limit_from_env(),
     )
     # 조용한 시간(매일 시간대) — 잠시 쉬기(DND)와 함께 is_quiet()로 판정한다(2026-10-14, 5번).
     # 설정 읽기(DB)는 여기서 한 번 — 실행 게이트 안에서 처음 만들며 DB를 읽지 않게(HIGH 재확인 H-R1).

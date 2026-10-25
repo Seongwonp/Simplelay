@@ -31,6 +31,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 import threading
@@ -62,6 +63,8 @@ ARRIVAL_AIR_SENTENCES = {
     "BAD": "실내 공기가 나빠요.",
     "VERY_BAD": "실내 공기가 매우 나빠요.",
 }
+#: '왜 지금' 칩의 공기 등급 말(가전이 매긴 등급 그대로).
+ARRIVAL_AIR_WORDS = {"NORMAL": "보통", "BAD": "나쁨", "VERY_BAD": "매우 나쁨"}
 DUST_SENTENCE = "황사 특보가 있어요."
 PURIFIER_OFF_SENTENCE = "공기청정기가 꺼져 있어요."
 DUST_REASON = "황사 특보가 났어요. " + PURIFIER_OFF_SENTENCE
@@ -195,6 +198,11 @@ class ContextSuggestionMonitor:
         self._note_power_card = note_power_card
         self._monotonic = monotonic or time.monotonic
         self.config = config or ContextRuleConfig()
+        try:
+            params = inspect.signature(offer).parameters.values()
+            self._offer_takes_signals = any(p.name == "signals" or p.kind is p.VAR_KEYWORD for p in params)
+        except (TypeError, ValueError):
+            self._offer_takes_signals = False
         self._lock = threading.Lock()
         self._last_card: dict[str, float] = {}
         self._sleep_done_for: float | None = None  # 이미 다룬 불 끔(꺼진 순간)
@@ -252,6 +260,12 @@ class ContextSuggestionMonitor:
         last = self._last_card.get(rule)
         return last is not None and self._monotonic() - last < cooldown_s
 
+    def _ask(self, rule: str, reason: str, signals) -> object | None:
+        """카드를 청한다 — 판정에 실제로 쓴 신호를 '왜 지금' 칩으로 함께 넘긴다(받을 수 있는 쪽에만)."""
+        if self._offer_takes_signals:
+            return self._offer(rule, reason, signals=tuple((label, True) for label in signals))
+        return self._offer(rule, reason)
+
     def _mark(self, rule: str) -> None:
         self._last_card[rule] = self._monotonic()
 
@@ -281,7 +295,7 @@ class ContextSuggestionMonitor:
             return "already_sleep"
         if self._cooling(RULE_SLEEP, c.sleep_cooldown_s):
             return "cooldown"
-        if self._offer(RULE_SLEEP, SLEEP_REASON) is None:
+        if self._ask(RULE_SLEEP, SLEEP_REASON, ("사람 있음", "방이 어두움", "밤 시간", "공기청정기 켜짐")) is None:
             return "not_offered"
         self._sleep_done_for = s.lights_off_at
         self._mark(RULE_SLEEP)
@@ -311,12 +325,16 @@ class ContextSuggestionMonitor:
         if self._air_card_recent():
             return "air_card_quiet"
         parts = [ARRIVAL_PREFIX]
+        chips = ["외출 뒤 돌아옴"]
         if air_sentence is not None:
             parts.append(air_sentence)
+            chips.append(f"실내 공기 {ARRIVAL_AIR_WORDS[grade]}")
         if s.dust_warning:
             parts.append(DUST_SENTENCE)
+            chips.append("황사 특보")
         parts.append(PURIFIER_OFF_SENTENCE)
-        if self._offer(RULE_ARRIVAL, " ".join(parts)) is None:
+        chips.append("공기청정기 꺼짐")
+        if self._ask(RULE_ARRIVAL, " ".join(parts), chips) is None:
             return "not_offered"
         self._arrival_done_for = s.arrival_at
         self._mark(RULE_ARRIVAL)
@@ -343,7 +361,7 @@ class ContextSuggestionMonitor:
             return "cooldown"
         if self._air_card_recent():
             return "air_card_quiet"
-        if self._offer(RULE_DUST, DUST_REASON) is None:
+        if self._ask(RULE_DUST, DUST_REASON, ("황사 특보", "사람 있음", "공기청정기 꺼짐")) is None:
             return "not_offered"
         self._dust_pending = False
         self._mark(RULE_DUST)

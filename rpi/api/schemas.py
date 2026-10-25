@@ -854,6 +854,10 @@ class SuggestionResponse(BaseModel):
     #: 습관 카드에서 바로 루틴으로(2026-10-25): {candidate_key, ask_time, auto, routine_name, evidence}. auto=true면
     #: '매일 이 시간에 알아서 하기'(낮은 위험 LG 가전 동작), false면 '매일 이 시간에 물어보기'(물리 누름)로 저장한다.
     adopt_offer: dict | None = None
+    #: '왜 지금' 신호(2026-10-26) — [{label, ok}], 최대 4개. 카드를 만들 때 서버가 실제로 본 신호만. 없으면 빈 목록.
+    signals: list[dict] = []
+    #: '이미 했어요'를 둘 습관 카드인가(2026-10-26). 참이면 거절 본문에 ``reason: "already_done"``을 보낼 수 있다.
+    can_mark_done: bool = False
 
 
 class ApproveResponse(BaseModel):
@@ -1269,6 +1273,8 @@ class RejectSuggestionRequest(BaseModel):
     """POST /suggestions/{id}/reject 본문(선택). mute=True면 "다시 추천 안 함"."""
 
     mute: bool = False
+    #: ``already_done``(2026-10-26, 선택) — '이미 했어요': 오늘은 이 습관을 다시 묻지 않고, 거절로 세지 않는다. 습관 카드만.
+    reason: Literal["already_done"] | None = None
 
 
 class SuppressionListResponse(BaseModel):

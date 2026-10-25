@@ -33,6 +33,8 @@ class EnvironmentalCandidate:
     # 이 제안이 조작할 가전. 제안과 실행 대상이 어긋나지 않게 끝까지 들고 간다.
     appliance_id: str | None = None
     is_demo: bool = False
+    #: '왜 지금' 신호(2026-10-26) — 카드 칩. ``((이름, 맞음), …)``.
+    signals: tuple = ()
 
 
 class EnvironmentalSuggester:
@@ -72,4 +74,6 @@ class EnvironmentalSuggester:
             ("시연 데이터 · " if forced is not None else "") + "지금 " + " · ".join(bits) + (" — 더워요" if hot else " — 습해요"),
             appliance_id=self._appliance_id,
             is_demo=forced is not None,
+            signals=tuple((label, True) for label in (
+                ([f"실내 {temp:.0f}°C"] if hot else []) + ([f"습도 {hum:.0f}%"] if humid else []))),
         )

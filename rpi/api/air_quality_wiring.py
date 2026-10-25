@@ -90,7 +90,7 @@ def _read_purifier_state():
     return state
 
 
-def _offer(reason: str, *, power_off: bool = False):
+def _offer(reason: str, *, power_off: bool = False, signals=()):
     """나쁨 판정 → 시나리오 카드(꺼져 있으면 켜기, 아니면 강풍). 막혔으면 None(조용한 시간·잠시 쉬기·다시 받지 않기·부재·준비 안 됨)."""
     from rpi.controller.models import ExecutionMode  # noqa: PLC0415
 
@@ -105,7 +105,7 @@ def _offer(reason: str, *, power_off: bool = False):
     if engine is None:
         return None
     return engine.on_air_quality(AIR_PURIFIER_ID, reason + (MOCK_SUFFIX if is_demo else ""), is_demo,
-                                 power_off=power_off)
+                                 power_off=power_off, signals=signals)
 
 
 def get_air_monitor():
