@@ -63,6 +63,9 @@ class TouchBridgeConfig:
     retry_xy_offsets_mm: tuple[tuple[float, float], ...] | None = None
     auto_home: bool = False
     press_mode: str = "switchbot"
+    #: 원점 잡기 방식(2026-10-25, HW 담당 안내) — "stall"(기본, 벽에 부딪혀 찾기 = JSON home) | "set_origin"(지금 캐리지
+    #: 자리를 원점으로 = 원본 스케치의 텍스트 명령 ``Z``. 움직이지 않는다 — 캐리지를 좌하단에 둔 뒤 쓴다).
+    home_mode: str = "stall"
 
     def __post_init__(self) -> None:
         for name in ("status_timeout_s", "connect_timeout_s", "home_timeout_s",
@@ -70,6 +73,8 @@ class TouchBridgeConfig:
             value = getattr(self, name)
             if isinstance(value, bool) or not math.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and positive")
+        if self.home_mode not in ("stall", "set_origin"):
+            raise ValueError("home_mode must be 'stall' or 'set_origin'")
         if self.retry_xy_offsets_mm is not None:
             for pair in self.retry_xy_offsets_mm:
                 if len(pair) != 2 or not all(_number(v) for v in pair):
@@ -87,6 +92,9 @@ class TouchBridgeConfig:
         raw = source.get("SIMPLELAY_TOUCHBRIDGE_TOLERANCE_MM", "").strip()
         if raw:
             values["tolerance_mm"] = float(raw)
+        raw = source.get("SIMPLELAY_TOUCHBRIDGE_HOME_MODE", "").strip()
+        if raw:
+            values["home_mode"] = raw
         raw = source.get("SIMPLELAY_MOTION_RETRY_XY_OFFSETS_MM", "").strip()
         if raw:
             values["retry_xy_offsets_mm"] = tuple(
@@ -409,8 +417,25 @@ class TouchBridgeMotionClient(GrblClient):
 
     def home(self) -> None:
         with self._op_lock:
+            if self.config.home_mode == "set_origin":
+                self._set_origin_here()
+                return
             self._physical("home", self.config.home_timeout_s)
             self.status()
+
+    def _set_origin_here(self) -> None:
+        """원본 스케치 텍스트 명령 ``Z`` — 지금 자리를 원점(0,0)으로, 원점 잡힘으로. 움직이지 않는다.
+        답은 텍스트 ``OK``라 JSON 상태(homed)를 다시 읽어 확인한다. 기한 안에 원점이 안 잡히면 시간 초과."""
+        with self._write_lock:
+            self._transport.write_line("Z")
+        deadline = time.monotonic() + self.config.status_timeout_s * 3
+        while True:
+            status = self.status()
+            if self.homed:
+                return status
+            if time.monotonic() >= deadline:
+                raise MotionTimeout("Touch Bridge 원점 정하기(Z): 원점이 잡힌 것을 확인하지 못했어요")
+            time.sleep(0.05)
 
     def _physical(self, action: str, timeout: float, **fields) -> dict:
         with self._lock:

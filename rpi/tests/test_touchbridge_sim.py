@@ -303,3 +303,28 @@ def test_simulated_board_hold_uses_a_mock_appliance_that_ends():
         stop_presses = 1
 
     assert isinstance(hardware.probe_factory(_Plan()), MockApplianceRun)
+
+
+def test_set_origin_mode_marks_here_as_origin_without_moving():
+    """HW 담당 안내(10/25): 원본 스케치의 ``Z``는 지금 자리를 원점으로 정한다. home_mode=set_origin이면 home()이
+    벽 찾기 대신 Z를 보내고, 원점이 잡힌 것을 상태로 확인한다. 움직이지 않는다."""
+    r = Rig()
+    try:
+        client = r.open(home_mode="set_origin")
+        client.connect()
+        assert client.homed is False
+        client.home()
+        assert client.homed is True
+        assert any(text.strip() == "Z" for _, text in r.lines), r.lines
+        assert not any('"action":"home"' in text for _, text in r.lines)
+        client.move_to(10.0, 5.0)  # 원점이 잡혔으니 이동이 받아들여진다
+    finally:
+        if r.client is not None:
+            r.client.close()
+
+
+def test_home_mode_from_env_and_unknown_value_rejected():
+    assert TouchBridgeConfig.from_env({"SIMPLELAY_TOUCHBRIDGE_HOME_MODE": "set_origin"}).home_mode == "set_origin"
+    assert TouchBridgeConfig.from_env({}).home_mode == "stall"
+    with pytest.raises(ValueError):
+        TouchBridgeConfig(home_mode="anywhere")

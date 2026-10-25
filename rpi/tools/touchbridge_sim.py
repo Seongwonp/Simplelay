@@ -435,8 +435,9 @@ class TouchBridgeSim:
             else:
                 step.outcome = self.faults.press_fail or "ok"
                 step.deadline = now + t.press_s * t.scale
-        else:  # origin
+        else:  # origin — 원본 CoreXYMotion::setOrigin()은 엔코더를 0으로, homed_=true로 둔다(10/25 대조)
             self.xy = (0.0, 0.0)
+            self.homed = True
             self._invalidate_token()
             self._active = None
 
