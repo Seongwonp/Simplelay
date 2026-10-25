@@ -578,7 +578,9 @@ class _KioskScreenState extends State<KioskScreen> {
     if (isNew) {
       // 조용한 시간·방해 금지에는 소리 없이 화면 인사만.
       final greeting = room?.greeting;
-      if (greeting != null && _health.speakGeneral) _tts.speak(greeting);
+      // 인사 뒤에 날씨 한 줄을 이어 읽는다(10/26 사용자 — '좋은 아침이에요. 오늘 비 예보가 있어요. 우산 챙기세요').
+      final weather = room?.greetingWeather;
+      if (greeting != null && _health.speakGeneral) _tts.speak(weather == null ? greeting : '$greeting $weather');
       _poll();
     }
   }

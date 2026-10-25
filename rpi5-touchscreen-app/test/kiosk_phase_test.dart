@@ -2814,6 +2814,27 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('돌아왔을 때 인사 뒤에 날씨 한 줄을 이어 말하고, 화면 알약에는 인사만(10/26)', (tester) async {
+    final api = FakeKioskApi()..room = const RoomPresenceInfo(state: 'away', sleepScreen: true);
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    api.room = RoomPresenceInfo(
+        state: 'present',
+        sleepScreen: false,
+        arrivedAt: DateTime.now(),
+        greeting: '좋은 아침이에요.',
+        greetingWeather: '오후 3시부터 비 예보가 있어요. 우산 챙기세요.');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(tts.utterances, contains('좋은 아침이에요. 오후 3시부터 비 예보가 있어요. 우산 챙기세요.'));
+    expect(find.text('좋은 아침이에요.'), findsOneWidget);
+    expect(find.textContaining('우산'), findsNothing);
+    await tester.pump(const Duration(seconds: 9));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // 묻기 → 맡기기(2026-10-25): 서버가 맡길 수 있다고 준 카드만 단추가 있고, 조건·동작을 다시 본 뒤 사람이 눌러야 맡긴다.
   testWidgets('다음부터 알아서: 확인을 거쳐야 맡기고, 이번 실행도 한다', (tester) async {
     useKioskViewport(tester);

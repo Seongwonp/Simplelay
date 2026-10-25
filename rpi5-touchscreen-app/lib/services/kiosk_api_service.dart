@@ -642,13 +642,21 @@ class KioskJobLookup {
 /// 방 안 사람 감지 판단(GET /presence/room). [sleepScreen]이면 처음 화면을 어둡게 해도 된다.
 class RoomPresenceInfo {
   const RoomPresenceInfo(
-      {required this.state, required this.sleepScreen, this.arrivedAt, this.greeting, this.cameraEnabled = true});
+      {required this.state,
+      required this.sleepScreen,
+      this.arrivedAt,
+      this.greeting,
+      this.greetingWeather,
+      this.cameraEnabled = true});
   final String state;
   final bool sleepScreen;
   final DateTime? arrivedAt;
 
   /// 돌아왔을 때 건넬 인사 한 줄(서버가 정한다 — 외출 뒤 저녁이면 하루 위로).
   final String? greeting;
+
+  /// 인사 뒤에 이어 말할 날씨 한 줄(10/26 — '오늘 비 예보가 있어요. 우산 챙기세요'). 화면 인사 알약에는 넣지 않고 소리로만.
+  final String? greetingWeather;
 
   /// 사용자가 카메라를 끈 동안은 false — 본체가 카메라를 열지 않는다.
   final bool cameraEnabled;
@@ -1371,6 +1379,7 @@ class KioskApiService {
         sleepScreen: body['sleep_screen'] == true,
         arrivedAt: DateTime.tryParse(body['arrived_at'] as String? ?? ''),
         greeting: body['greeting'] as String?,
+        greetingWeather: body['greeting_weather'] as String?,
         cameraEnabled: body['camera_enabled'] != false,
       );
     } catch (_) {
