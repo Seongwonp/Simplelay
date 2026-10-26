@@ -78,7 +78,7 @@ def summarize(rows: list[dict]) -> dict:
     for mode in ('model_only', 'rules_model'):
         subset = [row for row in rows if row['mode'] == mode]
         result[mode] = {}
-        for group in ('main', 'holdout', 'demo'):
+        for group in ('main', 'holdout', 'holdout2', 'demo'):
             part = [row for row in subset if row['set'] == group]
             actionable = [row for row in part if row['expect'] == 'action']
             forbidden = [row for row in part if row['expect'] == 'none'
@@ -97,6 +97,19 @@ def summarize(rows: list[dict]) -> dict:
     return result
 
 
+def load_cases() -> list[tuple[str, dict]]:
+    cases = []
+    for label, name in [('main', 'llm_eval_ko.jsonl'),
+                        ('holdout', 'llm_eval_ko_holdout.jsonl'),
+                        ('holdout2', 'llm_eval_ko_holdout2.jsonl')]:
+        with (EVAL_DIR / name).open(encoding='utf-8') as stream:
+            cases.extend((label, json.loads(line)) for line in stream if line.strip())
+    # Repeat the designated demo case without copying its wording into this script.
+    demo = next(case for group, case in cases if group == 'main' and case['id'] == 'ind01')
+    cases.extend(('demo', {**demo, 'id': f'demo{i:02d}'}) for i in range(1, 21))
+    return cases
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--server', default='http://127.0.0.1:18081')
@@ -106,14 +119,7 @@ def main() -> None:
     url = local_url(options.server)
     output = outside_repo(options.out)
     output.parent.mkdir(parents=True, exist_ok=True)
-    cases = []
-    for label, name in [('main', 'llm_eval_ko.jsonl'),
-                        ('holdout', 'llm_eval_ko_holdout.jsonl')]:
-        with (EVAL_DIR / name).open(encoding='utf-8') as stream:
-            cases.extend((label, json.loads(line)) for line in stream if line.strip())
-    # Repeat the designated demo case without copying its wording into this script.
-    demo = next(case for group, case in cases if group == 'main' and case['id'] == 'ind01')
-    cases.extend(('demo', {**demo, 'id': f'demo{i:02d}'}) for i in range(1, 21))
+    cases = load_cases()
     rows = []
     for group, case in cases:
         for mode in ('model_only', 'rules_model'):
