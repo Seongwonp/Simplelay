@@ -16,6 +16,7 @@ class KioskVoiceProposalView extends StatelessWidget {
     required this.onReject,
     this.onApprove,
     this.busy = false,
+    this.heardText,
   });
 
   final KioskIntentProposal proposal;
@@ -24,6 +25,7 @@ class KioskVoiceProposalView extends StatelessWidget {
 
   /// 본체에 정하는 중 — 두 번 누르지 않게 단추를 잠근다.
   final bool busy;
+  final String? heardText;
 
   static const caption = '휴대폰에서 말한 내용';
   static const phoneOnly = '휴대폰에서 정해 주세요';
@@ -39,10 +41,15 @@ class KioskVoiceProposalView extends StatelessWidget {
           Row(children: [
             Icon(Icons.smartphone, color: KioskColors.muted, size: 22),
             const SizedBox(width: 8),
-            Text(caption,
+            Text(heardText == null ? caption : '본체에서 말한 내용',
                 key: const ValueKey('voice-proposal-caption'),
                 style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
           ]),
+          if (heardText != null && heardText!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text('들은 말: $heardText', key: const ValueKey('voice-heard-text'),
+                style: TextStyle(fontSize: KioskType.body, color: KioskColors.ink)),
+          ],
           const SizedBox(height: KioskSpace.sm),
           Expanded(
             child: Align(

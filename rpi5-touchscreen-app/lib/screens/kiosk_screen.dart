@@ -21,6 +21,8 @@ import '../services/kiosk_event_stream.dart';
 import '../services/kiosk_settings_store.dart';
 import '../services/kiosk_tts_service.dart';
 import '../theme/kiosk_colors.dart';
+import '../theme/kiosk_tokens.dart';
+import '../widgets/kiosk/kiosk_text.dart';
 import '../widgets/kiosk/appliance_select_view.dart';
 import '../widgets/kiosk/auto_run_view.dart';
 import '../widgets/kiosk/auto_run_notice.dart';
@@ -170,6 +172,11 @@ class _KioskScreenState extends State<KioskScreen> {
   KioskIntentProposal? _voiceProposal;
   final Set<String> _seenVoiceProposals = {};
   bool _voiceBusy = false;
+  bool _kioskVoiceBusy = false;
+  int _voiceListenRemaining = 5;
+  String? _voiceHeardText;
+  String? _voiceNotice;
+  Timer? _voiceListenTimer;
 
   /// 조용한 시간에 화면을 만져 잠시 평소 밝기다([kQuietWakeDuration] 뒤 다시 어둡게).
   bool _quietAwake = false;
@@ -547,6 +554,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   @override
   void dispose() {
+    _voiceListenTimer?.cancel();
     _quietWakeTimer?.cancel();
     _tabSuppress.dispose();
     // 색 토큰은 정적 값이다 — 이 화면이 사라지면 평소 색으로 돌린다(다음 화면·시험이 고대비를 물려받지 않게).
@@ -938,7 +946,7 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 휴대폰에서 말한 확인 질문(10/26)이 화면을 차지한 동안에도 숨긴다 — 탭을 눌러 질문을 피해 가지 않게(실패널 10/26).
   /// 질문이 정해지거나 목록에서 빠지면 다시 보인다.
   bool get _showTabs =>
-      !_estopConfirming && !_showSettings && !_showDnd && _openConnectionId == null && _voiceProposal == null &&
+      !_estopConfirming && !_showSettings && !_showDnd && _openConnectionId == null && _voiceProposal == null && !_kioskVoiceBusy &&
       ((_phase == KioskPhase.idle && !_quietDim) || _phase == KioskPhase.manual);
 
   /// 지금 탭 — 가전 고르기·조작 화면은 '가전'.
@@ -1140,6 +1148,8 @@ class _KioskScreenState extends State<KioskScreen> {
     final list = await _api.intentProposals();
     if (!mounted || _voiceBusy) return;
     final current = _voiceProposal;
+    // 본체에서 막 들은 질문은 목록 반영보다 먼저 올 수 있다. 답할 때까지 같은 화면을 지킨다(10/27).
+    if (current != null && _voiceHeardText != null) return;
     if (current != null && list.any((p) => p.id == current.id)) return;
     final next = list.where((p) => !_seenVoiceProposals.contains(p.id)).lastOrNull;
     if (next == null) {
@@ -1151,6 +1161,39 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() => _voiceProposal = next);
     if (_health.speakGeneral) {
       _tts.announce(_voiceCanRun(next) ? "${next.question} 하시려면 화면의 '네'를 눌러 주세요." : next.question);
+    }
+  }
+
+  Future<void> _listenFromKiosk() async {
+    if (_kioskVoiceBusy || _voiceProposal != null || _phase != KioskPhase.idle) return;
+    setState(() {
+      _kioskVoiceBusy = true;
+      _voiceListenRemaining = 5;
+      _voiceNotice = null;
+      _voiceHeardText = null;
+    });
+    _voiceListenTimer?.cancel();
+    _voiceListenTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || !_kioskVoiceBusy) return timer.cancel();
+      if (_voiceListenRemaining > 0) setState(() => _voiceListenRemaining--);
+    });
+    try {
+      final result = await _api.listenVoice();
+      if (!mounted) return;
+      _voiceListenTimer?.cancel();
+      setState(() {
+        _kioskVoiceBusy = false;
+        _voiceHeardText = result.text.isEmpty ? null : result.text;
+        _voiceProposal = result.proposal;
+        _voiceNotice = result.proposal == null ? '잘 못 들었어요. 다시 눌러 주세요' : null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      _voiceListenTimer?.cancel();
+      setState(() {
+        _kioskVoiceBusy = false;
+        _voiceNotice = '잘 못 들었어요. 다시 눌러 주세요';
+      });
     }
   }
 
@@ -3209,6 +3252,8 @@ class _KioskScreenState extends State<KioskScreen> {
       // '무엇을 할까요?' 카드(시안 B 10/24) — 내 가전 화면 루틴 칸과 같은 길(확인 카드가 승인).
       routines: _routines,
       onRoutine: _onRoutine,
+      onVoice: _listenFromKiosk,
+      voiceNotice: _voiceNotice,
       quietDim: _quietDim,
       onTouch: _noteIdleTouch,
     );
@@ -3216,12 +3261,22 @@ class _KioskScreenState extends State<KioskScreen> {
   Widget _buildScreen() {
     switch (_phase) {
       case KioskPhase.idle:
+        if (_kioskVoiceBusy) {
+          final listening = _voiceListenRemaining > 0;
+          return Center(
+            key: const ValueKey('kiosk-voice-progress'),
+            child: KioskText(listening ? '듣고 있어요… ($_voiceListenRemaining초)' : '생각하고 있어요',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: KioskType.key, fontWeight: FontWeight.w700, color: KioskColors.ink)),
+          );
+        }
         // 휴대폰에서 말한 확인 질문(10/26) — 처음 화면에서만. 실행·대기·결과 화면은 가리지 않는다.
         if (_voiceProposal case final p?) {
           return KioskVoiceProposalView(
             key: ValueKey('voice-proposal-${p.id}'),
             proposal: p,
             busy: _voiceBusy,
+            heardText: _voiceHeardText,
             onReject: () => _onVoiceAnswer(false),
             onApprove: _voiceCanRun(p) ? () => _onVoiceAnswer(true) : null,
           );

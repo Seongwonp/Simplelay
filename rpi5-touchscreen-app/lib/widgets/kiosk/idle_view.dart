@@ -66,12 +66,16 @@ class KioskIdleView extends StatelessWidget {
     this.onTouch,
     this.routines,
     this.onRoutine,
+    this.onVoice,
+    this.voiceNotice,
   });
 
   /// 저장된 동작(루틴) — 맨 앞 하나를 '무엇을 할까요?' 카드로 세운다(시안 B 10/24). 누르면 [onRoutine] — 내 가전 화면의
   /// 루틴 칸과 같은 길(서버가 확인 카드를 만들고 그 카드의 '시작'이 승인). 둘 중 하나라도 없으면 카드가 없다.
   final List<KioskRoutine>? routines;
   final ValueChanged<KioskRoutine>? onRoutine;
+  final VoidCallback? onVoice;
+  final String? voiceNotice;
 
   /// 조용한 시간이라 어둡게(사용자 결정 10/18) — 시계·다음 루틴·문제 표시만 남기고 예보·인사말·온습도·가전 줄을 접고,
   /// 화면 전체에 어두운 막을 얹는다. 막을 누르면 [onTouch]만 불린다(그 아래 단추는 눌리지 않는다 — 깨우는 손길).
@@ -418,6 +422,8 @@ class KioskIdleView extends StatelessWidget {
                   onHelp: () => selectTile(featured.$4 ?? featured.$2),
                   // 연결 문제 띠가 이미 '해결 방법 보기'를 보인다 — 카드는 되풀이하지 않는다(첫 사용 평가 4차 10/24).
                   helpInBanner: connProblem,
+                  onVoice: onVoice,
+                  voiceNotice: voiceNotice,
                 ),
                 const SizedBox(height: _Idle.featuredGap),
               ],

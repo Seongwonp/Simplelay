@@ -797,6 +797,13 @@ class KioskIntentProposal {
   }
 }
 
+/// 키오스크 마이크 한 번 듣기의 결과. 실행은 하지 않고 확인 질문만 돌려준다.
+class KioskVoiceListenResult {
+  const KioskVoiceListenResult({required this.text, required this.reason, this.proposal});
+  final String text, reason;
+  final KioskIntentProposal? proposal;
+}
+
 class NodeInfo {
   const NodeInfo({required this.applianceId, required this.baseUrl});
 
@@ -821,6 +828,7 @@ class KioskApiService {
   static const _timeout = Duration(seconds: 4);
   // ThinQ 상태 조회·명령 접수는 클라우드를 거칠 수 있어 더 기다린다.
   static const _thinqTimeout = Duration(seconds: 12);
+  static const _voiceTimeout = Duration(seconds: 27);
 
   static const _jsonHeaders = {'Content-Type': 'application/json'};
 
@@ -1582,6 +1590,18 @@ class KioskApiService {
     } catch (_) {
       return const [];
     }
+  }
+
+  /// POST /voice/listen — 본체에서 5초 녹음하고 기존 의도 확인 질문을 만든다.
+  Future<KioskVoiceListenResult> listenVoice() async {
+    final res = await _client.post(_base.replace(path: '/voice/listen')).timeout(_voiceTimeout);
+    _ensureOk(res);
+    final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    return KioskVoiceListenResult(
+      text: body['text'] as String? ?? '',
+      reason: body['reason'] as String? ?? 'error',
+      proposal: KioskIntentProposal.tryParse(body['proposal']),
+    );
   }
 
   /// POST /intent/proposals/{id}/resolve — 먼저 정한 쪽만 된다. 폰이 먼저 정했거나 시간이 지났으면 409([KioskApiException]).

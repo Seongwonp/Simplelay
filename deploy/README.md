@@ -16,6 +16,7 @@
 | [`act-v3.env.example`](act-v3.env.example) | RPi4 env에 합칠 등록 ID 결속 예시(비밀값 없음) | RPi4 |
 | [`kiosk_watchdog.py`](kiosk_watchdog.py) · [`run_kiosk_watchdog.sh`](run_kiosk_watchdog.sh) | 키오스크 앱 부팅 자동 실행·감시(꺼지면 다시 켬). 버스 이름·앱 ID는 보드 env에만 둔다 | RPi5 |
 | [`run_netfix.sh`](run_netfix.sh) | 재부팅 뒤 기본 경로가 Wi-Fi(wlan0)가 아니면 wlan0 기본 경로만 앞세운다(15초마다 확인, 다른 경로는 안 지움). [런북 §5-5-1](../docs/결선-운영-런북.md) | RPi5 |
+| `run_stt.sh` · `stt/stt_server.py` | 호스트 마이크와 whisper.cpp를 쓰는 키오스크 말하기 서버. 컨테이너는 `nsenter`로 호스트 서버를 실행한다 | RPi5 |
 
 ## 절차 (2026-10-15 현행)
 
@@ -29,6 +30,16 @@
 7. **확인:** 허브 재시작 → `/health/detail` 준비 확인 → 실행·정지 확인. 준비 전에는 실행하지 않는다(런북 §5-2).
 
 **같은 커밋으로 배포한다.** RPi4·RPi5(·폰·키오스크)가 다른 커밋이면 자동 실행이 늘 보류되고 정지 보고가 '보냄'에 머문다.
+
+## 키오스크 말하기
+
+RPi5에서 `sh deploy/run_stt.sh`를 한 번 실행하면 `simplelay-stt` 컨테이너가 재부팅 뒤에도 다시 뜬다. 서버는 호스트의 `127.0.0.1:8091`에만 바인딩한다.
+
+- `SIMPLELAY_STT_MODEL`: 호스트 whisper.cpp 모델 경로. 기본값은 `/mnt/rawdata/simplelay/stt/ggml-base-q8_0.bin`.
+- `SIMPLELAY_STT_SOURCE`: PulseAudio 입력 이름. 비우면 기본 입력을 쓴다.
+- 백엔드의 `SIMPLELAY_STT_URL`: STT 서버 주소. 기본값은 `http://127.0.0.1:8091`; `off`면 말하기를 끈다.
+
+배포 스크립트가 `deploy/stt/stt_server.py`를 `/mnt/rawdata/simplelay/stt/stt_server.py`로 복사한다. 녹음 파일은 요청마다 임시 폴더에 만들고 응답 전에 지운다.
 
 ## 키오스크 앱
 

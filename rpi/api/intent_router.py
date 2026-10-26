@@ -50,14 +50,19 @@ def _propose(text, config, service, registry, nodes):
 @router.post('/intent/understand')
 async def intent_understand(body: UnderstandRequest, service=Depends(get_service),
                            registry=Depends(get_appliance_registry), nodes=Depends(get_node_registry)):
+    return await understand_text(body.text, service, registry, nodes)
+
+
+async def understand_text(text, service, registry, nodes):
+    """휴대폰과 키오스크가 함께 쓰는 이해 → 확인 질문 생성 흐름."""
     config = LlmIntentConfig.from_env()
     if not config.url:
         return unknown('off')
-    result = await asyncio.to_thread(_propose, body.text, config, service, registry, nodes)
+    result = await asyncio.to_thread(_propose, text, config, service, registry, nodes)
     if result.get('understood') and result.get('action'):
         # 키오스크도 같은 질문을 띄울 수 있게 60초 동안 둔다. 실행은 하지 않는다(먼저 고른 클라이언트가 실행).
         proposal = get_proposal_store().add(result['question'], result['label'], result['action'])
-        result = {**result, 'proposal_id': proposal.id}
+        result = {**result, 'proposal_id': proposal.id, 'proposal': _view(proposal)}
     return result
 
 

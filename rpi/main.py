@@ -227,6 +227,8 @@ async def _unknown_appliance(_request: Request, exc: UnknownApplianceError):
 # 허용하고, 명시적 SIMPLELAY_ALLOW_UNAUTHENTICATED=1일 때만 개방 (auth.py 참고).
 # /health(아래, 생존·버전만)와 /ui는 의도적으로 키 없이 개방. 상세(/health/detail)는 키 필요.
 app.include_router(router, dependencies=[Depends(require_api_key)])
+from rpi.api.voice_router import router as voice_router
+app.include_router(voice_router, dependencies=[Depends(require_api_key)])
 from rpi.api.simulator_router import router as simulator_router
 app.include_router(simulator_router, dependencies=[Depends(require_api_key)])
 # 실모드 디지털 트윈(/twin) -- 화면·스크립트는 /ui처럼 키 없이, 상태·재생 목록은 키 필요.

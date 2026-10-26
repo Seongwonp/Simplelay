@@ -23,11 +23,15 @@ class KioskFeaturedAction extends StatelessWidget {
     this.blockedReason,
     this.onHelp,
     this.helpInBanner = false,
+    this.onVoice,
+    this.voiceNotice,
   });
 
   /// 위 안내 띠가 이미 '해결 방법 보기'를 보이고 있나(연결 문제 띠). 그러면 막힌 카드는 같은 단추를 되풀이하지 않고
   /// '지금은 쓸 수 없어요'만 적는다 — 카드를 누르면 여전히 [onHelp](같은 안내)를 연다(첫 사용 평가 4차 10/24: 같은 단추 둘).
   final bool helpInBanner;
+  final VoidCallback? onVoice;
+  final String? voiceNotice;
 
   final KioskRoutine routine;
   final ApplianceMap appliance;
@@ -96,11 +100,28 @@ class KioskFeaturedAction extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('무엇을 할까요?',
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: headSize, height: 1.25, fontWeight: FontWeight.w700, color: KioskColors.ink)),
+        Row(children: [
+          Expanded(child: Text(voiceNotice ?? '무엇을 할까요?',
+              key: voiceNotice == null ? null : const ValueKey('kiosk-voice-notice'),
+              maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: headSize, height: 1.25, fontWeight: FontWeight.w700,
+                  color: voiceNotice == null ? KioskColors.ink : KioskColors.warning))),
+          Semantics(
+            button: true,
+            label: '말하기',
+            child: GestureDetector(
+              key: const ValueKey('kiosk-voice-button'),
+              onTap: onVoice,
+              behavior: HitTestBehavior.opaque,
+              // 좁은 화면에서도 제목을 밀어내거나 높이를 늘리지 않도록 작은 마이크만 둔다(10/27).
+              child: SizedBox(
+                width: 32,
+                height: headSize * 1.25,
+                child: Center(child: Text('🎤', style: TextStyle(fontSize: KioskType.caption))),
+              ),
+            ),
+          ),
+        ]),
         const SizedBox(height: headGap),
         Semantics(
           button: true,

@@ -49,6 +49,10 @@ class FakeKioskApi implements KioskApiService {
   List<KioskIntentProposal> voiceProposals = [];
   final voiceResolves = <(String, bool)>[];
   Object? voiceResolveError;
+  KioskVoiceListenResult voiceListenResult = const KioskVoiceListenResult(text: '', reason: 'no_speech');
+  Completer<KioskVoiceListenResult>? voiceListenPending;
+  @override
+  Future<KioskVoiceListenResult> listenVoice() async => voiceListenPending?.future ?? voiceListenResult;
   @override
   Future<List<KioskIntentProposal>> intentProposals() async => voiceProposals;
   @override
