@@ -1,0 +1,12 @@
+{"id": "ho01", "group": "indirect", "text": "방 공기가 좀 탁한 것 같아", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho02", "group": "indirect", "text": "생선 구운 냄새가 안 빠져", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho03", "group": "indirect", "text": "공기청정기 소리 때문에 잠이 안 와", "expect": "action", "accept": ["공기청정기 바람 세기 약", "공기청정기 운전 모드 수면"], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho04", "group": "indirect", "text": "바람 좀 더 세게 나오게 해 줘", "expect": "action", "accept": ["공기청정기 바람 세기 강"], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho05", "group": "direct", "text": "공기청정기 좀 꺼 줄래", "expect": "action", "accept": ["공기청정기 전원 끄기"], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho06", "group": "negation", "text": "아까 공기청정기 틀어 놨어", "expect": "none", "accept": [], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho07", "group": "negation", "text": "공기청정기는 안 틀어도 될 것 같아", "expect": "none", "accept": [], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho08", "group": "out_of_list", "text": "선풍기 좀 켜 줘", "expect": "none", "accept": [], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho09", "group": "out_of_list", "text": "보일러 온도 올려 줘", "expect": "none", "accept": [], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho10", "group": "out_of_list", "text": "가습기 틀어 줘", "expect": "none", "accept": [], "note": "규칙 작성 뒤 새로 쓴 문장"}
+{"id": "ho11", "group": "out_of_list", "text": "창문 좀 열어 줘", "expect": "none", "accept": [], "note": "규칙 작성 뒤 새로 쓴 문장 — 표에 없는 대상(창문)"}
+{"id": "ho12", "group": "out_of_list", "text": "로봇청소기 돌려 줘", "expect": "none", "accept": [], "note": "규칙 작성 뒤 새로 쓴 문장"}

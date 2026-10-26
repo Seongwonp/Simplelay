@@ -10,6 +10,7 @@ import time
 from dataclasses import dataclass
 from urllib.request import Request, urlopen
 
+from rpi.intent.llm_guard import post_check, pre_guard
 from rpi.intent.normalize import normalize_utterance, refuses_matching
 from rpi.josa import josa, with_josa
 
@@ -179,8 +180,11 @@ def http_transport(url, body, timeout):
         return json.loads(response.read(65537))
 
 
-def unknown(source):
-    return dict(understood=False, action=None, label=None, question=None, source=source)
+def unknown(source, reason=None):
+    result = dict(understood=False, action=None, label=None, question=None, source=source)
+    if reason:  # 규칙이 거른 까닭(out_of_list·already_done·no_need·contradiction) — 화면 문구용 아님.
+        result['reason'] = reason
+    return result
 
 
 def understand(text, choices, config, transport=None):
@@ -196,6 +200,13 @@ def understand(text, choices, config, transport=None):
     source = 'rules'
     selected = matches[0] if matches else None
     if selected is None:
+        # 모델 앞 규칙 거르기(llm_guard): 목록 밖 기기·이미 함·필요 없음은 '고르지 않음', 뻔한 값은 규칙이 고른다.
+        guard = pre_guard(text, choices)
+        if guard is not None and guard[0] == 'none':
+            return unknown('rules', guard[1])
+        if guard is not None:
+            selected = guard[1]
+    if selected is None:
         start = time.monotonic()
         try:
             reply = (transport or http_transport)(config.url + '/invoke', {
@@ -208,6 +219,9 @@ def understand(text, choices, config, transport=None):
         finally:
             log.info('intent selection choices=%d latency_ms=%d', len(choices), (time.monotonic() - start) * 1000)
         source = 'llm'
+        # 모델 뒤 확인: 고른 동작이 문장과 어긋나면(켜기 ↔ 끄는 말 등) 버린다.
+        if selected is not None and post_check(text, selected):
+            return unknown(source, 'contradiction')
     if selected is None:
         return unknown(source)
     return dict(understood=True, action=selected.action, label=selected.label,
