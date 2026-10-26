@@ -104,8 +104,17 @@ if [ -S /var/run/pulse/native ]; then
   AUDIO_ARGS="-v /var/run/pulse/native:/run/pulse-host/native -e PULSE_SERVER=unix:/run/pulse-host/native"
 fi
 
+# DNS(2026-10-26) — 보드의 /etc/resolv.conf는 connman 파일을 가리키는데 재부팅 뒤 그 파일이 없을 때가 있어(끊어진 링크)
+# 컨테이너 resolv.conf가 비고 날씨·ThinQ 이름 풀이가 안 됐다. 보드의 이름 풀이 서비스(로컬 스텁)가 있으면 그쪽을 쓴다.
+# --network host에서도 --dns가 먹는 것을 보드에서 확인했다(일회용 컨테이너, 같은 이미지).
+DNS_ARGS=
+if [ -f /run/systemd/resolve/stub-resolv.conf ]; then
+  DNS_ARGS="--dns 127.0.0.53"
+fi
+
 docker run -d --name simplelay-backend \
   --restart always \
+  $DNS_ARGS \
   --security-opt apparmor=unconfined \
   -v /run/dbus/system_bus_socket:/run/dbus/system_bus_socket \
   -v "$DATA_DIR":/data \

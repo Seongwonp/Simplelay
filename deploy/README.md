@@ -15,6 +15,7 @@
 | [`run_act.sh`](run_act.sh) | 실행기 컨테이너 기동(`rpi4.act_main`). 컨테이너 안 socat이 TCP 7000을 가상 시리얼로 바꾼다. env에 적힌 모션·콘센트 USB 장치를 넘긴다 | RPi4 |
 | [`act-v3.env.example`](act-v3.env.example) | RPi4 env에 합칠 등록 ID 결속 예시(비밀값 없음) | RPi4 |
 | [`kiosk_watchdog.py`](kiosk_watchdog.py) · [`run_kiosk_watchdog.sh`](run_kiosk_watchdog.sh) | 키오스크 앱 부팅 자동 실행·감시(꺼지면 다시 켬). 버스 이름·앱 ID는 보드 env에만 둔다 | RPi5 |
+| [`run_netfix.sh`](run_netfix.sh) | 재부팅 뒤 기본 경로가 Wi-Fi(wlan0)가 아니면 wlan0 기본 경로만 앞세운다(15초마다 확인, 다른 경로는 안 지움). [런북 §5-5-1](../docs/결선-운영-런북.md) | RPi5 |
 
 ## 절차 (2026-10-15 현행)
 
