@@ -27,7 +27,7 @@ import math
 import os
 from collections.abc import Callable
 
-from .developer_session import MAX_JOG_MM, DevAdapterRefused, DevAxis
+from .developer_session import MAX_JOG_MM, DevAdapterRefused, DevAxis, board_report
 
 log = logging.getLogger(__name__)
 
@@ -73,9 +73,12 @@ def real_max_step_from_env() -> float:
 class DevAdapterFailed(RuntimeError):
     """움직였을 수 있는 실패(알람·기한 초과·링크 끊김). 매니저가 정지로 정리하고 ``detail``을 덧붙인다."""
 
-    def __init__(self, detail: str) -> None:
+    def __init__(self, detail: str, *, code: str | None = None, board: dict | None = None) -> None:
         super().__init__(detail)
         self.detail = detail
+        #: RPi4가 밝힌 실패 이름(motion_alarm 등)과 보드 답(`board_report`) — 개발자 기록용(2026-10-26).
+        self.code = code
+        self.board = board
 
 
 class ActDevMotionAdapter:
@@ -176,9 +179,10 @@ class ActDevMotionAdapter:
             return reply
         reason = reply.get("reason") if isinstance(reply.get("reason"), str) else "refused"
         detail = reply.get("detail") if isinstance(reply.get("detail"), str) else reason
+        board = board_report(reply)
         if reply.get("moved") is False:
-            raise DevAdapterRefused(reason, detail)
-        raise DevAdapterFailed(f"{reason}: {detail}")
+            raise DevAdapterRefused(reason, detail, board=board)
+        raise DevAdapterFailed(f"{reason}: {detail}", code=reason, board=board)
 
     def jog(self, axis: DevAxis, direction: int, amount_mm: float, ttl_s: float) -> dict[str, float]:
         # ttl_s는 쓰지 않는다 — 실물 조그는 상한으로 묶인 절대 목표 한 번이다(머리말).
@@ -188,7 +192,8 @@ class ActDevMotionAdapter:
         delta = amount_mm if direction > 0 else -amount_mm
         reply = self._call(link, "jog", MOVE_TIMEOUT_S, axis=axis.value, delta_mm=delta)
         position = {}
-        for key in ("x_mm", "y_mm"):
+        # 목표·오차는 매니저가 개발자 기록으로 옮기고 화면 응답에서는 뺀다(2026-10-26).
+        for key in ("x_mm", "y_mm", "target_x_mm", "target_y_mm", "error_mm"):
             value = reply.get(key)
             if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
                 position[key] = float(value)

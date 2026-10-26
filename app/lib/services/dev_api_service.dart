@@ -10,11 +10,14 @@ import 'package:http/http.dart' as http;
 /// 문구를 잘라 쓰면 문구가 바뀔 때 조용히 깨진다. 서버에 닿지 않은 경우는
 /// statusCode 0, code `network`다.
 class DevApiException implements Exception {
-  DevApiException(this.statusCode, this.code, this.message);
+  DevApiException(this.statusCode, this.code, this.message, {this.boardState});
 
   final int statusCode;
   final String code;
   final String message;
+
+  /// 모션 보드가 보낸 상태 이름(예: `ERROR_LIMIT`, 2026-10-26). 서버가 알 때만.
+  final String? boardState;
 
   bool get isNetwork => statusCode == 0;
 
@@ -152,6 +155,9 @@ class DevLogLine {
     required this.event,
     required this.detail,
     this.requestId,
+    this.command,
+    this.code,
+    this.board = const {},
   });
 
   final DateTime at;
@@ -159,12 +165,44 @@ class DevLogLine {
   final String detail;
   final String? requestId;
 
-  factory DevLogLine.fromJson(Map<String, dynamic> json) => DevLogLine(
-        at: DateTime.parse(json['at'] as String).toLocal(),
-        event: json['event'] as String,
-        detail: json['detail'] as String,
-        requestId: json['request_id'] as String?,
-      );
+  /// 보낸 명령(정규화, 예: `jog y + 1`). 명령 기록이 아니면 null(2026-10-26).
+  final String? command;
+
+  /// 거절·실패 코드(`soft_limit` 등).
+  final String? code;
+
+  /// 보드 답: `target_x_mm`·`target_y_mm`·`x_mm`·`y_mm`·`error_mm`(숫자),
+  /// `reached`(참/거짓), `board_state`(예: `ERROR_LIMIT`).
+  final Map<String, Object> board;
+
+  double? boardNumber(String key) {
+    final v = board[key];
+    return v is num ? v.toDouble() : null;
+  }
+
+  String? get boardState =>
+      board['board_state'] is String ? board['board_state'] as String : null;
+
+  factory DevLogLine.fromJson(Map<String, dynamic> json) {
+    final raw = json['board'];
+    final board = <String, Object>{};
+    if (raw is Map) {
+      raw.forEach((k, v) {
+        if (k is String && (v is num || v is bool || v is String)) {
+          board[k] = v as Object;
+        }
+      });
+    }
+    return DevLogLine(
+      at: DateTime.parse(json['at'] as String).toLocal(),
+      event: json['event'] as String,
+      detail: json['detail'] as String,
+      requestId: json['request_id'] as String?,
+      command: json['command'] as String?,
+      code: json['code'] as String?,
+      board: board,
+    );
+  }
 }
 
 /// `/dev/*` 클라이언트. 일반 조작(`RpiApiService`)과 분리한 이유: 권한이
@@ -239,6 +277,9 @@ class DevApiService {
         res.statusCode,
         detail['code'] as String? ?? 'http_${res.statusCode}',
         detail['message'] as String? ?? '요청이 거절되었어요',
+        boardState: detail['board_state'] is String
+            ? detail['board_state'] as String
+            : null,
       );
     }
     throw DevApiException(

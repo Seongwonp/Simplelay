@@ -37,6 +37,10 @@ class _FakeDevServer {
   String? stopPhase;
   bool commandExpires = false;
   Map<String, dynamic>? commandSensor;
+  // 2026-10-26: 명령 거절(detail)과 /dev/log 응답(최신 먼저).
+  Map<String, dynamic>? commandError;
+  int commandErrorStatus = 422;
+  List<Map<String, dynamic>> logEntries = [];
   String sessionId = 's1';
   int sessionCount = 0;
   final gates = <String, Completer<void>>{};
@@ -108,6 +112,10 @@ class _FakeDevServer {
           }, 410);
         }
         final command = jsonDecode(request.body) as Map<String, dynamic>;
+        final error = commandError;
+        if (error != null) {
+          return _json({'detail': error}, commandErrorStatus);
+        }
         return _json({
           'accepted': true,
           'request_id': 'r',
@@ -135,7 +143,7 @@ class _FakeDevServer {
           if (stopLevel != null) 'stop_ack_ms': stopAckMs,
         });
       case '/dev/log':
-        return _json([]);
+        return _json(logEntries);
     }
     return _json({
       'detail': {'code': 'not_found', 'message': '?'},
@@ -767,6 +775,126 @@ void main() {
     await tester.pump();
     expect(find.text('멈추라고 보냈어요. 멈췄는지는 아직 확인하지 못했어요'), findsOneWidget);
     expect(find.text('정지를 확인했어요'), findsNothing);
+    await _close(tester);
+  });
+
+  // ── 2026-10-26: 보드 범위 거절 문장·기록 줄 ─────────────────────────────
+
+  testWidgets('보드가 범위 밖이라 거절하면 시간 초과가 아니라 쉬운 문장으로 말한다', (tester) async {
+    final server = _realServer()
+      ..commandError = {
+        'code': 'soft_limit',
+        'message': '움직이기 전에 거절되었어요: Touch Bridge ERROR_LIMIT: ',
+        'request_id': 'r',
+        'board_state': 'ERROR_LIMIT',
+      };
+    await _open(tester, server);
+    await _startSession(tester);
+    await tester.ensureVisible(find.widgetWithText(OutlinedButton, 'y −'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'y −'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('움직일 수 있는 범위 밖이라 보드가 거절했어요'), findsOneWidget);
+    expect(find.textContaining('Touch Bridge'), findsNothing);
+    expect(find.text('서버 응답을 확인하지 못했어요'), findsNothing);
+    await _close(tester);
+  });
+
+  testWidgets('움직인 뒤 보드 알람은 쉬운 문장과 정지를 보냈다는 말을 함께 보인다', (tester) async {
+    final server = _realServer()
+      ..commandErrorStatus = 502
+      ..commandError = {
+        'code': 'command_error',
+        'message': '명령 전달 중 오류가 나 안전을 위해 정지를 보냈습니다',
+        'request_id': 'r',
+        'board_state': 'ERROR_STALL',
+      };
+    await _open(tester, server);
+    await _startSession(tester);
+    await tester.ensureVisible(find.widgetWithText(OutlinedButton, 'x +'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'x +'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('모터가 막혀 보드가 멈췄어요 — 안전을 위해 정지를 보냈어요'), findsOneWidget);
+    await _close(tester);
+  });
+
+  testWidgets('기록은 보낸 명령과 보드 답을 시간과 함께 보낸 순서로 보인다', (tester) async {
+    final server = _realServer()
+      ..logEntries = [
+        // 서버는 최신 먼저 준다.
+        {
+          'at': '2026-10-26T05:00:09Z',
+          'event': 'command_rejected',
+          'request_id': 'p2',
+          'session_id': 's1',
+          'appliance_id': kTestAppliance.id,
+          'detail': '움직이기 전에 거절되었어요: Touch Bridge ERROR_LIMIT: ',
+          'mock': false,
+          'command': 'jog y + 5',
+          'code': 'soft_limit',
+          'board': {
+            'board_state': 'ERROR_LIMIT',
+            'target_x_mm': 2.0,
+            'target_y_mm': 9.96,
+          },
+        },
+        {
+          'at': '2026-10-26T05:00:05Z',
+          'event': 'command_accepted',
+          'request_id': 'p1',
+          'session_id': 's1',
+          'appliance_id': kTestAppliance.id,
+          'detail': 'jog x + 2',
+          'mock': false,
+          'command': 'jog x + 2',
+          'code': null,
+          'board': {
+            'target_x_mm': 2.0,
+            'target_y_mm': 0.0,
+            'x_mm': 2.0,
+            'y_mm': 0.0,
+            'error_mm': 0.06,
+            'reached': true,
+          },
+        },
+        {
+          'at': '2026-10-26T05:00:01Z',
+          'event': 'session_started',
+          'request_id': null,
+          'session_id': 's1',
+          'appliance_id': kTestAppliance.id,
+          'detail': 'node=phone-console',
+          'mock': false,
+        },
+      ];
+    await _open(tester, server);
+    final refresh = find.widgetWithText(TextButton, '기록 새로고침');
+    await tester.ensureVisible(refresh);
+    await tester.tap(refresh);
+    await tester.pump();
+    await tester.pump();
+
+    final sent = find.textContaining('→ 이동 (x 2.0, y 0.0)');
+    final arrived = find.textContaining('← 도착 (2.00, 0.00) 오차 0.06');
+    final refusedSent = find.textContaining('→ 이동 (x 2.0, y 10.0)');
+    final refused = find.textContaining('← 범위 밖이라 거절(ERROR_LIMIT)');
+    for (final f in [sent, arrived, refusedSent, refused]) {
+      expect(f, findsOneWidget);
+    }
+    expect(find.textContaining('· 세션 시작'), findsOneWidget);
+    // 보낸 순서(오래된 것 먼저): 보냄 → 도착 → 보냄 → 거절.
+    final ys = [
+      for (final f in [sent, arrived, refusedSent, refused])
+        tester.getTopLeft(f).dy,
+    ];
+    expect(ys, [...ys]..sort());
+    // 시각은 명령의 첫 줄에 붙는다(지역 시각).
+    final t = DateTime.parse('2026-10-26T05:00:05Z').toLocal();
+    final hms = '${t.hour.toString().padLeft(2, '0')}:'
+        '${t.minute.toString().padLeft(2, '0')}:'
+        '${t.second.toString().padLeft(2, '0')}';
+    expect(find.text('$hms  → 이동 (x 2.0, y 0.0)'), findsOneWidget);
     await _close(tester);
   });
 }

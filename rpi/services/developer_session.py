@@ -48,6 +48,7 @@ API 경로는 rpi/api/dev_router.py, 폰 화면은 app/lib/screens/developer_con
 from __future__ import annotations
 
 import logging
+import math
 import re
 import threading
 import time
@@ -178,10 +179,36 @@ class DevAdapterRefused(RuntimeError):
     움직이지 않았으므로 매니저는 정지를 따로 보내지 않고 세션을 유지한다.
     """
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, *, board: dict | None = None) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
+        #: 보드 답에서 읽은 것(목표·위치·보드 상태 이름 등, `board_report`). 기록·화면용 — 판정에 쓰지 않는다.
+        self.board = board
+
+
+#: 실물 조그 답에서 개발자 기록으로 옮기는 값(2026-10-26). 화면 응답의 sensor에는 남기지 않는다.
+BOARD_REPORT_FLOAT_KEYS = ("target_x_mm", "target_y_mm", "x_mm", "y_mm", "error_mm")
+
+
+def board_report(reply: object) -> dict | None:
+    """RPi4 답(또는 실물 조그 결과)에서 기록에 남길 값만 골라낸다. 비밀값은 애초에 없고, 허용한 키만 옮긴다."""
+    if not isinstance(reply, dict):
+        return None
+    out: dict = {}
+    for key in BOARD_REPORT_FLOAT_KEYS:
+        value = reply.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+            out[key] = round(float(value), 3)
+    state = reply.get("board_state")
+    if isinstance(state, str) and state.isascii() and 0 < len(state) <= 32:
+        out["board_state"] = state
+    reached = reply.get("reached")
+    if isinstance(reached, bool):
+        out["reached"] = reached
+    elif isinstance(reached, (int, float)):
+        out["reached"] = reached != 0
+    return out or None
 
 
 class MotionAdapter(Protocol):
@@ -285,6 +312,12 @@ class DevLogEntry:
     appliance_id: str | None
     detail: str
     mock: bool
+    #: 보낸 명령(정규화, 예: ``jog y + 1``) — 명령 기록일 때만(2026-10-26).
+    command: str | None = None
+    #: 거절·실패 코드(``soft_limit`` 등).
+    code: str | None = None
+    #: 보드 답에서 읽은 값(`board_report`).
+    board: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -299,6 +332,13 @@ class DevResult:
     #: invalid_command · session_expired · wrong_target · unknown_button ·
     #: not_calibrated · stopped · stop_race · command_error · stop_unconfirmed
     code: str | None = None
+    #: 모션 보드가 보낸 상태 이름(Touch Bridge ``ERROR_LIMIT`` 등, 2026-10-26). 화면이 쉬운 문장으로 바꾼다.
+    board_state: str | None = None
+
+
+def _board_state_of(board: object) -> str | None:
+    state = board.get("board_state") if isinstance(board, dict) else None
+    return state if isinstance(state, str) else None
 
 
 # 화면·API가 보는 제어 국면. 판정에 쓰지 않는다 -- 제어권 판정은
@@ -692,7 +732,7 @@ class DeveloperSessionManager:
             if session is None or session.session_id != session_id:
                 return self._reject_locked(
                     request_id, "열린 개발자 세션이 아닙니다", appliance_id,
-                    code="session_expired",
+                    code="session_expired", command=command.normalized(),
                 )
             # 매 명령마다 대상을 다시 확인한다 -- 다른 가전을 움직이는 사고를 막는다.
             if session.appliance_id != appliance_id:
@@ -700,7 +740,7 @@ class DeveloperSessionManager:
                     request_id,
                     "세션의 대상 가전과 다릅니다",
                     appliance_id,
-                    code="wrong_target",
+                    code="wrong_target", command=command.normalized(),
                 )
             if (
                 command.kind is DevCommandKind.JOG
@@ -710,7 +750,7 @@ class DeveloperSessionManager:
                     request_id,
                     f"한 번에 {self.max_jog_mm:g}mm까지만 움직여요",
                     appliance_id,
-                    code="step_too_large",
+                    code="step_too_large", command=command.normalized(),
                 )
             if command.kind is DevCommandKind.PRESS:
                 if self._known_button is not None and not self._known_button(
@@ -720,14 +760,14 @@ class DeveloperSessionManager:
                         request_id,
                         f"이 가전에 등록되지 않은 버튼입니다: {command.button_id}",
                         appliance_id,
-                        code="unknown_button",
+                        code="unknown_button", command=command.normalized(),
                     )
                 if not self._is_calibrated(appliance_id):
                     return self._reject_locked(
                         request_id,
                         "버튼 위치 보정이 끝나지 않은 가전은 누를 수 없습니다",
                         appliance_id,
-                        code="not_calibrated",
+                        code="not_calibrated", command=command.normalized(),
                     )
             epoch = self._epoch
 
@@ -758,6 +798,8 @@ class DeveloperSessionManager:
                     request_id, appliance_id, epoch, command,
                     sensor=None, dispatch_failed=True,
                     failure_detail=getattr(exc, "detail", None),
+                    failure_code=getattr(exc, "code", None),
+                    failure_board=getattr(exc, "board", None),
                 )
             return self._settle_after_dispatch(
                 request_id, appliance_id, epoch, command,
@@ -781,8 +823,10 @@ class DeveloperSessionManager:
             if not stale:
                 self._record(
                     "command_rejected", request_id,
-                    f"{command.normalized()}: {exc.code}",
+                    exc.message or exc.code,
                     appliance_id=appliance_id,
+                    command=command.normalized(), code=exc.code,
+                    board=exc.board if isinstance(exc.board, dict) else None,
                 )
         if stale:
             return self._settle_after_dispatch(
@@ -791,7 +835,8 @@ class DeveloperSessionManager:
             )
         return self._finish_settle(
             DevResult(False, request_id, normalized=command.normalized(),
-                      reason=exc.message, code=exc.code)
+                      reason=exc.message, code=exc.code,
+                      board_state=_board_state_of(exc.board))
         )
 
     def _settle_after_dispatch(
@@ -804,6 +849,8 @@ class DeveloperSessionManager:
         sensor: dict[str, float] | None,
         dispatch_failed: bool,
         failure_detail: str | None = None,
+        failure_code: str | None = None,
+        failure_board: dict | None = None,
     ) -> DevResult:
         """모든 디스패치의 단일 종착점 -- 정상 반환·예외 공통.
 
@@ -821,6 +868,11 @@ class DeveloperSessionManager:
         # _inflight=True를 보고 반납을 이쪽에 위임해야 한다 -- 안 그러면
         # 정리 stop이 어댑터 안에 살아 있는 채로 제어권이 넘어간다.
         # _inflight 해제와 위임 소비는 마지막의 _finish_settle이 한다.
+        board = None if self._adapter_is_mock() else board_report(sensor)
+        if sensor is not None:
+            # 목표·오차는 기록으로만 — 화면 응답의 sensor는 종전 모양(x_mm·y_mm·reached 등)을 지킨다.
+            sensor = {k: v for k, v in sensor.items()
+                      if k not in ("target_x_mm", "target_y_mm", "error_mm")}
         with self._lock:
             stale = self._epoch != epoch
             if not stale and not dispatch_failed:
@@ -829,6 +881,17 @@ class DeveloperSessionManager:
                     request_id,
                     command.normalized(),
                     appliance_id=appliance_id,
+                    command=command.normalized(), board=board,
+                )
+            elif not stale:
+                # 움직였을 수 있는 실패 — 아래 정리 정지보다 먼저, 보낸 명령과 보드 답을 남긴다.
+                self._record(
+                    "command_failed",
+                    request_id,
+                    failure_detail or "명령 전달 중 오류",
+                    appliance_id=appliance_id,
+                    command=command.normalized(), code=failure_code,
+                    board=failure_board if isinstance(failure_board, dict) else None,
                 )
         if not stale and not dispatch_failed:
             return self._finish_settle(
@@ -876,6 +939,7 @@ class DeveloperSessionManager:
                     False, request_id,
                     reason=reason,
                     code="command_error",
+                    board_state=_board_state_of(failure_board),
                 )
             )
         # 명령 결과도, 정지도 확인하지 못했다 -- 장치 잠금. 세션 폐기는
@@ -1142,19 +1206,20 @@ class DeveloperSessionManager:
 
     def _reject(
         self, request_id: str, reason: str, appliance_id: str | None,
-        *, code: str,
+        *, code: str, command: str | None = None,
     ) -> DevResult:
         with self._lock:
             return self._reject_locked(
-                request_id, reason, appliance_id, code=code
+                request_id, reason, appliance_id, code=code, command=command
             )
 
     def _reject_locked(
         self, request_id: str, reason: str, appliance_id: str | None,
-        *, code: str,
+        *, code: str, command: str | None = None,
     ) -> DevResult:
         self._record(
-            "command_rejected", request_id, reason, appliance_id=appliance_id
+            "command_rejected", request_id, reason, appliance_id=appliance_id,
+            command=command, code=code,
         )
         return DevResult(False, request_id, reason=reason, code=code)
 
@@ -1166,6 +1231,9 @@ class DeveloperSessionManager:
         *,
         session: DevSession | None = None,
         appliance_id: str | None = None,
+        command: str | None = None,
+        code: str | None = None,
+        board: dict | None = None,
     ) -> None:
         current = session if session is not None else self._session
         self._log.append(
@@ -1178,5 +1246,11 @@ class DeveloperSessionManager:
                 or (current.appliance_id if current else None),
                 detail=detail,
                 mock=bool(getattr(self._adapter, "is_mock", False)),
+                command=command,
+                code=code,
+                board=dict(board) if board else None,
             )
         )
+
+    def _adapter_is_mock(self) -> bool:
+        return bool(getattr(self._adapter, "is_mock", False))

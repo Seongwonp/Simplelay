@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/appliance.dart';
 import '../models/command_result.dart'
     show stopLevelConfirmed, stopLevelSentence;
+import '../models/developer_history.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/dev_api_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -454,7 +455,19 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     }
   }
 
-  String _describe(DevApiException e) => switch (e.code) {
+  String _describe(DevApiException e) {
+    // 모션 보드가 상태 이름(ERROR_LIMIT 등)을 보냈으면 그것을 쉬운 문장으로(2026-10-26).
+    final board = devBoardStateSentence(e.boardState) ??
+        devBoardCodeSentence(e.code);
+    if (board != null) {
+      return e.code == 'command_error'
+          ? '$board — 안전을 위해 정지를 보냈어요'
+          : board;
+    }
+    return _describeCode(e);
+  }
+
+  String _describeCode(DevApiException e) => switch (e.code) {
         'network' => '서버 응답을 확인하지 못했어요',
         'dev_mode_disabled' => '서버에서 개발자 모드가 꺼져 있어요',
         'dev_token_not_configured' => '서버에 개발자 토큰이 설정되지 않았어요',
@@ -774,16 +787,23 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                   style: TextStyle(
                       color: context.appMuted, fontSize: AppFont.caption))
             else
-              for (final line in _log)
+              // 서버는 최신 먼저 준다 — 보낸 순서대로 읽히게 뒤집는다(2026-10-26).
+              for (final line in _log.reversed)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
-                  child: Text(
-                    '${_hms(line.at)}  ${line.event}  ${line.detail}',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: AppFont.caption,
-                      color: context.appOnSurfaceSoft,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final (i, row) in devHistoryRows(line).indexed)
+                        Text(
+                          '${i == 0 ? _hms(line.at) : '        '}  $row',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: AppFont.caption,
+                            color: context.appOnSurfaceSoft,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
             const SizedBox(height: AppSpace.md),

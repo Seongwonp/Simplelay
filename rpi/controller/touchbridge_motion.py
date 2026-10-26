@@ -272,6 +272,14 @@ class TouchBridgeMotionClient(GrblClient):
                 self._pending.pop(wire_id, None)
 
     def _raise_error(self, action: str, reply: dict, *, accepted: bool) -> None:
+        try:
+            self._raise_error_inner(action, reply, accepted=accepted)
+        except MotionError as exc:
+            # 보드가 보낸 상태 이름(ERROR_LIMIT 등)을 그대로 싣는다 — 개발자 기록·화면 문장이 쓴다(2026-10-26).
+            exc.board_state = reply["state"]
+            raise
+
+    def _raise_error_inner(self, action: str, reply: dict, *, accepted: bool) -> None:
         state, message = reply["state"], reply.get("message", "")
         self._note_reported_position(reply)
         if action == "press":

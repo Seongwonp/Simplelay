@@ -316,6 +316,13 @@ class DevLogEntryView(BaseModel):
     appliance_id: str | None
     detail: str
     mock: bool
+    #: 보낸 명령(정규화, 예: ``jog y + 1``). 명령 기록이 아니면 None(2026-10-26).
+    command: str | None = None
+    #: 거절·실패 코드(``soft_limit`` 등).
+    code: str | None = None
+    #: 보드 답(목표 ``target_x_mm``·``target_y_mm``, 위치 ``x_mm``·``y_mm``, ``error_mm``, ``reached``,
+    #: 보드 상태 이름 ``board_state``). 허용한 키만 — 비밀값 없음.
+    board: dict[str, float | bool | str] | None = None
 
 
 _ALLOWED_COMMANDS = [
@@ -398,14 +405,15 @@ _RESULT_STATUS: dict[str, int] = {
 def _raise_for_result(result: DevResult) -> None:
     code = result.code or "command_rejected"
     status = _RESULT_STATUS.get(code, 422)
-    raise HTTPException(
-        status_code=status,
-        detail={
-            "code": code,
-            "message": result.reason or "명령이 거절됐습니다",
-            "request_id": result.request_id,
-        },
-    )
+    detail = {
+        "code": code,
+        "message": result.reason or "명령이 거절됐습니다",
+        "request_id": result.request_id,
+    }
+    if result.board_state:
+        # 보드가 보낸 상태 이름(ERROR_LIMIT 등) — 화면이 쉬운 문장으로 바꾼다(2026-10-26).
+        detail["board_state"] = result.board_state
+    raise HTTPException(status_code=status, detail=detail)
 
 
 # ── 라우터 ──────────────────────────────────────────────────────────────────
@@ -586,6 +594,9 @@ def dev_log(
             appliance_id=e.appliance_id,
             detail=e.detail,
             mock=e.mock,
+            command=e.command,
+            code=e.code,
+            board=e.board,
         )
         for e in reversed(entries)
     ]

@@ -251,6 +251,10 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
   `z_jog_unsupported` · `soft_limit` · `press_mode_unsupported` · `press_too_long` · `motion_config` · `bad_args` ·
   MCU 거절(`z_cooldown` 등).
 - 개발자 조작이 진행 중이면 RPi4는 `execute`·`verify_pass`를 `error {reason:"dev_busy"}`로 거절한다(RPi5 중재자가 먼저 막는다).
+- (2026-10-26, 선택 필드) 조그 답에는 보낸 절대 목표 `target_x_mm`·`target_y_mm`, 성공이면 목표와 보고 위치의 거리
+  `error_mm`이 실린다. 모션 보드가 상태 이름을 보냈으면(Touch Bridge `ERROR_LIMIT`·`ERROR_STALL` 등) `board_state`로 싣는다.
+  RPi5는 이 값을 개발자 기록(`GET /dev/log`의 `command`·`code`·`board`)과 거절 응답 `detail.board_state`로 보인다.
+  조그 목표가 -0.1 mm 이상 0 미만(원점 반올림)이면 RPi4가 0으로 보낸다. 그보다 음수면 그대로 보내 보드의 범위 거절을 받는다.
 
 **정지 확인 단계(2026-10-13 — 개발자 조작 규약 2·정지 보고 규약 1, 가짜 MCU로만 시험, 실물 미검증).** 정지가 어디까지
 확인됐는지를 셋으로 나눠 올린다([계획](계획-정지-확인-2026-10-12.md)).

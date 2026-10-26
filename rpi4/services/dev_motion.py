@@ -51,6 +51,20 @@ DEV_JOG_STEP_CEILING_MM = 10.0
 DEV_PRESS_ON_MAX_MS = 800
 #: 이 접미사의 펌웨어에는 개발자 조작을 보내지 않는다(firmware-motion-corexy esp32dev_bringup).
 BRINGUP_FW_SUFFIX = "-bringup"
+#: 조그 목표가 이만큼(mm) 안쪽으로 음수면 0으로 보낸다(2026-10-26). 원점을 잡은 뒤 보드가 -0.04 같은 값을
+#: 보고하면 다른 축 목표가 음수가 돼 보드가 ERROR_LIMIT으로 거절했다. 이보다 더 음수면 그대로 보내 거절을 받는다.
+NEAR_ZERO_CLAMP_MM = 0.1
+
+
+def clamp_near_zero(value: float) -> float:
+    """-``NEAR_ZERO_CLAMP_MM`` 이상 0 미만이면 0, 아니면 그대로."""
+    return 0.0 if -NEAR_ZERO_CLAMP_MM <= value < 0 else value
+
+
+def _board_state(exc: BaseException) -> dict:
+    """모션 보드가 보낸 상태 이름(Touch Bridge ``ERROR_LIMIT`` 등)이 있으면 ``{"board_state": ...}``."""
+    state = getattr(exc, "board_state", None)
+    return {"board_state": state} if isinstance(state, str) and state else {}
 
 
 class _Refused(Exception):
@@ -71,6 +85,8 @@ class DevMotionService:
         #: 이번 조작 중에 정지가 왔나 — MCU가 대기 명령을 ``stopped``로 끝내면 어댑터는 알람으로 올리는데,
         #: 정지 요청의 결과면 '정지'로 답한다.
         self._stop_seen = threading.Event()
+        #: 이번 조그의 절대 목표(mm) — 답에 실어 허브 개발자 기록이 '무엇을 보냈나'를 보인다.
+        self._jog_target: tuple[float, float] | None = None
 
     @property
     def client(self) -> MotionClient:
@@ -106,6 +122,17 @@ class DevMotionService:
     def run(self, msg: DevMotionMsg) -> dict:
         """조작 한 번 → 답 필드(``ok`` 포함). 예외를 밖으로 내지 않는다."""
         self._stop_seen.clear()
+        self._jog_target = None
+        out = self._run_inner(msg)
+        target = self._jog_target
+        if target is not None:
+            out["target_x_mm"], out["target_y_mm"] = round(target[0], 3), round(target[1], 3)
+            x, y = out.get("x_mm"), out.get("y_mm")
+            if out.get("ok") and isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                out["error_mm"] = round(math.hypot(x - target[0], y - target[1]), 3)
+        return out
+
+    def _run_inner(self, msg: DevMotionMsg) -> dict:
         try:
             self._refuse_bringup()
             fields = self._run(msg)
@@ -119,7 +146,7 @@ class DevMotionService:
                     "detail": f"RPi4 모션 설정이 비어 있어 움직이지 않았어요: {exc}", "moved": False}
         except MotionRefused as exc:
             return {"ok": False, "reason": exc.code or "refused",
-                    "detail": f"움직이기 전에 거절되었어요: {exc}", "moved": False}
+                    "detail": f"움직이기 전에 거절되었어요: {exc}", "moved": False, **_board_state(exc)}
         except MotionStopped as exc:
             return {"ok": False, "reason": "stopped", "detail": f"정지 요청으로 멈췄어요: {exc}", "moved": None}
         except MotionReset as exc:
@@ -129,15 +156,17 @@ class DevMotionService:
             return {"ok": False, "reason": "position_mismatch", "detail": str(exc), "moved": None}
         except MotionTimeout as exc:
             return {"ok": False, "reason": "motion_timeout", "detail": f"모션 보드 응답이 늦어 멈췄어요: {exc}",
-                    "moved": None}
+                    "moved": None, **_board_state(exc)}
         except MotionAlarm as exc:
             if self._stop_seen.is_set():
-                return {"ok": False, "reason": "stopped", "detail": f"정지 요청으로 멈췄어요: {exc}", "moved": None}
+                return {"ok": False, "reason": "stopped", "detail": f"정지 요청으로 멈췄어요: {exc}", "moved": None,
+                        **_board_state(exc)}
             return {"ok": False, "reason": "motion_alarm", "detail": f"모션 보드에서 알람이 왔어요: {exc}",
-                    "moved": None}
+                    "moved": None, **_board_state(exc)}
         except (MotionError, OSError, RuntimeError, ValueError) as exc:
             log.exception("dev motion %s failed", msg.op)
-            return {"ok": False, "reason": "motion_error", "detail": f"조작 중 오류가 났어요: {exc}", "moved": None}
+            return {"ok": False, "reason": "motion_error", "detail": f"조작 중 오류가 났어요: {exc}", "moved": None,
+                    **_board_state(exc)}
         return {"ok": True, **fields}
 
     def _run(self, msg: DevMotionMsg) -> dict:
@@ -168,6 +197,9 @@ class DevMotionService:
         self._client.reset_stop()
         x0, y0 = self._current_xy("조그")
         x, y = (x0 + delta, y0) if msg.axis == "x" else (x0, y0 + delta)
+        # 원점 반올림(-0.04 등)만 0으로 — 더 음수인 목표는 그대로 보내 보드의 범위 거절을 받는다.
+        x, y = clamp_near_zero(x), clamp_near_zero(y)
+        self._jog_target = (x, y)
         jog_to = getattr(self._client, "jog_to", None)
         reached = jog_to(x, y) if callable(jog_to) else self._client.move_to(x, y)
         return {**self._position(query=False, fallback=(x, y)), "reached": reached is not False}
