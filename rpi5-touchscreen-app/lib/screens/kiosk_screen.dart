@@ -931,8 +931,11 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 화면 전체를 덮는 창(방해 금지·연결·설정)이 떠 있다 — 뒤 화면을 화면 읽기에서 뺀다(10/24 QA).
   bool get _overlayOpen => _showDnd || _showSettings || (_openConnectionId != null && _phase == KioskPhase.idle);
 
+  /// 휴대폰에서 말한 확인 질문(10/26)이 화면을 차지한 동안에도 숨긴다 — 탭을 눌러 질문을 피해 가지 않게(실패널 10/26).
+  /// 질문이 정해지거나 목록에서 빠지면 다시 보인다.
   bool get _showTabs =>
-      !_estopConfirming && !_showSettings && !_showDnd && _openConnectionId == null && ((_phase == KioskPhase.idle && !_quietDim) || _phase == KioskPhase.manual);
+      !_estopConfirming && !_showSettings && !_showDnd && _openConnectionId == null && _voiceProposal == null &&
+      ((_phase == KioskPhase.idle && !_quietDim) || _phase == KioskPhase.manual);
 
   /// 지금 탭 — 가전 고르기·조작 화면은 '가전'.
   KioskTab get _currentTab => _phase == KioskPhase.manual ? KioskTab.appliances : _homeTab;
@@ -941,7 +944,7 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 평소·가전 화면에서만 받는다 — 확인 창이 떠 있으면 탭 줄이 없어 여기로 오지 않지만, 한 번 더 막는다.
   void _onTab(KioskTab tab) {
     if (_phase != KioskPhase.idle && _phase != KioskPhase.manual) return;
-    if (_tabSuppress.value > 0) return;
+    if (_tabSuppress.value > 0 || _voiceProposal != null) return;
     if (tab == KioskTab.appliances) {
       if (_phase == KioskPhase.manual) {
         // 이미 가전 화면 — 고르기 목록으로(조작판에서 '가전'을 누르면 다른 가전을 고른다).

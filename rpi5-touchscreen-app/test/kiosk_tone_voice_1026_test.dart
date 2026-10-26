@@ -183,6 +183,39 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
+    // 실패널 10/26 — 질문 카드가 떠 있는데 아래 탭(홈·가전·자동 실행·기록)이 남아 눌렸다. 정해질 때까지 숨긴다.
+    testWidgets('질문 카드가 뜬 동안 아래 탭이 없고, 아니요로 정하면 돌아온다', (tester) async {
+      final tabs = find.byKey(const ValueKey('kiosk-tab-bar'));
+      final api = FakeKioskApi()..applianceList = [kMicrowaveAppliance];
+      await _pump(tester, api);
+      expect(tabs, findsOneWidget);
+      api.voiceProposals = [_rice];
+      await _poll(tester);
+      expect(find.byType(KioskVoiceProposalView), findsOneWidget);
+      expect(tabs, findsNothing);
+      expect(find.byKey(const ValueKey('kiosk-tab-appliances')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('voice-proposal-no')));
+      await _settle(tester);
+      expect(find.byType(KioskVoiceProposalView), findsNothing);
+      expect(tabs, findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('폰에서 정해 질문이 목록에서 빠져도 아래 탭이 돌아온다', (tester) async {
+      final tabs = find.byKey(const ValueKey('kiosk-tab-bar'));
+      final api = FakeKioskApi()
+        ..applianceList = [kMicrowaveAppliance]
+        ..voiceProposals = [_air];
+      await _pump(tester, api);
+      await _poll(tester);
+      expect(tabs, findsNothing);
+      api.voiceProposals = [];
+      await _poll(tester);
+      expect(find.byType(KioskVoiceProposalView), findsNothing);
+      expect(tabs, findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     test('본체 응답 모양 — 닫힌 목록 동작만, 이상한 값은 버린다', () {
       final p = KioskIntentProposal.tryParse({
         'id': 'abc',

@@ -2908,9 +2908,12 @@ void main() {
         const KioskSuggestion(id: 's1', purpose: '즉석밥 데워줘', occurrences: 3, applianceId: 'microwave', autoRuleOffer: offer)
       ];
     await _pumpKiosk(tester, api);
+    // 제안 카드·맡기기 확인 칸이 떠 있는 동안 아래 탭은 없다(실패널 10/26 — 확인을 탭으로 피해 가지 않게).
+    expect(find.byKey(const ValueKey('kiosk-tab-bar')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('suggestion-allow-auto')));
     await tester.pump();
     expect(find.byKey(const ValueKey('suggestion-allow-confirm')), findsOneWidget);
+    expect(find.byKey(const ValueKey('kiosk-tab-bar')), findsNothing);
     expect(find.textContaining('매일 오후 7:00에 공기청정기를 켜요'), findsOneWidget);
     expect(api.allowCalls, isEmpty, reason: '확인을 누르기 전에는 아무것도 맡기지 않는다');
     await tester.tap(find.byKey(const ValueKey('suggestion-allow-cancel')));
