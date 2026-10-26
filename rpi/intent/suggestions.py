@@ -52,6 +52,7 @@ ADVICE_BAND = "조언"
 #: 사람이 없을 때 때가 된 습관(평소 시각 10분 전)을 기다려 줄 시간 — 평소 시각 뒤 이만큼까지 사람이 오면 한 번 묻고,
 #: 지나면 오늘은 건너뛴다(거절·무반응으로 세지 않는다, 2026-10-26 맡기기 신뢰 강화).
 ABSENT_GRACE_MINUTES = 30
+ABSENT_DUE_SETTING = "suggestion_absent_due"
 _ANSWERS = ("dismissed", "snoozed", "approval_requested", "muted", "already_done", "submitted",
             "execution_returned", "acknowledged")
 
@@ -228,6 +229,7 @@ class ProactiveSuggestionService:
         #: 사람이 없을 때 때가 된 습관(2026-10-26) — 쿨다운 키 → [기다릴 끝 시각(평소 시각 +30분), 이미 한 번 물었나].
         #: 메모리만(재시작하면 평소 묻는 시간대 규칙으로 돌아간다). ``_state_lock`` 안에서만 바꾼다.
         self._absent_due: dict[str, list] = {}
+        self._absent_due_save = None
 
     @staticmethod
     def _is_muted(purpose: str, muted) -> bool:
@@ -479,6 +481,7 @@ class ProactiveSuggestionService:
                 self._record(suggestion, "created", "habit_pattern")
                 if deferred is not None:
                     deferred[1] = True  # 미뤘던 습관은 한 번만 묻는다
+                    self._persist_absent_due_locked()
             created.append(suggestion)
         with self._state_lock:
             self._expire_locked()
@@ -494,8 +497,11 @@ class ProactiveSuggestionService:
             log.exception("absent habit check failed")
             return
         with self._state_lock:
+            changed = False
             for key in list(self._absent_due):
+                before = key in self._absent_due
                 self._absent_deferral_locked(key)  # 지난 회차는 지운다
+                changed = changed or (before and key not in self._absent_due)
             for candidate in candidates:
                 if not candidate.usual_time:
                     continue
@@ -505,7 +511,10 @@ class ProactiveSuggestionService:
                 centre = parse_time(candidate.usual_time)
                 usual = now.replace(second=0, microsecond=0) - timedelta(minutes=distance(minute(now), centre))
                 self._absent_due[key] = [usual + timedelta(minutes=ABSENT_GRACE_MINUTES), False]
+                changed = True
                 self._note_deferred(key, "presence_absent")
+            if changed:
+                self._persist_absent_due_locked()
 
     def _absent_deferral_locked(self, key: str) -> list | None:
         """이번 회차에 사람이 없어 미룬 습관이면 그 기억, 아니면 None. 지난 회차(기다릴 끝 +12시간이 지남)는 지운다 —
@@ -513,8 +522,43 @@ class ProactiveSuggestionService:
         deferred = self._absent_due.get(key)
         if deferred is not None and self._clock.now() > deferred[0] + timedelta(hours=12):
             del self._absent_due[key]
+            self._persist_absent_due_locked()
             return None
         return deferred
+
+    def restore_absent_due(self, load=None, save=None) -> None:
+        """부재 중 미룬 습관 회차를 설정 한 칸에서 복원한다. 손상·만료 값은 버리고 다시 저장한다."""
+        self._absent_due_save = save
+        if load is None:
+            return
+        restored: dict[str, list] = {}
+        try:
+            raw = json.loads(load() or "{}")
+            if not isinstance(raw, dict):
+                raise ValueError("not an object")
+            now = self._clock.now()
+            for key, value in raw.items():
+                if not isinstance(key, str) or not isinstance(value, dict):
+                    continue
+                until = _aware(value.get("until"))
+                asked = value.get("asked")
+                if until is not None and isinstance(asked, bool) and now <= until + timedelta(hours=12):
+                    restored[key] = [until, asked]
+        except (TypeError, ValueError, json.JSONDecodeError):
+            log.exception("absent deferrals unreadable; starting empty")
+        with self._state_lock:
+            self._absent_due = restored
+            self._persist_absent_due_locked()
+
+    def _persist_absent_due_locked(self) -> None:
+        if self._absent_due_save is None:
+            return
+        value = json.dumps({key: {"until": item[0].isoformat(), "asked": bool(item[1])}
+                            for key, item in self._absent_due.items()}, ensure_ascii=False)
+        try:
+            self._absent_due_save(value)
+        except Exception:  # noqa: BLE001 -- 저장 실패여도 이번 세션의 제안 판정은 유지한다
+            log.exception("absent deferrals save failed; keeping session state")
 
     def _habit_signals(self, candidate) -> tuple:
         """습관 카드의 '왜 지금' — 사람 감지(게이트가 켜져 있고 통과했을 때만)·평소 시각·최근 며칠·평일/주말."""

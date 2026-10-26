@@ -167,6 +167,45 @@ from .intent_router import router as intent_router
 router.include_router(intent_router)
 
 
+@router.get("/readiness")
+async def system_readiness(
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+    actuator=Depends(get_actuator_status),
+    service: SimpleLayService = Depends(get_service),
+) -> list[dict]:
+    """시연 전 자가 점검. 각 칸은 따로 실패하며 전체 조회를 막지 않는다."""
+    from . import readiness_checks as checks  # noqa: PLC0415
+
+    try:
+        internet_ok, internet_detail, remote_time = await asyncio.wait_for(
+            asyncio.to_thread(checks.internet_probe), timeout=1.2)
+    except Exception as exc:  # noqa: BLE001 -- 전체 점검은 2초 안에 끝낸다
+        internet_ok, remote_time = False, None
+        internet_detail = f"외부 연결을 확인하지 못했어요 ({type(exc).__name__})"
+    specs = [
+        ("internet", "인터넷 연결", lambda: (internet_ok, internet_detail)),
+        ("thinq", "ThinQ 상태", checks.thinq_check),
+        ("actuator_link", "누름 장치 연결", lambda: checks.actuator_link_check(service)),
+        ("motion_homed", "모션 원점", lambda: checks.motion_homed_check(service, actuator)),
+        ("room_camera", "방 카메라 감지", checks.camera_check),
+        ("clock", "시계", lambda: checks.clock_check(remote_time if internet_ok else None)),
+        ("daily_ask_cap", "오늘 묻기 상한", lambda: checks.daily_cap_check(svc)),
+        ("auto_rules", "자동 실행 규칙", checks.auto_rule_check),
+        ("quiet_hours", "조용한 시간", checks.quiet_check),
+    ]
+
+    async def one(key, label, probe):
+        try:
+            ok, detail = await asyncio.to_thread(probe)
+            return {"key": key, "ok": bool(ok), "label": label, "detail": str(detail)}
+        except Exception as exc:  # noqa: BLE001 -- 한 점검의 고장은 그 칸만 실패다
+            log.exception("readiness check failed: %s", key)
+            return {"key": key, "ok": False, "label": label,
+                    "detail": f"확인하지 못했어요 ({type(exc).__name__})"}
+
+    return list(await asyncio.gather(*(one(*spec) for spec in specs)))
+
+
 
 def _to_steps(result: ExecutionResult) -> list[ButtonStep]:
     return [

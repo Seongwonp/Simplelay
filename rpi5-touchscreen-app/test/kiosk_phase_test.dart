@@ -32,6 +32,9 @@ import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_timings.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 class FakeKioskApi implements KioskApiService {
+  List<KioskSystemCheck> readinessChecks = const [];
+  @override
+  Future<List<KioskSystemCheck>> systemReadiness() async => readinessChecks;
   @override
   Future<Map<String, dynamic>> routineRequest(Map<String, dynamic>? event) async => throw StateError('simulator unavailable');
   // 방 안 사람 감지는 이 파일의 관심사가 아니다 — 감지기 없음(절전 없음).

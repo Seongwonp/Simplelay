@@ -80,6 +80,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   Map<String, String> _nodes = {};
   bool _loading = true;
   bool _showLearning = false;
+  bool _showReadiness = false;
   bool _showPairing = false;
   bool _saving = false;
 
@@ -190,6 +191,9 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
         ),
       );
     }
+    if (_showReadiness) {
+      return _ReadinessView(api: widget.api, onClose: () => setState(() => _showReadiness = false));
+    }
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
@@ -234,6 +238,13 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                             icon: const Icon(Icons.history),
                             label: const Text('생활 습관 보기'),
                             onPressed: () => setState(() => _showLearning = true),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            key: const ValueKey('readiness-entry'),
+                            icon: const Icon(Icons.fact_check_outlined),
+                            label: const Text('준비 상태'),
+                            onPressed: () => setState(() => _showReadiness = true),
                           ),
                           const SizedBox(height: 16),
                           _buildQuietSection(),
@@ -777,6 +788,99 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _ReadinessView extends StatefulWidget {
+  const _ReadinessView({required this.api, required this.onClose});
+  final KioskApiService api;
+  final VoidCallback onClose;
+
+  @override
+  State<_ReadinessView> createState() => _ReadinessViewState();
+}
+
+class _ReadinessViewState extends State<_ReadinessView> {
+  List<KioskSystemCheck>? _checks;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    setState(() { _checks = null; _error = null; });
+    try {
+      final checks = await widget.api.systemReadiness();
+      if (mounted) setState(() => _checks = checks);
+    } catch (_) {
+      if (mounted) setState(() => _error = '준비 상태를 불러오지 못했어요');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: const Color(0xCC0C0E12),
+        child: Center(
+          child: Container(
+            width: 520,
+            constraints: const BoxConstraints(maxHeight: 430),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: KioskColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: KioskColors.border),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text('준비 상태', style: TextStyle(fontSize: KioskType.caption, color: KioskColors.ink)),
+                const Spacer(),
+                IconButton(key: const ValueKey('readiness-close'), tooltip: '닫기', onPressed: widget.onClose,
+                    icon: Icon(Icons.close, color: KioskColors.muted)),
+              ]),
+              const SizedBox(height: 8),
+              Expanded(child: _body()),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  key: const ValueKey('readiness-refresh'),
+                  onPressed: _checks == null && _error == null ? null : _refresh,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('새로고침'),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      );
+
+  Widget _body() {
+    if (_error != null) return Center(child: Text(_error!, style: TextStyle(color: KioskColors.muted)));
+    final checks = _checks;
+    if (checks == null) return const Center(child: CircularProgressIndicator());
+    return ListView.separated(
+      itemCount: checks.length,
+      separatorBuilder: (_, __) => Divider(color: KioskColors.border, height: 1),
+      itemBuilder: (context, index) {
+        final item = checks[index];
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(item.ok ? '✓' : '!', style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.bold,
+                color: item.ok ? KioskColors.success : KioskColors.warning)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(item.label, style: TextStyle(color: KioskColors.ink, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 3),
+              Text(item.detail, style: TextStyle(color: KioskColors.muted, fontSize: KioskType.caption)),
+            ])),
+          ]),
+        );
+      },
     );
   }
 }

@@ -372,6 +372,23 @@ class KioskReadiness {
       );
 }
 
+/// GET /readiness — 시연 전 본체 자가 점검 한 칸.
+class KioskSystemCheck {
+  const KioskSystemCheck({required this.key, required this.ok, required this.label, required this.detail});
+
+  final String key;
+  final bool ok;
+  final String label;
+  final String detail;
+
+  factory KioskSystemCheck.fromJson(Map<String, dynamic> json) => KioskSystemCheck(
+        key: json['key'] as String? ?? '',
+        ok: json['ok'] == true,
+        label: json['label'] as String? ?? '알 수 없는 점검',
+        detail: json['detail'] as String? ?? '',
+      );
+}
+
 /// API 오류 — 상태 코드와 서버 문장(detail)을 남긴다.
 class KioskApiException implements Exception {
   KioskApiException(this.statusCode, this.detail);
@@ -1143,6 +1160,17 @@ class KioskApiService {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<List<KioskSystemCheck>> systemReadiness() async {
+    final res = await _client.get(_base.replace(path: '/readiness')).timeout(_timeout);
+    _ensureOk(res);
+    final body = jsonDecode(utf8.decode(res.bodyBytes));
+    if (body is! List) throw const FormatException('readiness list');
+    return [
+      for (final item in body)
+        if (item is Map<String, dynamic>) KioskSystemCheck.fromJson(item),
+    ];
   }
 
   /// GET /scenarios/last-run — 마지막 실행의 단계별 결과(G4). 기록이 없거나

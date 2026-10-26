@@ -54,6 +54,7 @@ class ThinqPowerCache:
         self._lock = threading.Lock()
         self._entries: dict[str, tuple[str, float]] = {}
         self._air: dict[str, tuple[dict, str | None, float]] = {}
+        self._last_read_at: float | None = None
 
     def observe(self, appliance_id: str, binding: Any, state: Any) -> None:
         """조회 한 번의 결과를 적는다. 전원·공기질을 모르면 그 가전의 그 기억을 지운다."""
@@ -61,6 +62,8 @@ class ThinqPowerCache:
         air = air_summary(state) if state is not None else None
         with self._lock:
             now = self._monotonic()
+            if state is not None:
+                self._last_read_at = now
             if power is None:
                 self._entries.pop(appliance_id, None)
             else:
@@ -79,6 +82,17 @@ class ThinqPowerCache:
         with self._lock:
             self._entries.clear()
             self._air.clear()
+            self._last_read_at = None
+
+    def last_read_age(self) -> float | None:
+        """마지막으로 성공한 ThinQ 상태 읽기의 나이. 새 클라우드 호출은 하지 않는다."""
+        now = self._monotonic()
+        with self._lock:
+            read_at = self._last_read_at
+        if read_at is None:
+            return None
+        age = now - read_at
+        return age if age >= 0 else None
 
     def snapshot(self, max_age: float = POWER_STALE_SECONDS) -> list[dict]:
         """오래되지 않은 기억만 — ``[{"appliance_id", "power", "age_s"}]``(가전 ID 순)."""

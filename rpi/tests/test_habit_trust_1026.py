@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 from rpi.intent.habit_words import habit_state
+from rpi.intent.suggestions import ABSENT_DUE_SETTING
+from rpi.services.persistence import SimpleLayDb
 from rpi.tests.test_ask_less_1026 import at, build, ignore, records
 
 DAYS = [1, 2, 3]  # 목·금·토 — 평일/주말 섞임(모든 날 물을 수 있다)
@@ -72,6 +74,38 @@ def test_absent_past_usual_plus_30_skips_today_without_penalty():
 def test_present_at_ask_time_is_unchanged():
     clock, service = build(records(DAYS), at(5, '20:40'), presence=_Presence(True))
     assert len(_ask(service, clock, 5, '20:40')) == 1
+
+
+def test_absent_deferral_survives_restart_in_same_database(tmp_path):
+    presence = _Presence(False)
+    db = SimpleLayDb(str(tmp_path / 'simplelay.db'))
+    _, first = build(records(DAYS), at(5, '20:40'), presence=presence)
+    first.restore_absent_due(load=lambda: db.load_setting(ABSENT_DUE_SETTING),
+                             save=lambda value: db.save_setting(ABSENT_DUE_SETTING, value))
+    assert first.create_suggestions() == ()
+
+    _, restarted = build(records(DAYS), at(5, '21:15'), presence=presence)
+    restarted.restore_absent_due(load=lambda: db.load_setting(ABSENT_DUE_SETTING),
+                                 save=lambda value: db.save_setting(ABSENT_DUE_SETTING, value))
+    presence.present = True
+    card, = restarted.create_suggestions()
+    assert card.purpose == '켜기'
+    presence.present = False
+    assert restarted.create_suggestions() == ()
+    presence.present = True
+    assert restarted.create_suggestions() == ()
+    db.close()
+
+
+def test_expired_absent_deferral_is_dropped_on_restart(tmp_path):
+    db = SimpleLayDb(str(tmp_path / 'simplelay.db'))
+    _, service = build(records(DAYS), at(6, '20:40'), presence=_Presence(True))
+    db.save_setting(ABSENT_DUE_SETTING,
+                    '{"habit": {"until": "2026-10-05T21:20:00+09:00", "asked": false}}')
+    service.restore_absent_due(load=lambda: db.load_setting(ABSENT_DUE_SETTING),
+                               save=lambda value: db.save_setting(ABSENT_DUE_SETTING, value))
+    assert db.load_setting(ABSENT_DUE_SETTING) == '{}'
+    db.close()
 
 
 # ── 3. 연속 거절·무반응 → 7일 쉬기 ─────────────────────────────────────────────────

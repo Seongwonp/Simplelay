@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/settings_overlay.dart';
+import 'package:simplelay_touchscreen/services/kiosk_api_service.dart' show KioskSystemCheck;
 import 'kiosk_phase_test.dart' show FakeKioskApi;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/learning_status.dart';
@@ -93,6 +94,29 @@ LearningStatus learned(
     });
 
 void main() {
+  testWidgets('settings shows readiness details and refreshes', (tester) async {
+    final api = FakeKioskApi()
+      ..readinessChecks = const [
+        KioskSystemCheck(key: 'internet', ok: true, label: '인터넷 연결', detail: '연결됐어요'),
+        KioskSystemCheck(key: 'motion_homed', ok: false, label: '모션 원점', detail: '원점 복귀가 필요해요'),
+      ];
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: KioskSettingsOverlay(
+      currentAppliance: kMicrowaveAppliance,
+      api: api,
+      onDismiss: () {},
+    ))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('readiness-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('준비 상태'), findsOneWidget);
+    expect(find.text('✓'), findsOneWidget);
+    expect(find.text('!'), findsOneWidget);
+    expect(find.text('원점 복귀가 필요해요'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('readiness-refresh')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('settings opens learning inside kiosk scaling and returns safely',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
