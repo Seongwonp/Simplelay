@@ -1,6 +1,7 @@
 """허브 백엔드 컨테이너 안에서 돌리는 말 알아듣기 평가 실행기(읽기만).
 
     python /tmp/llm_eval_hub.py /tmp/llm_eval_ko.jsonl > /tmp/llm_eval_out.jsonl
+    python /tmp/llm_eval_hub.py /tmp/llm_eval_ko.jsonl --model-only > /tmp/llm_eval_model_only.jsonl
 
 - 사용자용 경로(`POST /intent/understand`)를 쓰지 않는다 — 그 경로는 알아들을 때마다
   키오스크·폰에 확인 질문을 만든다. 여기서는 `understand()`만 직접 부른다.
@@ -18,7 +19,13 @@ import time
 sys.path.insert(0, os.getcwd())
 
 from rpi.intent import llm_intent  # noqa: E402
-from rpi.intent.llm_intent import IntentChoice, LlmIntentConfig, understand  # noqa: E402
+from rpi.intent.llm_intent import (  # noqa: E402
+    IntentChoice,
+    LlmIntentConfig,
+    build_prompt,
+    parse_choice,
+    understand,
+)
 
 
 def _thinq(label, description, action, arg, value, aliases, question):
@@ -54,6 +61,7 @@ CHOICES = (
 
 def main(path):
     config = LlmIntentConfig.from_env()
+    model_only = len(sys.argv) > 2 and sys.argv[2] == '--model-only'
     if not config.url:
         sys.exit('SIMPLELAY_LLM_URL is empty')
     with open(path, encoding='utf-8') as f:
@@ -73,10 +81,26 @@ def main(path):
                 raise
 
         start = time.monotonic()
-        result = understand(case['text'], CHOICES, config, transport=transport)
+        if model_only:
+            try:
+                reply = transport(config.url + '/invoke', {
+                    'messages': [{'role': 'system', 'content': build_prompt(CHOICES)},
+                                 {'role': 'user', 'content': case['text']}],
+                    'stream': False,
+                }, config.timeout)
+                choice_id = parse_choice(reply['choices'][0]['message']['content'], len(CHOICES))
+                selected = CHOICES[choice_id - 1] if choice_id else None
+                result = {'understood': selected is not None,
+                          'label': selected.label if selected else None,
+                          'source': 'llm'}
+            except Exception:
+                result = {'understood': False, 'label': None, 'source': 'llm', 'error': True}
+        else:
+            result = understand(case['text'], CHOICES, config, transport=transport)
         latency = time.monotonic() - start
         print(json.dumps({'id': case['id'], 'understood': result['understood'], 'label': result['label'],
                           'source': result['source'], 'timeout': bool(timed_out),
+                          'error': bool(result.get('error')),
                           'latency_s': round(latency, 3)}, ensure_ascii=False), flush=True)
     print(json.dumps({'config_timeout_s': config.timeout, 'choices': len(CHOICES)}), file=sys.stderr)
 
