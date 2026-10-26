@@ -1,0 +1,30 @@
+{"id":"h2_01","group":"indirect","text":"공청기 돌아가는 소음만 낮춰줄래?","expect":"action","accept":["공기청정기 바람 세기 약","공기청정기 운전 모드 수면"],"note":"2차 사전 고정: 조용한 운전, 전원 끄기 아님"}
+{"id":"h2_02","group":"indirect","text":"밤에는 공기청정기 살살 돌려줘","expect":"action","accept":["공기청정기 바람 세기 약","공기청정기 운전 모드 수면"],"note":"2차 사전 고정: 조용한 운전"}
+{"id":"h2_03","group":"indirect","text":"잘 때는 공기청정기 바람이 잔잔해야겠어","expect":"action","accept":["공기청정기 바람 세기 약","공기청정기 운전 모드 수면"],"note":"2차 사전 고정: 조용한 운전"}
+{"id":"h2_04","group":"indirect","text":"공기청정기 바람이 얼굴에 세게 닿아서 불편해","expect":"action","accept":["공기청정기 바람 세기 약"],"note":"2차 사전 고정: 풍량 낮추기"}
+{"id":"h2_05","group":"indirect","text":"잠드는 동안 공기청정기는 조용한 운전으로 부탁해","expect":"action","accept":["공기청정기 운전 모드 수면","공기청정기 바람 세기 약"],"note":"2차 사전 고정: 조용한 운전"}
+{"id":"h2_06","group":"indirect","text":"우리 애 자려니까 공기청정기 소음 줄여줘","expect":"action","accept":["공기청정기 바람 세기 약","공기청정기 운전 모드 수면"],"note":"2차 사전 고정: 조용한 운전"}
+{"id":"h2_07","group":"indirect","text":"공기청정기 바람을 멀리까지 보내고 싶어","expect":"action","accept":["공기청정기 바람 세기 강"],"note":"2차 사전 고정: 강풍"}
+{"id":"h2_08","group":"indirect","text":"손님 오기 전에 공기청정기를 미리 켜 두자","expect":"action","accept":["공기청정기 전원 켜기"],"note":"2차 사전 고정: 전원 켜기"}
+{"id":"h2_09","group":"direct","text":"지금 청정기 작동 시작해 주세요","expect":"action","accept":["공기청정기 전원 켜기"],"note":"2차 사전 고정: 전원 켜기"}
+{"id":"h2_10","group":"direct","text":"공기청정기 전원을 내려서 완전히 멈춰줘","expect":"action","accept":["공기청정기 전원 끄기"],"note":"2차 사전 고정: 명시적 전원 끄기"}
+{"id":"h2_11","group":"direct","text":"공기청정기 운전을 아예 종료해 줄래?","expect":"action","accept":["공기청정기 전원 끄기"],"note":"2차 사전 고정: 명시적 전원 끄기"}
+{"id":"h2_12","group":"direct","text":"환기 마쳤으니까 공기청정기 청정 운전으로 설정해줘","expect":"action","accept":["공기청정기 운전 모드 청정"],"note":"2차 사전 고정: 청정 모드"}
+{"id":"h2_13","group":"direct","text":"공기청정기가 알아서 풍량 맞추도록 해줘","expect":"action","accept":["공기청정기 바람 세기 자동","공기청정기 운전 모드 자동"],"note":"2차 사전 고정: 자동"}
+{"id":"h2_14","group":"direct","text":"공기청정기 풍량을 보통 단계로 맞춰 주세요","expect":"action","accept":["공기청정기 바람 세기 중"],"note":"2차 사전 고정: 중풍"}
+{"id":"h2_15","group":"indirect","text":"황사가 들이쳐서 청정기 바람을 최대로 올려야겠어","expect":"action","accept":["공기청정기 바람 세기 강"],"note":"2차 사전 고정: 강풍"}
+{"id":"h2_16","group":"negation","text":"공기청정기 켜려다가 생각을 바꿨어, 아무것도 하지 마","expect":"none","accept":[],"note":"2차 사전 고정: 취소"}
+{"id":"h2_17","group":"negation","text":"조용한 모드는 이미 내가 맞춰 놨으니 그대로 둬","expect":"none","accept":[],"note":"2차 사전 고정: 이미 완료"}
+{"id":"h2_18","group":"negation","text":"전원 내리라는 뜻이 아니야, 일단 아무 명령도 보내지 마","expect":"none","accept":[],"note":"2차 사전 고정: 명령 없음"}
+{"id":"h2_19","group":"negation","text":"공청기는 방금 꺼놨으니까 다시 손대지 말아줘","expect":"none","accept":[],"note":"2차 사전 고정: 이미 완료"}
+{"id":"h2_20","group":"negation","text":"바람 세기 변경은 취소할게, 지금 상태 유지해","expect":"none","accept":[],"note":"2차 사전 고정: 취소"}
+{"id":"h2_21","group":"out_of_list","text":"거실 블라인드를 절반만 내려줘","expect":"none","accept":[],"note":"2차 사전 고정: 목록 밖"}
+{"id":"h2_22","group":"out_of_list","text":"냉장고 문이 열려 있는지 확인해줘","expect":"none","accept":[],"note":"2차 사전 고정: 목록 밖"}
+{"id":"h2_23","group":"out_of_list","text":"내일 아침 커피 머신 예약해줘","expect":"none","accept":[],"note":"2차 사전 고정: 목록 밖"}
+{"id":"h2_24","group":"out_of_list","text":"방 조명을 따뜻한 색으로 바꿔줘","expect":"none","accept":[],"note":"2차 사전 고정: 목록 밖"}
+{"id":"h2_25","group":"out_of_list","text":"제습기 물통 상태 알려줄 수 있어?","expect":"none","accept":[],"note":"2차 사전 고정: 목록 밖"}
+{"id":"h2_26","group":"ambiguous","text":"아까 그 상태로 다시 해줄 수 있니?","expect":"none","accept":[],"note":"2차 사전 고정: 대상 불명"}
+{"id":"h2_27","group":"ambiguous","text":"조금만 다르게 맞춰보자","expect":"none","accept":[],"note":"2차 사전 고정: 대상·변경 불명"}
+{"id":"h2_28","group":"ambiguous","text":"평소처럼 알아서 해볼래?","expect":"none","accept":[],"note":"2차 사전 고정: 대상 불명"}
+{"id":"h2_29","group":"ambiguous","text":"그쪽 거 적당한 걸로 골라줘","expect":"none","accept":[],"note":"2차 사전 고정: 대상 불명"}
+{"id":"h2_30","group":"ambiguous","text":"일단 뭐라도 하나 바꿔봐","expect":"none","accept":[],"note":"2차 사전 고정: 동작 불명"}
