@@ -1,0 +1,50 @@
+{"id": "ind01", "group": "indirect", "text": "공기가 텁텁하네", "expect": "action", "accept": ["공기청정기 전원 켜기"], "note": ""}
+{"id": "ind02", "group": "indirect", "text": "방이 너무 답답해", "expect": "action", "accept": ["공기청정기 전원 켜기"], "note": ""}
+{"id": "ind03", "group": "indirect", "text": "숨 쉬기가 좀 답답하다", "expect": "action", "accept": ["공기청정기 전원 켜기"], "note": ""}
+{"id": "ind04", "group": "indirect", "text": "기침이 자꾸 나", "expect": "action", "accept": ["공기청정기 전원 켜기"], "note": ""}
+{"id": "ind05", "group": "indirect", "text": "먼지가 많은 것 같아", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": ""}
+{"id": "ind06", "group": "indirect", "text": "미세먼지가 심하대", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": ""}
+{"id": "ind07", "group": "indirect", "text": "냄새가 좀 나네", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": ""}
+{"id": "ind08", "group": "indirect", "text": "고기 구웠더니 연기가 자욱해", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": ""}
+{"id": "ind09", "group": "indirect", "text": "꽃가루 때문에 코가 간지러워", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": ""}
+{"id": "ind10", "group": "indirect", "text": "집에서 먼지 냄새가 나", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": ""}
+{"id": "ind11", "group": "indirect", "text": "담배 냄새가 옷에 배었어", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": ""}
+{"id": "ind12", "group": "indirect", "text": "청소기 돌렸더니 먼지가 날려", "expect": "action", "accept": ["공기청정기 전원 켜기", "공기청정기 바람 세기 강", "공기청정기 운전 모드 청정"], "note": ""}
+{"id": "ind13", "group": "indirect", "text": "이제 잘 거야", "expect": "action", "accept": ["공기청정기 운전 모드 수면", "공기청정기 바람 세기 약"], "note": ""}
+{"id": "ind14", "group": "indirect", "text": "아기 재우려고 해", "expect": "action", "accept": ["공기청정기 운전 모드 수면", "공기청정기 바람 세기 약"], "note": ""}
+{"id": "ind15", "group": "indirect", "text": "공기청정기 소리가 너무 시끄러워", "expect": "action", "accept": ["공기청정기 바람 세기 약", "공기청정기 운전 모드 수면"], "note": ""}
+{"id": "ind16", "group": "indirect", "text": "바람이 너무 세", "expect": "action", "accept": ["공기청정기 바람 세기 약"], "note": ""}
+{"id": "ind17", "group": "indirect", "text": "바람이 너무 약한 것 같아", "expect": "action", "accept": ["공기청정기 바람 세기 강", "공기청정기 바람 세기 중"], "note": ""}
+{"id": "ind18", "group": "indirect", "text": "이제 공기가 깨끗해졌네", "expect": "action", "accept": ["공기청정기 전원 끄기", "공기청정기 바람 세기 약"], "note": ""}
+{"id": "ind19", "group": "indirect", "text": "외출할 거야, 공기청정기는 이제 됐어", "expect": "action", "accept": ["공기청정기 전원 끄기"], "note": ""}
+{"id": "ind20", "group": "indirect", "text": "공기청정기 알아서 적당히 돌려 줘", "expect": "action", "accept": ["공기청정기 바람 세기 자동", "공기청정기 운전 모드 자동"], "note": ""}
+{"id": "dir01", "group": "direct", "text": "공기청정기 켜 줘", "expect": "action", "accept": ["공기청정기 전원 켜기"], "note": ""}
+{"id": "dir02", "group": "direct", "text": "공기청정기 좀 틀어 줘", "expect": "action", "accept": ["공기청정기 전원 켜기"], "note": ""}
+{"id": "dir03", "group": "direct", "text": "공기청정기 전원 꺼 줘", "expect": "action", "accept": ["공기청정기 전원 끄기"], "note": ""}
+{"id": "dir04", "group": "direct", "text": "공기청정기 꺼", "expect": "action", "accept": ["공기청정기 전원 끄기"], "note": ""}
+{"id": "dir05", "group": "direct", "text": "공기청정기 바람 세게 해 줘", "expect": "action", "accept": ["공기청정기 바람 세기 강"], "note": ""}
+{"id": "dir06", "group": "direct", "text": "공기청정기 바람 약하게 해 줘", "expect": "action", "accept": ["공기청정기 바람 세기 약"], "note": ""}
+{"id": "dir07", "group": "direct", "text": "공기청정기 바람 중간으로 해 줘", "expect": "action", "accept": ["공기청정기 바람 세기 중"], "note": ""}
+{"id": "dir08", "group": "direct", "text": "공기청정기 수면 모드로 바꿔 줘", "expect": "action", "accept": ["공기청정기 운전 모드 수면"], "note": ""}
+{"id": "dir09", "group": "direct", "text": "공기청정기 청정 모드로 해 줘", "expect": "action", "accept": ["공기청정기 운전 모드 청정"], "note": ""}
+{"id": "dir10", "group": "direct", "text": "공기청정기 자동 모드로 해 줘", "expect": "action", "accept": ["공기청정기 운전 모드 자동", "공기청정기 바람 세기 자동"], "note": ""}
+{"id": "neg01", "group": "negation", "text": "방금 켰어", "expect": "none", "accept": [], "note": ""}
+{"id": "neg02", "group": "negation", "text": "공기청정기 켜지 마", "expect": "none", "accept": [], "note": ""}
+{"id": "neg03", "group": "negation", "text": "공기청정기 끄지 마", "expect": "none", "accept": [], "note": ""}
+{"id": "neg04", "group": "negation", "text": "공기청정기는 이미 켜 놨어", "expect": "none", "accept": [], "note": ""}
+{"id": "neg05", "group": "negation", "text": "공기청정기 안 켜도 돼", "expect": "none", "accept": [], "note": ""}
+{"id": "neg06", "group": "negation", "text": "지금은 켤 필요 없어", "expect": "none", "accept": [], "note": ""}
+{"id": "neg07", "group": "negation", "text": "아까 내가 껐어", "expect": "none", "accept": [], "note": ""}
+{"id": "neg08", "group": "negation", "text": "괜찮아, 그냥 둬", "expect": "none", "accept": [], "note": ""}
+{"id": "out01", "group": "out_of_list", "text": "불 꺼 줘", "expect": "none", "accept": [], "note": ""}
+{"id": "out02", "group": "out_of_list", "text": "에어컨 켜 줘", "expect": "none", "accept": [], "note": ""}
+{"id": "out03", "group": "out_of_list", "text": "텔레비전 틀어 줘", "expect": "none", "accept": [], "note": ""}
+{"id": "out04", "group": "out_of_list", "text": "음악 좀 틀어 줘", "expect": "none", "accept": [], "note": ""}
+{"id": "out05", "group": "out_of_list", "text": "오늘 날씨 어때", "expect": "none", "accept": [], "note": ""}
+{"id": "out06", "group": "out_of_list", "text": "라면 끓여 줘", "expect": "none", "accept": [], "note": ""}
+{"id": "out07", "group": "out_of_list", "text": "세탁기 돌려 줘", "expect": "none", "accept": [], "note": ""}
+{"id": "out08", "group": "out_of_list", "text": "현관문 잠가 줘", "expect": "none", "accept": [], "note": ""}
+{"id": "amb01", "group": "ambiguous", "text": "그거 좀 해 줘", "expect": "none", "accept": [], "note": ""}
+{"id": "amb02", "group": "ambiguous", "text": "바꿔 줘", "expect": "none", "accept": [], "note": ""}
+{"id": "amb03", "group": "ambiguous", "text": "좀 어떻게 해 봐", "expect": "none", "accept": [], "note": ""}
+{"id": "amb04", "group": "ambiguous", "text": "아까 하던 거", "expect": "none", "accept": [], "note": ""}
