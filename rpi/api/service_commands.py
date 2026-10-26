@@ -79,6 +79,8 @@ class JobFinishedEvent:
     purpose: str | None = None
     #: 시나리오의 한 단계면 그 ID. 트리거는 이런 이벤트로 다시 시나리오를 만들지 않는다.
     scenario_id: str | None = None
+    #: ThinQ 단계가 바꾸기 전에 본 설정값(``CommandResult.before_value``, 2026-10-26 되돌리기). 모르면 None.
+    before_value: str | None = None
 
 
 @dataclass(frozen=True)
@@ -653,7 +655,7 @@ class CommandExecutionMixin:
             job_id=self._history_job_id(), appliance_id=command.target_id, route=ControlRoute.THINQ,
             status=result.status.value, receipt=result.receipt, confirmation=result.confirmation,
             execution_mode=result.execution_mode, usage_source=usage_source, purpose=purpose,
-            scenario_id=scenario_id,
+            scenario_id=scenario_id, before_value=result.before_value,
         ))
         return result
 

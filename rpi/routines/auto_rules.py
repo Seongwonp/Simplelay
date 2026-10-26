@@ -33,6 +33,12 @@
 보내지 않고 카드(승인)로 돌아간다. 루틴이 바뀌거나 지워지면 규칙이 꺼진다(라우터 철회 + 실행 직전 재검사). 물리 단계는 대상이 아니다.
 가열 종료 규칙의 지문 내용은 바뀌지 않았다(저장된 허용 유지).
 
+**되돌리기(2026-10-26, 맡기기 신뢰 강화)** — 자동 실행이 끝나면 결과 알림이 5분 동안 '되돌리기'를 보인다
+(``UNDO_WINDOW_S``, ``POST /routines/auto-runs/{run_id}/undo``). 누르면 먼저 그 규칙(맡기기)을 끄고 — 루틴은 그대로 두어 다음
+회차부터 다시 묻는다 — 반대 동작이 분명할 때만 보통 승인 실행 경로(``submit_approved`` — 실행 잠금·비상정지·정지 세대)로
+되돌린다: 전원 켜기↔끄기, 바람 세기·모드는 보내기 전 조회로 **본** 원래 값이 있을 때만(``before_value``). 이미 그 값이라
+보내지 않은 실행은 되돌릴 것이 없어 끄기만 한다. 가열·누름 가전은 자동 실행 대상이 아니라 되돌리기도 없다.
+
 **검증 수준: 모의 ThinQ·모의 클라우드 끝-끝까지. 실제 CT 판정·실가전 미검증.**
 """
 
@@ -139,6 +145,25 @@ ROUTINE_DELETED_REASON = "루틴을 지워서 자동 실행을 껐어요."
 ROUTINE_OFF_REASON = "루틴이 꺼져 있어 자동 실행을 껐어요. 다시 허락해 주세요."
 TIME_REENABLE_REFUSED = "루틴이 바뀌었거나 없어서 켤 수 없어요. 다음 루틴 카드에서 다시 허락해 주세요."
 TIME_VALUE_REFUSED = "루틴에서 할 일을 바꾼 뒤 카드에서 다시 허락해 주세요."
+
+# ── 되돌리기(2026-10-26, 맡기기 신뢰 강화) ────────────────────────────────────────────────
+#: 자동 실행 결과 뒤 되돌릴 수 있는 시간(초).
+UNDO_WINDOW_S = 300
+#: 되돌리기 실행의 시나리오 ID 접두사 — 자동 실행 결과(``auto:``)로 다시 잡히지 않고, 사용 기록(습관 학습)에 들어가지 않는다.
+UNDO_SCENARIO_PREFIX = "auto-undo:"
+UNDO_PURPOSE_PREFIX = "되돌리기 · "
+#: 규칙 꺼짐 사유(목록에 보인다).
+UNDO_REASON = "되돌리기를 눌러 자동 실행을 껐어요. 이 일은 다시 물어볼게요."
+UNDO_DONE_NOTICE = "되돌리고, 이 일은 다시 물어볼게요."
+UNDO_OFF_NOTICE = "자동 실행을 껐어요. 이 일은 다시 물어볼게요."
+UNDO_ESTOP_NOTICE = "비상정지가 걸려 있어 되돌리지 않았어요. 자동 실행은 껐고, 이 일은 다시 물어볼게요."
+UNDO_BUSY_NOTICE = "다른 일을 하는 중이라 되돌리지 못했어요. 자동 실행은 껐고, 이 일은 다시 물어볼게요."
+UNDO_FAILED_NOTICE = "되돌리지 못했어요. 가전을 봐 주세요. 자동 실행은 껐고, 이 일은 다시 물어볼게요."
+UNDO_EXPIRED = "되돌릴 수 있는 5분이 지났어요."
+UNDO_ALREADY = "이미 되돌렸어요."
+UNDO_NOT_AVAILABLE = "이 자동 실행은 되돌릴 수 없어요."
+#: 반대 동작이 분명한 전원 값.
+_POWER_INVERSE = {"POWER_ON": "POWER_OFF", "POWER_OFF": "POWER_ON"}
 
 #: 대상 가전 ID → 화면 이름(대상이 지금 없을 때만 쓴다).
 _TARGET_KIND_NAMES = {"air_purifier": "공기청정기", "thinq_washer": "세탁기", "dehumidifier": "제습기"}
@@ -1182,7 +1207,9 @@ class AutoRuleEngine:
         # 3차 평가 M2: 이 job이 보낼 대상·동작·설정값의 불변 사본 — 결과 기록·알림·키오스크 문구는 이것만 쓴다.
         # 보낸 뒤 규칙을 바꾸거나 지우거나 대상 이름이 바뀌어도 결과를 현재 규칙으로 다시 읽어 덮지 않는다.
         snapshot = {**self._target_words(rule), "action": rule.action, "value": rule.value,
-                    "action_text": self.action_text(rule)}
+                    "action_text": self.action_text(rule),
+                    # 되돌리기(2026-10-26)가 쓸 대상 — 판단 때 결속한 기기 그대로.
+                    "target_appliance_id": rule.target_appliance_id, "target_device_key": rule.target_device_key}
         now = self._clock.now()
         approved = ApprovedCommand(
             command=command, approval_id=f"auto-rule:{rule.rule_id}:{key}", approved_at=now,
@@ -1329,7 +1356,13 @@ class AutoRuleEngine:
             if event.confirmation.value == "already_at_target":
                 # 보낸 것이 아니다 — 제출 때 적은 '승인 없이 보냈어요'를 남기지 않는다(2026-10-14 발견 3).
                 entry["reason"] = ALREADY_REASON
-        entry.update({"status": event.status, "receipt": event.receipt.value,
+        finished = self._clock.now()
+        if entry.get("outcome") == "sent" and event.status in ("succeeded", "unconfirmed"):
+            # 되돌리기 창(2026-10-26) — 결과가 나온 때부터 5분. 막힌·실패한 실행은 바뀐 것이 없어 내지 않는다.
+            entry.update({"run_id": entry.get("job_id"),
+                          "undo_until": (finished + timedelta(seconds=UNDO_WINDOW_S)).isoformat(),
+                          "before_value": getattr(event, "before_value", None)})
+        entry.update({"finished_at": finished.isoformat(), "status": event.status, "receipt": event.receipt.value,
                       "confirmation": event.confirmation.value,
                       # 명령을 보낸 실행인가, 상태만 확인한 결과인가(sent · state_only · not_sent · unknown).
                       "dispatch": dispatch_of(event.receipt.value, event.confirmation.value),
@@ -1359,9 +1392,21 @@ class AutoRuleEngine:
             entry = next((e for e in reversed(self._runs) if e.get("job_id") and e.get("status")), None)
             if entry is None:
                 return None
-            return {key: entry.get(key) for key in (
+            payload = {key: entry.get(key) for key in (
                 "job_id", "at", "outcome", "status", "receipt", "confirmation", "dispatch", "execution_mode",
-                "target_name", "setting_label", "value_label", "value_phrase")}
+                "target_name", "setting_label", "value_label", "value_phrase", "run_id", "undo_until")}
+            payload["undo_remaining_s"] = self._undo_remaining_locked(entry)
+            payload["undone"] = bool(entry.get("undone_at"))
+            return payload
+
+    def _undo_remaining_locked(self, entry: Mapping) -> int | None:
+        """되돌릴 수 있는 남은 초(올림). 되돌릴 수 없거나 이미 되돌렸거나 지났으면 None. 폰·키오스크는 자기 시계 대신
+        이 값으로 세어 본체와 시계가 달라도 5분을 지킨다."""
+        until = _parse_time(entry.get("undo_until"))
+        if until is None or entry.get("undone_at"):
+            return None
+        left = (until - self._clock.now()).total_seconds()
+        return math.ceil(left) if left > 0 else None
 
     def _notify(self, entry: dict) -> None:
         if self._care is None:
@@ -1612,7 +1657,107 @@ class AutoRuleEngine:
 
     def runs_snapshot(self) -> list[dict]:
         with self._lock:
-            return [dict(e) for e in self._runs]
+            return [{**e, "undo_remaining_s": self._undo_remaining_locked(e)} for e in self._runs]
+
+    # ── 되돌리기(2026-10-26) ─────────────────────────────────────────────────
+    @staticmethod
+    def _inverse_value(entry: Mapping) -> str | None:
+        """반대 동작 값 — 분명할 때만. 보내지 않은 실행(이미 그 값)은 되돌릴 것이 없다. 전원은 켜기↔끄기, 그 밖(바람 세기·모드)은
+        보내기 전 조회로 본 원래 값이 있을 때만. 모르면 None(끄기만 한다)."""
+        if entry.get("receipt") == "not_dispatched" or entry.get("confirmation") == "already_at_target":
+            return None
+        value = entry.get("value")
+        if entry.get("action") == "set_power":
+            return _POWER_INVERSE.get(value)
+        before = entry.get("before_value")
+        return before if isinstance(before, str) and before and before != value else None
+
+    def undo(self, run_id: str) -> dict:
+        """자동 실행 되돌리기 — 5분 안에 한 번. 먼저 그 규칙(맡기기)을 끄고(루틴은 그대로 → 다음부터 다시 묻는다), 반대 동작이
+        분명하면 보통 승인 실행 경로로 보낸다. 없는 기록 404, 지남·이미 되돌림·되돌릴 수 없음 409(``AutoRuleError``)."""
+        now = self._clock.now()
+        with self._lock:
+            entry = next((e for e in reversed(self._runs) if e.get("run_id") == run_id), None)
+            if entry is None:
+                raise AutoRuleError(404, "이 자동 실행 기록을 찾을 수 없어요")
+            if entry.get("undone_at"):
+                raise AutoRuleError(409, UNDO_ALREADY)
+            until = _parse_time(entry.get("undo_until"))
+            if until is None:
+                raise AutoRuleError(409, UNDO_NOT_AVAILABLE)
+            if now > until:
+                raise AutoRuleError(409, UNDO_EXPIRED)
+            entry["undone_at"] = now.isoformat()  # 두 번 누름·두 단말 동시 누름은 하나만
+            snapshot = dict(entry)
+        rule_id = snapshot.get("rule_id")
+        # 1) 맡기기 끄기 — 되돌리기가 실패해도 다음 회차는 자동으로 하지 않는다(전송권 잠금 안 철회, 이미 꺼졌으면 그대로).
+        try:
+            self._revoke(rule_id, lambda r: r if not r.enabled else replace(
+                r, enabled=False, updated_at=now.isoformat(), disabled_reason=UNDO_REASON), None)
+        except AutoRuleError:
+            pass  # 그 사이 지운 규칙 — 끌 것이 없다
+        # 2) 반대 동작.
+        inverse = self._inverse_value(snapshot)
+        job_id = None
+        if inverse is None:
+            notice = UNDO_OFF_NOTICE
+        else:
+            notice, job_id = self._submit_inverse(snapshot, inverse, now)
+        with self._lock:
+            entry["undo_notice"] = notice
+            entry["undo_job_id"] = job_id
+        if self._care is not None:
+            try:
+                self._care.append(KIND_AUTO_RULE, notice, purpose=snapshot.get("action_text"))
+            except Exception:  # noqa: BLE001
+                log.exception("auto rule undo notice failed")
+        log.info("auto run %s undone (rule %s, inverse=%s, job=%s)", run_id, rule_id, inverse, job_id)
+        rule = self.store.get(rule_id) if rule_id else None
+        return {"ok": True, "run_id": run_id, "message": notice, "inverse_sent": job_id is not None,
+                "job_id": job_id, "rule": self.payload(rule) if rule is not None else None}
+
+    def _submit_inverse(self, entry: Mapping, value: str, now: datetime) -> tuple[str, str | None]:
+        """반대 동작 하나를 승인 실행 경로로 제출한다(사용자가 누른 일 — 자동 실행 검사 대신 실행 잠금·비상정지·정지 세대).
+        (알림 문장, job ID 또는 None)."""
+        latched = getattr(self.service, "estop_latched", None)
+        if callable(latched) and latched():
+            return UNDO_ESTOP_NOTICE, None
+        target_id = entry.get("target_appliance_id")
+        appliance = self._appliance(target_id) if target_id else None
+        binding = getattr(appliance, "thinq", None)
+        if (appliance is None or appliance.control_path is not ControlRoute.THINQ or binding is None
+                or _device_key(binding.device_id) != entry.get("target_device_key")):
+            return UNDO_FAILED_NOTICE, None  # 가전이 없어졌거나 다른 기기로 바뀌었다 — 엉뚱한 기기로 보내지 않는다
+        try:
+            cap = binding.capability(entry["action"])
+            command = binding.command(target_id, entry["action"], {cap.arg: value})
+            binding.validate_command(command)
+        except Exception:  # noqa: BLE001
+            return UNDO_FAILED_NOTICE, None
+        generation = self.generation()
+
+        def guard() -> None:
+            with self._gen_lock:
+                if self._generation != generation:
+                    raise AutoRuleBlocked("멈추기를 눌러서 되돌리지 않았어요.")
+
+        approved = ApprovedCommand(
+            command=command, approval_id=f"auto-undo:{entry.get('run_id')}", approved_at=now,
+            shown_summary=self.service.summary_of(command), expires_at=now + timedelta(seconds=APPROVAL_SECONDS),
+        )
+        phrase = thinq_action_phrase(entry.get("target_name") or self._name(target_id), entry["action"], value, cap)
+        try:
+            job_id = self.service.submit_approved(
+                (approved,), purpose=f"{UNDO_PURPOSE_PREFIX}{phrase}", usage_source=UsageSource.DIRECT,
+                approval_guard=guard, scenario_id=f"{UNDO_SCENARIO_PREFIX}{entry.get('rule_id')}",
+            )
+        except AutoRuleBlocked:
+            return UNDO_FAILED_NOTICE, None
+        except Exception as exc:  # noqa: BLE001 -- 시작 못 함. 다시 보내지 않는다.
+            text = str(exc)
+            log.warning("auto run undo submit failed: %s", text or type(exc).__name__)
+            return (UNDO_BUSY_NOTICE if "already in progress" in text else UNDO_FAILED_NOTICE), None
+        return UNDO_DONE_NOTICE, job_id
 
     def recent_runs(self) -> list[dict]:
         return list(reversed(self.runs_snapshot()))
@@ -1674,6 +1819,7 @@ __all__ = [
     "AutoRuleError",
     "AutoRuleStore",
     "LOW_RISK_ACTIONS",
+    "UNDO_WINDOW_S",
     "SeenEvents",
     "event_age_s",
     "event_key",

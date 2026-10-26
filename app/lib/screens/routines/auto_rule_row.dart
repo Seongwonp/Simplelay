@@ -188,6 +188,18 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                       Text('최근 결과', style: context.appCaption.copyWith(fontWeight: FontWeight.w600)),
                       for (final n in r.lastRunNotices) Text(n, style: context.appCaption),
                     ],
+                    // 되돌리기(2026-10-26) — 알아서 한 뒤 5분 안. 누르면 맡기기를 끄고(다시 물어봐요) 분명하면 되돌린다.
+                    if (r.canUndoLastRun) ...[
+                      const SizedBox(height: AppSpace.sm),
+                      OutlinedButton(
+                        key: Key('auto-rule-undo-${r.id}'),
+                        onPressed: _busy
+                            ? null
+                            : () => _run((api) async => _say(await api.undoAutoRun(r.lastRunUndoId!))),
+                        style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+                        child: const Text('되돌리기'),
+                      ),
+                    ],
                   ],
                 ),
               ),

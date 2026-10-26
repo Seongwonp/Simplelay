@@ -334,6 +334,10 @@ class _KioskScreenState extends State<KioskScreen> {
   String? _autoNotice;
   Timer? _autoNoticeTimer;
 
+  /// 지금 알림 줄의 되돌리기(2026-10-26) — 대상 번호와 본체가 잰 남은 시간. 다른 알림으로 바뀌면 비운다.
+  String? _autoUndoRunId;
+  Duration? _autoUndoFor;
+
   /// 정지로 멈춘 실행의 확인 단계(2026-10-13, /status last_stop_level).
   String? _doneStopLevel;
   int? _doneStopAckMs;
@@ -1603,10 +1607,48 @@ class _KioskScreenState extends State<KioskScreen> {
     _seenAutoJobId = run.jobId;
     final text = autoRunNotice(run);
     _autoNoticeTimer?.cancel();
-    setState(() => _autoNotice = text);
+    final undo = run.canUndo ? run.undoRemaining : null;
+    setState(() {
+      _autoNotice = text;
+      _autoUndoRunId = undo != null ? run.runId : null;
+      _autoUndoFor = undo;
+    });
     if (_health.speakGeneral) _tts.speak('자동 실행, $text'); // 조용한 시간·모름에는 소리 없이 한 줄만
+    // 되돌릴 수 있으면 그 시간(5분 안) 동안 줄을 남긴다 — 단추는 알림 줄이 시간에 맞춰 스스로 거둔다.
+    final keep = undo != null && undo > KioskTimings.autoRunNotice ? undo : KioskTimings.autoRunNotice;
+    _autoNoticeTimer = Timer(keep, () {
+      if (mounted) setState(_clearAutoNotice);
+    });
+  }
+
+  void _clearAutoNotice() {
+    _autoNotice = null;
+    _autoUndoRunId = null;
+    _autoUndoFor = null;
+  }
+
+  /// '되돌리기'(2026-10-26) — 본체가 맡기기를 끄고 반대 동작이 분명하면 되돌린다. 결과 문장을 같은 줄에 잠시 보인다.
+  Future<void> _undoAutoRun() async {
+    final runId = _autoUndoRunId;
+    if (runId == null) return;
+    String message;
+    try {
+      message = await _api.undoAutoRun(runId);
+    } on KioskApiException catch (e) {
+      message = e.statusCode == 409 && e.detail.isNotEmpty ? e.detail : '되돌리지 못했어요. 연결을 봐 주세요.';
+    } catch (_) {
+      message = '되돌리지 못했어요. 연결을 봐 주세요.';
+    }
+    if (!mounted) return;
+    _autoNoticeTimer?.cancel();
+    setState(() {
+      _autoNotice = message;
+      _autoUndoRunId = null;
+      _autoUndoFor = null;
+    });
+    if (_health.speakGeneral) _tts.speak(message);
     _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
-      if (mounted) setState(() => _autoNotice = null);
+      if (mounted) setState(_clearAutoNotice);
     });
   }
 
@@ -2428,8 +2470,11 @@ class _KioskScreenState extends State<KioskScreen> {
           final auto = suggestion.adoptOffer?.auto ?? false;
           final days = suggestion.adoptOffer?.daysLabel ?? '매일';
           _autoNoticeTimer?.cancel();
-          setState(() => _autoNotice =
-              problem ?? (auto ? '$days 이 시간에 알아서 할게요. 설정의 자동 실행에서 끌 수 있어요.' : '$days 이 시간에 여쭤볼게요.'));
+          setState(() {
+            _clearAutoNotice();
+            _autoNotice =
+                problem ?? (auto ? '$days 이 시간에 알아서 할게요. 설정의 자동 실행에서 끌 수 있어요.' : '$days 이 시간에 여쭤볼게요.');
+          });
           _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
             if (mounted) setState(() => _autoNotice = null);
           });
@@ -2441,7 +2486,10 @@ class _KioskScreenState extends State<KioskScreen> {
         accepted = job;
         if (mounted && gen == _admitGen) {
           _autoNoticeTimer?.cancel();
-          setState(() => _autoNotice = allowFailed ?? '다음부터는 묻지 않고 할게요. 설정의 자동 실행에서 끌 수 있어요.');
+          setState(() {
+            _clearAutoNotice();
+            _autoNotice = allowFailed ?? '다음부터는 묻지 않고 할게요. 설정의 자동 실행에서 끌 수 있어요.';
+          });
           _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
             if (mounted) setState(() => _autoNotice = null);
           });
@@ -2989,8 +3037,11 @@ class _KioskScreenState extends State<KioskScreen> {
   Widget? _topNotices() {
     final auto = _autoNotice != null && (_phase == KioskPhase.idle || _phase == KioskPhase.done)
         ? KioskAutoRunNotice(
+            key: ValueKey('auto-run-${_autoUndoRunId ?? ''}'),
             text: _autoNotice!,
-            onClose: () => setState(() => _autoNotice = null),
+            onClose: () => setState(_clearAutoNotice),
+            onUndo: _autoUndoRunId != null ? _undoAutoRun : null,
+            undoFor: _autoUndoFor,
           )
         : null;
     final past = _pastResult != null && _phase == KioskPhase.idle

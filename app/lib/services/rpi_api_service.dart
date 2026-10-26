@@ -2380,6 +2380,17 @@ class RpiApiService {
     return AutoRule.fromJson(_decodeMap(res));
   }
 
+  /// 자동 실행 되돌리기(2026-10-26) — 맡기기를 끄고, 반대 동작이 분명하면 되돌린다. 화면에 보일 서버 문장을 돌려준다.
+  /// 5분이 지났거나 이미 되돌렸으면 409([RpiApiException], 서버 이유).
+  Future<String> undoAutoRun(String runId) async {
+    final res = await _client
+        .post(_base.replace(path: '/routines/auto-runs/${Uri.encodeComponent(runId)}/undo'), headers: _jsonHeaders)
+        .timeout(_timeout);
+    _checkStatus(res);
+    final message = _decodeMap(res)['message'];
+    return message is String && message.isNotEmpty ? message : '되돌렸어요. 이 일은 다시 물어볼게요.';
+  }
+
   Future<void> deleteAutoRule(String id) async {
     final res = await _client
         .delete(_base.replace(path: '/routines/auto-rules/$id'), headers: _headers)

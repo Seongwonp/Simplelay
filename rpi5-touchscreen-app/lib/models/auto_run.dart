@@ -14,6 +14,8 @@ class KioskAutoRun {
     this.settingLabel,
     this.valueLabel,
     this.valuePhrase,
+    this.runId,
+    this.undoRemaining,
   });
 
   final String jobId;
@@ -33,6 +35,15 @@ class KioskAutoRun {
   /// 결과 문장 속 설정 이름(서버 `value_phrase`, 예: "강풍", 2026-10-14). 옛 서버는 null.
   final String? valuePhrase;
 
+  /// 되돌리기 대상 번호(서버 `run_id`, 2026-10-26). 되돌릴 수 없는 실행·옛 서버는 null.
+  final String? runId;
+
+  /// 되돌리기를 누를 수 있는 남은 시간(서버 `undo_remaining_s` — 본체 시계로 잰 값, 5분 안). 없으면 null.
+  final Duration? undoRemaining;
+
+  /// '되돌리기'를 보일 수 있는가.
+  bool get canUndo => runId != null && undoRemaining != null && undoRemaining! > Duration.zero;
+
   static KioskAutoRun? fromJson(Object? json) {
     if (json is! Map<String, dynamic>) return null;
     final jobId = json['job_id'];
@@ -49,6 +60,10 @@ class KioskAutoRun {
       settingLabel: s('setting_label'),
       valueLabel: s('value_label'),
       valuePhrase: s('value_phrase'),
+      runId: s('run_id'),
+      undoRemaining: json['undo_remaining_s'] is num && (json['undo_remaining_s'] as num) > 0
+          ? Duration(seconds: (json['undo_remaining_s'] as num).ceil())
+          : null,
     );
   }
 }

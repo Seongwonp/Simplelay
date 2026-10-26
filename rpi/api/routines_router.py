@@ -262,6 +262,23 @@ async def auto_rule_runs() -> list[dict]:
     return (await asyncio.to_thread(get_auto_rule_engine)).recent_runs()
 
 
+@router.post("/routines/auto-runs/{run_id}/undo")
+async def undo_auto_run(run_id: str) -> dict:
+    """자동 실행 되돌리기(2026-10-26) — 결과가 나온 뒤 5분 안에 한 번(``last_auto_run.undo_remaining_s``·기록의 같은 칸).
+
+    그 일의 맡기기(자동 실행 규칙)를 끄고 루틴은 그대로 둔다(다음부터 다시 묻는다). 반대 동작이 분명하면(전원 켜기↔끄기,
+    바람 세기·모드는 보내기 전 본 원래 값) 보통 승인 실행 경로로 보낸다 — 실행 잠금·비상정지·정지가 그대로 적용된다.
+    응답 ``message``는 화면에 그대로 보일 문장, ``inverse_sent``·``job_id``는 되돌리는 실행. 지남·이미 되돌림 409, 없음 404."""
+    from rpi.routines.auto_rules import AutoRuleError  # noqa: PLC0415
+    from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+    engine = await asyncio.to_thread(get_auto_rule_engine)
+    try:
+        return await asyncio.to_thread(engine.undo, run_id)
+    except AutoRuleError as exc:
+        raise _auto_error(exc) from exc
+
+
 @router.put("/routines/auto-rules/{rule_id}")
 async def update_auto_rule(rule_id: str, body: dict = Body(...)) -> dict:
     """설정값만 바꾼다. 바꾸면 자동 실행이 꺼지고 다시 허용(확인 화면)해야 켜진다."""

@@ -4,7 +4,8 @@
 2. '이미 했어요': 오늘은 그 습관을 다시 묻지 않고, 거절로 세지 않는다.
 3. 평일·주말: 쓴 날이 모두 평일이면 주말에 묻지 않는다(그 반대도).
 4. 하루 상한: 먼저 묻는 카드는 하루 N개(기본 3). 직접 요청·루틴 물어보기·연습 카드는 세지 않는다.
-5. 무시 물러서기: 답 없이 지나간 카드가 연달아 두 날이면 다음 물을 수 있는 날 하루를 건너뛴다. 답이 오면 풀린다.
+5. 무시 물러서기: 습관 카드는 거절·답 없이 지나간 카드가 연달아 두 번이면 7일 쉰다(2026-10-26 맡기기 신뢰 강화 — 예전
+   '하루 건너뜀'). 상황 카드(질문 문장)는 그대로 다음 날 하루를 건너뛴다. 답이 오면 이어짐이 끊긴다.
 
 모든 시각은 고정 시계(2026-10, KST). 2026-10-05는 월요일이다.
 """
@@ -319,36 +320,37 @@ def test_daily_limit_env(raw, expected):
 # ── 5. 무시 물러서기 ─────────────────────────────────────────────────────────
 
 
-def test_two_ignored_days_skip_one_day_then_ask_every_other_day():
+def test_two_ignored_days_rest_seven_days():
     clock, service = build(records([1, 2, 3]), at(SAT))  # 목·금·토 — 평일/주말 섞임(모든 날 물을 수 있다)
     ignore(service, clock, SAT)
     ignore(service, clock, SUN)
     clock.set(at(12, '20:40'))
     routine, = service.learning_status()['routines']
     assert routine['pause_reason'] == 'consecutive_ignores'
+    assert routine['paused_until'] == at(18).isoformat()  # 두 번째 카드가 뜬 때부터 7일
     assert habit_state(routine) == 'paused'  # '알게 된 것'의 '잠시 묻지 않음'
-    assert ask(service, clock, at(12)) == ()  # 하루 건너뜀
-    ignore(service, clock, 13)  # 다음 날은 다시 묻는다 — 또 무시
-    assert ask(service, clock, at(14)) == ()  # 또 하루 건너뜀(하루걸러)
-    card, = ask(service, clock, at(15))
-    service.reject(card.suggestion_id)  # 답이 오면 풀린다
-    assert len(ask(service, clock, at(16))) == 1
+    for day in range(12, 18):
+        assert ask(service, clock, at(day)) == ()
+    card, = ask(service, clock, at(18))
+    service.reject(card.suggestion_id)  # 쉰 뒤 첫 거절 한 번으로는 다시 쉬지 않는다
+    assert len(ask(service, clock, at(19))) == 1
     assert service.learning_status()['routines'][0]['paused_until'] is None
 
 
-def test_ignore_backoff_skips_the_next_eligible_weekday():
+def test_ignore_rest_counts_asks_not_calendar_days_for_weekday_habit():
     clock, service = build(records(WEEKDAY_HABIT), at(THU))
     ignore(service, clock, THU)
     ignore(service, clock, FRI)
-    assert ask(service, clock, at(12)) == ()  # 주말은 원래 묻지 않으니 다음 평일(월요일)을 건너뛴다
-    assert len(ask(service, clock, at(13))) == 1
+    for day in (12, 13, 14, 15):  # 다음 주 월~목은 쉰다(주말은 원래 묻지 않는다)
+        assert ask(service, clock, at(day)) == ()
+    assert len(ask(service, clock, at(16))) == 1  # 금요일 — 7일 뒤
 
 
 def test_single_ignore_or_answer_between_does_not_pause():
     clock, service = build(records([1, 2, 3]), at(SAT))
     ignore(service, clock, SAT)
     card, = ask(service, clock, at(SUN))
-    service.reject(card.suggestion_id)
+    service.reject(card.suggestion_id, reason='already_done')  # '이미 했어요'는 거절이 아니다 — 이어짐을 끊는다
     ignore(service, clock, 12)
     assert len(ask(service, clock, at(13))) == 1
 

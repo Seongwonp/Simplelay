@@ -538,12 +538,16 @@ class ThinqController:
                 # 보내기 전 다른 값을 봤을 때만 '바꿨어요'. 전 값을 몰랐으면 원래 그 값이었을 수 있다.
                 phrase = cap.setting_phrase(str(target))
                 changed = before is not None
-                return self._result(command, CommandStatus.SUCCEEDED, Receipt.ACCEPTED,
-                                    Confirmation.STATE_CONFIRMED if changed
-                                    else Confirmation.STATE_CONFIRMED_UNKNOWN_BEFORE,
-                                    changed_sentence(phrase) if changed else target_seen_sentence(phrase),
-                                    requested_at, accepted_at=accepted_at,
-                                    confirmed_at=self._now(), provider_ref=ref)
+                result = self._result(command, CommandStatus.SUCCEEDED, Receipt.ACCEPTED,
+                                      Confirmation.STATE_CONFIRMED if changed
+                                      else Confirmation.STATE_CONFIRMED_UNKNOWN_BEFORE,
+                                      changed_sentence(phrase) if changed else target_seen_sentence(phrase),
+                                      requested_at, accepted_at=accepted_at,
+                                      confirmed_at=self._now(), provider_ref=ref)
+                # 되돌리기 근거(2026-10-26): 보내기 전 본 값이 이 동작에 그대로 쓸 수 있는 값일 때만 남긴다.
+                if changed and str(before) in cap.allowed and str(before) != str(target):
+                    result = replace(result, before_value=str(before))
+                return result
             if self._monotonic() >= deadline:
                 return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
                                     f"가전에 전했지만 {UNCONFIRMED_SENTENCE} 가전을 봐 주세요.",

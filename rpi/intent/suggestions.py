@@ -14,7 +14,7 @@ from uuid import uuid4
 from .base import IntentResolver
 from .models import ProactiveSuggestion, SuggestionStatus, UsageSource
 from .patterns import PatternDetector
-from .habit_timing import reason_time
+from .habit_timing import distance, minute, parse_time, reason_time
 from .habit_words import day_kind
 from .ports import Clock, PurposeExecutor, SuppressionStore
 from .rules import RuleBasedIntentResolver, UnknownIntentError
@@ -49,6 +49,9 @@ REJECT_ACKNOWLEDGED = "acknowledged"
 KIND_ADVICE = "advice"
 ADVICE_BAND = "조언"
 #: 사람이 답한 것(예·아니요·이미 했어요·쉬기·숨기기) — 무시(답 없이 만료) 연속을 끊는다.
+#: 사람이 없을 때 때가 된 습관(평소 시각 10분 전)을 기다려 줄 시간 — 평소 시각 뒤 이만큼까지 사람이 오면 한 번 묻고,
+#: 지나면 오늘은 건너뛴다(거절·무반응으로 세지 않는다, 2026-10-26 맡기기 신뢰 강화).
+ABSENT_GRACE_MINUTES = 30
 _ANSWERS = ("dismissed", "snoozed", "approval_requested", "muted", "already_done", "submitted",
             "execution_returned", "acknowledged")
 
@@ -222,6 +225,9 @@ class ProactiveSuggestionService:
         self._environment_read_lock = threading.Lock()
         self._environment_snapshot_lock = threading.Lock()
         self._environment_snapshot = (None, None)
+        #: 사람이 없을 때 때가 된 습관(2026-10-26) — 쿨다운 키 → [기다릴 끝 시각(평소 시각 +30분), 이미 한 번 물었나].
+        #: 메모리만(재시작하면 평소 묻는 시간대 규칙으로 돌아간다). ``_state_lock`` 안에서만 바꾼다.
+        self._absent_due: dict[str, list] = {}
 
     @staticmethod
     def _is_muted(purpose: str, muted) -> bool:
@@ -391,6 +397,8 @@ class ProactiveSuggestionService:
         if self.is_quiet():
             return ()
         if self._presence_gate is not None and not self._presence_gate():
+            # 때가 된 습관을 버리지 않는다 — 사람이 오면 평소 시각 +30분까지 한 번 묻는다(아래 ``_absent_due``).
+            self._note_absent_due()
             return ()
         created: list[ProactiveSuggestion] = []
         muted = (
@@ -435,6 +443,12 @@ class ProactiveSuggestionService:
                 if existing is not None:
                     created.append(existing)
                     continue
+                deferred = self._absent_deferral_locked(key)
+                if deferred is not None and (deferred[1] or self._clock.now() > deferred[0]):
+                    # 사람이 없어 미룬 습관: 이미 한 번 물었거나(그 뒤 자리를 비워 거둔 카드) 평소 시각 +30분이 지났다 —
+                    # 오늘은 건너뛴다. 카드를 만들지 않으니 거절·무반응 기록도 남지 않는다.
+                    self._note_deferred(key, "absent_asked" if deferred[1] else "absent_past_grace")
+                    continue
                 if not self._budget_allows_locked(key):
                     continue
                 suggestion = ProactiveSuggestion(
@@ -463,10 +477,44 @@ class ProactiveSuggestionService:
                 self._next_id += 1
                 self._suggestions[suggestion.suggestion_id] = suggestion
                 self._record(suggestion, "created", "habit_pattern")
+                if deferred is not None:
+                    deferred[1] = True  # 미뤘던 습관은 한 번만 묻는다
             created.append(suggestion)
         with self._state_lock:
             self._expire_locked()
             return self._created_pending_locked(created)
+
+    def _note_absent_due(self) -> None:
+        """사람이 없는 동안 때가 된 습관(묻는 시간대가 시작됨)을 기억한다 — 평소 시각 +30분이 기다릴 끝. 이미 기억한 것은
+        그대로 둔다(끝 시각을 늦추지 않는다). 하루 지난 것은 지운다."""
+        now = self._clock.now()
+        try:
+            candidates = self._detector.candidates()
+        except Exception:  # noqa: BLE001 -- 기억 못 하면 평소 규칙(묻는 시간대)대로
+            log.exception("absent habit check failed")
+            return
+        with self._state_lock:
+            for key in list(self._absent_due):
+                self._absent_deferral_locked(key)  # 지난 회차는 지운다
+            for candidate in candidates:
+                if not candidate.usual_time:
+                    continue
+                key = self._cooldowns.key(candidate.purpose, candidate.time_band, candidate.appliance_id)
+                if key in self._absent_due:
+                    continue
+                centre = parse_time(candidate.usual_time)
+                usual = now.replace(second=0, microsecond=0) - timedelta(minutes=distance(minute(now), centre))
+                self._absent_due[key] = [usual + timedelta(minutes=ABSENT_GRACE_MINUTES), False]
+                self._note_deferred(key, "presence_absent")
+
+    def _absent_deferral_locked(self, key: str) -> list | None:
+        """이번 회차에 사람이 없어 미룬 습관이면 그 기억, 아니면 None. 지난 회차(기다릴 끝 +12시간이 지남)는 지운다 —
+        다음 날 같은 습관은 평소처럼 묻는다."""
+        deferred = self._absent_due.get(key)
+        if deferred is not None and self._clock.now() > deferred[0] + timedelta(hours=12):
+            del self._absent_due[key]
+            return None
+        return deferred
 
     def _habit_signals(self, candidate) -> tuple:
         """습관 카드의 '왜 지금' — 사람 감지(게이트가 켜져 있고 통과했을 때만)·평소 시각·최근 며칠·평일/주말."""
@@ -571,7 +619,7 @@ class ProactiveSuggestionService:
 
     def _ignore_paused_locked(self, purpose: str, key: str) -> bool:
         """같은 제안(질문 문장)이 연달아 두 날 답 없이 지나갔으면 다음 날 하루는 묻지 않는다(하루걸러 묻기).
-        답(예·아니요·이미 했어요…)이 한 번 오면 풀린다. 습관 카드는 학습 쪽(``habit_timing.ignore_pause``)이 같은 규칙을 맡는다."""
+        답(예·아니요·이미 했어요…)이 한 번 오면 풀린다. 습관 카드는 학습 쪽(``habit_timing.rest_pause`` — 거절·무반응 두 번이면 7일)이 따로 맡는다."""
         now = self._clock.now()
         days: dict = {}
         shown: dict = {}

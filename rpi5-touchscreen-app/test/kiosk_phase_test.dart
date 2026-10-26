@@ -215,6 +215,17 @@ class FakeKioskApi implements KioskApiService {
     return KioskJobAccepted(jobId: nextJobId);
   }
 
+  // 자동 실행 되돌리기(2026-10-26). undoError가 있으면 그것을 던진다.
+  final undoCalls = <String>[];
+  Object? undoError;
+  String undoMessage = '되돌리고, 이 일은 다시 물어볼게요.';
+  @override
+  Future<String> undoAutoRun(String runId) async {
+    undoCalls.add(runId);
+    if (undoError != null) throw undoError!;
+    return undoMessage;
+  }
+
   @override
   Future<void> rejectSuggestion(String id, {bool mute = false, String? reason}) async {
     if (rejectError != null) throw rejectError!;

@@ -1383,6 +1383,18 @@ class KioskApiService {
     if (res.statusCode != 404) _ensureOk(res);
   }
 
+  /// 자동 실행 되돌리기(2026-10-26) — `POST /routines/auto-runs/{runId}/undo`. 화면에 보일 서버 문장을 돌려준다
+  /// ("되돌리고, 이 일은 다시 물어볼게요." 등). 5분이 지났거나 이미 되돌렸으면 409([KioskApiException], 서버 이유).
+  Future<String> undoAutoRun(String runId) async {
+    final res = await _client
+        .post(_base.replace(path: '/routines/auto-runs/${Uri.encodeComponent(runId)}/undo'), headers: _jsonHeaders)
+        .timeout(_timeout);
+    _ensureOk(res);
+    final body = jsonDecode(utf8.decode(res.bodyBytes));
+    final message = body is Map<String, dynamic> ? body['message'] : null;
+    return message is String && message.isNotEmpty ? message : '되돌렸어요. 이 일은 다시 물어볼게요.';
+  }
+
   Future<void> snoozeSuggestion(String id) async {
     final res = await _client.post(
       _base.replace(path: '/suggestions/$id/snooze'),

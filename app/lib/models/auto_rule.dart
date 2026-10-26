@@ -56,6 +56,8 @@ class AutoRule {
     this.value,
     this.allowedValues = const [],
     this.lastRunNotices = const [],
+    this.lastRunUndoId,
+    this.lastRunUndoSeconds,
     this.conditionTime,
     this.action,
     this.conditionKind,
@@ -98,6 +100,13 @@ class AutoRule {
   /// 마지막 자동 실행의 장치별 결과 문장(확인된 것만 '바꿨어요').
   final List<String> lastRunNotices;
 
+  /// 마지막 자동 실행을 되돌릴 번호와 목록을 받을 때 남은 초(서버 `last_run.run_id`·`undo_remaining_s`, 2026-10-26).
+  /// 되돌릴 수 없거나 5분이 지났으면 null.
+  final String? lastRunUndoId;
+  final int? lastRunUndoSeconds;
+
+  bool get canUndoLastRun => lastRunUndoId != null && (lastRunUndoSeconds ?? 0) > 0;
+
   factory AutoRule.fromJson(Map<String, dynamic> json) {
     final last = json['last_run'];
     return AutoRule(
@@ -127,6 +136,10 @@ class AutoRule {
                 if (n is String) n,
             ]
           : const [],
+      lastRunUndoId: last is Map<String, dynamic> && last['run_id'] is String ? last['run_id'] as String : null,
+      lastRunUndoSeconds: last is Map<String, dynamic> && last['undo_remaining_s'] is num
+          ? (last['undo_remaining_s'] as num).ceil()
+          : null,
     );
   }
 }

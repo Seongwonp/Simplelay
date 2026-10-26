@@ -93,17 +93,7 @@ def adaptation(candidate, peers, events, records, now, lead):
             if shown <= at <= shown + timedelta(hours=2) and at <= now:
                 samples.setdefault(at.date(), distance(minute(at), centre - lead))
                 break
-    pause = None
-    previous = None
-    for day, (at, action) in sorted(responses.items()):
-        if (action == 'dismissed' and previous is not None
-                and previous[1] == 'dismissed' and day - previous[0] == timedelta(days=1)):
-            pause = at + timedelta(days=3)
-        previous = day, action
-    reason = 'consecutive_rejections' if pause is not None and now < pause else None
-    ignore = ignore_pause(candidate, responses, now)
-    if ignore is not None and reason is None:
-        pause, reason = ignore, 'consecutive_ignores'
+    pause, reason = rest_pause(responses, now)
     shift = 0
     offsets = list(samples.values())
     if len(offsets) >= 3 and (all(v > 0 for v in offsets) or all(v < 0 for v in offsets)):
@@ -111,23 +101,34 @@ def adaptation(candidate, peers, events, records, now, lead):
     return (pause if reason is not None else None), shift, reason
 
 
-def ignore_pause(candidate, responses, now):
-    """답 없이 지나간 카드가 연달아 두 날이면(마지막 두 응답이 모두 무시) 다음 **물을 수 있는 날** 하루를 건너뛴다.
+#: 연달아 두 번 거절하거나 답이 없으면 그 습관을 쉬는 날 수(2026-10-26, 맡기기 신뢰 강화 — 예전 '거절 두 번 3일 쉼'·
+#: '무시 두 번 하루 건너뜀'을 하나로). '이미 했어요'·예·나중에는 거절이 아니라 이어짐을 끊는다.
+REST_DAYS = 7
+#: 거절(아니요)과 무반응(답 없이 지나간 카드) — 이 둘만 이어 센다.
+_NO_ANSWERS = ('dismissed', 'ignored')
 
-    그 다음 날은 다시 묻는다 — 또 무시하면 마지막 두 응답이 다시 무시라 또 하루 건너뛴다(하루걸러 묻기). 예·아니요·
-    이미 했어요 같은 답이 한 번이라도 오면 마지막 응답이 무시가 아니라 바로 풀린다. 평일 습관이면 평일만, 주말
-    습관이면 주말만 '물을 수 있는 날'로 센다(``day_kind``). 끝 시각(건너뛴 날의 다음 자정) 또는 None."""
-    from .habit_words import day_kind  # noqa: PLC0415 -- habit_words가 이 모듈을 가져온다
 
-    ordered = sorted(responses.items())
-    if len(ordered) < 2 or ordered[-1][1][1] != 'ignored' or ordered[-2][1][1] != 'ignored':
-        return None
-    kind = day_kind(candidate.recent_days)
-    skip = ordered[-1][0] + timedelta(days=1)
-    while not day_matches(kind, skip):
-        skip += timedelta(days=1)
-    until = datetime.combine(skip + timedelta(days=1), datetime.min.time(), now.tzinfo)
-    return until if now < until else None
+def rest_pause(responses, now):
+    """물은 날의 응답(날짜 → (시각, 응답))을 차례로 보고, 거절·무반응이 **연달아 두 번**이면 두 번째 응답 시각부터
+    ``REST_DAYS``일 쉰다. 쉬기를 한 번 만든 두 응답은 다시 세지 않는다(쉬고 난 뒤 첫 거절 한 번으로 바로 또 쉬지 않는다).
+    물을 수 있는 날만 묻기 때문에(평일 습관은 평일만) '연달아'는 달력 날짜가 아니라 물은 차례다.
+    돌려주는 것: (쉬는 끝 시각, 이유) — 지금 쉬는 중이 아니면 (None, None)."""
+    pause = None
+    reason = None
+    streak = []
+    for _day, (at, action) in sorted(responses.items()):
+        if action not in _NO_ANSWERS:
+            streak = []
+            continue
+        streak.append(action)
+        if len(streak) == 2:
+            pause = at + timedelta(days=REST_DAYS)
+            reason = 'consecutive_rejections' if streak == ['dismissed', 'dismissed'] else (
+                'consecutive_ignores' if streak == ['ignored', 'ignored'] else 'consecutive_no_answers')
+            streak = []
+    if pause is None or now >= pause:
+        return None, None
+    return pause, reason
 
 
 #: 공휴일 표(2026-10-26, 천문연 특일 정보) — ``(date) -> True | False | None``. None(모름)·없음이면 평일 규칙만.

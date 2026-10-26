@@ -244,6 +244,9 @@ class CommandResult:
     stop_requested: bool = False
     #: 물리 경로만. L1·L2·L3 근거 원본.
     physical: ExecutionResult | None = None
+    #: ThinQ만(2026-10-26): 보내기 전 조회로 **본** 이전 설정값(명령에 쓸 수 있는 값일 때만). 바꾼 것이 확인됐을 때만
+    #: 채운다(``state_confirmed``) — 자동 실행 '되돌리기'가 원래 값으로 돌릴 근거. 모르면 None(지어내지 않는다).
+    before_value: str | None = None
 
     def __post_init__(self) -> None:
         status = CommandStatus(self.status)

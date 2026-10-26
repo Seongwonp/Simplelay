@@ -141,6 +141,10 @@ class _Server {
                 enabled: false, value: value, fingerprint: 'fp-rule-$value', reason: '설정값을 바꿔 다시 허용이 필요해요');
             return _json(rule);
           }
+          if (req.method == 'POST' && path == '/routines/auto-runs/run-1/undo') {
+            rule = _rule(enabled: false, reason: '되돌리기를 눌러 자동 실행을 껐어요. 이 일은 다시 물어볼게요.');
+            return _json({'ok': true, 'message': '되돌리고, 이 일은 다시 물어볼게요.', 'inverse_sent': true});
+          }
           if (path.startsWith('/execute')) fail('실행 경로를 불렀어요: $path');
           return _json({'detail': 'not found'}, 404);
         }),
@@ -523,6 +527,40 @@ void main() {
       // 켜짐은 스위치가 말한다 — 같은 뜻의 '자동으로 해요' 칩은 없다(평가 11차 10/18).
       expect(tester.widget<Switch>(_switch('ar-1')).value, isTrue);
       expect(find.text('자동으로 해요'), findsNothing);
+    });
+
+    // 2026-10-26 맡기기 신뢰 강화: 알아서 한 뒤 5분 안에는 최근 결과 아래 '되돌리기'.
+    testWidgets('최근 자동 실행을 5분 안이면 되돌릴 수 있다 — 누르면 본체에 보내고 문장을 보인다', (tester) async {
+      _tall(tester);
+      final server = _Server()
+        ..rule = {
+          ..._rule(),
+          'last_run': {
+            'notices': ['거실 공기청정기 풍량을 바꿨어요'],
+            'run_id': 'run-1',
+            'undo_remaining_s': 240,
+          },
+        };
+      await tester.pumpWidget(_list(server));
+      await _settle(tester);
+      await _openRules(tester);
+      final undo = find.byKey(const Key('auto-rule-undo-ar-1'));
+      expect(undo, findsOneWidget);
+      expect(tester.getSize(undo).height, greaterThanOrEqualTo(48));
+      await tester.tap(undo);
+      await _settle(tester);
+      expect(server.requests, contains('POST /routines/auto-runs/run-1/undo'));
+      expect(find.text('되돌리고, 이 일은 다시 물어볼게요.'), findsOneWidget);
+      expect(find.byKey(const Key('auto-rule-undo-ar-1')), findsNothing);
+    });
+
+    testWidgets('되돌릴 시간이 없으면(5분 지남·옛 본체) 되돌리기가 없다', (tester) async {
+      _tall(tester);
+      final server = _Server();
+      await tester.pumpWidget(_list(server));
+      await _settle(tester);
+      await _openRules(tester);
+      expect(find.byKey(const Key('auto-rule-undo-ar-1')), findsNothing);
     });
   });
 }

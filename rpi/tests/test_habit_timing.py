@@ -90,7 +90,8 @@ def test_wide_connected_cluster_asks_only_inside_window_and_uses_uncertain_text(
     assert service.pending() == ()
 
 
-def test_rejections_pause_three_days_and_survive_database_reopen(tmp_path):
+def test_rejections_pause_seven_days_and_survive_database_reopen(tmp_path):
+    # 2026-10-26: 연달아 두 번 거절 → 7일 쉼(예전 3일).
     path = str(tmp_path / 'feedback.db')
     db = SimpleLayDb(path)
     feedback = SuggestionFeedback(load=db.suggestion_events, save=db.append_suggestion_event)
@@ -100,15 +101,15 @@ def test_rejections_pause_three_days_and_survive_database_reopen(tmp_path):
         card, = service.create_suggestions()
         service.reject(card.suggestion_id)
     routine, = service.learning_status()['routines']
-    assert routine['paused_until'] == at(14, '20:50').isoformat()
+    assert routine['paused_until'] == at(18, '20:50').isoformat()
     assert routine['pause_reason'] == 'consecutive_rejections'
     db.close()
     db = SimpleLayDb(path)
     detector, clock, service, _, _ = build(['20:50'] * 3,
         feedback=SuggestionFeedback(load=db.suggestion_events, save=db.append_suggestion_event))
-    clock.set(at(14, '20:49'))
+    clock.set(at(18, '20:49'))
     assert service.create_suggestions() == ()
-    clock.set(at(14, '20:50'))
+    clock.set(at(18, '20:50'))
     assert len(service.create_suggestions()) == 1
     assert service.learning_status()['routines'][0]['paused_until'] is None
     assert executor.purposes == []
@@ -142,11 +143,12 @@ def test_approval_shift_is_absolute_bounded_and_requires_fresh_approval(actual, 
 
 @pytest.mark.parametrize('actions', [
     [(5, 'dismissed'), (5, 'dismissed')],
-    [(5, 'dismissed'), (7, 'dismissed')],
     [(5, 'dismissed'), (6, 'snoozed'), (7, 'dismissed')],
     [(5, 'dismissed'), (6, 'approval_requested'), (7, 'dismissed')],
 ])
 def test_only_consecutive_rejection_days_pause(actions):
+    # 같은 날 두 번은 한 번, 사이에 '나중에'·'예'가 있으면 이어지지 않는다. 물은 차례로 이어진 두 번(5일·7일)은
+    # 2026-10-26부터 쉰다(test_habit_trust_1026).
     feedback = SuggestionFeedback()
     for index, (day, action) in enumerate(actions):
         card = ProactiveSuggestion(str(index), '켜기', '저녁', 3, at(day, '20:50'), appliance_id='fan')
@@ -179,7 +181,7 @@ def test_same_band_clusters_keep_separate_feedback():
     detector, clock, service, _, _ = build(['18:00'] * 3 + ['20:50'] * 3, feedback=feedback)
     clock.set(at(7, '20:50'))
     routines = {r['usual_time']: r for r in service.learning_status()['routines']}
-    assert routines['18:00']['paused_until'] == at(9, '18:00').isoformat()
+    assert routines['18:00']['paused_until'] == at(13, '18:00').isoformat()
     assert routines['20:50']['paused_until'] is None
     assert [c.usual_time for c in detector.candidates()] == ['20:50']
 
