@@ -1,6 +1,6 @@
 // 가전 추가 5단계(UI 확정 §2, 2026-09-30) — 가짜 사진·가짜 서버로 끝까지 간다.
 //
-// ① 사진 ② 모서리 4점 ③ 버튼 짚고 이름 ④ 정지 버튼·쉬는 자리 ⑤ 확인 주행.
+// ① 사진 ② 누름 장치 칸 맞추기(mm를 적지 않는다, 10/26) ③ 버튼 짚고 이름 ④ 정지 버튼·기다리는 자리 ⑤ 확인 주행.
 // 서버에 보내는 것은 사진 크기와 짚은 좌표(px)뿐이고, 확인 주행이 모의면
 // 모의라고 말하는지까지 본다.
 import 'dart:convert';
@@ -71,6 +71,9 @@ class _Server {
   Map<String, dynamic>? registerBody;
   Map<String, dynamic>? mappingBody;
   bool frameKnown = true;
+
+  /// 옛 본체처럼 `workspace` 없이 `frame_w_mm`만 준다.
+  bool legacyFrame = false;
   int statusCalls = 0;
 
   /// 사진 매핑 저장을 이 문장으로 거절한다([rejectMappingStatus], 기본 422).
@@ -121,6 +124,12 @@ class _Server {
             return _json({
               'frame_w_mm': frameKnown ? 300.0 : null,
               'frame_h_mm': frameKnown ? 200.0 : null,
+              'y_up': true,
+              if (!legacyFrame)
+                'workspace': frameKnown
+                    ? {'w_mm': 300.0, 'h_mm': 200.0, 'origin_x_mm': 0, 'origin_y_mm': 0, 'y_up': true,
+                       'source': 'workspace'}
+                    : null,
               'note': '사진 파일은 서버에 올리지 않아요.',
             });
           }
@@ -289,9 +298,7 @@ Future<void> _walkToStopStepFromPhoto(WidgetTester tester, {String name = '전�
   await tester.pump();
   await tester.tap(find.byKey(const Key('wizard-next')));
   await _settle(tester);
-  for (final p in const [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]) {
-    await _tapPhoto(tester, p.$1, p.$2);
-  }
+  // ② 누름 장치 칸은 범위 비율로 가운데에 그려져 있다 — 그대로 다음.
   await tester.tap(find.byKey(const Key('wizard-next')));
   await tester.pump();
   await _tapPhoto(tester, 0.3, 0.4);
@@ -305,6 +312,19 @@ Future<void> _walkToStopStepFromPhoto(WidgetTester tester, {String name = '전�
 
 String _title(WidgetTester tester) =>
     tester.widget<Text>(find.byKey(const Key('wizard-step-title'))).data!;
+
+/// 사진 위 누름 장치 칸.
+PanelArea _areaOf(WidgetTester tester) =>
+    tester.widget<PanelPhotoView>(find.byKey(const Key('wizard-photo'))).area!;
+
+/// 사진 패널 안에서 [key] 이름표의 가운데 자리(비율).
+Offset _tagAt(WidgetTester tester, String key) {
+  final box = tester.getRect(find.byKey(const Key('wizard-photo')));
+  final c = tester.getCenter(find.byKey(Key(key)));
+  return Offset((c.dx - box.left) / box.width, (c.dy - box.top) / box.height);
+}
+
+const _areaTitle = '2. 누름 장치 칸 맞추기';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -348,25 +368,25 @@ void main() {
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
 
-    // ② 모서리 4점 — 허브 프레임 치수를 읽는다.
-    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
+    // ② 누름 장치 칸 — 본체가 아는 범위로 그린다. mm를 적는 칸이 없다.
+    expect(_title(tester), _areaTitle);
     expect(server.requests, contains('GET /mapping/frame'));
+    expect(find.text(kAreaHint), findsOneWidget);
     expect(find.textContaining('가로 300mm'), findsOneWidget);
-    expect(next().onPressed, isNull);
-    await _tapPhoto(tester, 0.1, 0.1);
-    await _tapPhoto(tester, 0.9, 0.1);
-    await _tapPhoto(tester, 0.9, 0.9);
-    expect(next().onPressed, isNull, reason: '세 점으로는 못 간다');
-    await _tapPhoto(tester, 0.1, 0.9);
+    expect(find.byType(TextField), findsNothing, reason: '자가 없는 사람에게 mm를 묻지 않는다');
+    expect(_areaOf(tester).corners, hasLength(4));
+    expect(find.text(kAreaOriginLabel), findsOneWidget);
     expect(next().onPressed, isNotNull);
+    final drawn = List.of(_areaOf(tester).corners);
 
-    // 이전으로 돌아가도 짚은 모서리는 남는다.
+    // 이전으로 돌아가도 칸은 남는다.
     await tester.tap(find.byKey(const Key('wizard-back')));
     await tester.pump();
     expect(_title(tester), '1. 버튼판 사진');
     await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pump();
-    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
+    expect(_title(tester), _areaTitle);
+    expect(_areaOf(tester).corners, drawn);
     expect(next().onPressed, isNotNull);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pump();
@@ -397,7 +417,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const Key('wizard-park')));
     await tester.pump();
-    await _tapPhoto(tester, 0.85, 0.85);
+    await _tapPhoto(tester, 0.8, 0.8);
     expect(find.text('저장하고 다음'), findsOneWidget);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
@@ -416,6 +436,10 @@ void main() {
     expect(mapping['stop_button'], isNotNull);
     expect(mapping['park_px'], isNotNull);
     expect(mapping.keys.any((k) => k.contains('image')), isFalse);
+    // mm는 보내지 않고 방향만 — 본체가 범위로 계산한다.
+    expect(mapping.containsKey('frame_w_mm'), isFalse);
+    expect(mapping.containsKey('frame_h_mm'), isFalse);
+    expect(mapping['orientation'], {'rotation': 0, 'flipped': false});
     // 이 폰에도 남는다(사진 위 자리 포함).
     final saved = container.read(customAppliancesProvider).single;
     expect(saved.name, '전자레인지');
@@ -438,7 +462,7 @@ void main() {
     expect(find.text('홈'), findsOneWidget);
   });
 
-  testWidgets('허브에 프레임 치수가 없으면 적게 하고, 적기 전에는 못 넘어간다',
+  testWidgets('본체가 누름 장치 범위를 모르면 적으라고 하지 않고, 설치하는 분께 부탁하라며 못 넘어간다',
       (tester) async {
     final server = _Server()..frameKnown = false;
     _tall(tester);
@@ -454,16 +478,18 @@ void main() {
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
 
-    for (final p in const [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]) {
-      await _tapPhoto(tester, p.$1, p.$2);
-    }
     FilledButton next() =>
         tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
-    expect(find.textContaining('버튼판 크기를 아직 확인하지 못했어요'), findsOneWidget);
+    expect(find.text(kNoWorkspaceMessage), findsOneWidget);
+    expect(find.byType(TextField), findsNothing, reason: 'mm 칸은 없다');
     expect(next().onPressed, isNull);
-    await tester.enterText(find.byKey(const Key('wizard-frame-w')), '300');
-    await tester.enterText(find.byKey(const Key('wizard-frame-h')), '200');
-    await tester.pump();
+    expect(tester.widget<Text>(find.byKey(const Key('wizard-next-why'))).data, contains('범위'));
+
+    // 본체에 범위가 생기면 '다시 받기'로 이어 간다.
+    server.frameKnown = true;
+    await tester.tap(find.text('다시 받기'));
+    await _settle(tester);
+    expect(find.text(kNoWorkspaceMessage), findsNothing);
     expect(next().onPressed, isNotNull);
   });
 
@@ -491,9 +517,15 @@ void main() {
     await _settle(tester);
     await _walkToStopStep(tester);
     expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
-    // 기다리는 자리는 귀퉁이 안쪽이어야 한다 — 귀퉁이를 그려 둔다.
-    final marks = tester.widget<PanelPhotoView>(find.byKey(const Key('wizard-photo'))).marks;
-    expect(marks.where((m) => m.kind == PanelMarkKind.corner), hasLength(4));
+    // 기다리는 자리는 누름 장치 칸 안쪽이어야 한다 — 칸을 그려 둔다(끌 수는 없다).
+    final area = _areaOf(tester);
+    expect(area.corners, hasLength(4));
+    expect(area.onCornerMoved, isNull);
+    // 기다리는 자리는 진한 '대기' 표시로 보인다(실사용 10/26: 흐린 점선이 안 보였다).
+    final park = tester.widget<PanelPhotoView>(find.byKey(const Key('wizard-photo'))).marks
+        .where((m) => m.kind == PanelMarkKind.park);
+    expect(park, hasLength(1));
+    expect(find.descendant(of: find.byKey(const Key('mark-park')), matching: find.text('대기')), findsOneWidget);
 
     // 보통 폰 크기 — 사진과 설명으로 목록이 화면보다 길다.
     tester.view.physicalSize = const Size(400, 800);
@@ -635,7 +667,7 @@ void main() {
 
     expect(find.text('버튼 자리 맞추기'), findsOneWidget);
     expect(find.text('가전 추가'), findsNothing);
-    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
+    expect(_title(tester), _areaTitle);
     await tester.tap(find.byKey(const Key('wizard-back')));
     await tester.pump();
     expect(_title(tester), '1. 버튼판 사진');
@@ -660,7 +692,7 @@ void main() {
     await _settle(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
-    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
+    expect(_title(tester), _areaTitle);
 
     await tester.binding.handlePopRoute();
     await _settle(tester);
@@ -773,11 +805,14 @@ void main() {
     expect(find.byKey(const Key('wizard-next-why')), findsNothing);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
-    expect(why(), contains('귀퉁이'));
+    expect(find.byKey(const Key('wizard-next-why')), findsNothing, reason: '칸은 그려져 있어 바로 갈 수 있다');
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await tester.pump();
+    expect(why(), contains('버튼'));
   });
 
-  testWidgets('귀퉁이를 다 골랐는데 크기를 몰라 못 넘어가면 위에서 크기를 적으라고 말한다', (tester) async {
-    final server = _Server()..frameKnown = false;
+  testWidgets('옛 본체(범위를 frame_w_mm로만 줌)여도 칸을 그린다', (tester) async {
+    final server = _Server()..legacyFrame = true;
     _tall(tester);
     await tester.pumpWidget(_build(server));
     await tester.pump();
@@ -787,14 +822,147 @@ void main() {
     await _settle(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
-    for (final p in const [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]) {
-      await _tapPhoto(tester, p.$1, p.$2);
-    }
-    expect(find.textContaining('아래에 버튼판 가로·세로 크기(mm)를 적으면'), findsOneWidget);
-    await tester.enterText(find.byKey(const Key('wizard-frame-w')), '300');
-    await tester.enterText(find.byKey(const Key('wizard-frame-h')), '200');
+    expect(_areaOf(tester).corners, hasLength(4));
+    expect(_areaOf(tester).orientation, const AreaOrientation(), reason: 'y_up이면 원점 왼쪽 아래');
+  });
+
+  testWidgets('누름 장치 칸 귀퉁이를 끌어 옮기면 그 자리가 저장에 실린다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
     await tester.pump();
-    expect(find.textContaining('틀렸으면 "다시 고르기"'), findsOneWidget);
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    // 기본(y_up): 원점은 칸의 왼쪽 아래, X 화살표는 오른쪽, Y · 모터 쪽은 위.
+    final before = List.of(_areaOf(tester).corners);
+    expect(_tagAt(tester, 'area-origin-label').dy, greaterThan(0.75));
+    expect(_tagAt(tester, 'area-x-label').dx, greaterThan(_tagAt(tester, 'area-y-label').dx));
+    expect(_tagAt(tester, 'area-y-label').dy, lessThan(_tagAt(tester, 'area-x-label').dy));
+    expect(find.text(kAreaYLabel), findsOneWidget);
+
+    final scrollBefore = tester.state<ScrollableState>(find.byType(Scrollable).first).position.pixels;
+    await tester.drag(find.byKey(const Key('area-corner-2')), const Offset(-40, -60));
+    await _settle(tester);
+    final after = _areaOf(tester).corners;
+    final box = tester.getRect(find.byKey(const Key('wizard-photo')));
+    final scale = 1000 / box.width;
+    expect(after[2].x, closeTo(before[2].x - 40 * scale, 1));
+    expect(after[2].y, closeTo(before[2].y - 60 * scale, 1));
+    expect(after[0], before[0], reason: '끈 귀퉁이만 움직인다');
+    expect(tester.state<ScrollableState>(find.byType(Scrollable).first).position.pixels, scrollBefore,
+        reason: '귀퉁이를 끌면 목록이 스크롤되지 않는다');
+
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await tester.pump();
+    await _tapPhoto(tester, 0.3, 0.4);
+    await _settle(tester);
+    await tester.tap(find.text('확인'));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    await _saveWithoutStop(tester);
+    final sent = (server.mappingBody!['corners_px'] as List).cast<List<dynamic>>();
+    expect(sent[2][0], closeTo(after[2].x, 0.01));
+    expect(sent[2][1], closeTo(after[2].y, 0.01));
+  });
+
+  testWidgets('돌리기·뒤집기로 원점과 축 방향을 장치에 맞추고, 그 방향을 저장에 싣는다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    double w(List<PhotoPoint> c) => c[1].x - c[0].x;
+    double h(List<PhotoPoint> c) => c[3].y - c[0].y;
+    final flat = List.of(_areaOf(tester).corners);
+    expect(w(flat), greaterThan(h(flat)), reason: '300×200 범위는 가로로 긴 칸');
+
+    // 돌리기 90°: 손대지 않은 칸은 비율도 돌아 세로로 길어지고, 원점은 왼쪽 위·X는 아래·Y는 오른쪽.
+    await tester.tap(find.byKey(const Key('wizard-area-rotate')));
+    await tester.pump();
+    expect(find.text('돌리기 (90°)'), findsOneWidget);
+    final tall = _areaOf(tester).corners;
+    expect(h(tall), greaterThan(w(tall)));
+    expect(_areaOf(tester).orientation.cornerOrder, [0, 3, 2, 1]);
+    expect(_tagAt(tester, 'area-origin-label').dy, lessThan(0.25));
+    expect(_tagAt(tester, 'area-x-label').dy, greaterThan(_tagAt(tester, 'area-origin-label').dy));
+    expect(_tagAt(tester, 'area-y-label').dx, greaterThan(_tagAt(tester, 'area-x-label').dx));
+
+    // 뒤집기: 같은 칸, 원점이 왼쪽 아래로(+X 위, +Y 오른쪽).
+    await tester.tap(find.byKey(const Key('wizard-area-flip')));
+    await tester.pump();
+    expect(_areaOf(tester).corners, tall, reason: '뒤집기는 칸을 다시 그리지 않는다');
+    expect(_areaOf(tester).orientation, const AreaOrientation(rotation: 90, flipped: true));
+    expect(_tagAt(tester, 'area-origin-label').dy, greaterThan(0.75));
+
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await tester.pump();
+    await _tapPhoto(tester, 0.5, 0.5);
+    await _settle(tester);
+    await tester.tap(find.text('확인'));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    await _saveWithoutStop(tester);
+    expect(server.mappingBody!['orientation'], {'rotation': 90, 'flipped': true});
+  });
+
+  test('장치 방향 표는 본체(device_corner_order)와 같다', () {
+    expect(const AreaOrientation().cornerOrder, [3, 2, 1, 0]);
+    expect(const AreaOrientation(rotation: 90).cornerOrder, [0, 3, 2, 1]);
+    expect(const AreaOrientation(flipped: true).cornerOrder, [2, 3, 0, 1]);
+    expect(const AreaOrientation(rotation: 180, flipped: true).cornerOrder, [0, 1, 2, 3]);
+    final all = {
+      for (final r in [0, 90, 180, 270])
+        for (final f in [false, true]) AreaOrientation(rotation: r, flipped: f).cornerOrder.join()
+    };
+    expect(all, hasLength(8));
+    expect(pointInArea(const [PhotoPoint(0, 0), PhotoPoint(10, 0), PhotoPoint(10, 10), PhotoPoint(0, 10)],
+        const PhotoPoint(5, 5)), isTrue);
+    expect(pointInArea(const [PhotoPoint(0, 10), PhotoPoint(10, 10), PhotoPoint(10, 0), PhotoPoint(0, 0)],
+        const PhotoPoint(11, 5)), isFalse, reason: '어느 방향으로 돌아도');
+  });
+
+  testWidgets('누름 장치 칸 밖을 누르면 바로 닿지 않는다고 말하고 버튼을 받지 않는다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await tester.pump();
+    expect(find.text(kStopTapHint), findsOneWidget);
+
+    await _tapPhoto(tester, 0.03, 0.03);
+    await _settle(tester);
+    expect(find.text(kOutsideAreaMessage), findsOneWidget);
+    expect(find.byKey(const Key('wizard-button-name')), findsNothing, reason: '이름을 묻지 않는다');
+    expect(find.byType(InputChip), findsNothing);
+
+    await _tapPhoto(tester, 0.5, 0.5);
+    await _settle(tester);
+    await tester.tap(find.text('확인'));
+    await _settle(tester);
+    expect(find.byType(InputChip), findsOneWidget);
+    expect(find.text(kOutsideAreaMessage), findsNothing, reason: '안쪽을 누르면 말이 사라진다');
   });
 
   testWidgets("종류 '기타'는 이름으로 채우지 않는다, 미리 채운 버튼 이름은 골라 둔다", (tester) async {
@@ -819,9 +987,6 @@ void main() {
     await _settle(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
-    for (final p in const [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]) {
-      await _tapPhoto(tester, p.$1, p.$2);
-    }
     await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pump();
     await _tapPhoto(tester, 0.3, 0.4);
@@ -978,7 +1143,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/setup', extra: mapped);
     await _settle(tester);
-    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
+    expect(_title(tester), _areaTitle);
     for (var i = 0; i < 3; i++) {
       await tester.tap(find.byKey(const Key('wizard-next')));
       await _settle(tester);
@@ -1172,6 +1337,87 @@ void main() {
     expect(find.text('정지 버튼 없이 저장할까요?'), findsNothing);
     expect(server.mappingBody!['stop_button'], 'B01');
     expect(server.mappingBody!['park_px'], isNotNull);
+  });
+
+  // 실사용 10/26: ③에서 정지 버튼을 안 찍으면 ④에서 고를 수 없었다.
+  testWidgets('정지 버튼 단계에서 사진을 누르면 그 자리가 정지 버튼이 되고, 칸 밖은 받지 않는다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester, stop: false);
+    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+    expect(find.byKey(const Key('wizard-stop-photo-hint')), findsOneWidget);
+
+    await _tapPhoto(tester, 0.03, 0.5);
+    expect(find.text(kOutsideAreaMessage), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, '정지'), findsNothing);
+
+    await _tapPhoto(tester, 0.6, 0.6);
+    await tester.pump();
+    expect(find.text(kOutsideAreaMessage), findsNothing);
+    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '정지')).selected, isTrue);
+    // 다시 누르면 새로 만들지 않고 그 정지 버튼 자리만 옮긴다.
+    await _tapPhoto(tester, 0.72, 0.6);
+    await tester.pump();
+    expect(find.widgetWithText(ChoiceChip, '정지'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('wizard-park')));
+    await tester.pump();
+    await _tapPhoto(tester, 0.8, 0.8);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+    expect(find.text('정지 버튼 없이 저장할까요?'), findsNothing);
+    final buttons = server.mappingBody!['buttons_px'] as Map<String, dynamic>;
+    expect(buttons, hasLength(2));
+    final stopId = server.mappingBody!['stop_button'] as String;
+    expect((buttons[stopId] as List)[0], closeTo(720, 1));
+    final names = [for (final b in server.registerBody!['buttons'] as List) (b as Map)['label']];
+    expect(names, containsAll(['시작', '정지']));
+  });
+
+  testWidgets('이미 찍은 버튼을 사진에서 누르면 정지 버튼으로 고른다', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server()));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await _walkToStopStep(tester, stop: false);
+    await tester.tap(find.byKey(const Key('mark-B01')));
+    await tester.pump();
+    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '시작')).selected, isTrue);
+    expect(find.byType(ChoiceChip), findsOneWidget, reason: '새 정지 버튼을 만들지 않는다');
+  });
+
+  testWidgets('단계 제목 번호와 진행 막대가 늘 같다', (tester) async {
+    final handle = tester.ensureSemantics();
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server()));
+    await tester.pump();
+    GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('wizard-take-photo')));
+    await _settle(tester);
+    final seen = <String>[];
+    for (var i = 1; i <= 4; i++) {
+      expect(_title(tester), startsWith('$i. '));
+      expect(find.bySemanticsLabel('5개 중 $i번째'), findsOneWidget);
+      seen.add(_title(tester));
+      if (i == 3) {
+        await _tapPhoto(tester, 0.5, 0.5);
+        await _settle(tester);
+        await tester.tap(find.text('확인'));
+        await _settle(tester);
+      }
+      if (i < 4) {
+        await tester.tap(find.byKey(const Key('wizard-next')));
+        await _settle(tester);
+      }
+    }
+    expect(seen, ['1. 버튼판 사진', _areaTitle, '3. 버튼 고르고 이름 붙이기', '4. 정지 버튼과 기다리는 자리']);
+    handle.dispose();
   });
 
   test('같은 이름 경고의 예시는 적은 그 이름으로 든다', () {

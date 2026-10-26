@@ -22,8 +22,12 @@ import '../widgets/appliance_setup_card.dart';
 import 'appliance_editor_screen.dart';
 
 /// 가전 추가 5단계(UI 확정 §2, 실행 계획 §3-2):
-/// ① 사진 ② 프레임 모서리 4점 ③ 버튼 짚고 이름 붙이기 ④ 정지 버튼과 쉬는 자리
+/// ① 사진 ② 누름 장치 칸 맞추기 ③ 버튼 짚고 이름 붙이기 ④ 정지 버튼과 기다리는 자리
 /// ⑤ 확인 주행.
+///
+/// ②는 2026-10-26 실사용 피드백으로 바꿨다 — 자가 없어 버튼판 mm를 잴 수 없었고 적은 크기와 사진 비율이 다르다고
+/// 거절당했다. 이제 실제 크기는 본체가 아는 누름 장치가 닿는 범위다. 사진 위에 그 칸을 겹치고 사용자는 네 귀퉁이를
+/// 끌어 사진 속 장치 자리에 맞춘다. 장치가 옆으로 놓였으면 '돌리기'·'뒤집기'로 원점과 축 방향을 맞춘다.
 ///
 /// **사진 파일은 서버로 보내지 않는다.** 사진 크기와 짚은 좌표(px)만 보내고,
 /// 사진 → mm 계산은 서버(`PUT /appliances/{id}/mapping`)가 한다. 거절 사유(422)는
@@ -49,13 +53,42 @@ class _Tapped {
 
 const _stepTitles = [
   '버튼판 사진',
-  '버튼판 네 귀퉁이 고르기',
+  '누름 장치 칸 맞추기',
   '버튼 고르고 이름 붙이기',
   '정지 버튼과 기다리는 자리',
   '자리 확인',
 ];
 
-const _cornerNames = ['왼쪽 위', '오른쪽 위', '오른쪽 아래', '왼쪽 아래'];
+/// ② 단계의 한 줄 설명(실사용 10/26 — 사용자가 고른 말).
+const kAreaHint = '누름 장치가 닿는 칸을 사진 속 장치 자리에 맞춰 주세요';
+
+/// 누름 장치 칸 밖을 짚었을 때 바로 보이는 말(버튼·정지 버튼·기다리는 자리).
+const kOutsideAreaMessage = '여기는 누름 장치가 닿지 않아요';
+
+/// ③ 버튼 단계 안내 — 정지 버튼을 빠뜨리면 ④에서 고를 수 없었다(실사용 10/26).
+const kStopTapHint = '정지 버튼도 꼭 찍어 주세요';
+
+/// 본체가 누름 장치 범위를 모를 때.
+const kNoWorkspaceMessage = '누름 장치가 닿는 범위를 본체에서 받지 못했어요. 설치하는 분께 범위 설정을 부탁해 주세요.';
+
+/// [corners](볼록 사각형, 어느 방향이든)의 안쪽이나 변 위인가.
+bool pointInArea(List<PhotoPoint> corners, PhotoPoint p) {
+  if (corners.length != 4) return true;
+  var sign = 0;
+  for (var i = 0; i < 4; i++) {
+    final a = corners[i];
+    final b = corners[(i + 1) % 4];
+    final c = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+    if (c == 0) continue;
+    final s = c > 0 ? 1 : -1;
+    if (sign == 0) {
+      sign = s;
+    } else if (s != sign) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /// 정지 버튼이나 기다리는 자리 없이 저장하려 할 때 묻는 창의 본문.
 const kNoStopConsequence = '정지 버튼과 기다리는 자리를 둘 다 정하지 않으면, 가전이 도는 중에 멈춰 달라고 해도 '
@@ -95,12 +128,18 @@ class _AddApplianceWizardScreenState
   final _room = TextEditingController();
   ApplianceCategory _category = ApplianceCategory.microwave;
 
-  // ② 모서리
+  // ② 누름 장치 칸 — 사진 위 네 귀퉁이(처음 그린 순서: 왼쪽 위부터 시계 방향)와 장치 방향.
   final List<PhotoPoint> _corners = [];
   MappingFrame? _frame;
   bool _frameLoaded = false;
-  final _frameW = TextEditingController();
-  final _frameH = TextEditingController();
+  AreaOrientation? _orientation;
+
+  /// 사용자가 귀퉁이를 옮겼나. 안 옮겼으면 돌릴 때 칸 비율도 같이 돌려 다시 그린다.
+  bool _areaTouched = false;
+
+  /// 사용자가 돌리기·뒤집기를 눌렀나. 처음 연 때와 비교하는 입력([_snapshot])에는 이때만 방향을 넣는다 — 본체 범위를 받아
+  /// 기본 방향을 채운 것만으로 '저장하지 않은 내용'이 생기지 않게.
+  bool _orientationChanged = false;
 
   // ③ 버튼
   final List<_Tapped> _buttons = [];
@@ -142,6 +181,9 @@ class _AddApplianceWizardScreenState
       if (mapping != null) {
         _photoSize = Size(mapping.photoWidth, mapping.photoHeight);
         _corners.addAll(mapping.corners);
+        _areaTouched = mapping.corners.length == 4;
+        // 옛 방식(버튼판 귀퉁이)으로 맞춘 매핑은 방향이 없다 — 본체 범위를 받은 뒤 기본 방향으로 그린다.
+        _orientation = mapping.orientation;
         for (final b in a.buttons) {
           final point = mapping.buttons[b.id];
           if (point != null) _buttons.add(_Tapped(b.id, b.label, point));
@@ -164,7 +206,7 @@ class _AddApplianceWizardScreenState
         for (final c in _corners) '${c.x},${c.y}',
         for (final b in _buttons) '${b.id}:${b.label}@${b.point.x},${b.point.y}',
         _stopId, _stopPresses, _park == null ? null : '${_park!.x},${_park!.y}',
-        _frameW.text, _frameH.text,
+        _orientationChanged ? '${_orientation?.rotation}/${_orientation?.flipped}' : null,
       ].join('|');
 
   @override
@@ -172,8 +214,6 @@ class _AddApplianceWizardScreenState
     _poll?.cancel();
     _name.dispose();
     _room.dispose();
-    _frameW.dispose();
-    _frameH.dispose();
     super.dispose();
   }
 
@@ -185,7 +225,7 @@ class _AddApplianceWizardScreenState
             _name.text.trim().isNotEmpty &&
             !_nameTaken &&
             !_offline,
-        1 => _corners.length == 4 && _frameReady,
+        1 => _corners.length == 4 && _frameReady && _orientation != null,
         2 => _buttons.isNotEmpty,
         3 => !_busy,
         _ => false,
@@ -206,8 +246,8 @@ class _AddApplianceWizardScreenState
         if (_offline) return '본체와 연결되어야 다음으로 갈 수 있어요';
         return null;
       case 1:
-        if (_corners.length < 4) return '버튼판 귀퉁이 네 곳을 골라야 다음으로 갈 수 있어요';
-        return '버튼판 가로·세로 크기(mm)를 적어야 다음으로 갈 수 있어요';
+        if (!_frameLoaded) return '누름 장치가 닿는 범위를 본체에서 받는 중이에요';
+        return '누름 장치가 닿는 범위를 본체에서 받아야 다음으로 갈 수 있어요';
       case 2:
         return '버튼을 하나 이상 골라야 다음으로 갈 수 있어요';
       default:
@@ -228,16 +268,7 @@ class _AddApplianceWizardScreenState
       widget.initial == null &&
       applianceNameTaken(ref.read(installedAppliancesProvider), _name.text, _room.text);
 
-  bool get _frameReady =>
-      (_frame?.known ?? false) || (_parsedFrameW != null && _parsedFrameH != null);
-
-  double? get _parsedFrameW => _positive(_frameW.text);
-  double? get _parsedFrameH => _positive(_frameH.text);
-
-  static double? _positive(String raw) {
-    final v = double.tryParse(raw.trim());
-    return (v == null || v <= 0 || v > 2000) ? null : v;
-  }
+  bool get _frameReady => _frame?.known ?? false;
 
   Future<void> _next() async {
     if (_step == 3) {
@@ -253,7 +284,13 @@ class _AddApplianceWizardScreenState
       }
       _error = null;
     });
-    if (_step == 1 && !_frameLoaded) unawaited(_loadFrame());
+    if (_step == 1) {
+      if (!_frameLoaded) {
+        unawaited(_loadFrame());
+      } else {
+        setState(_ensureArea);
+      }
+    }
   }
 
   /// 정지 버튼이나 기다리는 자리 없이 저장하려 할 때 한 번 묻는다. 둘 중 하나라도 없으면 가전이 도는 중에 멈춰 달라고 해도
@@ -298,6 +335,56 @@ class _AddApplianceWizardScreenState
     });
   }
 
+  /// 범위를 알고 칸이 아직 없으면 사진 가운데에 범위 비율의 칸을 그린다. 방향이 없으면 본체 기본 방향.
+  void _ensureArea() {
+    final frame = _frame;
+    if (frame == null || !frame.known) return;
+    _orientation ??= frame.defaultOrientation;
+    if (_corners.length != 4 && _photoSize != null) _resetArea();
+  }
+
+  /// 칸을 사진 가운데에 다시 그린다 — 장치 X 변이 사진에서 가로면(돌리기 0·180) 가로:세로 = W:H, 세로면 H:W.
+  void _resetArea() {
+    final size = _photoSize;
+    final frame = _frame;
+    if (size == null || frame == null || !frame.known) return;
+    final xHorizontal = ((_orientation?.rotation ?? 0) ~/ 90).isEven;
+    final aspect = xHorizontal ? frame.widthMm! / frame.heightMm! : frame.heightMm! / frame.widthMm!;
+    var w = size.width * 0.8;
+    var h = w / aspect;
+    if (h > size.height * 0.8) {
+      h = size.height * 0.8;
+      w = h * aspect;
+    }
+    // 아주 가는 범위(예: 15×115 mm)도 손가락으로 잡을 수 있게 최소 크기를 둔다 — 비율은 처음 그림일 뿐 맞추면 된다.
+    w = w.clamp(size.width * 0.25, size.width * 0.8).toDouble();
+    h = h.clamp(size.height * 0.25, size.height * 0.8).toDouble();
+    final l = (size.width - w) / 2;
+    final t = (size.height - h) / 2;
+    _corners
+      ..clear()
+      ..addAll([PhotoPoint(l, t), PhotoPoint(l + w, t), PhotoPoint(l + w, t + h), PhotoPoint(l, t + h)]);
+    _areaTouched = false;
+  }
+
+  void _rotateArea() => setState(() {
+        _orientationChanged = true;
+        _orientation = (_orientation ?? const AreaOrientation()).rotated();
+        if (!_areaTouched) _resetArea();
+      });
+
+  void _flipArea() => setState(() {
+        _orientationChanged = true;
+        _orientation = (_orientation ?? const AreaOrientation()).mirrored();
+      });
+
+  /// 누름 장치 칸 안인가. 밖이면 바로 말하고 false.
+  bool _reachable(PhotoPoint p) {
+    if (pointInArea(_corners, p)) return true;
+    setState(() => _error = kOutsideAreaMessage);
+    return false;
+  }
+
   // ── ① 사진 ────────────────────────────────────────────────────────────
 
   Future<void> _takePhoto({bool fromGallery = false}) async {
@@ -325,6 +412,7 @@ class _AddApplianceWizardScreenState
       _error = kept == null ? '사진을 이 폰에 남기지 못했어요. 등록은 되지만 나중에 사진이 안 보일 수 있어요.' : null;
       // 사진이 바뀌면 짚은 자리는 모두 무효다.
       _corners.clear();
+      _areaTouched = false;
       _buttons.clear();
       _stopId = null;
       _park = null;
@@ -347,12 +435,15 @@ class _AddApplianceWizardScreenState
     setState(() {
       _frame = frame;
       _frameLoaded = true;
+      _ensureArea();
     });
   }
 
   // ── ③ 버튼 ────────────────────────────────────────────────────────────
 
   Future<void> _addButton(PhotoPoint p) async {
+    if (!_reachable(p)) return;
+    if (_error == kOutsideAreaMessage) setState(() => _error = null);
     final existing = widget.initial;
     if (existing != null) {
       final chosen = await showDialog<ApplianceButton>(context: context, builder: (dialog) => SimpleDialog(
@@ -393,6 +484,43 @@ class _AddApplianceWizardScreenState
     }
     return '$label $n';
   }
+
+  /// ④에서 사진을 짚으면 그 자리를 정지 버튼으로 — ③에서 정지 버튼을 안 찍었어도 여기서 고를 수 있다(실사용 10/26).
+  /// 이 단계에서 만든 정지 버튼이 있으면 그 자리만 옮긴다. 다시 맞추기는 이미 있는 버튼 중에서 고른다.
+  Future<void> _tapStop(PhotoPoint p) async {
+    if (!_reachable(p)) return;
+    if (_error == kOutsideAreaMessage) setState(() => _error = null);
+    final existing = widget.initial;
+    if (existing != null) {
+      final free = existing.buttons.where((b) => !_buttons.any((t) => t.id == b.id)).toList();
+      if (free.isEmpty) return;
+      final chosen = await showDialog<ApplianceButton>(context: context, builder: (dialog) => SimpleDialog(
+        title: const Text('이 자리에 있는 정지 버튼을 골라 주세요'),
+        children: [for (final b in free)
+          SimpleDialogOption(onPressed: () => Navigator.pop(dialog, b), child: Text(b.label)),
+        ],
+      ));
+      if (chosen == null || !mounted) return;
+      setState(() {
+        _buttons.add(_Tapped(chosen.id, chosen.label, p));
+        _stopId = chosen.id;
+        _stopChosen = true;
+      });
+      return;
+    }
+    setState(() {
+      final mine = _buttons.where((b) => b.id == _addedStopId).firstOrNull;
+      if (mine != null) _buttons.remove(mine);
+      final id = 'B${(_buttonSeq++).toString().padLeft(2, '0')}';
+      _buttons.add(_Tapped(id, mine?.label ?? _unique('정지'), p));
+      _addedStopId = id;
+      _stopId = id;
+      _stopChosen = true;
+    });
+  }
+
+  /// ④에서 사진을 짚어 만든 정지 버튼의 id.
+  String? _addedStopId;
 
   Future<String?> _askName(String initial) {
     // 미리 채운 '버튼 1'은 골라 둔다 — 바로 치면 바뀌게(실화면 10/19: 뒤에 이어 붙었다).
@@ -471,8 +599,8 @@ class _AddApplianceWizardScreenState
         photoHeight: size.height.round(),
         corners: _corners,
         buttons: {for (final b in _buttons) b.id: b.point},
-        frameWidthMm: (_frame?.known ?? false) ? null : _parsedFrameW,
-        frameHeightMm: (_frame?.known ?? false) ? null : _parsedFrameH,
+        // mm는 보내지 않는다 — 본체가 아는 누름 장치 범위와 이 방향으로 계산한다.
+        orientation: _orientation,
         stopButton: _stopId,
         stopPresses: _stopPresses,
         parkPoint: _park,
@@ -592,6 +720,7 @@ class _AddApplianceWizardScreenState
               corners: List.of(_corners),
               buttons: {for (final b in _buttons) b.id: b.point},
               parkPoint: _park,
+              orientation: _orientation,
             ),
         stopButton: server.stopButton ?? _stopId,
       );
@@ -798,6 +927,8 @@ class _AddApplianceWizardScreenState
   Widget _photoPanel({
     List<PanelMark> marks = const [],
     void Function(PhotoPoint)? onTap,
+    void Function(PanelMark)? onTapMark,
+    PanelArea? area,
     required String label,
   }) {
     final size = _photoSize!;
@@ -809,20 +940,12 @@ class _AddApplianceWizardScreenState
       image: applianceImageOverride,
       marks: marks,
       onTapPhoto: onTap,
+      onTapMark: onTapMark,
+      area: area,
       semanticsLabel: label,
     );
   }
 
-  /// 고른 네 귀퉁이 — 버튼·기다리는 자리를 고를 때도 버튼판이 어디까지인지 보이게 그린다.
-  List<PanelMark> _cornerMarks() => [
-        for (var i = 0; i < _corners.length; i++)
-          PanelMark(
-            id: 'corner-$i',
-            kind: PanelMarkKind.corner,
-            point: _corners[i],
-            number: i + 1,
-          ),
-      ];
 
   List<Widget> _hint(String text) => [
         Text(text, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
@@ -945,73 +1068,94 @@ class _AddApplianceWizardScreenState
         ],
       ];
 
+  /// 누름 장치 칸(②~④ 사진 위에 늘 겹쳐 그린다). [editable]이면 귀퉁이를 끌 수 있다.
+  PanelArea? _area({bool editable = false}) {
+    final o = _orientation;
+    if (_corners.length != 4 || o == null) return null;
+    return PanelArea(
+      corners: List.of(_corners),
+      orientation: o,
+      onCornerMoved: editable
+          ? (i, p) => setState(() {
+                _corners[i] = p;
+                _areaTouched = true;
+              })
+          : null,
+    );
+  }
+
   List<Widget> _cornerStep() {
-    final nextCorner = _corners.length < 4 ? _cornerNames[_corners.length] : null;
+    final frame = _frame;
     return [
-      ..._hint(nextCorner == null
-          // 크기 칸이 사진 아래라 화면 밖이다 — '다음'이 왜 안 눌리는지 위에서 말한다(실화면 10/19).
-          ? (_frameLoaded && !_frameReady
-              ? '네 귀퉁이를 모두 골랐어요. 아래에 버튼판 가로·세로 크기(mm)를 적으면 다음으로 갈 수 있어요.'
-              : '네 귀퉁이를 모두 골랐어요. 틀렸으면 "다시 고르기"를 눌러 주세요.')
-          : '사진에서 버튼판 귀퉁이를 왼쪽 위부터 차례로 눌러 주세요. 지금: $nextCorner'),
-      _photoPanel(
-        label: '버튼판 귀퉁이를 고르는 사진',
-        marks: _cornerMarks(),
-        onTap: _corners.length >= 4
-            ? null
-            : (p) => setState(() => _corners.add(p)),
-      ),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: _corners.isEmpty ? null : () => setState(_corners.clear),
-          icon: const Icon(Icons.undo),
-          label: const Text('다시 고르기'),
-        ),
-      ),
+      ..._hint(kAreaHint),
       if (!_frameLoaded)
         const LinearProgressIndicator()
-      else if (_frame?.known ?? false)
-        Text(
-          '버튼판 크기: 가로 ${_frame!.widthMm!.toStringAsFixed(0)}mm, 세로 ${_frame!.heightMm!.toStringAsFixed(0)}mm',
-          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
-        )
-      else ...[
-        Text('버튼판 크기를 아직 확인하지 못했어요. 자로 잰 안쪽 크기를 적어 주세요.',
+      else if (frame == null || !frame.known) ...[
+        Text(kNoWorkspaceMessage,
+            key: const Key('wizard-no-workspace'),
             style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
-        Row(
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () {
+              setState(() => _frameLoaded = false);
+              unawaited(_loadFrame());
+            },
+            icon: const Icon(Icons.refresh),
+            label: const Text('다시 받기'),
+          ),
+        ),
+      ] else ...[
+        _photoPanel(label: '누름 장치 칸을 맞추는 사진', area: _area(editable: true)),
+        const SizedBox(height: AppSpace.sm),
+        Text('네 귀퉁이 동그라미를 끌어 옮겨요. 장치가 옆으로 놓였으면 "돌리기", 거울처럼 반대면 "뒤집기"로 '
+            '원점과 화살표(X, Y · 모터 쪽)를 실제 장치 방향에 맞춰 주세요.',
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+        Wrap(
+          spacing: AppSpace.sm,
           children: [
-            Expanded(
-              child: TextField(
-                key: const Key('wizard-frame-w'),
-                controller: _frameW,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: '가로 (mm)'),
-                onChanged: (_) => setState(() {}),
-              ),
+            TextButton.icon(
+              key: const Key('wizard-area-rotate'),
+              onPressed: _rotateArea,
+              icon: const Icon(Icons.rotate_90_degrees_cw_outlined),
+              label: Text('돌리기 (${_orientation?.rotation ?? 0}°)'),
             ),
-            const SizedBox(width: AppSpace.md),
-            Expanded(
-              child: TextField(
-                key: const Key('wizard-frame-h'),
-                controller: _frameH,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: '세로 (mm)'),
-                onChanged: (_) => setState(() {}),
-              ),
+            TextButton.icon(
+              key: const Key('wizard-area-flip'),
+              onPressed: _flipArea,
+              icon: const Icon(Icons.flip),
+              label: Text((_orientation?.flipped ?? false) ? '뒤집기 (뒤집음)' : '뒤집기'),
+            ),
+            TextButton.icon(
+              key: const Key('wizard-area-reset'),
+              onPressed: () => setState(_resetArea),
+              icon: const Icon(Icons.crop_free),
+              label: const Text('처음 칸으로'),
             ),
           ],
+        ),
+        Text(
+          '누름 장치가 닿는 칸: 가로 ${_mm(frame.widthMm!)}mm, 세로 ${_mm(frame.heightMm!)}mm (본체 설정)',
+          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
         ),
       ],
     ];
   }
 
+  static String _mm(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
   List<Widget> _buttonStep() => [
-        ..._hint('사진 속 버튼을 누르고 이름을 붙여요.'),
+        ..._hint('누름 장치 칸 안에서 사진 속 버튼을 누르고 이름을 붙여요.'),
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpace.sm),
+          child: Text(kStopTapHint,
+              key: const Key('wizard-stop-tap-hint'),
+              style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appWarning)),
+        ),
         _photoPanel(
           label: '버튼을 고르는 사진, ${_buttons.length}개 골랐어요',
+          area: _area(),
           marks: [
-            ..._cornerMarks(),
             for (final b in _buttons)
               PanelMark(
                 id: b.id,
@@ -1050,13 +1194,13 @@ class _AddApplianceWizardScreenState
       ];
 
   List<Widget> _stopStep() => [
-        // '모서리'라고만 하니 사진 모서리(버튼판 밖)를 골라 거절됐다(실화면 10/19) — 네 귀퉁이 안쪽이라고 말하고 귀퉁이를 그려 둔다.
-        ..._hint('가전이 움직이는 동안 누름 장치가 정지 버튼 위에서 기다려요. 기다리는 자리는 번호 붙은 네 귀퉁이 안쪽에서 '
-            '버튼과 표시창을 가리지 않는 곳으로 골라 주세요.'),
+        // 누름 장치 칸을 그려 둔다 — 그 안쪽만 고를 수 있다.
+        ..._hint('가전이 움직이는 동안 누름 장치가 정지 버튼 위에서 기다려요. 정지 버튼은 아래에서 고르거나 사진에서 '
+            '바로 눌러 주세요. 기다리는 자리는 누름 장치 칸 안에서 버튼과 표시창을 가리지 않는 곳으로 골라 주세요.'),
         _photoPanel(
           label: '정지 버튼과 기다리는 자리를 고르는 사진',
+          area: _area(),
           marks: [
-            ..._cornerMarks(),
             for (final b in _buttons)
               PanelMark(
                 id: b.id,
@@ -1068,15 +1212,33 @@ class _AddApplianceWizardScreenState
               PanelMark(id: 'park', kind: PanelMarkKind.park, point: _park!),
           ],
           onTap: _placingPark
-              ? (p) => setState(() {
+              ? (p) {
+                  if (!_reachable(p)) return;
+                  setState(() {
                     _park = p;
                     _placingPark = false;
-                  })
-              : null,
+                    if (_error == kOutsideAreaMessage) _error = null;
+                  });
+                }
+              : _tapStop,
+          // 이미 찍은 버튼을 사진에서 눌러도 정지 버튼으로 고른다.
+          onTapMark: _placingPark
+              ? null
+              : (m) {
+                  if (m.kind != PanelMarkKind.button && m.kind != PanelMarkKind.stop) return;
+                  setState(() {
+                    _stopChosen = true;
+                    _stopId = m.id == _stopId ? null : m.id;
+                  });
+                },
         ),
         const SizedBox(height: AppSpace.md),
         const Text('정지 버튼',
             style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
+        if (_buttons.isEmpty || _stopId == null)
+          Text('목록에 없으면 사진에서 정지 버튼을 바로 눌러 주세요.',
+              key: const Key('wizard-stop-photo-hint'),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         const SizedBox(height: AppSpace.sm),
         Wrap(
           spacing: AppSpace.sm,
@@ -1113,7 +1275,7 @@ class _AddApplianceWizardScreenState
           onPressed: () => setState(() => _placingPark = !_placingPark),
           icon: const Icon(Icons.local_parking),
           label: Text(_placingPark
-              ? '사진에서 기다리는 자리를 골라 주세요'
+              ? '사진에서 기다리는 자리(대기)를 골라 주세요'
               : (_park == null ? '기다리는 자리 고르기' : '기다리는 자리 다시 고르기')),
         ),
         if (_stopId == null || _park == null)

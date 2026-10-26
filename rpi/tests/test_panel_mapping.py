@@ -74,12 +74,18 @@ def test_frame_origin_offset_shifts_every_point(monkeypatch):
     ([CORNERS[0], CORNERS[1], [(CORNERS[1][0] + CORNERS[3][0]) / 2 + 1, (CORNERS[1][1] + CORNERS[3][1]) / 2 + 1],
       CORNERS[3]], "찌그러졌어요"),
     ([[100, 100], [130, 100], [130, 120], [100, 120]], "너무 작아요"),
-    ([[100, 100], [1100, 100], [1100, 150], [100, 150]], "비율"),
     ([CORNERS[0], CORNERS[1], CORNERS[2], [-5, 500]], "사진 밖"),
 ])
 def test_wrong_or_degenerate_corners_are_rejected_in_plain_korean(corners, message):
     with pytest.raises(MappingRejected, match=message):
         compute_mapping(data(corners_px=tuple(tuple(c) for c in corners)))
+
+
+def test_photo_aspect_far_from_the_typed_size_is_no_longer_rejected():
+    """2026-10-26 실사용: 자가 없어 잴 수 없는 크기와 사진 비율이 다르다고 거절했다 — 이제 기록만 한다."""
+    flat = ((100.0, 100.0), (1100.0, 100.0), (1100.0, 250.0), (100.0, 250.0))
+    result = compute_mapping(data(corners_px=flat, buttons_px={}, park_px=None))
+    assert result.quality["photo_aspect"] > 6 and "aspect_factor" not in result.quality
 
 
 def test_taps_outside_the_frame_and_missing_frame_size_are_rejected():
@@ -224,3 +230,109 @@ def test_y_up_gantry_maps_the_photo_bottom_left_to_origin(monkeypatch):
     assert result.park_mm == pytest.approx((20, 15), abs=0.01)
     monkeypatch.delenv("SIMPLELAY_FRAME_Y_UP")
     assert frame_config(300, 200).y_up is False
+
+
+# ── 누름 장치 칸 방식(2026-10-26) ─────────────────────────────────────────────
+
+#: 15×115 mm 작업 영역이 사진에 옆으로 누워 있다 — 폰이 그린 칸(왼쪽 위부터 시계 방향).
+STRIP = ((300.0, 400.0), (900.0, 400.0), (900.0, 500.0), (300.0, 500.0))
+WORKSPACE = FrameConfig(15.0, 115.0, source="workspace", y_up=True)
+
+
+def strip_data(**over):
+    base = dict(photo_w=1200, photo_h=900, corners_px=STRIP, frame=WORKSPACE, orientation=(90, False))
+    base.update(over)
+    return MappingInput(**base)
+
+
+def test_device_corner_order_covers_all_eight_orientations_and_matches_the_legacy_rule():
+    from rpi.services.panel_mapping import device_corner_order, legacy_orientation
+    orders = {device_corner_order(r, f) for r in (0, 90, 180, 270) for f in (False, True)}
+    assert len(orders) == 8
+    assert device_corner_order(*legacy_orientation(True)) == (3, 2, 1, 0)   # 원점 왼쪽 아래, +Y 위
+    assert device_corner_order(*legacy_orientation(False)) == (0, 1, 2, 3)  # 원점 왼쪽 위, +Y 아래
+    # 앱(deviceCornerOrder)과 같은 표 — add_appliance_wizard_test.dart가 같은 값을 본다.
+    assert device_corner_order(90, False) == (0, 3, 2, 1)
+    assert device_corner_order(0, True) == (2, 3, 0, 1)
+
+
+def test_sideways_device_maps_with_the_chosen_orientation_and_no_mm_input():
+    """돌리기 90°: 원점이 칸의 왼쪽 위, +X가 아래(15 mm), +Y가 오른쪽(115 mm). 사진 비율(6:1)과 치수 비율(15:115)이
+    전혀 달라도 거절하지 않는다 — 원점·축은 사용자가 정했다."""
+    result = compute_mapping(strip_data(buttons_px={"A": (600.0, 400.0), "B": (900.0, 500.0)},
+                                        park_px=(300.0, 450.0)))
+    assert result.buttons_mm["A"] == pytest.approx((0, 57.5), abs=0.01)
+    assert result.buttons_mm["B"] == pytest.approx((15, 115), abs=0.01)
+    assert result.park_mm == pytest.approx((7.5, 0), abs=0.01)
+    assert result.record["orientation"] == {"rotation": 90, "flipped": False}
+    # 뒤집으면 원점이 칸의 왼쪽 아래로 가고 +X는 위, +Y는 오른쪽이다(같은 칸, 거울 방향).
+    flipped = compute_mapping(strip_data(orientation=(90, True),
+                                         buttons_px={"A": (300.0, 500.0), "B": (300.0, 400.0)}))
+    assert flipped.buttons_mm["A"] == pytest.approx((0, 0), abs=0.01)
+    assert flipped.buttons_mm["B"] == pytest.approx((15, 0), abs=0.01)
+
+
+def test_tap_outside_the_device_area_is_rejected_in_plain_korean():
+    with pytest.raises(MappingRejected, match="누름 장치가 닿지 않는 곳") as info:
+        compute_mapping(strip_data(buttons_px={"A": (960.0, 450.0)}, button_labels={"A": "시작"}))
+    assert str(info.value).startswith("버튼 '시작'은 누름 장치가 닿지 않는 곳에 있어요")
+    # 작은 칸에서는 여유도 작다 — 5 mm(칸 폭의 1/3)를 끝으로 당겨 받지 않는다.
+    with pytest.raises(MappingRejected, match="누름 장치가 닿지 않는 곳"):
+        compute_mapping(strip_data(buttons_px={"A": (600.0, 520.0)}))  # X ≈ 18 mm
+
+
+def test_device_area_shape_checks_stay_but_order_rules_do_not():
+    twisted = (STRIP[0], STRIP[1], STRIP[3], STRIP[2])
+    with pytest.raises(MappingRejected, match="칸 모양이 꼬였어요"):
+        compute_mapping(strip_data(corners_px=twisted))
+    tiny = ((300.0, 400.0), (330.0, 400.0), (330.0, 420.0), (300.0, 420.0))
+    with pytest.raises(MappingRejected, match="너무 작아요"):
+        compute_mapping(strip_data(corners_px=tiny))
+    # 시계 반대 방향·첫 귀퉁이가 왼쪽 위가 아니어도 칸 방식에서는 받는다(방향은 돌리기·뒤집기가 말한다).
+    ccw = tuple(reversed(STRIP))
+    assert compute_mapping(strip_data(corners_px=ccw)).version
+    with pytest.raises(MappingRejected, match="범위가 본체에 아직 정해지지 않았어요"):
+        compute_mapping(strip_data(frame=FrameConfig(None, None)))
+
+
+def test_workspace_env_wins_over_the_old_frame_env_and_soft_limits_are_the_last_fallback():
+    env = {"SIMPLELAY_WORKSPACE_W_MM": "15", "SIMPLELAY_WORKSPACE_H_MM": "115",
+           "SIMPLELAY_FRAME_W_MM": "300", "SIMPLELAY_FRAME_H_MM": "200", "SIMPLELAY_FRAME_Y_UP": "1"}
+    frame = frame_config(env=env)
+    assert (frame.width_mm, frame.height_mm, frame.source, frame.y_up) == (15, 115, "workspace", True)
+    assert frame_config(300, 200, env=env).source == "request"  # 옛 폰이 적어 보낸 크기(호환)
+    old = frame_config(env={"SIMPLELAY_FRAME_W_MM": "300", "SIMPLELAY_FRAME_H_MM": "200"})
+    assert (old.width_mm, old.source) == (300, "env")
+    limits = frame_config(env={"SIMPLELAY_MOTION_X_MIN_MM": "2", "SIMPLELAY_MOTION_X_MAX_MM": "17",
+                               "SIMPLELAY_MOTION_Y_MIN_MM": "0", "SIMPLELAY_MOTION_Y_MAX_MM": "115"})
+    assert (limits.width_mm, limits.height_mm, limits.origin_x_mm, limits.source) == (15, 115, 2, "soft_limits")
+    assert frame_config(env={}).source == "none"
+
+
+def test_api_maps_with_the_workspace_and_orientation_without_any_mm_input(client, monkeypatch):
+    monkeypatch.delenv("SIMPLELAY_FRAME_W_MM")
+    monkeypatch.delenv("SIMPLELAY_FRAME_H_MM")
+    monkeypatch.setenv("SIMPLELAY_WORKSPACE_W_MM", "15")
+    monkeypatch.setenv("SIMPLELAY_WORKSPACE_H_MM", "115")
+    monkeypatch.setenv("SIMPLELAY_FRAME_Y_UP", "1")
+    frame = client.get("/mapping/frame").json()
+    assert frame["workspace"] == {"w_mm": 15, "h_mm": 115, "origin_x_mm": 0, "origin_y_mm": 0, "y_up": True,
+                                  "source": "workspace"}
+    client.put("/appliances/custom_fan", json=FAN)
+    req = {"photo_width": 1200, "photo_height": 900, "corners_px": [list(c) for c in STRIP],
+           "orientation": {"rotation": 90, "flipped": False},
+           "buttons_px": {"F-01": [600, 400], "F-02": [750, 450]},
+           "stop_button": "F-03", "stop_px": [880, 450], "park_px": [320, 450]}
+    res = client.put("/appliances/custom_fan/mapping", json=req)
+    assert res.status_code == 200, res.text
+    doc = res.json()
+    assert doc["buttons_mm"]["F-01"] == pytest.approx([0, 57.5], abs=0.01)
+    assert doc["appliance"]["panel_mapping"]["orientation"] == {"rotation": 90, "flipped": False}
+    outside = client.post("/appliances/custom_fan/mapping/preview",
+                          json={**req, "buttons_px": {"F-01": [960, 450]}})
+    assert outside.status_code == 422 and "누름 장치가 닿지 않는 곳" in outside.json()["detail"]
+    bad = client.post("/appliances/custom_fan/mapping/preview", json={**req, "orientation": {"rotation": 45}})
+    assert bad.status_code == 422
+    # 옛 폰(크기를 적어 보냄)도 그대로 된다.
+    legacy = client.post("/appliances/custom_fan/mapping/preview", json={**body(), "frame_w_mm": 300, "frame_h_mm": 200})
+    assert legacy.status_code == 200, legacy.text

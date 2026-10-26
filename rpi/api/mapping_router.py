@@ -1,6 +1,6 @@
 """가전 추가 5단계용 API — 사진 매핑(②~④)·확인 주행(⑤) (2026-09-30). **실물 미검증.**
 
-  GET  /mapping/frame                         프레임 치수·원점 오프셋·소프트 리밋 설정 상태
+  GET  /mapping/frame                         누름 장치 작업 영역(workspace)·원점 오프셋·소프트 리밋 설정 상태
   POST /appliances/{id}/mapping/preview       사진 px → mm 미리보기(저장 안 함)
   PUT  /appliances/{id}/mapping               같은 계산 + 저장(버튼 mm·정지 버튼·횟수·보관 위치)
   POST /appliances/{id}/verify-pass           확인 주행 시작(누르지 않고 Z를 올린 채 지나감)
@@ -58,6 +58,20 @@ class ExtraPoint(BaseModel):
         return _pair(v, "point")  # type: ignore[return-value]
 
 
+class Orientation(BaseModel):
+    """누름 장치가 사진에서 놓인 방향(2026-10-26) — 폰이 그린 칸을 90° 단위로 돌리고 뒤집은 것."""
+
+    rotation: int = 0
+    flipped: bool = False
+
+    @field_validator("rotation")
+    @classmethod
+    def right_angle(cls, v: int) -> int:
+        if v not in (0, 90, 180, 270):
+            raise ValueError("rotation must be 0, 90, 180 or 270")
+        return v
+
+
 class MappingRequest(BaseModel):
     """사진 매핑 요청. 좌표는 모두 **사진 px**(왼쪽 위 원점, 아래로 +y)."""
 
@@ -65,7 +79,7 @@ class MappingRequest(BaseModel):
     photo_height: int = Field(ge=16, le=20000)
     #: 프레임 모서리 4점 — 왼쪽 위 → 오른쪽 위 → 오른쪽 아래 → 왼쪽 아래.
     corners_px: list[list[float]]
-    #: 프레임 안쪽 치수(mm). 없으면 서버 설정(SIMPLELAY_FRAME_W_MM·_H_MM).
+    #: 옛 폰 호환 — 적어 보낸 버튼판 치수(mm). 새 폰은 보내지 않고 서버 설정(누름 장치 작업 영역)을 쓴다.
     frame_w_mm: float | None = Field(default=None, gt=0, le=2000)
     frame_h_mm: float | None = Field(default=None, gt=0, le=2000)
     #: 버튼 id → 사진 px(버튼 중심).
@@ -79,6 +93,8 @@ class MappingRequest(BaseModel):
     #: 선택 기준점(사진 px ↔ mm). 있으면 잔차 검증을 한다.
     extra_points: list[ExtraPoint] = []
     expected_revision: int | None = None
+    #: 있으면 누름 장치 칸 방식 — ``corners_px``는 폰이 사진 위에 맞춘 작업 영역의 네 귀퉁이(그린 순서 그대로).
+    orientation: Orientation | None = None
 
     @field_validator("corners_px")
     @classmethod
@@ -115,8 +131,13 @@ class VerifyPassRequest(BaseModel):
 @router.get("/mapping/frame")
 def mapping_frame() -> dict:
     limits = _soft_limits()
+    frame = frame_config()
     return {
-        **frame_config().as_dict(),
+        **frame.as_dict(),
+        # 누름 장치가 닿는 범위(2026-10-26) — 폰이 사진 위에 이 비율의 칸을 겹쳐 맞추게 한다. 모르면 null.
+        "workspace": None if frame.width_mm is None or frame.height_mm is None else {
+            "w_mm": frame.width_mm, "h_mm": frame.height_mm, "origin_x_mm": frame.origin_x_mm,
+            "origin_y_mm": frame.origin_y_mm, "y_up": frame.y_up, "source": frame.source},
         "soft_limits": None if limits is None else {
             "x_min_mm": limits.x_min_mm, "x_max_mm": limits.x_max_mm,
             "y_min_mm": limits.y_min_mm, "y_max_mm": limits.y_max_mm},
@@ -153,6 +174,7 @@ def _prepare(appliance_id: str, body: MappingRequest, registry):
         park_px=tuple(body.park_px) if body.park_px else None,  # type: ignore[arg-type]
         extra_points=tuple((tuple(p.px), tuple(p.mm)) for p in body.extra_points),  # type: ignore[misc]
         button_labels={b.id: b.label for b in appliance.buttons},
+        orientation=None if body.orientation is None else (body.orientation.rotation, body.orientation.flipped),
     )
     try:
         result = compute_mapping(data)

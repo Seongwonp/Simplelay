@@ -103,21 +103,81 @@ class HubLocation {
       );
 }
 
-/// `/mapping/frame` — 갠트리 프레임 안쪽 치수. 모르면(null) 사용자가 적는다.
+/// `/mapping/frame` — 누름 장치가 닿는 범위(작업 영역, mm)와 원점 방향(2026-10-26).
+///
+/// 사용자는 mm를 적지 않는다 — 가전 추가 화면이 이 비율의 칸을 사진 위에 겹치고 사용자가 장치 자리에 끌어 맞춘다.
+/// 새 본체는 `workspace`를, 옛 본체는 `frame_w_mm`·`frame_h_mm`·`y_up`을 준다. 모르면 null(설치하는 분이 정할 일).
 class MappingFrame {
-  const MappingFrame({this.widthMm, this.heightMm, this.note});
+  const MappingFrame({this.widthMm, this.heightMm, this.yUp = false, this.note});
 
   final double? widthMm;
   final double? heightMm;
+
+  /// 갠트리 Y가 위로 커지나(원점 좌하단). 처음 그릴 칸의 원점 귀퉁이를 정한다.
+  final bool yUp;
   final String? note;
 
-  bool get known => widthMm != null && heightMm != null;
+  bool get known => widthMm != null && heightMm != null && widthMm! > 0 && heightMm! > 0;
 
-  factory MappingFrame.fromJson(Map<String, dynamic> json) => MappingFrame(
-        widthMm: (json['frame_w_mm'] as num?)?.toDouble(),
-        heightMm: (json['frame_h_mm'] as num?)?.toDouble(),
+  /// 처음 그릴 칸의 방향 — 본체 원점이 사진의 왼쪽 아래(yUp)인지 왼쪽 위인지.
+  AreaOrientation get defaultOrientation =>
+      yUp ? const AreaOrientation() : const AreaOrientation(rotation: 180, flipped: true);
+
+  factory MappingFrame.fromJson(Map<String, dynamic> json) {
+    final ws = json['workspace'];
+    if (ws is Map<String, dynamic>) {
+      return MappingFrame(
+        widthMm: (ws['w_mm'] as num?)?.toDouble(),
+        heightMm: (ws['h_mm'] as num?)?.toDouble(),
+        yUp: ws['y_up'] == true,
         note: json['note'] as String?,
       );
+    }
+    return MappingFrame(
+      widthMm: (json['frame_w_mm'] as num?)?.toDouble(),
+      heightMm: (json['frame_h_mm'] as num?)?.toDouble(),
+      yUp: json['y_up'] == true,
+      note: json['note'] as String?,
+    );
+  }
+}
+
+/// 누름 장치가 사진에서 놓인 방향 — 사진 위 칸을 90° 단위로 돌리고(0·90·180·270) 거울처럼 뒤집은 것.
+///
+/// 칸의 귀퉁이는 늘 처음 그린 순서(사진에서 왼쪽 위 → 오른쪽 위 → 오른쪽 아래 → 왼쪽 아래)로 둔다. 이 방향이 그중
+/// 어느 귀퉁이가 원점이고 어느 쪽이 +X·+Y인지 정한다. 본체(`rpi/services/panel_mapping.py` `device_corner_order`)와
+/// **같은 규칙**이어야 한다.
+class AreaOrientation {
+  const AreaOrientation({this.rotation = 0, this.flipped = false});
+
+  final int rotation;
+  final bool flipped;
+
+  /// 칸 귀퉁이 번호 중 장치의 (원점, +X 끝, 맞은편, +Y 끝). 기본은 원점 왼쪽 아래·+X 오른쪽·+Y 위.
+  List<int> get cornerOrder {
+    final base = flipped ? const [2, 3, 0, 1] : const [3, 2, 1, 0];
+    final r = (rotation ~/ 90) % 4;
+    return [for (final i in base) (i + r) % 4];
+  }
+
+  AreaOrientation rotated() => AreaOrientation(rotation: (rotation + 90) % 360, flipped: flipped);
+  AreaOrientation mirrored() => AreaOrientation(rotation: rotation, flipped: !flipped);
+
+  Map<String, dynamic> toJson() => {'rotation': rotation, 'flipped': flipped};
+
+  static AreaOrientation? fromJson(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final r = (raw['rotation'] as num?)?.toInt() ?? 0;
+    if (r % 90 != 0) return null;
+    return AreaOrientation(rotation: r % 360, flipped: raw['flipped'] == true);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is AreaOrientation && other.rotation == rotation && other.flipped == flipped;
+
+  @override
+  int get hashCode => Object.hash(rotation, flipped);
 }
 
 /// 사진 좌표 한 점(px, 왼쪽 위 원점·아래로 +y).
@@ -154,6 +214,7 @@ class PanelMapping {
     this.buttons = const {},
     this.stopPoint,
     this.parkPoint,
+    this.orientation,
   });
 
   final double photoWidth;
@@ -164,6 +225,9 @@ class PanelMapping {
   final Map<String, PhotoPoint> buttons;
   final PhotoPoint? stopPoint;
   final PhotoPoint? parkPoint;
+
+  /// 누름 장치 칸 방식으로 맞춘 매핑의 방향(2026-10-26). 옛 방식(버튼판 귀퉁이)은 null.
+  final AreaOrientation? orientation;
 
   static PanelMapping? fromJson(Object? raw) {
     if (raw is! Map<String, dynamic>) return null;
@@ -190,6 +254,7 @@ class PanelMapping {
       buttons: buttons,
       stopPoint: PhotoPoint.fromJson(raw['stop_px']),
       parkPoint: PhotoPoint.fromJson(raw['park_px']),
+      orientation: AreaOrientation.fromJson(raw['orientation']),
     );
   }
 
@@ -199,6 +264,7 @@ class PanelMapping {
         'buttons_px': buttons.map((k, v) => MapEntry(k, v.toJson())),
         'stop_px': stopPoint?.toJson(),
         'park_px': parkPoint?.toJson(),
+        if (orientation != null) 'orientation': orientation!.toJson(),
       };
 }
 
@@ -215,6 +281,7 @@ class MappingRequest {
     this.stopPresses = 1,
     this.parkPoint,
     this.expectedRevision,
+    this.orientation,
   });
 
   final int photoWidth;
@@ -230,6 +297,9 @@ class MappingRequest {
   final PhotoPoint? parkPoint;
   final int? expectedRevision;
 
+  /// 있으면 누름 장치 칸 방식 — [corners]는 사진 위에 맞춘 칸의 네 귀퉁이(mm는 본체가 안다).
+  final AreaOrientation? orientation;
+
   Map<String, dynamic> toJson() => {
         'photo_width': photoWidth,
         'photo_height': photoHeight,
@@ -241,6 +311,7 @@ class MappingRequest {
         'stop_presses': stopPresses,
         if (parkPoint != null) 'park_px': parkPoint!.toJson(),
         if (expectedRevision != null) 'expected_revision': expectedRevision,
+        if (orientation != null) 'orientation': orientation!.toJson(),
       };
 }
 

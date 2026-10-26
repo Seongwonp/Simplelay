@@ -13,6 +13,14 @@ mm로 옮긴다. 원근 왜곡은 여기서 흡수되지만 **렌즈 왜곡은 �
 프레임 치수: 요청값 → ``SIMPLELAY_FRAME_W_MM``·``SIMPLELAY_FRAME_H_MM``. 프레임 안쪽 왼쪽 위
 모서리와 갠트리 원점이 다르면 ``SIMPLELAY_FRAME_ORIGIN_X_MM``·``_Y_MM``(기본 0)로 더한다.
 사진 파일은 서버에 올리지 않는다 — 크기와 짚은 좌표만 기록한다.
+
+**누름 장치 칸 방식(2026-10-26, 실사용 피드백):** 사용자는 자가 없어 버튼판 mm를 잴 수 없었고, 적은 크기와 사진
+비율이 다르다고 거절당했다. 이제 실제 크기는 본체가 아는 **누름 장치가 닿는 범위(작업 영역)**다 —
+``SIMPLELAY_WORKSPACE_W_MM``·``_H_MM``(없으면 ``SIMPLELAY_FRAME_W_MM``·``_H_MM``, 그것도 없으면 소프트 리밋
+``SIMPLELAY_MOTION_X/Y_MIN/MAX_MM``의 폭·높이). 폰은 사진 위에 그 칸을 겹쳐 네 귀퉁이를 끌어 장치 자리에 맞추고,
+장치가 사진에서 어느 쪽으로 놓였는지(``orientation``: 90° 단위 돌리기·뒤집기)를 함께 보낸다. 그러면 원점 귀퉁이와
++X 쪽 귀퉁이를 사용자가 직접 정하므로 ``y_up``·'첫 귀퉁이는 왼쪽 위'·시계 방향 규칙을 쓰지 않는다. 사진 비율과
+치수 비율이 달라도 거절하지 않는다(원근 때문에 늘 다르다 — 품질 기록에만 남긴다).
 """
 
 from __future__ import annotations
@@ -35,12 +43,31 @@ MIN_QUAD_AREA_RATIO = 0.02
 #: 모서리 내각 허용 범위(도). 이보다 뾰족하면 거의 한 직선 — 설계 초기값.
 MIN_CORNER_ANGLE_DEG = 25.0
 MAX_CORNER_ANGLE_DEG = 155.0
-#: 사진 속 가로세로 비율과 프레임 치수 비율의 허용 배수. 원근을 감안한 설계 초기값.
-MAX_ASPECT_FACTOR = 2.5
-#: 짚은 점이 프레임 밖으로 나가도 받는 여유(mm). 설계 초기값.
+#: 짚은 점이 프레임 밖으로 나가도 받는 여유(mm). 설계 초기값. 칸이 작으면(작업 영역 폭 15 mm 등) 짧은 변의
+#: 5 %까지로 줄인다 — 5 mm 여유가 칸 폭의 1/3이 되면 닿지 않는 곳을 끝으로 당겨 눌렀다.
 FRAME_MARGIN_MM = 5.0
+FRAME_MARGIN_RATIO = 0.05
 
 CORNER_NAMES = ("왼쪽 위", "오른쪽 위", "오른쪽 아래", "왼쪽 아래")
+
+#: 폰이 사진 위 칸을 그리는 귀퉁이 순서(사진에서 왼쪽 위 → 오른쪽 위 → 오른쪽 아래 → 왼쪽 아래)에서, 장치 순서
+#: (원점, +X 끝, 맞은편, +Y 끝)를 고르는 기본 번호. 돌리기 한 번(90°)마다 모든 번호가 시계 방향으로 한 칸 간다.
+#: 기본(돌리기 0, 뒤집기 없음)은 원점 왼쪽 아래·+X 오른쪽·+Y 위(HW 원본, 원점 좌하단 +Y 위).
+_BASE_ORDER = (3, 2, 1, 0)
+_FLIPPED_ORDER = (2, 3, 0, 1)
+#: 앱(add_appliance_wizard_screen.dart `deviceCornerOrder`)과 같은 규칙이어야 한다 — 시험이 같은 표를 본다.
+
+
+def device_corner_order(rotation: int, flipped: bool) -> tuple[int, int, int, int]:
+    """사진 귀퉁이 번호(왼쪽 위부터 시계 방향) 중 장치의 (원점, +X 끝, 맞은편, +Y 끝)."""
+    base = _FLIPPED_ORDER if flipped else _BASE_ORDER
+    r = int(rotation) // 90 % 4
+    return tuple((i + r) % 4 for i in base)  # type: ignore[return-value]
+
+
+def legacy_orientation(y_up: bool) -> tuple[int, bool]:
+    """옛 방식(첫 귀퉁이 왼쪽 위·원점은 y_up에 따라)과 같은 돌리기·뒤집기."""
+    return (0, False) if y_up else (180, True)
 
 
 class MappingRejected(ValueError):
@@ -80,15 +107,29 @@ def _env_number(env: Mapping[str, str], name: str) -> float | None:
 
 def frame_config(width_mm: float | None = None, height_mm: float | None = None,
                  env: Mapping[str, str] | None = None) -> FrameConfig:
+    """매핑에 쓸 칸 치수. 요청값(옛 폰이 적어 보낸 버튼판 크기 — 호환용) → 누름 장치 작업 영역
+    (``SIMPLELAY_WORKSPACE_W_MM``·``_H_MM``) → 옛 프레임 치수(``SIMPLELAY_FRAME_W_MM``·``_H_MM``) → 소프트 리밋 폭·높이."""
     src = os.environ if env is None else env
     ox = _env_number(src, "SIMPLELAY_FRAME_ORIGIN_X_MM") or 0.0
     oy = _env_number(src, "SIMPLELAY_FRAME_ORIGIN_Y_MM") or 0.0
     y_up = src.get("SIMPLELAY_FRAME_Y_UP", "").strip().lower() in ("1", "true", "yes")
     if width_mm is not None and height_mm is not None:
         return FrameConfig(float(width_mm), float(height_mm), ox, oy, "request", y_up)
+    w, h = _env_number(src, "SIMPLELAY_WORKSPACE_W_MM"), _env_number(src, "SIMPLELAY_WORKSPACE_H_MM")
+    if w is not None and h is not None and w > 0 and h > 0:
+        return FrameConfig(w, h, ox, oy, "workspace", y_up)
     w, h = _env_number(src, "SIMPLELAY_FRAME_W_MM"), _env_number(src, "SIMPLELAY_FRAME_H_MM")
     if w is not None and h is not None:
         return FrameConfig(w, h, ox, oy, "env", y_up)
+    from rpi.services.stop_park import _soft_limits  # noqa: PLC0415 - 순환 피함
+
+    limits = _soft_limits(src)
+    if limits is not None:
+        lw = float(limits.x_max_mm) - float(limits.x_min_mm)  # type: ignore[arg-type]
+        lh = float(limits.y_max_mm) - float(limits.y_min_mm)  # type: ignore[arg-type]
+        if lw > 0 and lh > 0:
+            return FrameConfig(lw, lh, float(limits.x_min_mm), float(limits.y_min_mm),  # type: ignore[arg-type]
+                               "soft_limits", y_up)
     return FrameConfig(None, None, ox, oy, "none", y_up)
 
 
@@ -105,6 +146,9 @@ class MappingInput:
     extra_points: tuple[tuple[tuple[float, float], tuple[float, float]], ...] = ()
     #: 선택 — 버튼 id → 화면 이름. 거절 문장에 id 대신 이름을 쓴다.
     button_labels: Mapping[str, str] = field(default_factory=dict)
+    #: 선택 — (돌리기 0/90/180/270, 뒤집기). 있으면 누름 장치 칸 방식(``corners_px``는 폰이 그린 칸의 귀퉁이,
+    #: 사진에서 왼쪽 위부터 시계 방향으로 놓인 처음 순서 그대로), 없으면 옛 방식(버튼판 귀퉁이·y_up).
+    orientation: tuple[int, bool] | None = None
 
 
 @dataclass(frozen=True)
@@ -127,11 +171,48 @@ def _segments_intersect(p1, p2, p3, p4) -> bool:
     return (d1 > 0) != (d2 > 0) and (d3 > 0) != (d4 > 0)
 
 
+#: 누름 장치 칸 방식의 칸 모양 거절(폰에서 귀퉁이 동그라미를 끌어 맞춘다 — 순서는 폰이 정하므로 꼬임·뾰족함만 본다).
+AREA_SHAPE_REJECT = "누름 장치 칸 모양이 꼬였어요 — 네 귀퉁이 동그라미를 사진 속 장치 자리에 다시 맞춰 주세요"
+AREA_SMALL_REJECT = "사진 속 누름 장치 칸이 너무 작아요 — 장치가 사진을 채우도록 가까이서 다시 찍어 주세요"
+
+
+def _check_area_corners(pts: list[tuple[float, float]], photo_w: int, photo_h: int) -> dict:
+    """누름 장치 칸 방식 — 꼬임·볼록·내각·넓이만 본다(방향·첫 귀퉁이는 폰이 정한다)."""
+    if _segments_intersect(pts[0], pts[1], pts[2], pts[3]) or _segments_intersect(pts[1], pts[2], pts[3], pts[0]):
+        raise MappingRejected(AREA_SHAPE_REJECT)
+    crosses = [_cross(pts[i], pts[(i + 1) % 4], pts[(i + 2) % 4]) for i in range(4)]
+    if not (all(c > 0 for c in crosses) or all(c < 0 for c in crosses)):
+        raise MappingRejected(AREA_SHAPE_REJECT)
+    angles = _corner_angles(pts)
+    if not all(MIN_CORNER_ANGLE_DEG <= a <= MAX_CORNER_ANGLE_DEG for a in angles):
+        raise MappingRejected("누름 장치 칸이 너무 찌그러졌어요 — 네 귀퉁이 동그라미를 다시 맞추거나, 정면에서 다시 찍어 주세요")
+    area_ratio = _quad_area(pts) / float(photo_w * photo_h)
+    if area_ratio < MIN_QUAD_AREA_RATIO:
+        raise MappingRejected(AREA_SMALL_REJECT)
+    return {"corner_angles_deg": [round(a, 1) for a in angles], "area_ratio": round(area_ratio, 4)}
+
+
+def _corner_angles(pts: list[tuple[float, float]]) -> list[float]:
+    angles = []
+    for i in range(4):
+        a, o, b = pts[i - 1], pts[i], pts[(i + 1) % 4]
+        v1, v2 = (a[0] - o[0], a[1] - o[1]), (b[0] - o[0], b[1] - o[1])
+        cosang = (v1[0] * v2[0] + v1[1] * v2[1]) / (math.hypot(*v1) * math.hypot(*v2))
+        angles.append(math.degrees(math.acos(max(-1.0, min(1.0, cosang)))))
+    return angles
+
+
+def _quad_area(pts: list[tuple[float, float]]) -> float:
+    return 0.5 * abs(sum(pts[i][0] * pts[(i + 1) % 4][1] - pts[(i + 1) % 4][0] * pts[i][1] for i in range(4)))
+
+
 def check_corners(corners: Sequence[tuple[float, float]], photo_w: int, photo_h: int,
-                  frame: FrameConfig) -> dict:
-    """네 모서리 배치를 본다. 통과하면 품질 요약, 아니면 ``MappingRejected``."""
+                  frame: FrameConfig, *, area: bool = False) -> dict:
+    """네 모서리 배치를 본다. 통과하면 품질 요약, 아니면 ``MappingRejected``.
+
+    ``area``면 누름 장치 칸 방식(:func:`_check_area_corners`)."""
     if len(corners) != 4:
-        raise MappingRejected("버튼판 네 귀퉁이를 모두 골라 주세요")
+        raise MappingRejected("누름 장치 칸 네 귀퉁이가 모두 있어야 해요" if area else "버튼판 네 귀퉁이를 모두 골라 주세요")
     pts = [(float(u), float(v)) for u, v in corners]
     for i, (u, v) in enumerate(pts):
         if not (math.isfinite(u) and math.isfinite(v)) or not (0 <= u <= photo_w and 0 <= v <= photo_h):
@@ -139,8 +220,14 @@ def check_corners(corners: Sequence[tuple[float, float]], photo_w: int, photo_h:
     for i in range(4):
         for j in range(i + 1, 4):
             if math.dist(pts[i], pts[j]) < 1e-6 * max(photo_w, photo_h):
+                if area:
+                    raise MappingRejected(AREA_SHAPE_REJECT)
                 raise MappingRejected(f"{with_josa(CORNER_NAMES[i], '과', '와')} {CORNER_NAMES[j]} 귀퉁이가 같은 곳이에요 "
                                       "— 네 귀퉁이를 따로따로 골라 주세요")
+    if area:
+        quality = _check_area_corners(pts, photo_w, photo_h)
+        quality.update(_aspect_note(pts, frame))
+        return quality
     if _segments_intersect(pts[0], pts[1], pts[2], pts[3]) or _segments_intersect(pts[1], pts[2], pts[3], pts[0]):
         raise MappingRejected("귀퉁이 순서가 꼬였어요 — 왼쪽 위부터 시계 방향(오른쪽 위 → 오른쪽 아래 → "
                               "왼쪽 아래)으로 다시 골라 주세요")
@@ -154,48 +241,50 @@ def check_corners(corners: Sequence[tuple[float, float]], photo_w: int, photo_h:
     if sums.index(min(sums)) != 0:
         raise MappingRejected("첫 귀퉁이가 사진의 왼쪽 위가 아니에요 — 사진이 돌아가 있지 않은지 보고, "
                               "왼쪽 위부터 다시 골라 주세요")
-    angles = []
-    for i in range(4):
-        a, o, b = pts[i - 1], pts[i], pts[(i + 1) % 4]
-        v1, v2 = (a[0] - o[0], a[1] - o[1]), (b[0] - o[0], b[1] - o[1])
-        cosang = (v1[0] * v2[0] + v1[1] * v2[1]) / (math.hypot(*v1) * math.hypot(*v2))
-        angles.append(math.degrees(math.acos(max(-1.0, min(1.0, cosang)))))
+    angles = _corner_angles(pts)
     worst = min(range(4), key=lambda i: min(angles[i] - MIN_CORNER_ANGLE_DEG, MAX_CORNER_ANGLE_DEG - angles[i]))
     if not MIN_CORNER_ANGLE_DEG <= angles[worst] <= MAX_CORNER_ANGLE_DEG:
         raise MappingRejected(f"사진 속 버튼판이 {CORNER_NAMES[worst]} 귀퉁이 쪽으로 너무 찌그러졌어요 — "
                               "버튼판을 정면에서 다시 찍어 주세요")
-    area = 0.5 * abs(sum(pts[i][0] * pts[(i + 1) % 4][1] - pts[(i + 1) % 4][0] * pts[i][1] for i in range(4)))
-    area_ratio = area / float(photo_w * photo_h)
+    area_ratio = _quad_area(pts) / float(photo_w * photo_h)
     if area_ratio < MIN_QUAD_AREA_RATIO:
         raise MappingRejected("사진 속 버튼판이 너무 작아요 — 버튼판이 사진을 채우도록 가까이서 다시 찍어 주세요")
+    # 사진 비율과 적은 크기 비율이 달라도 거절하지 않는다(2026-10-26 실사용: 자가 없어 잴 수 없는 크기로 거절당했다).
+    return {"corner_angles_deg": [round(a, 1) for a in angles], "area_ratio": round(area_ratio, 4),
+            **_aspect_note(pts, frame)}
+
+
+def _aspect_note(pts: list[tuple[float, float]], frame: FrameConfig) -> dict:
+    """사진 속 칸 비율(위아래 변 평균 ÷ 좌우 변 평균)과 치수 비율 — 기록만 한다."""
     top, bottom = math.dist(pts[0], pts[1]), math.dist(pts[3], pts[2])
     left, right = math.dist(pts[0], pts[3]), math.dist(pts[1], pts[2])
     photo_aspect = ((top + bottom) / 2) / ((left + right) / 2)
     frame_aspect = frame.width_mm / frame.height_mm  # type: ignore[operator]
-    factor = max(photo_aspect / frame_aspect, frame_aspect / photo_aspect)
-    if factor > MAX_ASPECT_FACTOR:
-        raise MappingRejected(
-            "사진 속 버튼판의 가로·세로 비율이 적어 준 크기와 많이 달라요 — "
-            "버튼판 가로·세로 크기와 귀퉁이를 고른 순서(왼쪽 위부터 시계 방향)를 확인해 주세요")
-    return {"corner_angles_deg": [round(a, 1) for a in angles], "area_ratio": round(area_ratio, 4),
-            "photo_aspect": round(photo_aspect, 3), "frame_aspect": round(frame_aspect, 3),
-            "aspect_factor": round(factor, 3)}
+    return {"photo_aspect": round(photo_aspect, 3), "frame_aspect": round(frame_aspect, 3)}
 
 
 def compute_mapping(data: MappingInput) -> MappingResult:
     frame = data.frame
+    area_mode = data.orientation is not None
     if frame.width_mm is None or frame.height_mm is None:
-        # 화면에는 할 일만 — 설치하는 분용 설정 이름(SIMPLELAY_FRAME_W_MM·_H_MM)은 이 주석과 문서에 둔다.
+        # 화면에는 할 일만 — 설치하는 분용 설정 이름(SIMPLELAY_WORKSPACE_W_MM·_H_MM)은 이 주석과 문서에 둔다.
+        if area_mode:
+            raise MappingRejected("누름 장치가 닿는 범위가 본체에 아직 정해지지 않았어요 — 설치하는 분께 범위 설정을 부탁해 주세요")
         raise MappingRejected("버튼판 가로·세로 크기가 없어요 — 자로 재서 가로·세로 크기(mm)를 적어 주세요")
     if not (frame.width_mm > 0 and frame.height_mm > 0):
         raise MappingRejected("버튼판 가로·세로 크기는 0보다 커야 해요 — 크기를 다시 적어 주세요")
     if data.photo_w <= 0 or data.photo_h <= 0:
         raise MappingRejected("사진 크기를 읽지 못했어요 — 사진을 다시 찍어 주세요")
-    quality = check_corners(data.corners_px, data.photo_w, data.photo_h, frame)
+    quality = check_corners(data.corners_px, data.photo_w, data.photo_h, frame, area=area_mode)
     w, h, ox, oy = frame.width_mm, frame.height_mm, frame.origin_x_mm, frame.origin_y_mm
-    # 짚는 순서는 늘 사진의 왼쪽 위부터 시계 방향. Y가 위로 커지는 갠트리면 왼쪽 위 모서리가 (0, H)다.
-    targets = ([(ox, oy + h), (ox + w, oy + h), (ox + w, oy), (ox, oy)] if frame.y_up
-               else [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)])
+    # 장치 순서(원점, +X 끝, 맞은편, +Y 끝)의 mm. 사진 귀퉁이 중 어느 것이 원점인지는 돌리기·뒤집기가 정한다.
+    # 옛 방식(돌리기 없음)은 짚는 순서가 늘 사진의 왼쪽 위부터 시계 방향이고, Y가 위로 커지는 갠트리면 왼쪽 아래가 원점이다.
+    rotation, flipped = data.orientation if area_mode else legacy_orientation(frame.y_up)  # type: ignore[misc]
+    order = device_corner_order(rotation, flipped)
+    device_mm = [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)]
+    targets: list[tuple[float, float]] = [(0.0, 0.0)] * 4
+    for k, photo_index in enumerate(order):
+        targets[photo_index] = device_mm[k]
     pairs = [PointPair(src, dst) for src, dst in zip(data.corners_px, targets)]
     extra = [PointPair(src, dst) for src, dst in data.extra_points]
     try:
@@ -220,8 +309,11 @@ def compute_mapping(data: MappingInput) -> MappingResult:
             x, y = transform.apply((u, v))
         except ValueError as exc:
             raise MappingRejected(f"{label} 자리를 계산하지 못했어요 — 버튼판 네 귀퉁이를 다시 골라 주세요") from exc
-        m = FRAME_MARGIN_MM
+        m = min(FRAME_MARGIN_MM, FRAME_MARGIN_RATIO * min(w, h))
         if not (ox - m <= x <= ox + w + m and oy - m <= y <= oy + h + m):
+            if area_mode:
+                raise MappingRejected(f"{with_josa(label, '은', '는')} 누름 장치가 닿지 않는 곳에 있어요 "
+                                      "— 누름 장치 칸 안에서 다시 골라 주세요")
             raise MappingRejected(f"{with_josa(label, '이', '가')} 버튼판 네 귀퉁이 밖에 있어요 "
                                   "— 네 귀퉁이 안쪽에서 다시 골라 주세요")
         return (round(float(np.clip(x, ox, ox + w)), 2), round(float(np.clip(y, oy, oy + h)), 2))
@@ -233,6 +325,8 @@ def compute_mapping(data: MappingInput) -> MappingResult:
         "photo": {"width": data.photo_w, "height": data.photo_h},
         "corners_px": [[float(u), float(v)] for u, v in data.corners_px],
         "frame": frame.as_dict(),
+        # 누름 장치 칸 방식이면 폰이 다시 맞추기 때 같은 방향으로 그리게 남긴다(옛 방식은 없음).
+        "orientation": {"rotation": rotation, "flipped": flipped} if area_mode else None,
         "buttons_px": {k: [float(p[0]), float(p[1])] for k, p in data.buttons_px.items()},
         "stop_px": None if data.stop_px is None else [float(data.stop_px[0]), float(data.stop_px[1])],
         "park_px": None if data.park_px is None else [float(data.park_px[0]), float(data.park_px[1])],

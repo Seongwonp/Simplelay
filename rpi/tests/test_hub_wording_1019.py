@@ -80,8 +80,10 @@ def test_button_outside_uses_the_button_name_not_its_id():
     {"corners_px": CORNERS[:3]},
     {"corners_px": (CORNERS[0], CORNERS[1], CORNERS[3], CORNERS[2])},
     {"corners_px": ((100.0, 100.0), (130.0, 100.0), (130.0, 120.0), (100.0, 120.0))},
-    {"corners_px": ((100.0, 100.0), (1100.0, 100.0), (1100.0, 150.0), (100.0, 150.0))},
     {"frame": FrameConfig(None, None)},
+    {"frame": FrameConfig(None, None), "orientation": (0, False)},
+    {"corners_px": (CORNERS[0], CORNERS[1], CORNERS[3], CORNERS[2]), "orientation": (0, False)},
+    {"buttons_px": {"BT-05": _px(320, 100)}, "orientation": (0, False)},
     {"frame": FrameConfig(0.0, 0.0)},
 ])
 def test_mapping_rejections_have_no_jargon(over):

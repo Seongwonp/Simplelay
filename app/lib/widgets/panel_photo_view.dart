@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../models/hub.dart';
@@ -21,7 +22,7 @@ enum PanelMarkKind {
   /// 정지(취소) 버튼(빨간 원, 두꺼운 테두리). 색만이 아니라 '정지' 글자도 붙인다.
   stop,
 
-  /// 쉬는 자리(점선 사각형).
+  /// 기다리는 자리(진한 노랑 실선 사각형, '대기' 글자).
   park,
 
   /// 방금 짚었고 이름을 기다리는 버튼(점선 원).
@@ -33,6 +34,24 @@ enum PanelMarkKind {
   /// 녹화 순서 핀(번호가 적힌 채운 원).
   pin,
 }
+
+/// 사진 위에 겹치는 누름 장치 칸(누름 장치가 닿는 범위, 2026-10-26).
+///
+/// [corners]는 사진 px, 늘 처음 그린 순서(왼쪽 위 → 오른쪽 위 → 오른쪽 아래 → 왼쪽 아래)다. 어느 귀퉁이가 원점이고 어느
+/// 쪽이 +X·+Y인지는 [orientation]이 정한다. [onCornerMoved]가 있으면 귀퉁이 동그라미를 끌어 옮길 수 있다.
+class PanelArea {
+  const PanelArea({required this.corners, required this.orientation, this.onCornerMoved});
+
+  final List<PhotoPoint> corners;
+  final AreaOrientation orientation;
+  final void Function(int index, PhotoPoint point)? onCornerMoved;
+}
+
+/// 원점 귀퉁이에 붙는 말 — 처음 쓰는 사람이 '원점'만으로는 무엇인지 몰라 풀어 쓴다.
+const kAreaOriginLabel = '원점(누름 장치 출발점)';
+
+/// +Y 화살표의 말. 누름 장치는 +Y 쪽 끝에 모터가 있다(HW 원본 — 원점 좌하단, 모터는 위쪽).
+const kAreaYLabel = 'Y · 모터 쪽';
 
 class PanelMark {
   const PanelMark({
@@ -75,6 +94,7 @@ class PanelPhotoView extends StatelessWidget {
     this.onTapMark,
     required this.semanticsLabel,
     this.markSemanticSuffix,
+    this.area,
   });
 
   final double photoWidth;
@@ -96,6 +116,9 @@ class PanelPhotoView extends StatelessWidget {
 
   /// 누를 수 있는 자리의 낭독 뒤에 붙일 말(예: '지금은 쓸 수 없어요'). null이면 붙이지 않는다.
   final String? markSemanticSuffix;
+
+  /// 겹쳐 그릴 누름 장치 칸. null이면 그리지 않는다.
+  final PanelArea? area;
 
   ImageProvider? get _provider {
     if (image != null) return image;
@@ -148,13 +171,129 @@ class PanelPhotoView extends StatelessWidget {
                             )),
                   ),
                 ),
+                if (area case final a? when a.corners.length == 4)
+                  ..._areaLayers(a, toView, box.biggest),
                 for (final m in marks) _positioned(context, m, toView(m.point)),
+                if (area case final a? when a.corners.length == 4 && a.onCornerMoved != null)
+                  ..._areaHandles(a, toView, sx, sy),
               ],
             );
           }),
         ),
       ),
     );
+  }
+
+  /// 칸(반투명 채움·굵은 테두리·두 축 화살표)과 원점·축 이름표. 누르기는 막지 않는다.
+  List<Widget> _areaLayers(PanelArea a, Offset Function(PhotoPoint) toView, Size size) {
+    final view = [for (final c in a.corners) toView(c)];
+    final order = a.orientation.cornerOrder;
+    final origin = view[order[0]];
+    final xEnd = view[order[1]];
+    final far = view[order[2]];
+    final yEnd = view[order[3]];
+    Widget tag(Key key, String text, Offset at, {bool strong = false}) {
+      // 이름표가 사진 가장자리 밖으로 잘리지 않게 안쪽으로 당긴다.
+      final w = strong ? 168.0 : 96.0;
+      final left = (at.dx - w / 2).clamp(0.0, (size.width - w).clamp(0.0, double.infinity)).toDouble();
+      final top = (at.dy - 12).clamp(0.0, (size.height - 24).clamp(0.0, double.infinity)).toDouble();
+      return Positioned(
+        left: left,
+        top: top,
+        width: w,
+        child: IgnorePointer(
+          child: Center(
+            child: Container(
+              key: key,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
+              decoration: BoxDecoration(
+                color: strong ? AppColors.primary : const Color(0xCC1B1E22),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: AppFont.caption,
+                    fontWeight: FontWeight.w700,
+                    color: strong ? AppColors.onAccent : Colors.white,
+                  )),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 원점 이름표는 칸 바깥쪽(맞은편 귀퉁이 반대쪽)으로 조금 띄운다 — 귀퉁이 동그라미를 가리지 않게.
+    final away = origin - far;
+    final awayUnit = away.distance == 0 ? Offset.zero : away / away.distance;
+    return [
+      Positioned.fill(
+        child: IgnorePointer(
+          child: CustomPaint(
+            key: const Key('area-outline'),
+            painter: _AreaPainter(corners: view, origin: origin, xEnd: xEnd, yEnd: yEnd),
+          ),
+        ),
+      ),
+      tag(const Key('area-origin-label'), kAreaOriginLabel, origin + awayUnit * 30, strong: true),
+      tag(const Key('area-x-label'), 'X', origin + (xEnd - origin) * 0.55),
+      tag(const Key('area-y-label'), kAreaYLabel, origin + (yEnd - origin) * 0.55),
+    ];
+  }
+
+  /// 귀퉁이마다 끌 수 있는 동그라미(48dp). 목록 스크롤보다 먼저 잡는다 — 손가락을 대자마자 이 끌기다.
+  List<Widget> _areaHandles(PanelArea a, Offset Function(PhotoPoint) toView, double sx, double sy) {
+    const touch = 48.0;
+    return [
+      for (var i = 0; i < 4; i++)
+        Positioned(
+          left: toView(a.corners[i]).dx - touch / 2,
+          top: toView(a.corners[i]).dy - touch / 2,
+          width: touch,
+          height: touch,
+          child: Semantics(
+            label: '누름 장치 칸 ${i + 1}번 귀퉁이, 끌어서 옮기기',
+            excludeSemantics: true,
+            child: RawGestureDetector(
+              key: Key('area-corner-$i'),
+              behavior: HitTestBehavior.opaque,
+              gestures: {
+                _EagerPanRecognizer: GestureRecognizerFactoryWithHandlers<_EagerPanRecognizer>(
+                  _EagerPanRecognizer.new,
+                  // 끌기 시작 자리 + 끈 거리 합으로 옮긴다 — 다시 그리기 전에 움직임이 여러 번 와도 잃지 않게.
+                  (r) => r
+                    ..onStart = (_) {
+                      r.from = a.corners[i];
+                      r.moved = Offset.zero;
+                    }
+                    ..onUpdate = (d) {
+                      r.moved += d.delta;
+                      final c = r.from ?? a.corners[i];
+                      a.onCornerMoved!(
+                          i,
+                          PhotoPoint(
+                            (c.x + r.moved.dx / sx).clamp(0, photoWidth).toDouble(),
+                            (c.y + r.moved.dy / sy).clamp(0, photoHeight).toDouble(),
+                          ));
+                    },
+                ),
+              },
+              child: Center(
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.primary, width: 4),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ];
   }
 
   Widget _positioned(BuildContext context, PanelMark m, Offset at) {
@@ -238,16 +377,24 @@ class _MarkGlyph extends StatelessWidget {
           ),
         );
       case PanelMarkKind.park:
+        // 실사용(10/26): 흐린 점선 네모가 사진 위에서 안 보였다 — 굵은 실선·진한 노랑·'대기' 글자.
         return Center(
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: CustomPaint(
-              painter: _DashedRectPainter(color: const Color(0xFFC9CDD2)),
-              child: const Center(
-                child: Icon(Icons.local_parking, size: 16, color: Color(0xFFC9CDD2)),
-              ),
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0x66FFB300),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: _parkColor, width: 3.5),
             ),
+            child: const Text('대기',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: AppFont.caption,
+                  fontWeight: FontWeight.w800,
+                  shadows: [Shadow(color: Colors.black, blurRadius: 3)],
+                )),
           ),
         );
       case PanelMarkKind.pending:
@@ -287,40 +434,6 @@ class _MarkGlyph extends StatelessWidget {
   }
 }
 
-class _DashedRectPainter extends CustomPainter {
-  _DashedRectPainter({required this.color});
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-    const dash = 4.0;
-    const gap = 3.0;
-    void line(Offset a, Offset b) {
-      final total = (b - a).distance;
-      final dir = (b - a) / total;
-      var d = 0.0;
-      while (d < total) {
-        final end = (d + dash).clamp(0, total).toDouble();
-        canvas.drawLine(a + dir * d, a + dir * end, paint);
-        d += dash + gap;
-      }
-    }
-
-    final r = Offset.zero & size;
-    line(r.topLeft, r.topRight);
-    line(r.topRight, r.bottomRight);
-    line(r.bottomRight, r.bottomLeft);
-    line(r.bottomLeft, r.topLeft);
-  }
-
-  @override
-  bool shouldRepaint(_DashedRectPainter old) => old.color != color;
-}
-
 class _DashedCirclePainter extends CustomPainter {
   _DashedCirclePainter({required this.color});
   final Color color;
@@ -346,4 +459,73 @@ class _DashedCirclePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DashedCirclePainter old) => old.color != color;
+}
+
+/// 기다리는 자리 표시 색 — 어두운 사진·밝은 사진 모두에서 보이는 진한 노랑.
+const _parkColor = Color(0xFFFFB300);
+
+/// 손가락을 대자마자 끌기로 잡는다 — 목록 안에서도 세로로 끌면 스크롤이 아니라 귀퉁이가 움직이게.
+class _EagerPanRecognizer extends PanGestureRecognizer {
+  /// 끌기를 시작한 귀퉁이 자리(사진 px)와 그 뒤로 끈 거리(화면).
+  PhotoPoint? from;
+  Offset moved = Offset.zero;
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
+  }
+}
+
+/// 누름 장치 칸 — 반투명 채움, 굵은 테두리, 원점에서 +X·+Y로 가는 화살표.
+class _AreaPainter extends CustomPainter {
+  _AreaPainter({required this.corners, required this.origin, required this.xEnd, required this.yEnd});
+  final List<Offset> corners;
+  final Offset origin;
+  final Offset xEnd;
+  final Offset yEnd;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()..addPolygon(corners, true);
+    canvas.drawPath(path, Paint()..color = AppColors.primary.withValues(alpha: 0.18));
+    canvas.drawPath(
+        path,
+        Paint()
+          ..color = AppColors.primary
+          ..strokeWidth = 3
+          ..style = PaintingStyle.stroke);
+    final arrow = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    void drawArrow(Offset to) {
+      final from = origin + (to - origin) * 0.08;
+      final tip = origin + (to - origin) * 0.42;
+      final d = tip - from;
+      if (d.distance < 4) return;
+      canvas.drawLine(from, tip, arrow);
+      final u = d / d.distance;
+      final n = Offset(-u.dy, u.dx);
+      canvas.drawLine(tip, tip - u * 10 + n * 6, arrow);
+      canvas.drawLine(tip, tip - u * 10 - n * 6, arrow);
+    }
+
+    drawArrow(xEnd);
+    drawArrow(yEnd);
+    canvas.drawCircle(origin, 7, Paint()..color = AppColors.primary);
+  }
+
+  @override
+  bool shouldRepaint(_AreaPainter old) =>
+      old.origin != origin || old.xEnd != xEnd || old.yEnd != yEnd || !_same(old.corners, corners);
+
+  static bool _same(List<Offset> a, List<Offset> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }

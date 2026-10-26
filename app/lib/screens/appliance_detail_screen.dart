@@ -113,7 +113,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
           ] else ...[
             Text(
               a.panelMapping != null
-                  ? '사진 속 버튼을 누르면 누름 장치가 대신 눌러요. 빨간 원은 정지, 점선은 기다리는 자리예요.'
+                  ? '사진 속 버튼을 누르면 누름 장치가 대신 눌러요. 빨간 원은 정지, 노란 "대기"는 기다리는 자리예요.'
                   : '버튼을 누르면 누름 장치가 대신 눌러요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),

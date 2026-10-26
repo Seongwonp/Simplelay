@@ -29,9 +29,45 @@ void main() {
       expect(size.width, greaterThanOrEqualTo(48), reason: id);
       expect(size.height, greaterThanOrEqualTo(48), reason: id);
     }
-    // 기다리는 자리의 점선 사각형은 종전처럼 40.
-    final park = find.descendant(of: find.byKey(const Key('mark-park')), matching: find.byType(CustomPaint)).first;
-    expect(tester.getSize(park), const Size(40, 40));
+    // 기다리는 자리는 실사용(10/26)에서 흐린 점선이 안 보여 44 실선 네모·'대기' 글자로 바꿨다.
+    final park = find.descendant(of: find.byKey(const Key('mark-park')), matching: find.byType(Container)).first;
+    expect(tester.getSize(park), const Size(44, 44));
+    final box = tester.widget<Container>(park).decoration! as BoxDecoration;
+    expect((box.border! as Border).top.width, greaterThanOrEqualTo(3));
+    expect(find.descendant(of: find.byKey(const Key('mark-park')), matching: find.text('대기')), findsOneWidget);
+  });
+
+  testWidgets('누름 장치 칸은 원점·X·Y 이름표를 방향대로 붙이고, 귀퉁이를 끌면 끈 만큼 옮긴다', (tester) async {
+    var corners = const [PhotoPoint(100, 100), PhotoPoint(900, 100), PhotoPoint(900, 700), PhotoPoint(100, 700)];
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 500,
+          child: StatefulBuilder(
+            builder: (context, setState) => PanelPhotoView(
+              photoWidth: 1000,
+              photoHeight: 800,
+              semanticsLabel: '사진',
+              area: PanelArea(
+                corners: corners,
+                orientation: const AreaOrientation(),
+                onCornerMoved: (i, p) => setState(() => corners = [...corners]..[i] = p),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+    expect(find.text(kAreaOriginLabel), findsOneWidget);
+    expect(find.text('X'), findsOneWidget);
+    expect(find.text(kAreaYLabel), findsOneWidget);
+    // 기본 방향: 원점 왼쪽 아래.
+    expect(tester.getCenter(find.text(kAreaOriginLabel)).dy, greaterThan(300));
+    // 한 프레임 안에 여러 번 움직여도(빠른 손가락) 끈 거리를 다 따른다.
+    await tester.drag(find.byKey(const Key('area-corner-0')), const Offset(50, 25));
+    await tester.pump();
+    expect(corners[0].x, closeTo(200, 0.5));
+    expect(corners[0].y, closeTo(150, 0.5));
   });
 
   testWidgets("귀퉁이 표시는 가전 추가 화면과 같은 말('귀퉁이')로 읽어요", (tester) async {

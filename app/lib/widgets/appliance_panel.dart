@@ -170,7 +170,7 @@ class _GridButton extends StatelessWidget {
   }
 }
 
-/// 가전의 사진 매핑을 표시 목록으로. 정지 버튼은 빨강, 쉬는 자리는 점선,
+/// 가전의 사진 매핑을 표시 목록으로. 정지 버튼은 빨강, 기다리는 자리는 노란 '대기' 네모,
 /// 녹화 순서는 번호 핀.
 List<PanelMark> applianceMarks(
   ApplianceMap appliance, {
