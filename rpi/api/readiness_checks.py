@@ -10,18 +10,21 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
 
-def internet_probe(timeout: float = 0.45) -> tuple[bool, str, datetime | None]:
+def internet_probe(timeout: float = 1.5) -> tuple[bool, str, datetime | None]:
     """공개 호스트 DNS·TCP와 HTTPS 날짜를 짧게 확인한다."""
     host = "one.one.one.one"
     try:
-        address = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)[0][4]
-        with socket.create_connection(address, timeout=timeout) as raw:
+        # IPv6 주소가 먼저 오면 4칸 튜플이라 create_connection이 ValueError를 낸다(10/27 보드) — 이름으로 맡긴다.
+        with socket.create_connection((host, 443), timeout=timeout) as raw:
             with ssl.create_default_context().wrap_socket(raw, server_hostname=host) as conn:
                 conn.settimeout(timeout)
                 conn.sendall(b"HEAD / HTTP/1.1\r\nHost: one.one.one.one\r\nConnection: close\r\n\r\n")
                 header = conn.recv(2048).decode("ascii", "ignore")
         date_line = next((line[5:].strip() for line in header.splitlines() if line.lower().startswith("date:")), None)
-        remote = parsedate_to_datetime(date_line).astimezone(timezone.utc) if date_line else None
+        try:
+            remote = parsedate_to_datetime(date_line).astimezone(timezone.utc) if date_line else None
+        except (TypeError, ValueError):  # 날짜 줄이 이상해도 연결 자체는 됐다
+            remote = None
         return True, "DNS와 외부 연결이 돼요", remote
     except Exception as exc:  # noqa: BLE001 -- 진단 한 칸의 실패일 뿐이다
         return False, f"외부 연결을 확인하지 못했어요 ({type(exc).__name__})", None
