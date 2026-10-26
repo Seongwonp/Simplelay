@@ -4,6 +4,7 @@
 """
 import pytest
 
+from rpi.intent.llm_guard import post_check
 from rpi.intent.llm_intent import IntentChoice, LlmIntentConfig, understand
 
 CONFIG = LlmIntentConfig('http://localhost')
@@ -111,14 +112,64 @@ def test_slot_rule_needs_a_single_matching_choice():
     ('공기청정기 청정 모드로 해 줘', '공기청정기 운전 모드 자동'),  # 다른 모드 이름
 ])
 def test_post_check_rejects_contradicting_model_pick(text, picked):
-    result = understand(text, CHOICES, CONFIG, model_says(picked))
-    assert not result['understood'] and result['source'] in ('llm', 'rules')
+    # 공기 불평 문장은 이제 모델 앞 규칙이 켜기를 고르므로, 뒤 확인은 함수로 직접 본다.
+    assert post_check(text, CHOICES[LABELS[picked] - 1]) == 'contradiction'
 
 
-def test_demo_sentence_still_maps_to_power_on():
-    result = understand('공기가 텁텁하네', CHOICES, CONFIG, model_says('공기청정기 전원 켜기'))
-    assert result['understood'] and result['source'] == 'llm'
+def test_demo_sentence_maps_to_power_on_by_rule():
+    # 10/26 §9: 모델은 20번 중 11번만 켜기 — §10부터 규칙이 정한다(모델에 안 감).
+    result = understand('공기가 텁텁하네', CHOICES, CONFIG, forbidden)
+    assert result['understood'] and result['source'] == 'rules'
     assert result['label'] == '공기청정기 전원 켜기' and result['question']
+
+
+@pytest.mark.parametrize('text', [
+    '공기가 텁텁하네', '방이 너무 답답해', '방 공기가 좀 탁한 것 같아', '공기가 안 좋아',
+    '먼지가 많은 것 같아', '미세먼지가 심하대', '냄새가 좀 나네', '방에서 퀴퀴한 냄새 나', '생선 구운 냄새가 안 빠져',
+    '고기 구웠더니 연기가 자욱해', '꽃가루 때문에 코가 간지러워', '냄새가 안 나가',
+])
+def test_air_complaint_picks_power_on_by_rule(text):
+    result = understand(text, CHOICES, CONFIG, forbidden)
+    assert result['understood'] and result['source'] == 'rules'
+    assert result['label'] == '공기청정기 전원 켜기'
+
+
+@pytest.mark.parametrize('text', [
+    '이제 냄새 안 나', '먼지가 없네', '하나도 안 텁텁해', '답답하지 않아', '공기가 너무 탁해서 꺼야겠어',
+    '바꿔 줘 부탁해',
+])
+def test_negated_or_off_air_complaint_is_not_picked_by_rule(text):
+    # 규칙은 켜기를 고르지 않는다(모델로 가거나, '않'은 앞 단계 부정 거르기에서 끝난다).
+    result = understand(text, CHOICES, CONFIG, lambda *a: {'choices': [{'message': {'content': '0'}}]})
+    assert not result['understood']
+
+
+@pytest.mark.parametrize('text,reason', [('공기가 텁텁해서 방금 켰어', 'already_done'),
+                                         ('냄새는 나는데 켤 필요 없어', 'no_need')])
+def test_air_complaint_does_not_override_already_done(text, reason):
+    result = understand(text, CHOICES, CONFIG, forbidden)
+    assert not result['understood'] and result['reason'] == reason
+
+
+def test_air_complaint_rule_needs_exactly_one_power_on():
+    two = CHOICES + (_thinq('안방 공기청정기 전원 켜기', 'turn ON air purifier #2', 'set_power', 'power',
+                            'POWER_ON', 'air2'),)
+    calls = []
+    understand('공기가 텁텁하네', two, CONFIG, lambda *a: calls.append(1) or {'choices': [{'message': {'content': '0'}}]})
+    assert calls
+    no_on = tuple(c for c in CHOICES if c.label != '공기청정기 전원 켜기')
+    calls.clear()
+    understand('공기가 텁텁하네', no_on, CONFIG, lambda *a: calls.append(1) or {'choices': [{'message': {'content': '0'}}]})
+    assert calls
+
+
+def test_air_complaint_about_other_listed_device_is_not_purifier():
+    mw = CHOICES + (IntentChoice('전자레인지 30초 데우기', 'saved action (microwave)',
+                                 {'kind': 'buttons', 'appliance_id': 'mw', 'buttons': ['30초', '시작']}),)
+    calls = []
+    understand('전자레인지에서 냄새가 나', mw, CONFIG,
+               lambda *a: calls.append(1) or {'choices': [{'message': {'content': '0'}}]})
+    assert calls
 
 
 def test_consistent_model_picks_pass_post_check():

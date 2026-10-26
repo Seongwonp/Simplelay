@@ -238,3 +238,11 @@ def test_saved_purposes_and_routines_keep_names_out_of_prompt():
 def test_choice_list_cap_is_twelve():
     appliances = [air(f'air{i}', f'청정기{i}') for i in range(3)]
     assert len(build_choices(appliances, (), lambda a: True, lambda a: {}, lambda a: ALL_AIR)) == 12
+
+
+def test_duration_purpose_question_names_the_appliance():
+    # 10/26 §9-4: "30초를 데울까요?"는 어색하다 — 시간만 있는 목적은 가전 이름으로 묻는다.
+    from rpi.intent.llm_intent import _purpose_question
+    assert _purpose_question('전자레인지 30초 데우기', '30초 데우기') == '전자레인지로 30초 데울까요?'
+    assert _purpose_question('주방 1분 30초 데우기', '1분 30초 데우기') == '주방으로 1분 30초 데울까요?'
+    assert _purpose_question('전자레인지 즉석밥 데우기', '즉석밥 데우기') == '즉석밥을 데울까요?'

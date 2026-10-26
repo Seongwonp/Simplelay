@@ -81,10 +81,17 @@ def _thinq_text(name: str, category: str, cap, value: str) -> tuple[str, str]:
             f"{name} {cap.label}{josa(cap.label, '을', '를')} {with_josa(word, '으로', '로')} 할까요?")
 
 
+#: 목적 앞말이 시간뿐("30초 데우기")이면 "30초를 데울까요?"가 어색하다 → "전자레인지로 30초 데울까요?".
+_DURATION = re.compile(r'\d+\s*(초|분)(\s*\d+\s*초)?')
+
+
 def _purpose_question(label: str, purpose: str) -> str:
     for suffix, verb in _VERB_SUFFIXES.items():
         obj = purpose[:-len(suffix)].strip()
         if purpose.endswith(suffix) and obj:
+            if _DURATION.fullmatch(obj):
+                name = label[:-len(purpose)].strip() if label.endswith(purpose) else ''
+                return f"{with_josa(name, '으로', '로')} {obj} {verb}" if name else f'{obj} {verb}'
             return f"{with_josa(obj, '을', '를')} {verb}"
     return _generic_question(label)
 
