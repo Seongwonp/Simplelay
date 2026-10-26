@@ -13,6 +13,9 @@
 - 리허설 주입(``POST /demo/thinq/air-quality``)은 mock·fake_cloud에서만 연다. real이면 409. 주입으로 만든 카드는
   시연 카드이고 근거 끝에 '(시연: 모의 센서 값이에요)'가 붙는다.
 
+- 같은 판독 결과를 바로 앞 판독과 견줘 LG 앱·리모컨·가전 버튼으로 바꾼 것을 직접 사용으로 기록한다(2026-10-26,
+  :mod:`rpi.services.thinq.manual_use` — 호출 수는 그대로).
+
 로그에는 가전 ID만 쓴다(기기 ID·토큰 없음).
 """
 
@@ -87,7 +90,22 @@ def _read_purifier_state():
         get_power_cache().forget(AIR_PURIFIER_ID)  # 읽지 못했으면 전원도 모른다(키오스크 '켜짐'을 내린다)
         raise
     get_power_cache().observe(AIR_PURIFIER_ID, appliance.thinq, state)
+    _note_manual_use(controller, appliance, state)
     return state
+
+
+def _note_manual_use(controller, appliance, state) -> None:
+    """같은 판독 결과로 앱·리모컨·가전 버튼 직접 사용을 견준다(2026-10-26, 새 호출 없음). 실패해도 판독은 그대로다."""
+    from . import deps  # noqa: PLC0415
+    from .thinq_wiring import AIR_PURIFIER_ID, get_manual_use_tracker  # noqa: PLC0415
+
+    try:
+        get_manual_use_tracker().observe_read(
+            AIR_PURIFIER_ID, appliance.thinq, state,
+            execution_mode=controller.execution_mode_for(AIR_PURIFIER_ID),
+            usage_log=deps.get_usage_log(), now=deps.get_clock().now())
+    except Exception:  # noqa: BLE001 -- 기록 실패가 공기질 판정을 막지 않는다
+        log.exception("thinq manual use check failed")
 
 
 def _offer(reason: str, *, power_off: bool = False, signals=()):

@@ -171,8 +171,12 @@ class ThinqController:
         monotonic: Callable[[], float] | None = None,
         now: Callable[[], datetime] | None = None,
         observe_state: Callable[[str, ThinqBinding, object], None] | None = None,
+        on_command: Callable[[str], None] | None = None,
     ) -> None:
         self._client = client
+        #: 명령을 시작·끝낼 때 가전 ID를 넘겨받는 곳(앱·리모컨 직접 사용 기록이 우리가 바꾼 것을 빼는 데 쓴다,
+        #: :mod:`.manual_use`). 실패해도 실행을 막지 않는다.
+        self._on_command = on_command
         #: 상태 조회 결과를 넘겨받는 곳(전원 기억, :mod:`.power`). 상태 ``None``은 '지금은 모름'. 실패해도 실행을 막지 않는다.
         self._observe_state = observe_state
         self._binding_of = binding_of
@@ -194,6 +198,14 @@ class ThinqController:
         try:
             self._observe_state(appliance_id, binding, state)
         except Exception:  # noqa: BLE001 -- 표시용 기억이 실행을 막지 않는다
+            pass
+
+    def _note_command(self, appliance_id: str) -> None:
+        if self._on_command is None:
+            return
+        try:
+            self._on_command(appliance_id)
+        except Exception:  # noqa: BLE001 -- 기록용 표시가 실행을 막지 않는다
             pass
 
     @property
@@ -359,6 +371,8 @@ class ThinqController:
         # 실행 환경은 시작할 때 그 가전의 값으로 정한다(2026-10-19) — 확인 조회 중에 실제↔연습으로 다시 묶여도 결과가
         # 바뀐 값으로 적히지 않게. 결과마다 다시 읽지 않는다.
         mode = self.execution_mode_for(command.target_id)
+        # 시작과 끝 두 번 적는다 — 확인 조회가 길어도 '우리가 바꾼 때'를 끝 시각부터 다시 센다(:mod:`.manual_use`).
+        self._note_command(command.target_id)
         with self._lock:
             self._phase = "pending"
         try:
@@ -367,6 +381,7 @@ class ThinqController:
         finally:
             with self._lock:
                 self._phase = "idle"
+            self._note_command(command.target_id)
 
     def _execute(self, command: Command, requested_at: datetime,
                  dispatch_guard: Callable[[ThinqBinding], None] | None = None) -> CommandResult:

@@ -213,7 +213,8 @@ def build_command_paths(registry):
     poll = 0.5 if config.mode.uses_sdk else 0.25
     controller = ThinqController(client, binding_of, mode=config.mode,
                                  confirm_seconds=config.confirm_seconds, poll_interval=poll,
-                                 observe_state=get_power_cache().observe)
+                                 observe_state=get_power_cache().observe,
+                                 on_command=get_manual_use_tracker().note_command)
     return controller, system
 
 
@@ -232,6 +233,22 @@ def get_power_cache():
         if _power_cache is None:
             _power_cache = ThinqPowerCache()
         return _power_cache
+
+
+# ── 앱·리모컨·가전 버튼으로 바꾼 것도 직접 사용(2026-10-26) — 공기질 판독 결과만 견준다(새 호출 없음) ──
+
+_manual_use = None
+
+
+def get_manual_use_tracker():
+    """앱·리모컨 직접 사용 기억(:mod:`rpi.services.thinq.manual_use`) 하나. 입출력 없음."""
+    global _manual_use
+    from rpi.services.thinq.manual_use import ThinqManualUseTracker  # noqa: PLC0415
+
+    with _power_lock:
+        if _manual_use is None:
+            _manual_use = ThinqManualUseTracker()
+        return _manual_use
 
 
 # ── 발견 → 사용자 확인 후 추가 (2026-10-13) ──────────────────────────────
@@ -478,6 +495,8 @@ def reset_thinq_caches() -> None:
     _engine = None
     if _power_cache is not None:
         _power_cache.clear()
+    if _manual_use is not None:
+        _manual_use.clear()
     from .air_quality_wiring import reset_air_quality  # noqa: PLC0415
 
     reset_air_quality()
