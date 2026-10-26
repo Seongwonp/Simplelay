@@ -64,8 +64,20 @@ def test_system_prompt_uses_the_live_builder(records):
 
 def test_eval_and_holdout_phrases_are_not_reused_or_near_copied(records):
     eval_texts = make_dataset.load_eval_texts()
+    assert len(eval_texts) == 92
     for row in records:
         assert not make_dataset.overlaps_eval(row['text'], eval_texts)
+
+
+def test_quiet_training_examples_do_not_teach_power_off():
+    by_label = {choice.label: choice for choice in make_dataset.EVAL_CHOICES}
+    off = make_dataset._indirect_pool(by_label['공기청정기 전원 끄기'])
+    low = make_dataset._indirect_pool(by_label['공기청정기 바람 세기 약'])
+    sleep = make_dataset._indirect_pool(by_label['공기청정기 운전 모드 수면'])
+    quiet_words = ('조용', '시끄러', '잘 거', '자려고', '바람이 세')
+    assert not any(word in text for text in off for word in quiet_words)
+    assert any(word in text for text in low for word in quiet_words)
+    assert any(word in text for text in sleep for word in quiet_words)
 
 
 def test_generator_is_reproducible(records):

@@ -1,4 +1,4 @@
-"""Audit an offline intent dataset against both protected evaluation sets."""
+"""Audit an offline intent dataset against all protected evaluation sets."""
 from __future__ import annotations
 
 import argparse

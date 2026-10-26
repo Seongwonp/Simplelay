@@ -75,6 +75,7 @@ def load_eval_texts(paths: tuple[Path, ...] | None = None) -> tuple[str, ...]:
     paths = paths or (
         ROOT / 'rpi' / 'intent' / 'eval' / 'llm_eval_ko.jsonl',
         ROOT / 'rpi' / 'intent' / 'eval' / 'llm_eval_ko_holdout.jsonl',
+        ROOT / 'rpi' / 'intent' / 'eval' / 'llm_eval_ko_holdout2.jsonl',
     )
     texts = []
     for path in paths:
@@ -162,9 +163,20 @@ def _indirect_pool(choice: IntentChoice) -> list[str]:
         tails = ('공기를 깨끗하게 하고 싶어', '공기 정화를 해두면 좋겠어', '청정기를 켜면 좋을 것 같아',
                  '공기 상태를 바꾸고 싶어요', '공기를 한번 정리하고 싶다')
     elif kind == 'set_power':
-        leads = ('소리가 조금 거슬려서', '잠깐 조용히 있고 싶어서', '잠시 쉬게 하고 싶어서',
-                 '밤이라 소리를 줄이고 싶어서', '기기를 잠시 멈추고 싶어서')
-        tails = ('작동을 멈추면 좋겠어', '잠시 꺼두고 싶다', '조용하게 쉬었으면 해', '운전을 그만하면 좋겠어')
+        # Only an explicit stop/power-off request is a power-off target. Merely
+        # wanting less noise or sleep must not be trained as switching off.
+        leads = ('전원을 내리고 싶어서', '작동을 완전히 중단하려고', '이제 기기를 끌 거라서',
+                 '더는 작동시키지 않으려고', '운전을 종료하려고')
+        tails = ('공기청정기 전원을 꺼줘', '공기청정기를 완전히 꺼두고 싶어',
+                 '공기청정기 작동을 끝내줘', '공기청정기 전원을 내려줘')
+    elif kind == 'set_wind_strength' and value == 'LOW':
+        leads = ('바람이 세다고 느껴져서', '공청기 소리가 시끄러워서',
+                 '잘 거라 바람이 부담스러워서', '자려고 누우니 풍량이 거슬려서',
+                 '조용한 바람이 필요해서', '운전 소음을 낮추고 싶어서',
+                 '바람이 세게 느껴지는 밤이라', '잠들기 전에는 살살 돌리고 싶어서')
+        tails = ('바람을 약하게 바꿔줘', '풍량을 낮춰주면 좋겠어',
+                 '약풍으로 맞춰주세요', '공기청정기는 켜두고 바람만 줄여줘',
+                 '바람을 부드럽게 해주면 좋겠어')
     elif kind == 'set_wind_strength':
         words = {'LOW': '부드럽게', 'MID': '적당히', 'HIGH': '강하게', 'AUTO': '알아서'}
         word = words.get(value, '알아서')
@@ -172,6 +184,14 @@ def _indirect_pool(choice: IntentChoice) -> list[str]:
                  '공기 흐름을 조금 바꾸고 싶어서', '지금 상황에 맞춰서')
         tails = (f'{word} 나오면 좋겠어', f'{word} 조절되면 좋겠다', f'{word} 쓰고 싶어요',
                  f'{word} 바뀌면 괜찮을 것 같아')
+    elif kind == 'set_job_mode' and value == 'SLEEP':
+        leads = ('잘 거라 공청기를 계속 켜두되', '자려고 불을 껐으니',
+                 '밤에는 조용히 돌아가야 해서', '소리가 시끄러워 잠들기 힘들어서',
+                 '아이가 잠들었으니', '자는 동안 운전 소음을 낮추려고',
+                 '취침 중에도 공기를 관리하고 싶어서', '잘 때 기계를 끄지는 말고')
+        tails = ('수면 모드로 바꿔줘', '공기청정기 수면 운전으로 해줘',
+                 '조용한 수면 운전으로 돌려줘', '잠잘 때 맞는 모드로 설정해줘',
+                 '전원은 유지하고 수면 모드로 해줘')
     elif kind == 'set_job_mode':
         words = {'CLEAN': '청정 모드', 'SLEEP': '수면 모드', 'AUTO': '자동 모드'}
         word = words.get(value, '자동 모드')
