@@ -128,6 +128,7 @@ from .schemas import (
     ReviseSuggestionRequest,
     PresenceRequest,
     PresenceResponse,
+    PlatformAgentView,
     RoomLightView,
     RoomPresenceResponse,
     RoomCameraRequest,
@@ -1708,7 +1709,7 @@ def room_presence() -> RoomPresenceResponse:
     room = get_room_presence()
     light = _room_light_view()
     if room is None:
-        return RoomPresenceResponse(enabled=False, state="unknown", light=light)
+        return RoomPresenceResponse(enabled=False, state="unknown", light=light, platform_agent=_platform_agent_view())
     snap = room.snapshot()
     greet = snap.greet and snap.arrived_at is not None
 
@@ -1730,7 +1731,18 @@ def room_presence() -> RoomPresenceResponse:
         away_after_s=room.away_after_s,
         camera_enabled=camera_enabled(),
         light=light,
+        platform_agent=_platform_agent_view(),
     )
+
+
+def _platform_agent_view() -> PlatformAgentView:
+    # 플랫폼 AI 에이전트의 제안·날씨(읽기만) — 꺼져 있거나 실패하면 빈 값, 이 응답을 깨뜨리지 않는다.
+    try:
+        from rpi.services.platform_agent import get_platform_agent  # noqa: PLC0415
+
+        return PlatformAgentView(**get_platform_agent().view())
+    except Exception:  # noqa: BLE001
+        return PlatformAgentView()
 
 
 def _room_light_view() -> RoomLightView:

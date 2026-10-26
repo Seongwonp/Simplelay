@@ -126,6 +126,26 @@ def _publish(room: RoomPresence) -> None:
         get_presence_store().set_present(True, "camera")
     elif state in (IDLE, AWAY):
         get_presence_store().set_present(False, "camera")
+    _share_people_count(state, room)
+
+
+def _share_people_count(state: str, room: RoomPresence) -> None:
+    """플랫폼 AI 에이전트에 사람 **수만** 알린다(켰을 때만, 바뀔 때만·10초에 한 번까지 — 거르기는 감싸개가 한다).
+
+    모름은 보내지 않는다. 있음인데 이번 장면만 0명이면 1명으로 본다(잠깐 놓친 것으로 값이 흔들리지 않게).
+    """
+    from rpi.services.platform_agent import get_platform_agent  # noqa: PLC0415
+
+    if state == PRESENT:
+        count = max(1, room.snapshot().persons)
+    elif state in (IDLE, AWAY):
+        count = 0
+    else:
+        return
+    try:
+        get_platform_agent().set_people_count(count)
+    except Exception:  # noqa: BLE001 — 덤 기능, 감지는 계속
+        log.debug("platform agent count skipped", exc_info=True)
 
 
 def _on_arrival() -> None:

@@ -1196,6 +1196,14 @@ class RoomLightView(BaseModel):
     level: int | None = None  # 30초 평균 밝기(0~255), 모르면 None
 
 
+class PlatformAgentView(BaseModel):
+    """플랫폼 AI 에이전트가 가진 제안·날씨(읽기만, 2026-10-26). 꺼져 있거나 못 읽으면 available=false."""
+
+    available: bool = False
+    suggestion: str | None = None  # 오류 문장처럼 보이면 None
+    weather_summary: str | None = None
+
+
 class RoomPresenceResponse(BaseModel):
     """GET /presence/room — 방 안 사람 감지(카메라) 판단(2026-10-25). 감지기가 꺼져 있으면 enabled=false."""
 
@@ -1214,6 +1222,7 @@ class RoomPresenceResponse(BaseModel):
     away_after_s: float | None = None
     camera_enabled: bool = False  # 사용자가 끈 동안은 본체가 카메라를 열지 않는다
     light: RoomLightView = RoomLightView()  # 방 밝기(사람 감지와 따로 켠다) — 옛 클라이언트는 무시
+    platform_agent: PlatformAgentView = PlatformAgentView()  # 덤 — 키오스크가 나중에 띄울 수 있게, 옛 클라이언트는 무시
 
 
 class ProfileRequest(BaseModel):
