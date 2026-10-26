@@ -137,10 +137,10 @@ def client(monkeypatch):
     # 바꾸고 get_service()는 여전히 진짜 싱글턴을 잡으므로, 방금 등록한
     # 가전이 실행 시점에는 '없는 가전'이 된다. 캐시를 비워 둘이 같은 새
     # 인스턴스를 잡게 한다(앞뒤로 비워 테스트 격리도 유지).
-    for dep in (deps.get_appliance_registry, deps.get_service):
+    for dep in (deps.get_appliance_registry, deps.get_service, deps.get_db):
         dep.cache_clear()
     yield TestClient(app)
-    for dep in (deps.get_appliance_registry, deps.get_service):
+    for dep in (deps.get_appliance_registry, deps.get_service, deps.get_db):
         dep.cache_clear()
 
 

@@ -33,6 +33,7 @@ def client(monkeypatch):
         deps.get_node_registry,
         deps.get_readiness_registry,
         deps.get_service,
+        deps.get_db,
     )
     for dep in caches:
         dep.cache_clear()

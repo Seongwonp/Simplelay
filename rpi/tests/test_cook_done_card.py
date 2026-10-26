@@ -22,6 +22,7 @@ _SINGLETONS = (
     deps.get_alert_store, deps.get_node_registry, deps.get_demo_failure_state,
     deps.get_job_history, deps.get_presence_store, deps.get_appliance_registry,
     deps.get_readiness_registry, deps.get_usage_log, deps.get_care_events,
+    deps.get_db,
     deps.get_control_arbiter, deps.get_presence_state_machine, deps.get_appliance_done_log,
 )
 
