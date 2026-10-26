@@ -3,7 +3,7 @@
 여기의 문장은 학습 기록에서 나온 값만 쓴다(가전 이름처럼 사용자가 적은 글은 넣지 않는다).
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 from .habit_timing import is_rest_day, parse_time
 
@@ -27,7 +27,10 @@ def korean_clock(value: str) -> str:
 
 
 def day_kind(days) -> str | None:
-    """쓴 날이 모두 평일이면 'weekday', 모두 주말(토·일·공휴일)이면 'weekend', 섞였거나 근거가 적으면(3일 미만) None."""
+    """쓴 날이 모두 평일이면 'weekday', 모두 주말(토·일·공휴일)이면 'weekend', 섞였거나 근거가 적으면(3일 미만) None.
+
+    첫날~마지막 날 사이에 쓸 수 있었는데 안 쓴 다른 종류의 날이 있어야 그렇게 본다(2026-10-26) — 월·화·수 사흘만
+    쓴 매일 습관을 '평일'로 잘못 읽지 않도록, 주말을 한 번도 지나지 않았으면 None(매일)."""
     parsed = []
     for value in days:
         try:
@@ -37,11 +40,28 @@ def day_kind(days) -> str | None:
     if len(parsed) < 3:
         return None
     rest = [is_rest_day(d) for d in parsed]  # 공휴일은 주말처럼(2026-10-26)
+    if any(rest) and not all(rest):
+        return None
+    first = min(parsed)
+    span = [is_rest_day(first + timedelta(days=i)) for i in range((max(parsed) - first).days + 1)]
     if not any(rest):
-        return 'weekday'
-    if all(rest):
-        return 'weekend'
-    return None
+        return 'weekday' if any(span) else None
+    return 'weekend' if not all(span) else None
+
+
+#: 습관 날 종류 → 저장할 루틴 요일(0=월). 공휴일은 루틴 요일로 나타낼 수 없어 토·일만 쉬는 날로 본다.
+DAY_KIND_DAYS = {'weekday': (0, 1, 2, 3, 4), 'weekend': (5, 6)}
+#: 같은 종류를 말로(맡기기 단추·저장 선택지 — '평일 07:30에 물어보기').
+DAY_KIND_WORDS = {'weekday': '평일', 'weekend': '주말'}
+
+
+def routine_days(kind: str | None) -> list[int]:
+    """습관 날 종류에 맞는 루틴 요일 — 평일 월~금, 주말 토·일, 그 밖은 매일."""
+    return list(DAY_KIND_DAYS.get(kind or '', range(7)))
+
+
+def days_word(kind: str | None) -> str:
+    return DAY_KIND_WORDS.get(kind or '', '매일')
 
 
 def when_text(usual_time: str | None, confident: bool, time_band: str, kind: str | None) -> str:

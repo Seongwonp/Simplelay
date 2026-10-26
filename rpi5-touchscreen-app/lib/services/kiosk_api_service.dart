@@ -273,12 +273,14 @@ class KioskSuggestionSignal {
 
 /// 습관 카드의 '매일 이 시간에' 내용 — [auto]면 맡기기까지(낮은 위험 LG 가전), 아니면 매일 묻기 루틴(물리 누름).
 class KioskAdoptOffer {
-  const KioskAdoptOffer({required this.candidateKey, required this.askTime, required this.auto, this.evidence});
+  const KioskAdoptOffer(
+      {required this.candidateKey, required this.askTime, required this.auto, this.evidence, this.daysLabel = '매일'});
 
   final String candidateKey;
   final String askTime; // "HH:MM"
   final bool auto;
   final String? evidence;
+  final String daysLabel; // 매일·평일·주말 — 저장할 루틴 요일과 같다(서버 days_label, 2026-10-26)
 
   static KioskAdoptOffer? fromJson(Object? json) {
     if (json is! Map<String, dynamic>) return null;
@@ -286,7 +288,11 @@ class KioskAdoptOffer {
     final at = json['ask_time'];
     if (key is! String || at is! String) return null;
     return KioskAdoptOffer(
-        candidateKey: key, askTime: at, auto: json['auto'] == true, evidence: json['evidence'] as String?);
+        candidateKey: key,
+        askTime: at,
+        auto: json['auto'] == true,
+        evidence: json['evidence'] as String?,
+        daysLabel: json['days_label'] is String ? json['days_label'] as String : '매일');
   }
 }
 

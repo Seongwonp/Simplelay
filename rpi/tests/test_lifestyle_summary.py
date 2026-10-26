@@ -27,7 +27,8 @@ from rpi.intent.suppression import InMemorySuppressionStore
 from rpi.tests.test_learning_evidence import BAND, NOW, record
 
 KST = timezone(timedelta(hours=9))
-WEEKDAYS = (3, 4, 5, 6, 7)  # NOW(9/21 월) 기준 9/18 금 … 9/14 월
+#: NOW(9/21 월) 기준 9/18 금 … 9/15 화 + 9/11 금 — 사이 주말(9/12·13)을 건너뛰어야 '평일'로 본다(2026-10-26).
+WEEKDAYS = (3, 4, 5, 6, 10)
 
 
 def _facts(*habits, window=28):

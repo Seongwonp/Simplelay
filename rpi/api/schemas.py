@@ -851,7 +851,8 @@ class SuggestionResponse(BaseModel):
     #: '다음부터도 자동으로'를 고를 수 있는 카드(2026-10-13, v4 가열 종료 감지 → 공기청정기)면
     #: {condition_text, action_text, fingerprint}. 물리 누름이 있거나 대상이 아니면 null — 화면에 버튼이 없다.
     auto_rule_offer: dict | None = None
-    #: 습관 카드에서 바로 루틴으로(2026-10-25): {candidate_key, ask_time, auto, routine_name, evidence}. auto=true면
+    #: 습관 카드에서 바로 루틴으로(2026-10-25): {candidate_key, ask_time, auto, days, days_label, routine_name, evidence}.
+    #: days·days_label(매일·평일·주말)은 저장할 루틴 요일 그대로(2026-10-26). auto=true면
     #: '매일 이 시간에 알아서 하기'(낮은 위험 LG 가전 동작), false면 '매일 이 시간에 물어보기'(물리 누름)로 저장한다.
     adopt_offer: dict | None = None
     #: '왜 지금' 신호(2026-10-26) — [{label, ok}], 최대 4개. 카드를 만들 때 서버가 실제로 본 신호만. 없으면 빈 목록.

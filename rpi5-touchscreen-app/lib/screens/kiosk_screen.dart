@@ -2423,9 +2423,10 @@ class _KioskScreenState extends State<KioskScreen> {
         accepted = job;
         if (mounted && gen == _admitGen) {
           final auto = suggestion.adoptOffer?.auto ?? false;
+          final days = suggestion.adoptOffer?.daysLabel ?? '매일';
           _autoNoticeTimer?.cancel();
           setState(() => _autoNotice =
-              problem ?? (auto ? '매일 이 시간에 알아서 할게요. 설정의 자동 실행에서 끌 수 있어요.' : '매일 이 시간에 여쭤볼게요.'));
+              problem ?? (auto ? '$days 이 시간에 알아서 할게요. 설정의 자동 실행에서 끌 수 있어요.' : '$days 이 시간에 여쭤볼게요.'));
           _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
             if (mounted) setState(() => _autoNotice = null);
           });

@@ -1430,7 +1430,9 @@ async def list_suggestions(
 
 def adopt_offer_for(draft: dict) -> dict:
     auto = bool(draft.get("steps")) and draft["steps"][0].get("kind") == "thinq_command"
+    # 요일(days·days_label)은 저장할 루틴과 같은 값이다 — 단추가 '평일 오후 10시에'라고 말하면 저장도 월~금.
     return {"candidate_key": draft["key"], "ask_time": draft["ask_time"], "auto": auto,
+            "days": list(draft.get("days") or range(7)), "days_label": draft.get("days_label") or "매일",
             "routine_name": draft.get("suggested_name"), "evidence": draft.get("evidence")}
 
 

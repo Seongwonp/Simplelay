@@ -33,6 +33,8 @@ BANDS = (TimeBand('아침', time(6), time(11)), TimeBand('점심', time(11), tim
          TimeBand('오후', time(14), time(17)), TimeBand('저녁', time(17), time(21)),
          TimeBand('야간', time(21), time(6)))
 MON, TUE, WED, THU, FRI, SAT, SUN = 5, 6, 7, 8, 9, 10, 11
+#: 평일 습관 사흘(10/2 금 · 월 · 화) — 사이 주말을 건너뛰어야 '평일'로 본다(2026-10-26, 주말을 안 지난 평일 사흘은 매일).
+WEEKDAY_HABIT = (2, MON, TUE)
 
 
 def at(day, value='20:50'):
@@ -72,7 +74,7 @@ def ignore(service, clock, day, value='20:50'):
 
 
 def test_weekday_habit_is_not_asked_on_weekend_and_text_matches():
-    clock, service = build(records([MON, TUE, WED]), at(SAT))
+    clock, service = build(records(WEEKDAY_HABIT), at(SAT))
     assert ask(service, clock, at(SAT)) == ()
     assert ask(service, clock, at(SUN)) == ()
     routine, = service.learning_status()['routines']
@@ -96,7 +98,7 @@ def test_mixed_days_are_asked_any_day():
 
 
 def test_habit_card_signals_are_the_facts_used():
-    clock, service = build(records([MON, TUE, WED]), at(THU), presence=lambda: True)
+    clock, service = build(records(WEEKDAY_HABIT), at(THU), presence=lambda: True)
     card, = ask(service, clock, at(THU))
     assert card.signals == (('집에 계심', True), ('평소 오후 8시쯤', True),
                             ('최근 28일 중 3일', True), ('평일 습관', True))
@@ -178,7 +180,7 @@ def test_payload_carries_signals_and_mark_done():
     from rpi.api.schemas import RejectSuggestionRequest, SuggestionResponse
     from rpi.api.thinq_router import suggestion_payload
 
-    clock, service = build(records([MON, TUE, WED]), at(THU))
+    clock, service = build(records(WEEKDAY_HABIT), at(THU))
     card, = ask(service, clock, at(THU))
     payload = suggestion_payload(card)
     assert payload['signals'] == [{'label': '평소 오후 8시쯤', 'ok': True},
@@ -335,7 +337,7 @@ def test_two_ignored_days_skip_one_day_then_ask_every_other_day():
 
 
 def test_ignore_backoff_skips_the_next_eligible_weekday():
-    clock, service = build(records([MON, TUE, WED]), at(THU))
+    clock, service = build(records(WEEKDAY_HABIT), at(THU))
     ignore(service, clock, THU)
     ignore(service, clock, FRI)
     assert ask(service, clock, at(12)) == ()  # 주말은 원래 묻지 않으니 다음 평일(월요일)을 건너뛴다

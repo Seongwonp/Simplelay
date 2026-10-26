@@ -31,6 +31,7 @@ import threading
 from datetime import datetime, timedelta
 
 from rpi.commands import ControlRoute, canonical_json
+from rpi.intent.habit_words import day_kind, days_word, routine_days
 
 from .model import RoutineValidationError, build_routine, compile_commands, validate_against
 
@@ -158,7 +159,7 @@ class RoutineCandidates:
                 what = "동작" if draft["steps"][0]["kind"] == "thinq_command" else "버튼 순서"
                 raise CandidateError(409, f"같은 가전·{what}의 루틴이 이미 있어요: '{same.name}'")
             trigger = ({"kind": "manual"} if run == "manual"
-                       else {"kind": "time", "days": list(range(7)), "time": draft["ask_time"]})
+                       else {"kind": "time", "days": list(draft["days"]), "time": draft["ask_time"]})
             now = self._clock.now()
             try:
                 routine = build_routine(
@@ -235,8 +236,9 @@ class RoutineCandidates:
                                     "distinct_days": candidate.distinct_days,
                                     "occurrences": candidate.occurrences, "time_band": band},
                 "ask_time": ask_time,
+                **_draft_days(candidate),
                 "run_choices": [{"run": "manual", "label": "직접 실행할 때만"},
-                                {"run": "ask_at_time", "label": f"매일 {ask_time}에 물어보기"}],
+                                {"run": "ask_at_time", "label": f"{days_word(day_kind(candidate.recent_days))} {ask_time}에 물어보기"}],
                 "notice": SAVE_NOTICE,
             }
         ordered = sorted(drafts.values(), key=lambda d: d["_strength"], reverse=True)
@@ -294,8 +296,9 @@ class RoutineCandidates:
                                 "distinct_days": candidate.distinct_days,
                                 "occurrences": candidate.occurrences, "time_band": band},
             "ask_time": ask_time,
+            **_draft_days(candidate),
             # 정해진 시각이 이 초안의 근거라 '정해진 때 물어보기'를 앞에 둔다.
-            "run_choices": [{"run": "ask_at_time", "label": f"매일 {ask_time}에 물어보기"},
+            "run_choices": [{"run": "ask_at_time", "label": f"{days_word(day_kind(candidate.recent_days))} {ask_time}에 물어보기"},
                             {"run": "manual", "label": "직접 실행할 때만"}],
             "notice": SAVE_NOTICE,
         }
@@ -312,6 +315,13 @@ class RoutineCandidates:
             if len(commands) == 1 and _command_signature(commands[0]) == wanted:
                 return routine
         return None
+
+
+def _draft_days(candidate) -> dict:
+    """초안이 저장할 루틴 요일 — '알게 된 것'의 '평일 오후 10시쯤'과 같은 판정(``day_kind``)이다(2026-10-26).
+    평일 습관을 매일 루틴으로 저장하면 주말에도 묻거나 돌기 때문이다."""
+    kind = day_kind(candidate.recent_days)
+    return {"day_kind": kind, "days": routine_days(kind), "days_label": days_word(kind)}
 
 
 def thinq_candidate_key(appliance_id: str, action: str, args: dict) -> str:

@@ -674,7 +674,8 @@ String _handOverLabel(KioskSuggestion s) {
   if (s.autoRuleOffer != null) return '이번에 하고, 다음부터는 묻지 않고 하기';
   final adopt = s.adoptOffer!;
   final when = _spokenHhmm(adopt.askTime);
-  return adopt.auto ? '이번에 하고, 매일 $when에 알아서 하기' : '이번에 하고, 매일 $when에 물어보기';
+  final days = adopt.daysLabel;
+  return adopt.auto ? '이번에 하고, $days $when에 알아서 하기' : '이번에 하고, $days $when에 물어보기';
 }
 
 /// 확인 칸 줄들 — 무엇을·언제·어떻게(묻지 않고 / 물어보고)·근거·끄는 곳.
@@ -692,8 +693,8 @@ List<String> _handOverLines(KioskSuggestion s) {
   final evidence = adopt.evidence;
   return [
     adopt.auto
-        ? '매일 $when에 묻지 않고 하고 결과만 알려 드려요.'
-        : '매일 $when에 할지 물어볼게요. 누름 장치는 늘 확인을 받아요.',
+        ? '${adopt.daysLabel} $when에 묻지 않고 하고 결과만 알려 드려요.'
+        : '${adopt.daysLabel} $when에 할지 물어볼게요. 누름 장치는 늘 확인을 받아요.',
     if (evidence != null && evidence.isNotEmpty) evidence,
     adopt.auto ? '설정의 자동 실행에서 언제든 끌 수 있어요.' : '휴대폰 앱 루틴에서 바꾸거나 지울 수 있어요.',
   ];

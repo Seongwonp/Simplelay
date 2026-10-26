@@ -413,7 +413,7 @@ def test_holiday_lookup_offline_falls_back_to_weekday_logic():
         set_holiday_lookup(cal.is_holiday)
         assert cal.is_holiday(date(2026, 10, 9)) is None
         assert day_matches("weekday", date(2026, 10, 9)) is True
-        assert day_kind(("2026-10-05", "2026-10-06", "2026-10-07")) == "weekday"
+        assert day_kind(("2026-10-02", "2026-10-05", "2026-10-06")) == "weekday"  # 사이 주말을 건너뜀
     finally:
         set_holiday_lookup(None)
 
