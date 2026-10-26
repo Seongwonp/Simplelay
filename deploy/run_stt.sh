@@ -4,7 +4,7 @@ set -eu
 
 DEPLOY_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 STT_DIR=/mnt/rawdata/simplelay/stt
-mkdir -p "$STT_DIR"
+mkdir -p "$STT_DIR" "$STT_DIR/tmp"  # 본체에 python이 없어 서버는 컨테이너 안, 녹음·인식만 호스트에서(10/27)
 cp "$DEPLOY_DIR/stt/stt_server.py" "$STT_DIR/stt_server.py"
 
 docker rm -f simplelay-stt 2>/dev/null || true
@@ -13,7 +13,9 @@ docker run -d --name simplelay-stt --restart always \
   --privileged --pid=host \
   -e SIMPLELAY_STT_MODEL="${SIMPLELAY_STT_MODEL:-/mnt/rawdata/simplelay/stt/ggml-base-q8_0.bin}" \
   -e SIMPLELAY_STT_SOURCE="${SIMPLELAY_STT_SOURCE:-}" \
-  --entrypoint nsenter \
-  simplelay-backend -t 1 -m -u -i -n -p -- /usr/bin/python3 "$STT_DIR/stt_server.py"
+  --network host -v "$STT_DIR:$STT_DIR" \
+  -e SIMPLELAY_STT_HOST_EXEC="nsenter -t 1 -m -u -i -n -p --" \
+  -e SIMPLELAY_STT_WORK_DIR="$STT_DIR/tmp" \
+  simplelay-backend python "$STT_DIR/stt_server.py"
 sleep 2
 docker ps --filter name=simplelay-stt --format '{{.Names}} {{.Status}}'

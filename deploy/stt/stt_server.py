@@ -6,6 +6,7 @@ import math
 import os
 import re
 import subprocess
+import shlex
 import tempfile
 import threading
 import time
@@ -24,25 +25,24 @@ _BRACKETED = re.compile(r"\[[^\]]*\]|\([^)]*\)")
 _TIMESTAMP = re.compile(r"^\s*\[[^\]]+\]\s*")
 
 
+# 본체(호스트)에 python이 없어 서버는 컨테이너 안에서 돌고, 녹음·인식 프로그램만 호스트 이름공간에서 부른다(10/27).
+HOST_EXEC = shlex.split(os.environ.get("SIMPLELAY_STT_HOST_EXEC", ""))
+#: 녹음 임시 파일 자리 — 호스트와 컨테이너가 같은 경로로 보는 곳이어야 한다.
+WORK_DIR = os.environ.get("SIMPLELAY_STT_WORK_DIR") or None
+
+
 def _record(path, seconds):
-    command = [
-        "parecord", "--rate=16000", "--channels=1", "--format=s16le",
-        "--file-format=wav", path,
-    ]
-    if SOURCE:
-        command.insert(1, f"--device={SOURCE}")
-    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    try:
-        process.wait(timeout=seconds)
-    except subprocess.TimeoutExpired:
-        process.terminate()
-        try:
-            process.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=1)
-    if process.returncode not in (0, -15):
-        detail = process.stderr.read().decode("utf-8", "replace").strip()
+    """호스트 셸 안에서 녹음하고 정해진 초 뒤 SIGINT로 멈춘다 — 그래야 parecord가 wav 머리를 마저 쓴다.
+
+    nsenter -p는 자식을 따로 띄워서, 여기서 프로세스를 끊으면 parecord가 아니라 nsenter만 죽고 파일 머리가 비었다(10/27).
+    """
+    device = f"--device={shlex.quote(SOURCE)} " if SOURCE else ""
+    script = (f"parecord {device}--rate=16000 --channels=1 --format=s16le --file-format=wav {shlex.quote(path)} & "
+              f"p=$!; sleep {int(seconds)}; kill -INT $p; wait $p")
+    result = subprocess.run(HOST_EXEC + ["sh", "-c", script], stdout=subprocess.DEVNULL,
+                            stderr=subprocess.PIPE, timeout=seconds + 5)
+    if not os.path.exists(path) or os.path.getsize(path) <= 44:
+        detail = result.stderr.decode("utf-8", "replace").strip()
         raise RuntimeError(detail or "녹음 장치를 열지 못했어요.")
 
 
@@ -72,7 +72,7 @@ def _has_speech(path):
 
 def _transcribe(path):
     result = subprocess.run(
-        ["whisper-cli", "-m", MODEL, "-l", "ko", "-t", "4", "-nt", "-f", path],
+        HOST_EXEC + ["whisper-cli", "-m", MODEL, "-l", "ko", "-t", "4", "-nt", "-f", path],
         capture_output=True, text=True, timeout=20, check=False,
     )
     if result.returncode:
@@ -86,7 +86,7 @@ def _transcribe(path):
 
 
 def listen(seconds):
-    with tempfile.TemporaryDirectory(prefix="simplelay-stt-") as directory:
+    with tempfile.TemporaryDirectory(prefix="simplelay-stt-", dir=WORK_DIR) as directory:
         path = os.path.join(directory, "in.wav")
         started = time.monotonic()
         _record(path, seconds)
