@@ -67,7 +67,6 @@ class KioskIdleView extends StatelessWidget {
     this.routines,
     this.onRoutine,
     this.onVoice,
-    this.voiceNotice,
   });
 
   /// 저장된 동작(루틴) — 맨 앞 하나를 '무엇을 할까요?' 카드로 세운다(시안 B 10/24). 누르면 [onRoutine] — 내 가전 화면의
@@ -75,7 +74,6 @@ class KioskIdleView extends StatelessWidget {
   final List<KioskRoutine>? routines;
   final ValueChanged<KioskRoutine>? onRoutine;
   final VoidCallback? onVoice;
-  final String? voiceNotice;
 
   /// 조용한 시간이라 어둡게(사용자 결정 10/18) — 시계·다음 루틴·문제 표시만 남기고 예보·인사말·온습도·가전 줄을 접고,
   /// 화면 전체에 어두운 막을 얹는다. 막을 누르면 [onTouch]만 불린다(그 아래 단추는 눌리지 않는다 — 깨우는 손길).
@@ -189,19 +187,29 @@ class KioskIdleView extends StatelessWidget {
     final indoor = _indoor;
     final badAir = airIfBad(air);
     // 공기가 나쁘면 할 일 한 줄(평가 14차 10/18) — 그 공기청정기가 가전 줄에 있을 때만(없으면 지어내지 않는다).
-    final airTarget = badAir == null ? null : list?.where((a) => a.id == badAir.applianceId).firstOrNull;
-    final airAction = airTarget == null ? null : airActionLabel(badAir!, airTarget.displayName);
+    final airTarget = badAir == null
+        ? null
+        : list?.where((a) => a.id == badAir.applianceId).firstOrNull;
+    final airAction = airTarget == null
+        ? null
+        : airActionLabel(badAir!, airTarget.displayName);
     final next = nextRun;
-    final rawTip = (amb?.tip != null && amb!.tip!.text.isNotEmpty) ? amb.tip : null;
+    final rawTip =
+        (amb?.tip != null && amb!.tip!.text.isNotEmpty) ? amb.tip : null;
     // 날씨 안내는 '바깥 날씨' 줄이, 그 밖의 안내(확인 필요 가전·약 드실 시간 등)는 오른쪽 칸 맨 위 '알림' 줄이 말한다
     // (시안 B 10/24 — 예전에는 연결 문제 띠 둘째 줄에 묶었다. 띠는 이제 한 줄이라 다른 것을 밀어내지 않는다).
     // 서버가 날씨 안내를 따로 주면(`weather_tip`, 10/25) 그것 — 위 안내가 확인할 일에 밀려도 날씨 줄은 제 안내를 말한다.
-    final serverWeatherTip = amb?.weatherTip != null && amb!.weatherTip!.text.isNotEmpty ? amb.weatherTip : null;
-    final weatherTip = serverWeatherTip ?? (rawTip != null && isWeatherTip(rawTip) ? rawTip : null);
+    final serverWeatherTip =
+        amb?.weatherTip != null && amb!.weatherTip!.text.isNotEmpty
+            ? amb.weatherTip
+            : null;
+    final weatherTip = serverWeatherTip ??
+        (rawTip != null && isWeatherTip(rawTip) ? rawTip : null);
     final noticeTip = rawTip != null && !isWeatherTip(rawTip) ? rawTip : null;
     final dnd = dndUntil != null && dndUntil!.isAfter(now) ? dndUntil : null;
     // 본체에 닿지 않으면 지난 연결 목록을 믿지 않는다(평가 7차 10/18 — 끊겼는데 칩이 '모두 정상').
-    final connections = connectionsForDisplay(this.connections, connected: connected);
+    final connections =
+        connectionsForDisplay(this.connections, connected: connected);
     // 누름 장치 연결이 끊겼나(평가 3차 10/18) — 끊기면 누름 장치가 누르는 가전 타일은 '지금은 쓸 수 없어요' 표시.
     final pressItem = connections.where((c) => c.id == 'press').firstOrNull;
     final pressDown = pressItem?.state == 'error';
@@ -220,7 +228,9 @@ class KioskIdleView extends StatelessWidget {
     final featured = quietDim || onRoutine == null
         ? null
         : KioskFeaturedAction.pick(routines, list,
-            issueOf: (a) => kioskTileIssue(a, unavailable: unavailable.contains(a.id), unavailableByEstop: estop));
+            issueOf: (a) => kioskTileIssue(a,
+                unavailable: unavailable.contains(a.id),
+                unavailableByEstop: estop));
     // 가전은 한 장에 3개(시안 B 10/24 — 폰 홈처럼 큰 그림 칸), 큰 글씨는 2개. 더 많으면 좁은 장 넘김.
     final perPage = large ? 2 : 3;
     final pager = list == null || list.length > perPage;
@@ -245,87 +255,109 @@ class KioskIdleView extends StatelessWidget {
           compact: true,
           items: connections,
           // 누름 장치가 끊겨 '지금은 쓸 수 없어요' 표시인 가전 수(아래 타일과 같은 규칙 — 누름 장치가 누르는 가전).
-          pressImpact: pressDown && list != null ? list.where((a) => a.usesPressDevice).length : null,
+          pressImpact: pressDown && list != null
+              ? list.where((a) => a.usesPressDevice).length
+              : null,
           onTap: () {
             // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창. 비상 버튼 띠 아래에서는 칩이 연결 문제만 말한다
             // (평가 14차 10/18) — 풀기 안내는 띠의 '풀기 안내'·못 쓰는 가전 타일이 연다.
             final (_, _, direct) = connectionSummary(connections);
-            direct != null ? onOpenConnection(direct) : sheets.openConnections();
+            direct != null
+                ? onOpenConnection(direct)
+                : sheets.openConnections();
           },
         );
 
     // 위 줄(시안 B 10/24): 시계 '오후 3:12' · 날짜와 실내 온습도 · (쉬는 중 칩) · (확인 중 칩) · 메뉴(톱니바퀴).
     // 상태 칩·메뉴는 오른쪽에 붙여 재므로 쉬는 중 칩이 켜져도 메뉴 자리가 바뀌지 않는다(UI 평가 4차 10/17).
     // 조용한 시간 화면은 큰 시계를 따로 그리므로 위 줄 시계를 뺀다([withClock]).
-    Widget topRow(_IdleSheets sheets, {bool withClock = true}) =>
-        Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          SizedBox(
-              height: _Idle.topRow,
-              child: LayoutBuilder(builder: (context, top) {
-                final topWidth = top.maxWidth;
-                final date = Text(_dateStr,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: TextStyle(
-                        fontSize: KioskType.caption, height: 1.2, fontWeight: FontWeight.w600, color: KioskColors.ink));
-                return Row(children: [
-                  if (withClock) ...[
-                    _BarClock(ampm: ampmOf(now.hour), digits: _clock),
-                    const SizedBox(width: KioskSpace.md),
-                  ],
-                  // 날짜 아래 실내 온습도(시안 B) — 자리가 모자라면 통째로 조금 줄인다(잘리지 않게).
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [date, if (indoor != null) indoor],
+    Widget topRow(_IdleSheets sheets, {bool withClock = true}) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                  height: _Idle.topRow,
+                  child: LayoutBuilder(builder: (context, top) {
+                    final topWidth = top.maxWidth;
+                    final date = Text(_dateStr,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                            fontSize: KioskType.caption,
+                            height: 1.2,
+                            fontWeight: FontWeight.w600,
+                            color: KioskColors.ink));
+                    return Row(children: [
+                      if (withClock) ...[
+                        _BarClock(ampm: ampmOf(now.hour), digits: _clock),
+                        const SizedBox(width: KioskSpace.md),
+                      ],
+                      // 날짜 아래 실내 온습도(시안 B) — 자리가 모자라면 통째로 조금 줄인다(잘리지 않게).
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [date, if (indoor != null) indoor],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  if (dnd != null || quietUntil != null) ...[
-                    _DndEntry(
-                        key: const ValueKey('dnd-chip'),
-                        remaining: dnd == null ? null : _dndRemaining(dnd),
-                        quietUntil: dnd == null && quietUntil != null ? spokenHhmm(quietUntil!) : null,
-                        onTap: onDndGesture),
-                    const SizedBox(width: KioskSpace.sm),
-                  ],
-                  // 쉬는 중 칩 + 확인 중 칩 + 큰 글씨가 겹치면 위 줄이 모자란다 — 칩은 잘리지 않고 통째로 조금 줄어든다.
-                  if (!connProblem)
-                    ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: topWidth * (large ? 0.36 : 0.4)),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: statusChip(sheets),
-                      ),
-                    ),
-                  const SizedBox(width: KioskSpace.xs),
-                  KioskIdleMenuButton(onTap: sheets.openMenu),
-                ]);
-              })),
-          // 연결 문제는 위 줄 아래 **한 줄 띠**(시안 B 10/24 — 높이 고정, 아래 칸을 밀어내지 않는다).
-          if (connProblem) ...[
-            statusChip(sheets),
-            const SizedBox(height: KioskSpace.xs),
-          ],
-        ]);
+                      if (dnd != null || quietUntil != null) ...[
+                        _DndEntry(
+                            key: const ValueKey('dnd-chip'),
+                            remaining: dnd == null ? null : _dndRemaining(dnd),
+                            quietUntil: dnd == null && quietUntil != null
+                                ? spokenHhmm(quietUntil!)
+                                : null,
+                            onTap: onDndGesture),
+                        const SizedBox(width: KioskSpace.sm),
+                      ],
+                      // 쉬는 중 칩 + 확인 중 칩 + 큰 글씨가 겹치면 위 줄이 모자란다 — 칩은 잘리지 않고 통째로 조금 줄어든다.
+                      if (!connProblem)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                              maxWidth: topWidth * (large ? 0.36 : 0.4)),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: statusChip(sheets),
+                          ),
+                        ),
+                      const SizedBox(width: KioskSpace.xs),
+                      if (onVoice case final speak?) ...[
+                        KioskIdleVoiceButton(onTap: speak),
+                        const SizedBox(width: KioskSpace.xs),
+                      ],
+                      KioskIdleMenuButton(onTap: sheets.openMenu),
+                    ]);
+                  })),
+              // 연결 문제는 위 줄 아래 **한 줄 띠**(시안 B 10/24 — 높이 고정, 아래 칸을 밀어내지 않는다).
+              if (connProblem) ...[
+                statusChip(sheets),
+                const SizedBox(height: KioskSpace.xs),
+              ],
+            ]);
 
     // 오른쪽 칸 줄들(시안 B 10/24) — 값이 있는 줄만. 순서: 알림 · 다음 자동 실행 · 바깥 날씨 · 공기질.
     final shown = shownWeatherOf(amb, now);
     final shownWeather = shown.slot;
     final warnings = amb?.warnings ?? const <AmbientWarning>[];
     final rainSlot = forecastSlots(amb, now)
-        .where((s) => !s.isNow && (s.hour.precip || s.hour.icon == 'rain' || s.hour.icon == 'snow' || (s.hour.pop ?? 0) >= 60))
+        .where((s) =>
+            !s.isNow &&
+            (s.hour.precip ||
+                s.hour.icon == 'rain' ||
+                s.hour.icon == 'snow' ||
+                (s.hour.pop ?? 0) >= 60))
         .firstOrNull;
     // 아래 작은 줄 — 첫 특보 안내, 없으면 날씨 안내, 없으면 가까운 비 소식(2026-10-25 계획 §2).
-    final adviceIsTip = warnings.any((w) => w.advice.isNotEmpty) || weatherTip != null;
+    final adviceIsTip =
+        warnings.any((w) => w.advice.isNotEmpty) || weatherTip != null;
     final weatherAdvice = adviceIsTip
         ? weatherAdviceOf(amb, weatherTip)
         : rainSlot == null
@@ -341,164 +373,238 @@ class KioskIdleView extends StatelessWidget {
             child: _NoticeLine(tip: noticeTip),
           );
     List<Widget> sideRowsFor(_IdleSheets sheets) => <Widget>[
-      if (next != null)
-        KioskSideRow(
-          child: _NextRunLine(
-              key: const ValueKey('idle-next-run'),
-              next: next,
-              stacked: true,
-              busy: nextRunBusy,
-              notice: nextRunNotice,
-              onToggle: onToggleNextRunSkip),
-        ),
-      // 머리말 없는 한 줄(10/25) — 줄 전체를 누르면 날씨 자세히 창.
-      if (shownWeather != null || weatherAdvice != null || warnings.isNotEmpty)
-        KioskSideRow(
-          key: const ValueKey('idle-weather'),
-          child: KioskWeatherLine(
-            now: shownWeather,
-            at: shown.at,
-            night: shown.night,
-            warning: warnings.firstOrNull,
-            advice: weatherAdvice,
-            adviceIsTip: adviceIsTip,
-            onTap: amb == null ? null : sheets.openWeather,
-          ),
-        ),
-      if (air case final a?)
-        KioskSideRow(
-          label: '공기질',
-          inline: true,
-          child: _AirRow(
-            key: const ValueKey('idle-air'),
-            air: a,
-            action: a == badAir ? airAction : null,
-            onAction: a == badAir && airTarget != null ? () => onSelectAppliance(airTarget) : null,
-          ),
-        ),
-    ];
-
-    final Widget host = _IdleSheetHost(view: this, builder: (sheets) => quietDim
-        ? _QuietIdle(
-            view: this,
-            topRow: topRow(sheets, withClock: false),
-            clock: _clock,
-            large: large,
-            air: badAir)
-        : ColoredBox(
-      color: KioskColors.bg,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(_Idle.side, 4, _Idle.side, 6),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          topRow(sheets),
-          const SizedBox(height: 4),
-          Expanded(child: LayoutBuilder(builder: (context, body) {
-            final sideWidth = large ? _Idle.sideLarge : _Idle.sideWidth;
-            final leftWidth = body.maxWidth - sideWidth - _Idle.columnGap;
-            // '무엇을 할까요?' 카드는 가전 줄이 제 하한을 지킬 때만(위에 띠·지난 일 줄이 겹치면 접는다 — 가전 줄이 먼저다).
-            final stripMin = large ? _Idle.stripLargeMin : _Idle.stripTightMin;
-            final featuredHeight = KioskFeaturedAction.heightFor(context) + _Idle.featuredGap;
-            final showFeatured = featured != null && body.maxHeight - featuredHeight >= stripMin;
-            final stripRoom = body.maxHeight - (showFeatured ? featuredHeight : 0);
-            final stripMax = large ? _Idle.stripLarge : _Idle.stripMax;
-            var strip = (stripRoom < stripMax ? stripRoom : stripMax).clamp(0.0, stripMax).toDouble();
-            // 안내를 가전 줄 아래에 둘 수 있나 — 가전 줄을 하한까지 낮춰서라도 들어가면 거기.
-            final noticeHeight = noticeTip == null ? 0.0 : _NoticeLine.heightFor(context, noticeTip, leftWidth) + _Idle.featuredGap;
-            var noticeLeft = false;
-            if (noticeTip != null && stripRoom - stripMin >= noticeHeight) {
-              noticeLeft = true;
-              if (stripRoom - strip < noticeHeight) strip = stripRoom - noticeHeight;
-            }
-            final tileHeight = strip - _Idle.stripPad;
-            final left = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (showFeatured) ...[
-                KioskFeaturedAction(
-                  routine: featured.$1,
-                  appliance: featured.$2,
-                  sizeLabel: featured.$1.sizeLabelWith({for (final a in list!) a.id: a.displayName}),
-                  blockedReason: featured.$3,
-                  onRun: () => onRoutine!(featured.$1),
-                  // 막힌 가전의 안내(코드 검토 10/24) — 루틴 첫 가전은 쓸 수 있을 수 있다.
-                  onHelp: () => selectTile(featured.$4 ?? featured.$2),
-                  // 연결 문제 띠가 이미 '해결 방법 보기'를 보인다 — 카드는 되풀이하지 않는다(첫 사용 평가 4차 10/24).
-                  helpInBanner: connProblem,
-                  onVoice: onVoice,
-                  voiceNotice: voiceNotice,
-                ),
-                const SizedBox(height: _Idle.featuredGap),
-              ],
-              // 가전 줄은 왼쪽 선에서 시작한다(평가 3차 10/18). 타일 폭은 남은 폭을 장 넘김 칸과 나눠 잰다.
-              SizedBox(
-                  height: strip,
-                  child: LayoutBuilder(builder: (context, box) {
-                    final itemWidth =
-                        (box.maxWidth - (pager ? KioskApplianceStrip.compactPagerWidth : 0)) / perPage;
-                    return Align(
-                        alignment: list == null || list.isEmpty ? Alignment.centerLeft : Alignment.topLeft,
-                        child: SingleChildScrollView(
-                            child: list == null
-                                ? const _StripNotice('본체와 연결되면 가전이 보여요')
-                                : list.isEmpty
-                                    ? const _StripNotice('휴대폰 앱에서 가전을 추가해 주세요')
-                                    : KioskApplianceStrip(
-                                        appliances: list,
-                                        running: estop ? const {} : running,
-                                        attention: estop ? {...attention, ...running} : attention,
-                                        on: estop ? const {} : on,
-                                        off: estop ? const {} : off,
-                                        unavailable: unavailable,
-                                        // 비상 버튼이면 띠가 빨강, 누름 장치 끊김이면 회색(평가 6차 10/18).
-                                        unavailableByEstop: estop,
-                                        // 못 쓰는 가전은 조작판 대신 이유를 연다 — 비상 버튼이면 풀기 안내, 누름 장치 끊김이면 그 연결 창.
-                                        onSelect: selectTile,
-                                        perPage: perPage,
-                                        reservePager: pager,
-                                        compactPager: true,
-                                        itemWidth: itemWidth,
-                                        labelSize: _Idle.stripName,
-                                        statusSize: _Idle.stripStatus,
-                                        iconBox: _Idle.tileArt,
-                                        tileHeight: tileHeight)));
-                  })),
-            ]);
-            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              SizedBox(
-                  width: leftWidth,
-                  child: noticeLeft
-                      ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                          left,
-                          const SizedBox(height: _Idle.featuredGap),
-                          notice!,
-                        ])
-                      : left),
-              const SizedBox(width: _Idle.columnGap),
-              // 오른쪽 칸 — 칸 없이 줄로만. 넘치면(아주 드문 겹침) 자르지 않고 스크롤.
-              SizedBox(
-                width: sideWidth,
-                height: body.maxHeight,
-                child: SingleChildScrollView(
-                    child: KioskSideColumn(rows: [if (notice != null && !noticeLeft) notice, ...sideRowsFor(sheets)])),
+          if (next != null)
+            KioskSideRow(
+              child: _NextRunLine(
+                  key: const ValueKey('idle-next-run'),
+                  next: next,
+                  stacked: true,
+                  busy: nextRunBusy,
+                  notice: nextRunNotice,
+                  onToggle: onToggleNextRunSkip),
+            ),
+          // 머리말 없는 한 줄(10/25) — 줄 전체를 누르면 날씨 자세히 창.
+          if (shownWeather != null ||
+              weatherAdvice != null ||
+              warnings.isNotEmpty)
+            KioskSideRow(
+              key: const ValueKey('idle-weather'),
+              child: KioskWeatherLine(
+                now: shownWeather,
+                at: shown.at,
+                night: shown.night,
+                warning: warnings.firstOrNull,
+                advice: weatherAdvice,
+                adviceIsTip: adviceIsTip,
+                onTap: amb == null ? null : sheets.openWeather,
               ),
-            ]);
-          })),
-        ]),
-      ),
-    ));
+            ),
+          if (air case final a?)
+            KioskSideRow(
+              label: '공기질',
+              inline: true,
+              child: _AirRow(
+                key: const ValueKey('idle-air'),
+                air: a,
+                action: a == badAir ? airAction : null,
+                onAction: a == badAir && airTarget != null
+                    ? () => onSelectAppliance(airTarget)
+                    : null,
+              ),
+            ),
+        ];
+
+    final Widget host = _IdleSheetHost(
+        view: this,
+        builder: (sheets) => quietDim
+            ? _QuietIdle(
+                view: this,
+                topRow: topRow(sheets, withClock: false),
+                clock: _clock,
+                large: large,
+                air: badAir)
+            : ColoredBox(
+                color: KioskColors.bg,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.fromLTRB(_Idle.side, 4, _Idle.side, 6),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        topRow(sheets),
+                        const SizedBox(height: 4),
+                        Expanded(child: LayoutBuilder(builder: (context, body) {
+                          final sideWidth =
+                              large ? _Idle.sideLarge : _Idle.sideWidth;
+                          final leftWidth =
+                              body.maxWidth - sideWidth - _Idle.columnGap;
+                          // '무엇을 할까요?' 카드는 가전 줄이 제 하한을 지킬 때만(위에 띠·지난 일 줄이 겹치면 접는다 — 가전 줄이 먼저다).
+                          final stripMin =
+                              large ? _Idle.stripLargeMin : _Idle.stripTightMin;
+                          final featuredHeight =
+                              KioskFeaturedAction.heightFor(context) +
+                                  _Idle.featuredGap;
+                          final showFeatured = featured != null &&
+                              body.maxHeight - featuredHeight >= stripMin;
+                          final stripRoom = body.maxHeight -
+                              (showFeatured ? featuredHeight : 0);
+                          final stripMax =
+                              large ? _Idle.stripLarge : _Idle.stripMax;
+                          var strip =
+                              (stripRoom < stripMax ? stripRoom : stripMax)
+                                  .clamp(0.0, stripMax)
+                                  .toDouble();
+                          // 안내를 가전 줄 아래에 둘 수 있나 — 가전 줄을 하한까지 낮춰서라도 들어가면 거기.
+                          final noticeHeight = noticeTip == null
+                              ? 0.0
+                              : _NoticeLine.heightFor(
+                                      context, noticeTip, leftWidth) +
+                                  _Idle.featuredGap;
+                          var noticeLeft = false;
+                          if (noticeTip != null &&
+                              stripRoom - stripMin >= noticeHeight) {
+                            noticeLeft = true;
+                            if (stripRoom - strip < noticeHeight) {
+                              strip = stripRoom - noticeHeight;
+                            }
+                          }
+                          final tileHeight = strip - _Idle.stripPad;
+                          final left = Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (showFeatured) ...[
+                                  KioskFeaturedAction(
+                                    routine: featured.$1,
+                                    appliance: featured.$2,
+                                    sizeLabel: featured.$1.sizeLabelWith({
+                                      for (final a in list!) a.id: a.displayName
+                                    }),
+                                    blockedReason: featured.$3,
+                                    onRun: () => onRoutine!(featured.$1),
+                                    // 막힌 가전의 안내(코드 검토 10/24) — 루틴 첫 가전은 쓸 수 있을 수 있다.
+                                    onHelp: () =>
+                                        selectTile(featured.$4 ?? featured.$2),
+                                    // 연결 문제 띠가 이미 '해결 방법 보기'를 보인다 — 카드는 되풀이하지 않는다(첫 사용 평가 4차 10/24).
+                                    helpInBanner: connProblem,
+                                  ),
+                                  const SizedBox(height: _Idle.featuredGap),
+                                ],
+                                // 가전 줄은 왼쪽 선에서 시작한다(평가 3차 10/18). 타일 폭은 남은 폭을 장 넘김 칸과 나눠 잰다.
+                                SizedBox(
+                                    height: strip,
+                                    child:
+                                        LayoutBuilder(builder: (context, box) {
+                                      final itemWidth = (box.maxWidth -
+                                              (pager
+                                                  ? KioskApplianceStrip
+                                                      .compactPagerWidth
+                                                  : 0)) /
+                                          perPage;
+                                      return Align(
+                                          alignment:
+                                              list == null || list.isEmpty
+                                                  ? Alignment.centerLeft
+                                                  : Alignment.topLeft,
+                                          child: SingleChildScrollView(
+                                              child: list == null
+                                                  ? const _StripNotice(
+                                                      '본체와 연결되면 가전이 보여요')
+                                                  : list.isEmpty
+                                                      ? const _StripNotice(
+                                                          '휴대폰 앱에서 가전을 추가해 주세요')
+                                                      : KioskApplianceStrip(
+                                                          appliances: list,
+                                                          running: estop
+                                                              ? const {}
+                                                              : running,
+                                                          attention: estop
+                                                              ? {
+                                                                  ...attention,
+                                                                  ...running
+                                                                }
+                                                              : attention,
+                                                          on: estop
+                                                              ? const {}
+                                                              : on,
+                                                          off: estop
+                                                              ? const {}
+                                                              : off,
+                                                          unavailable:
+                                                              unavailable,
+                                                          // 비상 버튼이면 띠가 빨강, 누름 장치 끊김이면 회색(평가 6차 10/18).
+                                                          unavailableByEstop:
+                                                              estop,
+                                                          // 못 쓰는 가전은 조작판 대신 이유를 연다 — 비상 버튼이면 풀기 안내, 누름 장치 끊김이면 그 연결 창.
+                                                          onSelect: selectTile,
+                                                          perPage: perPage,
+                                                          reservePager: pager,
+                                                          compactPager: true,
+                                                          itemWidth: itemWidth,
+                                                          labelSize:
+                                                              _Idle.stripName,
+                                                          statusSize:
+                                                              _Idle.stripStatus,
+                                                          iconBox:
+                                                              _Idle.tileArt,
+                                                          tileHeight:
+                                                              tileHeight)));
+                                    })),
+                              ]);
+                          return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                    width: leftWidth,
+                                    child: noticeLeft
+                                        ? Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                                left,
+                                                const SizedBox(
+                                                    height: _Idle.featuredGap),
+                                                notice!,
+                                              ])
+                                        : left),
+                                const SizedBox(width: _Idle.columnGap),
+                                // 오른쪽 칸 — 칸 없이 줄로만. 넘치면(아주 드문 겹침) 자르지 않고 스크롤.
+                                SizedBox(
+                                  width: sideWidth,
+                                  height: body.maxHeight,
+                                  child: SingleChildScrollView(
+                                      child: KioskSideColumn(rows: [
+                                    if (notice != null && !noticeLeft) notice,
+                                    ...sideRowsFor(sheets)
+                                  ])),
+                                ),
+                              ]);
+                        })),
+                      ]),
+                ),
+              ));
     final touch = onTouch;
     if (touch == null) return host;
     // 화면 어디를 만져도 알린다(단추 동작은 그대로 지나간다).
-    return Listener(behavior: HitTestBehavior.translucent, onPointerDown: (_) => touch(), child: host);
+    return Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => touch(),
+        child: host);
   }
 
   /// 조용한 시간 화면에서 시계 아래(나쁜 공기·다음 루틴)가 [width] 폭에서 차지할 높이 — 시계 크기를 정하는 데만 쓴다.
   static double _leftRest(BuildContext context, double width,
-      {KioskAirReading? air, KioskNextRun? next,
-      ValueChanged<KioskNextRun>? onToggle, String? notice}) {
+      {KioskAirReading? air,
+      KioskNextRun? next,
+      ValueChanged<KioskNextRun>? onToggle,
+      String? notice}) {
     var h = 0.0;
-    if (air != null) h += _Idle.airGap + _AirLine.heightFor(context, air, width);
+    if (air != null) {
+      h += _Idle.airGap + _AirLine.heightFor(context, air, width);
+    }
     if (next != null) {
       h += _Idle.nextGap +
-          _NextRunLine.heightFor(context, next, width, withButton: onToggle != null, notice: notice);
+          _NextRunLine.heightFor(context, next, width,
+              withButton: onToggle != null, notice: notice);
     }
     return h;
   }
@@ -531,7 +637,11 @@ class _BarClock extends StatelessWidget {
               softWrap: false,
               // 이미 크다 — 큰 글씨 배율을 얹지 않는다(위 줄 높이 안에 든다).
               textScaler: TextScaler.noScaling,
-              style: TextStyle(fontSize: size * 0.82, height: 1.1, fontWeight: FontWeight.w700, color: KioskColors.ink)),
+              style: TextStyle(
+                  fontSize: size * 0.82,
+                  height: 1.1,
+                  fontWeight: FontWeight.w700,
+                  color: KioskColors.ink)),
           const SizedBox(width: 6),
           Text(digits,
               maxLines: 1,
@@ -556,14 +666,17 @@ class _NoticeLine extends StatelessWidget {
   static const int _maxLines = 4;
   static const double _icon = 22;
   static const double _gap = 6;
-  static String _drawn(AmbientTip tip) => keepWords(keepPhrases(kioskLine(tip.text)));
-  static TextStyle get _style => KioskSideRow.valueStyle.copyWith(fontWeight: FontWeight.w600);
+  static String _drawn(AmbientTip tip) =>
+      keepWords(keepPhrases(kioskLine(tip.text)));
+  static TextStyle get _style =>
+      KioskSideRow.valueStyle.copyWith(fontWeight: FontWeight.w600);
 
   /// 폭 [width]에서 머리말까지 더한 높이 — 처음 화면이 가전 줄 아래에 둘지 정한다.
   static double heightFor(BuildContext context, AmbientTip tip, double width) =>
       _textHeight(context, '알림', KioskSideRow.labelStyle, double.infinity) +
       2 +
-      _textHeight(context, _drawn(tip), _style, width - _icon - _gap, maxLines: _maxLines);
+      _textHeight(context, _drawn(tip), _style, width - _icon - _gap,
+          maxLines: _maxLines);
 
   @override
   Widget build(BuildContext context) {
@@ -571,7 +684,9 @@ class _NoticeLine extends StatelessWidget {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.only(top: 2),
-        child: Icon(_tipIcon(tip.icon), size: _icon, color: attention ? KioskColors.warning : KioskColors.ink),
+        child: Icon(_tipIcon(tip.icon),
+            size: _icon,
+            color: attention ? KioskColors.warning : KioskColors.ink),
       ),
       const SizedBox(width: _gap),
       Expanded(
@@ -605,29 +720,36 @@ class _AirRow extends StatelessWidget {
       container: true,
       label: [air.sentence, if (air.mock) kPracticeNumbers].join('. '),
       excludeSemantics: true,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Row(children: [
-          Icon(Icons.air, size: 24, color: color),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text.rich(
-              TextSpan(children: [
-                TextSpan(
-                    text: keepWords(air.gradeWord),
-                    semanticsLabel: air.gradeWord,
-                    style: TextStyle(color: color, fontWeight: FontWeight.w800)),
-              ]),
-              key: const ValueKey('idle-air-headline'),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: KioskSideRow.valueStyle,
-            ),
-          ),
-        ]),
-        if (air.mock)
-          Text(kPracticeNumbers,
-              key: const ValueKey('idle-air-detail'), maxLines: 2, overflow: TextOverflow.ellipsis, style: KioskSideRow.smallStyle),
-      ]),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [
+              Icon(Icons.air, size: 24, color: color),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                        text: keepWords(air.gradeWord),
+                        semanticsLabel: air.gradeWord,
+                        style: TextStyle(
+                            color: color, fontWeight: FontWeight.w800)),
+                  ]),
+                  key: const ValueKey('idle-air-headline'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: KioskSideRow.valueStyle,
+                ),
+              ),
+            ]),
+            if (air.mock)
+              Text(kPracticeNumbers,
+                  key: const ValueKey('idle-air-detail'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: KioskSideRow.smallStyle),
+          ]),
     );
     final act = action;
     if (act == null || onAction == null) return line;
@@ -642,16 +764,21 @@ class _AirRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 48),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              line,
-              Padding(
-                key: const ValueKey('idle-air-action'),
-                // 등급 말과 같은 글 선(아이콘 24 + 사이 6).
-                padding: const EdgeInsets.only(top: 2, left: 30),
-                child: ExcludeSemantics(
-                    child: Text(act, style: _NextRunLine._buttonStyle.copyWith(color: KioskColors.muted))),
-              ),
-            ]),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  line,
+                  Padding(
+                    key: const ValueKey('idle-air-action'),
+                    // 등급 말과 같은 글 선(아이콘 24 + 사이 6).
+                    padding: const EdgeInsets.only(top: 2, left: 30),
+                    child: ExcludeSemantics(
+                        child: Text(act,
+                            style: _NextRunLine._buttonStyle
+                                .copyWith(color: KioskColors.muted))),
+                  ),
+                ]),
           ),
         ),
       ),
@@ -684,7 +811,9 @@ class _Clock extends StatelessWidget {
                   softWrap: false,
                   textScaler: TextScaler.noScaling,
                   style: TextStyle(
-                      fontSize: KioskType.status, height: 1, color: KioskColors.muted)),
+                      fontSize: KioskType.status,
+                      height: 1,
+                      color: KioskColors.muted)),
               const SizedBox(width: KioskSpace.xs),
               Text(digits,
                   maxLines: 1,
@@ -749,7 +878,12 @@ KioskAirReading? airIfBad(KioskAirReading? air) =>
 /// [heightFor]가 화면과 같은 규칙으로 잰다(시계·타일 높이를 정한다).
 class _NextRunLine extends StatelessWidget {
   const _NextRunLine(
-      {super.key, required this.next, this.busy = false, this.notice, this.onToggle, this.stacked = false});
+      {super.key,
+      required this.next,
+      this.busy = false,
+      this.notice,
+      this.onToggle,
+      this.stacked = false});
 
   final KioskNextRun next;
 
@@ -773,22 +907,27 @@ class _NextRunLine extends StatelessWidget {
   static const _wordStyle = TextStyle(fontSize: KioskType.caption, height: 1.2);
   // 단추 글자는 머리말과 같은 크기·회색 계열 — 굵기만 조금(누르는 말인 줄 알게). 밑줄·테두리는 두지 않는다(사용자 결정
   // 10/18 — 평가 14차가 밑줄을 권했지만 지금 모양이 실패널에서 잘 보인다며 그대로 두기로 했다).
-  static const _buttonStyle =
-      TextStyle(fontSize: KioskType.caption, height: 1.2, fontWeight: FontWeight.w700);
-  static const _noticeStyle = TextStyle(fontSize: KioskType.caption, height: 1.2);
+  static const _buttonStyle = TextStyle(
+      fontSize: KioskType.caption, height: 1.2, fontWeight: FontWeight.w700);
+  static const _noticeStyle =
+      TextStyle(fontSize: KioskType.caption, height: 1.2);
   static const _sep = '·';
 
   /// '오후 10:00 · 저녁 공기청정기 켜기' — 늘 한 줄(평가 16차 10/18 — 실패널은 한 줄인데 골든에서는 시각 뒤에서 두 줄로
   /// 갈렸다). 넘치면 이름 끝만 말줄임 — 시각이 앞이라 잘리지 않는다.
   static InlineSpan _lineSpan(KioskNextRun n) => TextSpan(children: [
-        TextSpan(text: n.whenShort, style: const TextStyle(fontWeight: FontWeight.w700)),
+        TextSpan(
+            text: n.whenShort,
+            style: const TextStyle(fontWeight: FontWeight.w700)),
         const TextSpan(text: ' · '),
         TextSpan(text: n.name),
       ]);
 
   /// 단추 말 — 건너뛰었으면 '되돌리기', 아니면 서버 말('오늘은 건너뛰기'). 둘 수 없으면 null.
   static String? _buttonLabel(KioskNextRun n, bool withButton) =>
-      !withButton || !n.canSkip ? null : (n.skipped ? '되돌리기' : n.skipActionLabel);
+      !withButton || !n.canSkip
+          ? null
+          : (n.skipped ? '되돌리기' : n.skipActionLabel);
 
   static double _buttonWidth(BuildContext context, String label) {
     final w = _textWidth(context, label, _buttonStyle) + 2 * _buttonPadH + 2;
@@ -816,16 +955,19 @@ class _NextRunLine extends StatelessWidget {
   /// 그 줄은 비운다. 끝 줄에 다른 말(실패 안내)이 있거나 머리말 옆 폭이 모자라면(넓은 글꼴·큰 글씨) 종전대로 끝 줄.
   /// 머리말 옆에서는 단추 오른쪽 여백을 두지 않는다(줄 끝이라 필요 없다) — 누르는 높이 48은 그대로. 사이는 [_wordGap].
   /// 넓은 글꼴로 조금 모자라면 '오늘은 안 해요'만 10% 안에서 줄인다(머리말의 FittedBox) — 그보다 모자라면 끝 줄.
-  static bool _undoOnHead(BuildContext context, KioskNextRun n, String? label, String word, double width) {
+  static bool _undoOnHead(BuildContext context, KioskNextRun n, String? label,
+      String word, double width) {
     final h = n.skippedHead;
     if (label == null || h == null || word.isNotEmpty) return false;
-    final skippedW = _textWidth(context, h, _headStyle.copyWith(fontWeight: FontWeight.w700));
+    final skippedW = _textWidth(
+        context, h, _headStyle.copyWith(fontWeight: FontWeight.w700));
     final head = _headIcon +
         _iconGap +
         _textWidth(context, n.kindLabel, _headStyle) +
         _textWidth(context, ' · ', _headStyle) +
         skippedW;
-    return head + _wordGap + _headButtonWidth(context, label) - width <= skippedW * 0.1;
+    return head + _wordGap + _headButtonWidth(context, label) - width <=
+        skippedW * 0.1;
   }
 
   static double _headButtonWidth(BuildContext context, String label) {
@@ -841,9 +983,13 @@ class _NextRunLine extends StatelessWidget {
   /// 좁은 칸 꼴([stacked])의 시각·이름 — 첫 줄은 시각(굵게), 둘째 줄부터 이름(작게, 시안 B). 늘 시각 뒤에서만 줄을 바꾼다
   /// (이름 가운데서 꺾여 '켜기'만 홀로 남지 않게 — 평가 16차 10/18의 뜻). 이름이 아주 길면 이름 안에서 낱말 단위로.
   static InlineSpan _stackedSpan(KioskNextRun n) => TextSpan(children: [
-        TextSpan(text: n.whenShort, style: const TextStyle(fontWeight: FontWeight.w700)),
+        TextSpan(
+            text: n.whenShort,
+            style: const TextStyle(fontWeight: FontWeight.w700)),
         const TextSpan(text: '\n'),
-        TextSpan(text: keepWords(n.name), style: const TextStyle(fontSize: KioskType.caption)),
+        TextSpan(
+            text: keepWords(n.name),
+            style: const TextStyle(fontSize: KioskType.caption)),
       ]);
   static const int _stackedMaxLines = 3;
 
@@ -852,19 +998,24 @@ class _NextRunLine extends StatelessWidget {
       {bool withButton = true, String? notice, bool stacked = false}) {
     final headH = _headHeight(context);
     final lineH = stacked
-        ? _spanHeight(context, _stackedSpan(n), _lineStyle, width, maxLines: _stackedMaxLines)
+        ? _spanHeight(context, _stackedSpan(n), _lineStyle, width,
+            maxLines: _stackedMaxLines)
         : _textHeight(context, '오후 10:00', _lineStyle, double.infinity);
     final word = keepWords(_wordOf(n, notice));
     final label = _buttonLabel(n, withButton);
     final after = n.afterSkipText;
-    final afterH = after == null ? 0.0 : _lineGap + _textHeight(context, keepWords(after), _wordStyle, width);
+    final afterH = after == null
+        ? 0.0
+        : _lineGap + _textHeight(context, keepWords(after), _wordStyle, width);
     if (_undoOnHead(context, n, label, word, width)) {
       final bh = _buttonHeight(context, label!);
       return (headH > bh ? headH : bh) + _headGap + lineH + afterH;
     }
     var h = headH + _headGap + lineH + afterH;
     if (label == null) {
-      if (word.isNotEmpty) h += _lineGap + _textHeight(context, word, _wordStyle, width);
+      if (word.isNotEmpty) {
+        h += _lineGap + _textHeight(context, word, _wordStyle, width);
+      }
     } else {
       final bw = _buttonWidth(context, label);
       final bh = _buttonHeight(context, label);
@@ -887,7 +1038,8 @@ class _NextRunLine extends StatelessWidget {
         final width = box.maxWidth;
         final skipped = next.skipped && !next.quietSkip;
         final word = next.statusWord;
-        final shownNotice = notice != null && notice!.isNotEmpty ? notice : null;
+        final shownNotice =
+            notice != null && notice!.isNotEmpty ? notice : null;
         final label = _buttonLabel(next, onToggle != null);
         final wordText = shownNotice != null
             // 실패 안내(서버 말 그대로 또는 짧은 말)는 잠시 단추 앞에 — 앰버.
@@ -902,7 +1054,8 @@ class _NextRunLine extends StatelessWidget {
                     style: _wordStyle.copyWith(
                         color: skipped ? KioskColors.ink : KioskColors.muted,
                         fontWeight: skipped ? FontWeight.w700 : null));
-        final undoOnHead = _undoOnHead(context, next, label, shownNotice ?? word, width);
+        final undoOnHead =
+            _undoOnHead(context, next, label, shownNotice ?? word, width);
         final undoButton = undoOnHead
             ? _SkipButton(
                 key: const ValueKey('idle-next-run-unskip'),
@@ -920,11 +1073,14 @@ class _NextRunLine extends StatelessWidget {
         } else if (label == null) {
           last = wordText == null
               ? null
-              : Padding(padding: const EdgeInsets.only(top: _lineGap), child: wordText);
+              : Padding(
+                  padding: const EdgeInsets.only(top: _lineGap),
+                  child: wordText);
         } else {
           final bw = _buttonWidth(context, label);
           final button = _SkipButton(
-            key: ValueKey(next.skipped ? 'idle-next-run-unskip' : 'idle-next-run-skip'),
+            key: ValueKey(
+                next.skipped ? 'idle-next-run-unskip' : 'idle-next-run-skip'),
             label: label,
             width: bw,
             minHeight: _buttonMin,
@@ -936,19 +1092,22 @@ class _NextRunLine extends StatelessWidget {
           if (wordText == null) {
             last = button;
           } else if (width - bw - sepW >= _minWordWidth) {
-            last = Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            last =
+                Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
               Flexible(child: wordText),
               if (withSep)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _wordGap),
-                  child: Text(_sep, style: _wordStyle.copyWith(color: KioskColors.muted)),
+                  child: Text(_sep,
+                      style: _wordStyle.copyWith(color: KioskColors.muted)),
                 )
               else
                 const SizedBox(width: _wordGap),
               button,
             ]);
           } else {
-            last = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            last =
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const SizedBox(height: _lineGap),
               wordText,
               button,
@@ -975,31 +1134,38 @@ class _NextRunLine extends StatelessWidget {
               );
         final head = SizedBox(
           height: _headHeight(context),
-          child: Row(key: const ValueKey('idle-next-run-kind'), mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.schedule, size: _headIcon, color: KioskColors.muted),
-            const SizedBox(width: _iconGap),
-            Text(next.kindLabel,
-                maxLines: 1,
-                softWrap: false,
-                style: _headStyle.copyWith(color: KioskColors.muted)),
-            // 건너뛴 회차 — 머리말 옆에 말로(2차 독립 평가 B). 시각·이름 줄은 그대로 남기되 흐리게.
-            // 폭이 모자라면(넓은 글꼴·큰 글씨) 이 말만 칸에 맞춰 조금 줄인다 — 잘리지 않게.
-            if (next.skippedHead case final h?)
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text(' · ', style: _headStyle.copyWith(color: KioskColors.muted)),
-                    Text(h,
-                        key: const ValueKey('idle-next-run-skipped-head'),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: _headStyle.copyWith(color: KioskColors.ink, fontWeight: FontWeight.w700)),
-                  ]),
-                ),
-              ),
-          ]),
+          child: Row(
+              key: const ValueKey('idle-next-run-kind'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.schedule, size: _headIcon, color: KioskColors.muted),
+                const SizedBox(width: _iconGap),
+                Text(next.kindLabel,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: _headStyle.copyWith(color: KioskColors.muted)),
+                // 건너뛴 회차 — 머리말 옆에 말로(2차 독립 평가 B). 시각·이름 줄은 그대로 남기되 흐리게.
+                // 폭이 모자라면(넓은 글꼴·큰 글씨) 이 말만 칸에 맞춰 조금 줄인다 — 잘리지 않게.
+                if (next.skippedHead case final h?)
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(' · ',
+                            style:
+                                _headStyle.copyWith(color: KioskColors.muted)),
+                        Text(h,
+                            key: const ValueKey('idle-next-run-skipped-head'),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: _headStyle.copyWith(
+                                color: KioskColors.ink,
+                                fontWeight: FontWeight.w700)),
+                      ]),
+                    ),
+                  ),
+              ]),
         );
         // 조금 넘치면(15% 안) 글자를 살짝 줄여 이름 끝('켜기')까지 보이고, 그보다 길면 이름 끝만 말줄임.
         final Widget lineWidget = () {
@@ -1008,7 +1174,8 @@ class _NextRunLine extends StatelessWidget {
                 key: const ValueKey('idle-next-run-text'),
                 maxLines: _stackedMaxLines,
                 overflow: TextOverflow.ellipsis,
-                style: _lineStyle.copyWith(color: skipped ? KioskColors.muted : KioskColors.ink));
+                style: _lineStyle.copyWith(
+                    color: skipped ? KioskColors.muted : KioskColors.ink));
           }
           final line = Text.rich(_lineSpan(next),
               key: const ValueKey('idle-next-run-text'),
@@ -1016,12 +1183,16 @@ class _NextRunLine extends StatelessWidget {
               softWrap: false,
               overflow: TextOverflow.ellipsis,
               // 건너뛴 회차는 흐리게 — 무엇을 건너뛰는지는 그대로 읽힌다.
-              style: _lineStyle.copyWith(color: skipped ? KioskColors.muted : KioskColors.ink));
+              style: _lineStyle.copyWith(
+                  color: skipped ? KioskColors.muted : KioskColors.ink));
           final natural = _spanWidth(context, _lineSpan(next), _lineStyle);
           if (natural <= width || natural * 0.85 > width) return line;
           return SizedBox(
               width: width,
-              child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: line));
+              child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: line));
         }();
         final undo = undoButton;
         if (undo != null) {
@@ -1148,7 +1319,8 @@ class _IndoorEnv extends StatelessWidget {
   final double? humidity;
 
   /// 날짜와 같은 글자.
-  static TextStyle get style => TextStyle(fontSize: KioskType.caption, height: 1.2, color: KioskColors.muted);
+  static TextStyle get style => TextStyle(
+      fontSize: KioskType.caption, height: 1.2, color: KioskColors.muted);
 
   /// 날짜와 온습도 사이, 두 조각 사이.
   static const double gap = KioskSpace.sm;
@@ -1157,15 +1329,18 @@ class _IndoorEnv extends StatelessWidget {
   String get _temp => temperature.toStringAsFixed(0);
   String? get _hum => humidity?.toStringAsFixed(0);
 
-  String get _label => _hum == null ? '실내 온도 $_temp도' : '실내 온도 $_temp도, 습도 $_hum퍼센트';
+  String get _label =>
+      _hum == null ? '실내 온도 $_temp도' : '실내 온도 $_temp도, 습도 $_hum퍼센트';
 
-  static double _icon(BuildContext context) => MediaQuery.textScalerOf(context).scale(KioskType.caption);
+  static double _icon(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(KioskType.caption);
 
   @override
   Widget build(BuildContext context) {
     final icon = _icon(context);
     final hum = _hum;
-    Widget piece(IconData data, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Widget piece(IconData data, String text) =>
+        Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(data, size: icon, color: KioskColors.muted),
           const SizedBox(width: _iconGap),
           Text(text, maxLines: 1, softWrap: false, style: style),
@@ -1177,7 +1352,10 @@ class _IndoorEnv extends StatelessWidget {
       excludeSemantics: true,
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         piece(Icons.thermostat, '$_temp°'),
-        if (hum != null) ...[const SizedBox(width: gap), piece(Icons.water_drop, '$hum%')],
+        if (hum != null) ...[
+          const SizedBox(width: gap),
+          piece(Icons.water_drop, '$hum%')
+        ],
       ]),
     );
   }
@@ -1186,7 +1364,8 @@ class _IndoorEnv extends StatelessWidget {
 /// 한 줄 글의 폭 — [Text]와 같은 기본 글꼴·배율로 잰다.
 double _textWidth(BuildContext context, String text, TextStyle style) {
   final tp = TextPainter(
-    text: TextSpan(text: text, style: DefaultTextStyle.of(context).style.merge(style)),
+    text: TextSpan(
+        text: text, style: DefaultTextStyle.of(context).style.merge(style)),
     textDirection: Directionality.of(context),
     textScaler: MediaQuery.textScalerOf(context),
     maxLines: 1,
@@ -1199,7 +1378,9 @@ double _textWidth(BuildContext context, String text, TextStyle style) {
 /// 여러 조각 글의 한 줄 폭 — [Text.rich]와 같은 기본 글꼴·배율로 잰다.
 double _spanWidth(BuildContext context, InlineSpan span, TextStyle style) {
   final tp = TextPainter(
-    text: TextSpan(style: DefaultTextStyle.of(context).style.merge(style), children: [span]),
+    text: TextSpan(
+        style: DefaultTextStyle.of(context).style.merge(style),
+        children: [span]),
     textDirection: Directionality.of(context),
     textScaler: MediaQuery.textScalerOf(context),
     maxLines: 1,
@@ -1210,9 +1391,13 @@ double _spanWidth(BuildContext context, InlineSpan span, TextStyle style) {
 }
 
 /// 여러 조각 글의 높이 — [Text.rich]와 같은 기본 글꼴·배율로 [maxWidth] 안에서 잰다.
-double _spanHeight(BuildContext context, InlineSpan span, TextStyle style, double maxWidth, {int? maxLines}) {
+double _spanHeight(
+    BuildContext context, InlineSpan span, TextStyle style, double maxWidth,
+    {int? maxLines}) {
   final tp = TextPainter(
-    text: TextSpan(style: DefaultTextStyle.of(context).style.merge(style), children: [span]),
+    text: TextSpan(
+        style: DefaultTextStyle.of(context).style.merge(style),
+        children: [span]),
     textDirection: Directionality.of(context),
     textScaler: MediaQuery.textScalerOf(context),
     maxLines: maxLines,
@@ -1223,10 +1408,12 @@ double _spanHeight(BuildContext context, InlineSpan span, TextStyle style, doubl
 }
 
 /// 한 덩어리 글의 높이 — [Text]와 같은 기본 글꼴·배율로 잰다.
-double _textHeight(BuildContext context, String text, TextStyle style, double maxWidth,
+double _textHeight(
+    BuildContext context, String text, TextStyle style, double maxWidth,
     {int? maxLines}) {
   final tp = TextPainter(
-    text: TextSpan(text: text, style: DefaultTextStyle.of(context).style.merge(style)),
+    text: TextSpan(
+        text: text, style: DefaultTextStyle.of(context).style.merge(style)),
     textDirection: Directionality.of(context),
     textScaler: MediaQuery.textScalerOf(context),
     maxLines: maxLines,
@@ -1240,7 +1427,11 @@ double _textHeight(BuildContext context, String text, TextStyle style, double ma
 /// 켜진 것으로 읽혔다), 켜져 있으면 채운 칩에 아이콘·"방해 금지"·남은 시간을 적는다
 /// (색만으로 말하지 않는다). 둘 다 누르면 같은 방해 금지 선택이 열린다.
 class _DndEntry extends StatelessWidget {
-  const _DndEntry({super.key, required this.remaining, required this.onTap, this.quietUntil});
+  const _DndEntry(
+      {super.key,
+      required this.remaining,
+      required this.onTap,
+      this.quietUntil});
 
   /// 남은 시간 문구. null이면 꺼져 있다.
   final String? remaining;
@@ -1283,12 +1474,14 @@ class _DndEntry extends StatelessWidget {
                     if (!on)
                       // 꺼져 있으면 아이콘 아래 이름(UI 평가 3차 10/17) — 켜지면 오른쪽 두 줄이 같은 말을 한다.
                       Column(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.pause_circle_outline, size: 28, color: KioskColors.muted),
+                        Icon(Icons.pause_circle_outline,
+                            size: 28, color: KioskColors.muted),
                         KioskTopIconLabel(kDndName),
                       ])
                     else
                       // 아이콘 규칙(평가 7차 10/18, 폰과 같이): 조용한 시간 = 달, 방해 금지 = 일시정지.
-                      Icon(quiet != null ? Icons.bedtime : Icons.pause_circle, size: 30, color: KioskColors.ink),
+                      Icon(quiet != null ? Icons.bedtime : Icons.pause_circle,
+                          size: 30, color: KioskColors.ink),
                     if (on) ...[
                       const SizedBox(width: 6),
                       // 좁은 위 줄에 들어가도록 두 줄로 — "제안 쉬는 중" / 남은 시간.
@@ -1335,8 +1528,8 @@ class _AirLine extends StatelessWidget {
   /// 큰 글씨 모드(지금은 꼴이 같다 — 전원 줄을 뺀 뒤 작은 줄은 연습 값뿐이다).
   final bool compact;
 
-  static const _headStyle =
-      TextStyle(fontSize: KioskType.status, height: 1.2, fontWeight: FontWeight.w600);
+  static const _headStyle = TextStyle(
+      fontSize: KioskType.status, height: 1.2, fontWeight: FontWeight.w600);
   static const _subStyle = TextStyle(fontSize: KioskType.body, height: 1.3);
 
   /// 아래 작은 줄 — 연습 값 안내만(사용자 결정 10/18: 공기청정기 전원은 가전 타일이 말하므로 공기 줄에서 뺐다).
@@ -1344,15 +1537,18 @@ class _AirLine extends StatelessWidget {
       air.sub.where((d) => d == kPracticeNumbers).toList();
 
   /// 폭 [width]에서 이 줄이 차지할 높이(보통 글씨) — 평소 화면이 가전 타일 높이를 정할 때 쓴다.
-  static double heightFor(BuildContext context, KioskAirReading air, double width) {
+  static double heightFor(
+      BuildContext context, KioskAirReading air, double width) {
     final w = width - _Idle.airIcon - KioskSpace.sm;
     final word = kAirGradeSentences[air.grade] ?? air.gradeWord;
-    var h = _textHeight(context, '공기 ${keepWords(word)}', _headStyle.copyWith(fontWeight: FontWeight.w800), w);
+    var h = _textHeight(context, '공기 ${keepWords(word)}',
+        _headStyle.copyWith(fontWeight: FontWeight.w800), w);
     final sub = _subOf(air);
-    if (sub.isNotEmpty) h += _textHeight(context, keepWords(sub.join('   ')), _subStyle, w);
+    if (sub.isNotEmpty) {
+      h += _textHeight(context, keepWords(sub.join('   ')), _subStyle, w);
+    }
     return h;
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -1380,10 +1576,13 @@ class _AirLine extends StatelessWidget {
                 // 낱말 단위로 줄을 바꾼다(평가 12차 10/18 — 큰 글씨에서 '공기 아주 나빠 / 요'로 한 글자만 꺾였다).
                 Text.rich(
                   TextSpan(children: [
-                    TextSpan(text: '공기 ', style: TextStyle(color: KioskColors.ink)),
-                    TextSpan(text: keepWords(word),
+                    TextSpan(
+                        text: '공기 ', style: TextStyle(color: KioskColors.ink)),
+                    TextSpan(
+                        text: keepWords(word),
                         semanticsLabel: word,
-                        style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+                        style: TextStyle(
+                            color: color, fontWeight: FontWeight.w800)),
                   ]),
                   key: const ValueKey('idle-air-headline'),
                   style: _headStyle,
@@ -1403,7 +1602,8 @@ class _AirLine extends StatelessWidget {
 
 /// 공기 나쁨 줄의 할 일(평가 14차 10/18) — 공기청정기 상태만큼: 켜져 있으면 '바람을 세게 해 보세요', 꺼져 있으면
 /// '공기청정기를 켜 보세요', 모르면 '공기청정기 보기'. 누르면 그 가전 화면이 열리고, 바꾸는 것은 그 화면에서 사람이 고른다.
-String airActionLabel(KioskAirReading air, String applianceName) => switch (air.power) {
+String airActionLabel(KioskAirReading air, String applianceName) =>
+    switch (air.power) {
       'on' => '바람을 세게 해 보세요',
       'off' => '${withObject(applianceName)} 켜 보세요',
       _ => '$applianceName 보기',
@@ -1418,13 +1618,13 @@ class _StripNotice extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // 누를 수 없는 안내다 — '+'는 단추로 읽혔다(2026-10-15 B5).
-          Icon(Icons.info_outline,
-              size: 26, color: KioskColors.muted),
+          Icon(Icons.info_outline, size: 26, color: KioskColors.muted),
           const SizedBox(width: 10),
           // 큰 글씨에서는 줄을 바꾼다(넘치지 않게).
           Flexible(
             child: KioskText(text,
-                style: TextStyle(fontSize: _Idle.stripName, color: KioskColors.muted)),
+                style: TextStyle(
+                    fontSize: _Idle.stripName, color: KioskColors.muted)),
           ),
         ],
       );
@@ -1450,7 +1650,11 @@ bool isWeatherTip(AmbientTip tip) {
 
 /// 예보 줄의 한 칸(사용자 요청 10/18) — 맨 앞 '지금' 칸 또는 서버 3시간 칸.
 class ForecastSlot {
-  const ForecastSlot({required this.label, required this.hour, required this.night, this.isNow = false});
+  const ForecastSlot(
+      {required this.label,
+      required this.hour,
+      required this.night,
+      this.isNow = false});
 
   /// 칸 머리 — '지금' · '오후 3시' · '밤 12시'.
   final String label;
@@ -1465,24 +1669,34 @@ bool _nightHour(int? h) => isNightHour(h);
 
 /// 처음 화면 날씨 줄·자세히 창이 보일 칸 — 서버 '지금'([outsideNowSlot]). 없으면(밤 11시처럼 지난 정시 칸이 없을 때 — 10/24
 /// 실패널에서 날씨 줄이 통째로 사라졌다) 가장 가까운 예보 칸을 **그 시각을 붙여**([at]) 보인다. '지금'으로 꾸미지 않는다.
-({AmbientHour? slot, String? at, bool night}) shownWeatherOf(AmbientInfo? ambient, DateTime now) {
+({AmbientHour? slot, String? at, bool night}) shownWeatherOf(
+    AmbientInfo? ambient, DateTime now) {
   final nowSlot = outsideNowSlot(ambient, now);
-  if (nowSlot != null) return (slot: nowSlot, at: null, night: _nightHour(now.hour));
+  if (nowSlot != null) {
+    return (slot: nowSlot, at: null, night: _nightHour(now.hour));
+  }
   final f = ambient?.hourly.where((h) => h.temp != null).firstOrNull;
   if (f == null) return (slot: null, at: null, night: _nightHour(now.hour));
-  return (slot: f, at: hourLabel12(f.label), night: _nightHour(f.slotHour ?? now.hour));
+  return (
+    slot: f,
+    at: hourLabel12(f.label),
+    night: _nightHour(f.slotHour ?? now.hour)
+  );
 }
 
 /// 평소 화면 예보 줄의 칸들(사용자 요청 10/18) — 맨 앞 '지금'([outsideNowSlot]), 그 뒤 서버 3시간 칸. 모두 [max]칸까지
 /// (1~2 m에서 읽히게 칸을 늘리지 않는다 — 지금 칸이 있으면 예보는 3칸). 지금 칸으로 쓴 서버 칸은 다시 두지 않는다.
-List<ForecastSlot> forecastSlots(AmbientInfo? ambient, DateTime now, {int max = 4}) {
+List<ForecastSlot> forecastSlots(AmbientInfo? ambient, DateTime now,
+    {int max = 4}) {
   if (ambient == null) return const [];
   final current = outsideNowSlot(ambient, now);
   return [
     if (current != null)
-      ForecastSlot(label: '지금', hour: current, night: _nightHour(now.hour), isNow: true),
+      ForecastSlot(
+          label: '지금', hour: current, night: _nightHour(now.hour), isNow: true),
     for (final h in ambient.hourly.where((h) => !identical(h, current)))
-      ForecastSlot(label: hourLabel12(h.label), hour: h, night: _nightHour(h.slotHour)),
+      ForecastSlot(
+          label: hourLabel12(h.label), hour: h, night: _nightHour(h.slotHour)),
   ].take(max).toList(growable: false);
 }
 
@@ -1534,7 +1748,8 @@ class KioskMenuHost extends StatelessWidget {
   final Widget Function(VoidCallback openMenu) builder;
 
   @override
-  Widget build(BuildContext context) => _IdleSheetHost(view: view, builder: (sheets) => builder(sheets.openMenu));
+  Widget build(BuildContext context) =>
+      _IdleSheetHost(view: view, builder: (sheets) => builder(sheets.openMenu));
 }
 
 class _IdleSheetHost extends StatefulWidget {
@@ -1555,7 +1770,11 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
   Widget _weatherSheet(KioskIdleView v) {
     final shown = shownWeatherOf(v.ambient, v.now);
     return KioskWeatherDetailSheet(
-        ambient: v.ambient!, current: shown.slot, currentAt: shown.at, night: shown.night, onClose: _close);
+        ambient: v.ambient!,
+        current: shown.slot,
+        currentAt: shown.at,
+        night: shown.night,
+        onClose: _close);
   }
 
   @override
@@ -1567,11 +1786,15 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
       () => setState(() => _sheet = _Sheet.weather),
     ));
     if (_sheet == _Sheet.none) return body;
-    final dnd = v.dndUntil != null && v.dndUntil!.isAfter(v.now) ? v.dndUntil : null;
+    final dnd =
+        v.dndUntil != null && v.dndUntil!.isAfter(v.now) ? v.dndUntil : null;
     // 방해 금지 창과 같은 범위 문장을 늘 둔다(UX 문구 기준 10/19 §4 — 이름을 되돌린 조건). 조용한 시간은 다른 기능이라
     // 이 줄에 섞지 않는다(조용한 시간은 위 줄 칩과 설정이 말한다).
-    final scope = dnd != null && v.dndScope == 'suggestions_only' ? kDndCarriedScopeText : kDndScopeText;
-    final restSub = dnd != null ? '켜져 있어요. ${v._dndRemaining(dnd)} 남았어요. $scope' : scope;
+    final scope = dnd != null && v.dndScope == 'suggestions_only'
+        ? kDndCarriedScopeText
+        : kDndScopeText;
+    final restSub =
+        dnd != null ? '켜져 있어요. ${v._dndRemaining(dnd)} 남았어요. $scope' : scope;
     return Stack(children: [
       // 창이 떠 있으면 뒤 처음 화면은 화면 읽기에서 뺀다(10/24 QA) — 창만 읽히고 눌린다.
       ExcludeSemantics(child: body),
@@ -1579,75 +1802,80 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
       const KioskTabBarSuppress(),
       Positioned.fill(
         child: KioskModalSemantics(
-        label: switch (_sheet) {
-          _Sheet.help => '사용 방법',
-          _Sheet.menu => '메뉴',
-          _Sheet.weather => '날씨',
-          _ => '연결',
-        },
-        child: _sheet == _Sheet.weather && v.ambient != null
-            ? _weatherSheet(v)
-            : _sheet == _Sheet.help
-            // 사용 방법 세 장(휴리스틱 평가 10/18).
-            ? KioskHelpGuide(onClose: _close)
-            : _sheet == _Sheet.menu
-            ? KioskIdleSheet(
-                title: '메뉴',
-                onClose: _close,
-                fit: true,
-                children: [
-                  KioskSheetRow(
-                    key: const ValueKey('dnd-entry'),
-                    // 방해 금지 = 일시정지(평가 7차 10/18 — 달은 폰에서 조용한 시간이다).
-                    icon: dnd != null ? Icons.pause_circle : Icons.pause_circle_outline,
-                    label: kDndName,
-                    sub: restSub,
-                    subMaxLines: null,
-                    onTap: () {
-                      _close();
-                      v.onDndGesture();
-                    },
-                  ),
-                  KioskSheetRow(
-                    key: const ValueKey('settings-entry'),
-                    hideSubWhenLarge: true,
-                    icon: Icons.settings_outlined,
-                    label: '설정',
-                    sub: '큰 글씨, 또렷하게 보기, 음성 안내, 휴대폰 연결',
-                    semanticsLabel: '설정',
-                    onTap: () {
-                      _close();
-                      v.onSettingsGesture?.call();
-                    },
-                  ),
-                  // 모두 괜찮으면 위 상태 칩이 없다(사용자 결정 10/18) — 그때도 연결 상태를 볼 수 있게 메뉴에 둔다.
-                  KioskSheetRow(
-                    key: const ValueKey('connections-entry'),
-                    hideSubWhenLarge: true,
-                    icon: Icons.wifi,
-                    label: '연결',
-                    sub: '와이파이와 누름 장치 연결 보기',
-                    onTap: () => setState(() => _sheet = _Sheet.connections),
-                  ),
-                  // 도움말 들어가는 곳(휴리스틱 평가 10/18 — 메뉴에 잠시 쉬기·설정·연결뿐이었다).
-                  KioskSheetRow(
-                    key: const ValueKey('help-entry'),
-                    hideSubWhenLarge: true,
-                    icon: Icons.help_outline,
-                    label: '사용 방법',
-                    sub: '화면 쓰는 법, 멈추는 법, 물어볼 곳',
-                    onTap: () => setState(() => _sheet = _Sheet.help),
-                  ),
-                ],
-              )
-            : KioskIdleSheet(
-                title: '연결',
-                onClose: _close,
-                children: connectionRows(connectionsForDisplay(v.connections, connected: v.connected), (item) {
-                  _close();
-                  v.onOpenConnection(item);
-                }),
-              ),
+          label: switch (_sheet) {
+            _Sheet.help => '사용 방법',
+            _Sheet.menu => '메뉴',
+            _Sheet.weather => '날씨',
+            _ => '연결',
+          },
+          child: _sheet == _Sheet.weather && v.ambient != null
+              ? _weatherSheet(v)
+              : _sheet == _Sheet.help
+                  // 사용 방법 세 장(휴리스틱 평가 10/18).
+                  ? KioskHelpGuide(onClose: _close)
+                  : _sheet == _Sheet.menu
+                      ? KioskIdleSheet(
+                          title: '메뉴',
+                          onClose: _close,
+                          fit: true,
+                          children: [
+                            KioskSheetRow(
+                              key: const ValueKey('dnd-entry'),
+                              // 방해 금지 = 일시정지(평가 7차 10/18 — 달은 폰에서 조용한 시간이다).
+                              icon: dnd != null
+                                  ? Icons.pause_circle
+                                  : Icons.pause_circle_outline,
+                              label: kDndName,
+                              sub: restSub,
+                              subMaxLines: null,
+                              onTap: () {
+                                _close();
+                                v.onDndGesture();
+                              },
+                            ),
+                            KioskSheetRow(
+                              key: const ValueKey('settings-entry'),
+                              hideSubWhenLarge: true,
+                              icon: Icons.settings_outlined,
+                              label: '설정',
+                              sub: '큰 글씨, 또렷하게 보기, 음성 안내, 휴대폰 연결',
+                              semanticsLabel: '설정',
+                              onTap: () {
+                                _close();
+                                v.onSettingsGesture?.call();
+                              },
+                            ),
+                            // 모두 괜찮으면 위 상태 칩이 없다(사용자 결정 10/18) — 그때도 연결 상태를 볼 수 있게 메뉴에 둔다.
+                            KioskSheetRow(
+                              key: const ValueKey('connections-entry'),
+                              hideSubWhenLarge: true,
+                              icon: Icons.wifi,
+                              label: '연결',
+                              sub: '와이파이와 누름 장치 연결 보기',
+                              onTap: () =>
+                                  setState(() => _sheet = _Sheet.connections),
+                            ),
+                            // 도움말 들어가는 곳(휴리스틱 평가 10/18 — 메뉴에 잠시 쉬기·설정·연결뿐이었다).
+                            KioskSheetRow(
+                              key: const ValueKey('help-entry'),
+                              hideSubWhenLarge: true,
+                              icon: Icons.help_outline,
+                              label: '사용 방법',
+                              sub: '화면 쓰는 법, 멈추는 법, 물어볼 곳',
+                              onTap: () => setState(() => _sheet = _Sheet.help),
+                            ),
+                          ],
+                        )
+                      : KioskIdleSheet(
+                          title: '연결',
+                          onClose: _close,
+                          children: connectionRows(
+                              connectionsForDisplay(v.connections,
+                                  connected: v.connected), (item) {
+                            _close();
+                            v.onOpenConnection(item);
+                          }),
+                        ),
         ),
       ),
     ]);
@@ -1693,39 +1921,54 @@ class _QuietIdle extends StatelessWidget {
         Opacity(
           opacity: kQuietTextOpacity,
           child: Padding(
-          padding: const EdgeInsets.fromLTRB(_Idle.side, 14, _Idle.side, 10),
-          // 시계는 평소 화면과 같은 왼쪽 선에서(가운데로 옮기지 않는다).
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            topRow,
-            const SizedBox(height: 8),
-            Expanded(
-              child: LayoutBuilder(builder: (context, box) {
-                final rest = KioskIdleView._leftRest(context, box.maxWidth,
-                    air: air, next: next, onToggle: view.onToggleNextRunSkip, notice: view.nextRunNotice);
-                final size = (box.maxHeight - rest - _Idle.slack)
-                    .clamp(large ? _Idle.clockLargeMin : _Idle.clockMin, _clockMax)
-                    .toDouble();
-                return SingleChildScrollView(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    _Clock(ampm: ampmOf(view.now.hour), digits: clock, size: size),
-                    if (air != null) ...[
-                      const SizedBox(height: _Idle.airGap),
-                      _AirLine(key: const ValueKey('idle-air'), air: air!, compact: large),
-                    ],
-                    if (next != null) ...[
-                      const SizedBox(height: _Idle.nextGap),
-                      _NextRunLine(
-                          key: const ValueKey('idle-next-run'),
+            padding: const EdgeInsets.fromLTRB(_Idle.side, 14, _Idle.side, 10),
+            // 시계는 평소 화면과 같은 왼쪽 선에서(가운데로 옮기지 않는다).
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  topRow,
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: LayoutBuilder(builder: (context, box) {
+                      final rest = KioskIdleView._leftRest(
+                          context, box.maxWidth,
+                          air: air,
                           next: next,
-                          busy: view.nextRunBusy,
-                          notice: view.nextRunNotice,
-                          onToggle: view.onToggleNextRunSkip),
-                    ],
-                  ]),
-                );
-              }),
-            ),
-          ]),
+                          onToggle: view.onToggleNextRunSkip,
+                          notice: view.nextRunNotice);
+                      final size = (box.maxHeight - rest - _Idle.slack)
+                          .clamp(large ? _Idle.clockLargeMin : _Idle.clockMin,
+                              _clockMax)
+                          .toDouble();
+                      return SingleChildScrollView(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _Clock(
+                                  ampm: ampmOf(view.now.hour),
+                                  digits: clock,
+                                  size: size),
+                              if (air != null) ...[
+                                const SizedBox(height: _Idle.airGap),
+                                _AirLine(
+                                    key: const ValueKey('idle-air'),
+                                    air: air!,
+                                    compact: large),
+                              ],
+                              if (next != null) ...[
+                                const SizedBox(height: _Idle.nextGap),
+                                _NextRunLine(
+                                    key: const ValueKey('idle-next-run'),
+                                    next: next,
+                                    busy: view.nextRunBusy,
+                                    notice: view.nextRunNotice,
+                                    onToggle: view.onToggleNextRunSkip),
+                              ],
+                            ]),
+                      );
+                    }),
+                  ),
+                ]),
           ),
         ),
         // 누름을 받는 자리(색 없음) — 그 아래 단추는 눌리지 않는다(깨우는 손길). 어둡게는 바탕이 한다(글자 위 막 없음).

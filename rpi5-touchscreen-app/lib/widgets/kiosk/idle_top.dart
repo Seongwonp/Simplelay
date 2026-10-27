@@ -36,7 +36,8 @@ List<ConnectionItem> _shown(List<ConnectionItem> items) => [
 /// 본체(/health)에 닿지 않으면 지난번에 받은 연결 목록을 믿지 않는다(평가 7차 10/18) — 예전에는 본체에 닿지 않아
 /// 가전을 누르면 연결 창이 뜨는데 위 칩은 지난 목록대로 '모두 정상'이었다. 와이파이 자리에 '본체와 연결되지 않았어요'를
 /// 세우고 나머지는 볼 수 없다고만 둔다. 아직 한 번도 못 받았으면(모두 볼 수 없음) 그대로 둔다 — '확인하고 있어요'.
-List<ConnectionItem> connectionsForDisplay(List<ConnectionItem> items, {required bool connected}) {
+List<ConnectionItem> connectionsForDisplay(List<ConnectionItem> items,
+    {required bool connected}) {
   if (connected) return items;
   if (items.every((i) => i.state == 'unreachable')) return items;
   return [
@@ -54,14 +55,17 @@ List<ConnectionItem> connectionsForDisplay(List<ConnectionItem> items, {required
 }
 
 bool _isHubDown(ConnectionItem i) =>
-    i.id == 'network' && i.state == 'error' && i.title == ConnectionItem.hubUnreachable.title;
+    i.id == 'network' &&
+    i.state == 'error' &&
+    i.title == ConnectionItem.hubUnreachable.title;
 
 /// 상태 칩 요약 — (글, 문제 여부, 바로 열 항목).
 ///
 /// 비상 버튼이 걸려 있으면([estopTitle], 위 빨간 띠 제목) 연결이 다 괜찮아도 '모두 정상'이 아니다 — 띠와 같은 말을
 /// 칩에도 쓴다(평가 4차 10/18: 빨간 띠 아래 칩이 '모두 정상'이라 서로 다른 말을 했다).
 /// 글이 null이면 칩을 두지 않는다(모두 괜찮음, 사용자 결정 10/18).
-(String?, bool, ConnectionItem?) connectionSummary(List<ConnectionItem> items, {String? estopTitle}) {
+(String?, bool, ConnectionItem?) connectionSummary(List<ConnectionItem> items,
+    {String? estopTitle}) {
   if (estopTitle != null) return (estopTitle, true, null);
   final shown = _shown(items);
   // 본체에 닿지 않으면 그 말 하나(나머지는 본체 너머라 볼 수 없다).
@@ -71,7 +75,11 @@ bool _isHubDown(ConnectionItem i) =>
   final problems = shown.where((i) => i.needsAttention).toList();
   // 문제가 있으면 '확인 필요 N'(사용자 결정 10/18) — 무엇이 왜인지는 누르면 보인다(하나면 그 연결 창, 여럿이면 연결 목록).
   if (problems.isNotEmpty) {
-    return (kNeedsCheck(problems.length), true, problems.length == 1 ? problems.single : null);
+    return (
+      kNeedsCheck(problems.length),
+      true,
+      problems.length == 1 ? problems.single : null
+    );
   }
   // 볼 수 없음(unreachable — 첫 응답 전)도 정상이 아니다 — 모름과 같이 말한다(평가 7차 10/18). 숨기지 않는다:
   // 확인 못 한 것이 있는데 칩이 사라지면 '다 괜찮다'로 읽힌다.
@@ -92,14 +100,19 @@ const kCheckingConnections = '연결을 확인하고 있어요';
 /// 연결 하나의 문제를 쉬운 서술로(평가 3차 10/18 — 명사형 '연결 끊김' 대신). 칩을 읽는 화면 읽기 말에 쓴다.
 String connectionProblemText(ConnectionItem p) {
   final name = connectionShortName(p.id);
-  return p.state == 'error' ? '$name 연결이 끊겼어요' : '$name${p.id == 'press' ? '을' : '를'} 봐 주세요';
+  return p.state == 'error'
+      ? '$name 연결이 끊겼어요'
+      : '$name${p.id == 'press' ? '을' : '를'} 봐 주세요';
 }
 
 /// 원인이 하나일 때 칩 첫 줄 — 원인과 영향(평가 15차 10/18: 가전 4대를 쓸 수 없는데 칩은 '확인 필요 1'뿐이었다).
 /// 누름 장치가 끊겨 못 쓰는 가전 수([pressImpact])를 알면 '누름 장치가 끊겨 가전 4대를 쓸 수 없어요'(짧게 — 쉬는 중 칩과 함께여도 위 줄에
 /// 들어가게), 모르면 '누름 장치 연결이 끊겼어요'.
 String connectionCauseLine(ConnectionItem p, {int? pressImpact}) {
-  if (p.id == 'press' && p.state == 'error' && pressImpact != null && pressImpact > 0) {
+  if (p.id == 'press' &&
+      p.state == 'error' &&
+      pressImpact != null &&
+      pressImpact > 0) {
     return '누름 장치 연결이 끊겨 가전 $pressImpact대를 쓸 수 없어요';
   }
   return connectionProblemText(p);
@@ -167,7 +180,12 @@ class KioskIdleStatusChip extends StatelessWidget {
         vertical: vertical,
         compact: compact,
         // 화면 읽기는 무엇이 문제인지까지 읽는다('누름 장치가 끊겨 가전 5대를 쓸 수 없어요. 연결 확인 필요 1').
-        semanticsLabel: [if (cause != null) cause, text, if (cause == null) ...what, if (also != null) also!].join('. '),
+        semanticsLabel: [
+          if (cause != null) cause,
+          text,
+          if (cause == null) ...what,
+          if (also != null) also!
+        ].join('. '),
         onTap: onTap,
       );
     }
@@ -185,7 +203,8 @@ class KioskIdleStatusChip extends StatelessWidget {
         ),
         child: InkWell(
           onTap: onTap,
-          customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          customBorder:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 52, minWidth: 52),
             child: Padding(
@@ -199,7 +218,9 @@ class KioskIdleStatusChip extends StatelessWidget {
                       maxLines: 1,
                       softWrap: false,
                       style: TextStyle(
-                          fontSize: KioskType.caption, fontWeight: FontWeight.w500, color: KioskColors.muted)),
+                          fontSize: KioskType.caption,
+                          fontWeight: FontWeight.w500,
+                          color: KioskColors.muted)),
                 ],
               ),
             ),
@@ -240,25 +261,39 @@ class KioskIdleProblemBar extends StatelessWidget {
   final bool compact;
 
   /// 둘째 줄([also]) 글자 — 본문 크기, 두 줄까지(접근성 감사 10/18 — 한 줄로 줄이면 글자가 너무 작아졌다).
-  static TextStyle get _alsoStyle => TextStyle(fontSize: KioskType.body, height: 1.2, color: KioskColors.ink);
+  static TextStyle get _alsoStyle =>
+      TextStyle(fontSize: KioskType.body, height: 1.2, color: KioskColors.ink);
   static const int _alsoMaxLines = 2;
 
   /// 오른쪽 '해결 방법 보기' 단추 폭(글자 + 화살표 + 여백 + 테두리) — 둘째 줄이 쓸 수 있는 폭을 잰다.
   static double _helpWidth(BuildContext context) {
     final tp = TextPainter(
-      text: const TextSpan(text: kProblemHelpShort, style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w800)),
+      text: const TextSpan(
+          text: kProblemHelpShort,
+          style:
+              TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w800)),
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
       maxLines: 1,
     )..layout();
     final w = tp.width;
     tp.dispose();
-    return w + MediaQuery.textScalerOf(context).scale(KioskType.body + 4) + 2 * KioskSpace.md + 4;
+    return w +
+        MediaQuery.textScalerOf(context).scale(KioskType.body + 4) +
+        2 * KioskSpace.md +
+        4;
   }
 
   /// 띠 전체 폭 [width]에서 둘째 줄 글이 쓰는 높이(두 줄까지).
-  static double _alsoHeightFor(BuildContext context, String also, double width) {
-    final textWidth = width - KioskSpace.sm - _helpWidth(context) - 2 * KioskSpace.md - KioskType.status - KioskSpace.sm - 4;
+  static double _alsoHeightFor(
+      BuildContext context, String also, double width) {
+    final textWidth = width -
+        KioskSpace.sm -
+        _helpWidth(context) -
+        2 * KioskSpace.md -
+        KioskType.status -
+        KioskSpace.sm -
+        4;
     final tp = TextPainter(
       text: TextSpan(text: keepWords(also), style: _alsoStyle),
       textDirection: Directionality.of(context),
@@ -271,7 +306,8 @@ class KioskIdleProblemBar extends StatelessWidget {
   }
 
   /// 이 띠의 높이 — 둘째 줄([also])이 있으면 띠 폭 [width]에서 그 글이 쓰는 만큼 더(두 줄까지).
-  static double heightFor(BuildContext context, {String? also, required double width}) =>
+  static double heightFor(BuildContext context,
+          {String? also, required double width}) =>
       also == null ? height : height + _alsoHeightFor(context, also, width);
 
   final String title;
@@ -293,91 +329,107 @@ class KioskIdleProblemBar extends StatelessWidget {
     if (compact) return _notice(tone);
     final titleSize = KioskType.status;
     return LayoutBuilder(builder: (context, box) {
-    final barHeight = compact ? compactHeight : heightFor(context, also: also, width: box.maxWidth);
-    return SizedBox(
-      height: barHeight,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Semantics(
-              button: true,
-              label: semanticsLabel,
-              excludeSemantics: true,
-              child: Material(
-                key: const ValueKey('idle-status-chip'),
-                color: tone.withValues(alpha: KioskSizes.bandTint),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(KioskSizes.buttonRadius),
-                  side: BorderSide(color: tone, width: 2),
-                ),
-                child: InkWell(
-                  onTap: onTap,
-                  customBorder:
-                      RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
-                    child: Row(children: [
-                      Icon(Icons.error_outline, size: compact ? 24 : KioskType.status, color: tone),
-                      const SizedBox(width: KioskSpace.sm),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(title,
-                                  key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
-                                  maxLines: 1,
-                                  softWrap: false,
-                                  style: TextStyle(
-                                      fontSize: titleSize,
-                                      height: 1.15,
-                                      fontWeight: FontWeight.w800,
-                                      color: KioskColors.ink)),
-                            ),
-                            if (also case final a? when !compact)
-                              Text.rich(TextSpan(text: keepWords(a), semanticsLabel: a),
-                                  key: const ValueKey('idle-problem-also'),
-                                  maxLines: _alsoMaxLines,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: _alsoStyle),
-                          ],
+      final barHeight = compact
+          ? compactHeight
+          : heightFor(context, also: also, width: box.maxWidth);
+      return SizedBox(
+        height: barHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Semantics(
+                button: true,
+                label: semanticsLabel,
+                excludeSemantics: true,
+                child: Material(
+                  key: const ValueKey('idle-status-chip'),
+                  color: tone.withValues(alpha: KioskSizes.bandTint),
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(KioskSizes.buttonRadius),
+                    side: BorderSide(color: tone, width: 2),
+                  ),
+                  child: InkWell(
+                    onTap: onTap,
+                    customBorder: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(KioskSizes.buttonRadius)),
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: KioskSpace.md),
+                      child: Row(children: [
+                        Icon(Icons.error_outline,
+                            size: compact ? 24 : KioskType.status, color: tone),
+                        const SizedBox(width: KioskSpace.sm),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(title,
+                                    key: titleIsCause
+                                        ? const ValueKey('idle-problem-cause')
+                                        : null,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: TextStyle(
+                                        fontSize: titleSize,
+                                        height: 1.15,
+                                        fontWeight: FontWeight.w800,
+                                        color: KioskColors.ink)),
+                              ),
+                              if (also case final a? when !compact)
+                                Text.rich(
+                                    TextSpan(
+                                        text: keepWords(a), semanticsLabel: a),
+                                    key: const ValueKey('idle-problem-also'),
+                                    maxLines: _alsoMaxLines,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: _alsoStyle),
+                            ],
+                          ),
                         ),
-                      ),
-                    ]),
+                      ]),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: KioskSpace.sm),
-          // 할 일은 따로 선 단추(결선 모의 평가 10/18 — 같은 알약 안 둘째 줄이라 누를 수 있다는 것을 놓쳤다).
-          Semantics(
-            button: true,
-            label: kProblemHelp,
-            excludeSemantics: true,
-            child: OutlinedButton(
-              key: const ValueKey('idle-problem-help'),
-              onPressed: onTap,
-              style: KioskButtons.secondary(foreground: KioskColors.ink, border: tone).copyWith(
-                padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)),
+            const SizedBox(width: KioskSpace.sm),
+            // 할 일은 따로 선 단추(결선 모의 평가 10/18 — 같은 알약 안 둘째 줄이라 누를 수 있다는 것을 놓쳤다).
+            Semantics(
+              button: true,
+              label: kProblemHelp,
+              excludeSemantics: true,
+              child: OutlinedButton(
+                key: const ValueKey('idle-problem-help'),
+                onPressed: onTap,
+                style: KioskButtons.secondary(
+                        foreground: KioskColors.ink, border: tone)
+                    .copyWith(
+                  padding: const WidgetStatePropertyAll(
+                      EdgeInsets.symmetric(horizontal: KioskSpace.md)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(kProblemHelpShort,
+                      key: const ValueKey('idle-problem-help-text'),
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(
+                          fontSize: KioskType.body,
+                          fontWeight: FontWeight.w800)),
+                  Icon(Icons.chevron_right,
+                      size: KioskType.body + 4, color: tone),
+                ]),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(kProblemHelpShort,
-                    key: const ValueKey('idle-problem-help-text'),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w800)),
-                Icon(Icons.chevron_right, size: KioskType.body + 4, color: tone),
-              ]),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
     });
   }
 
@@ -406,7 +458,8 @@ class KioskIdleProblemBar extends StatelessWidget {
             onTap: onTap,
             customBorder: shape,
             child: Padding(
-              padding: const EdgeInsets.only(left: KioskSpace.md, right: KioskSpace.xs),
+              padding: const EdgeInsets.only(
+                  left: KioskSpace.md, right: KioskSpace.xs),
               child: Row(children: [
                 Icon(Icons.error_outline, size: 22, color: tone),
                 const SizedBox(width: KioskSpace.xs),
@@ -415,7 +468,9 @@ class KioskIdleProblemBar extends StatelessWidget {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(title,
-                        key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
+                        key: titleIsCause
+                            ? const ValueKey('idle-problem-cause')
+                            : null,
                         maxLines: 1,
                         softWrap: false,
                         style: TextStyle(
@@ -431,7 +486,8 @@ class KioskIdleProblemBar extends StatelessWidget {
                   style: TextButton.styleFrom(
                     foregroundColor: KioskColors.ink,
                     minimumSize: const Size(48, compactHeight),
-                    padding: const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
                     shape: shape.copyWith(side: BorderSide.none),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -439,8 +495,11 @@ class KioskIdleProblemBar extends StatelessWidget {
                         key: const ValueKey('idle-problem-help-text'),
                         maxLines: 1,
                         softWrap: false,
-                        style: const TextStyle(fontSize: KioskType.caption + 1, fontWeight: FontWeight.w800)),
-                    Icon(Icons.chevron_right, size: KioskType.caption + 5, color: tone),
+                        style: const TextStyle(
+                            fontSize: KioskType.caption + 1,
+                            fontWeight: FontWeight.w800)),
+                    Icon(Icons.chevron_right,
+                        size: KioskType.caption + 5, color: tone),
                   ]),
                 ),
               ]),
@@ -465,33 +524,42 @@ class KioskIdleProblemBar extends StatelessWidget {
           ),
           child: InkWell(
             onTap: onTap,
-            customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
+            customBorder: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(KioskSpace.sm, KioskSpace.xs, KioskSpace.sm, KioskSpace.xs),
+              padding: const EdgeInsets.fromLTRB(
+                  KioskSpace.sm, KioskSpace.xs, KioskSpace.sm, KioskSpace.xs),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(children: [
-                    Icon(Icons.error_outline, size: KioskType.status, color: tone),
+                    Icon(Icons.error_outline,
+                        size: KioskType.status, color: tone),
                     const SizedBox(width: KioskSpace.xs),
                     Expanded(
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
                         child: Text(title,
-                            key: titleIsCause ? const ValueKey('idle-problem-cause') : null,
+                            key: titleIsCause
+                                ? const ValueKey('idle-problem-cause')
+                                : null,
                             maxLines: 1,
                             softWrap: false,
                             style: TextStyle(
-                                fontSize: KioskType.status, height: 1.15, fontWeight: FontWeight.w800, color: KioskColors.ink)),
+                                fontSize: KioskType.status,
+                                height: 1.15,
+                                fontWeight: FontWeight.w800,
+                                color: KioskColors.ink)),
                       ),
                     ),
                   ]),
                   if (also case final a?) ...[
                     const SizedBox(height: 4),
                     Text.rich(TextSpan(text: keepWords(a), semanticsLabel: a),
-                        key: const ValueKey('idle-problem-also'), style: _alsoStyle),
+                        key: const ValueKey('idle-problem-also'),
+                        style: _alsoStyle),
                   ],
                   const SizedBox(height: KioskSpace.xs),
                   // 할 일은 따로 선 단추 모양(띠 꼴과 같은 말·같은 키). 누르는 자리 48 이상.
@@ -504,17 +572,24 @@ class KioskIdleProblemBar extends StatelessWidget {
                       child: OutlinedButton(
                         key: const ValueKey('idle-problem-help'),
                         onPressed: onTap,
-                        style: KioskButtons.secondary(foreground: KioskColors.ink, border: tone).copyWith(
-                          minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
-                          padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)),
+                        style: KioskButtons.secondary(
+                                foreground: KioskColors.ink, border: tone)
+                            .copyWith(
+                          minimumSize:
+                              const WidgetStatePropertyAll(Size(0, 48)),
+                          padding: const WidgetStatePropertyAll(
+                              EdgeInsets.symmetric(horizontal: KioskSpace.md)),
                         ),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Text(kProblemHelpShort,
                               key: const ValueKey('idle-problem-help-text'),
                               maxLines: 1,
                               softWrap: false,
-                              style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w800)),
-                          Icon(Icons.chevron_right, size: KioskType.body + 4, color: tone),
+                              style: const TextStyle(
+                                  fontSize: KioskType.body,
+                                  fontWeight: FontWeight.w800)),
+                          Icon(Icons.chevron_right,
+                              size: KioskType.body + 4, color: tone),
                         ]),
                       ),
                     ),
@@ -546,14 +621,54 @@ class KioskIdleMenuButton extends StatelessWidget {
           child: SizedBox(
             width: 60,
             height: 60,
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            child:
+                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(Icons.menu, size: 28, color: KioskColors.primary),
               // 아이콘 아래 작은 이름은 남긴다(평가 10/18 — 아이콘만으로는 뜻을 몰랐다).
               Text('메뉴',
                   maxLines: 1,
                   softWrap: false,
                   textScaler: TextScaler.noScaling,
-                  style: TextStyle(fontSize: KioskType.caption, height: 1.1, color: KioskColors.muted)),
+                  style: TextStyle(
+                      fontSize: KioskType.caption,
+                      height: 1.1,
+                      color: KioskColors.muted)),
+            ]),
+          ),
+        ),
+      );
+}
+
+/// 말하기 단추 — 메뉴와 같은 크기·모양으로 그 왼쪽에 둔다.
+/// 메뉴가 맨 오른쪽에 남아 화면 가장자리 48px 규칙을 그대로 지킨다.
+class KioskIdleVoiceButton extends StatelessWidget {
+  const KioskIdleVoiceButton({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: '말하기',
+        excludeSemantics: true,
+        child: InkWell(
+          key: const ValueKey('kiosk-voice-button'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 60,
+            height: 60,
+            child:
+                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.mic_none, size: 28, color: KioskColors.primary),
+              Text('말하기',
+                  maxLines: 1,
+                  softWrap: false,
+                  textScaler: TextScaler.noScaling,
+                  style: TextStyle(
+                      fontSize: KioskType.caption,
+                      height: 1.1,
+                      color: KioskColors.muted)),
             ]),
           ),
         ),
@@ -588,13 +703,19 @@ class KioskIdleSheet extends StatelessWidget {
           Row(children: [
             Expanded(
               child: Text(title,
-                  style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.ink)),
+                  style: TextStyle(
+                      fontSize: KioskType.body,
+                      fontWeight: FontWeight.w700,
+                      color: KioskColors.ink)),
             ),
             TextButton(
               key: const ValueKey('idle-sheet-close'),
               onPressed: onClose,
-              style: TextButton.styleFrom(minimumSize: const Size(120, 48), foregroundColor: KioskColors.ink),
-              child: const Text('닫기', style: TextStyle(fontSize: KioskType.body)),
+              style: TextButton.styleFrom(
+                  minimumSize: const Size(120, 48),
+                  foregroundColor: KioskColors.ink),
+              child:
+                  const Text('닫기', style: TextStyle(fontSize: KioskType.body)),
             ),
           ]),
           const SizedBox(height: KioskSpace.xs),
@@ -605,37 +726,40 @@ class KioskIdleSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
         final wide = fit && KioskLayout.isLarge(context);
-        final width = wide ? (box.maxWidth - 2 * KioskSpace.md).clamp(460.0, 680.0).toDouble() : 460.0;
-        const pad = EdgeInsets.fromLTRB(KioskSpace.md, KioskSpace.md, KioskSpace.md, KioskSpace.sm);
+        final width = wide
+            ? (box.maxWidth - 2 * KioskSpace.md).clamp(460.0, 680.0).toDouble()
+            : 460.0;
+        const pad = EdgeInsets.fromLTRB(
+            KioskSpace.md, KioskSpace.md, KioskSpace.md, KioskSpace.sm);
         return Stack(children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onClose,
-            child: ColoredBox(color: Colors.black.withValues(alpha: 0.6)),
-          ),
-        ),
-        Center(
-          child: Container(
-            key: const ValueKey('idle-sheet'),
-            width: width,
-            padding: pad,
-            decoration: BoxDecoration(
-              color: KioskColors.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: KioskColors.border),
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onClose,
+              child: ColoredBox(color: Colors.black.withValues(alpha: 0.6)),
             ),
-            child: fit
-                ? LayoutBuilder(
-                    builder: (context, c) => FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: SizedBox(width: c.maxWidth, child: _content()),
-                    ),
-                  )
-                : SingleChildScrollView(child: _content()),
           ),
-        ),
-      ]);
+          Center(
+            child: Container(
+              key: const ValueKey('idle-sheet'),
+              width: width,
+              padding: pad,
+              decoration: BoxDecoration(
+                color: KioskColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: KioskColors.border),
+              ),
+              child: fit
+                  ? LayoutBuilder(
+                      builder: (context, c) => FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: SizedBox(width: c.maxWidth, child: _content()),
+                      ),
+                    )
+                  : SingleChildScrollView(child: _content()),
+            ),
+          ),
+        ]);
       });
 }
 
@@ -703,10 +827,15 @@ class KioskSheetRow extends StatelessWidget {
                                   fontSize: KioskType.body,
                                   fontWeight: FontWeight.w700,
                                   color: KioskColors.ink)),
-                          if (sub != null && sub!.isNotEmpty && !(hideSubWhenLarge && KioskLayout.isLarge(context)))
+                          if (sub != null &&
+                              sub!.isNotEmpty &&
+                              !(hideSubWhenLarge &&
+                                  KioskLayout.isLarge(context)))
                             KioskText(sub!,
                                 maxLines: subMaxLines,
-                                overflow: subMaxLines == null ? null : TextOverflow.ellipsis,
+                                overflow: subMaxLines == null
+                                    ? null
+                                    : TextOverflow.ellipsis,
                                 style: TextStyle(
                                     fontSize: KioskType.caption,
                                     color: KioskColors.muted)),
@@ -730,7 +859,8 @@ class KioskSheetRow extends StatelessWidget {
                                 fontWeight: FontWeight.w800,
                                 color: KioskColors.onAccent)),
                       ),
-                    Icon(Icons.chevron_right, size: 28, color: KioskColors.muted),
+                    Icon(Icons.chevron_right,
+                        size: 28, color: KioskColors.muted),
                   ]),
                 ),
               ),
@@ -741,12 +871,15 @@ class KioskSheetRow extends StatelessWidget {
 }
 
 /// 연결 목록 창의 줄들 — 항목마다 이름·지금 상태(서버 문장). 키는 `conn-<id>`, 문제면 `conn-badge-<id>`.
-List<Widget> connectionRows(List<ConnectionItem> items, ValueChanged<ConnectionItem> onOpen) => [
+List<Widget> connectionRows(
+        List<ConnectionItem> items, ValueChanged<ConnectionItem> onOpen) =>
+    [
       for (final item in _shown(items))
         KioskSheetRow(
           key: ValueKey('conn-${item.id}'),
           icon: connectionIcon(item),
-          iconColor: item.needsAttention ? KioskColors.warning : KioskColors.muted,
+          iconColor:
+              item.needsAttention ? KioskColors.warning : KioskColors.muted,
           label: connectionShortName(item.id),
           sub: item.state == 'unknown' ? '확인하지 못했어요' : item.title,
           badge: item.needsAttention,

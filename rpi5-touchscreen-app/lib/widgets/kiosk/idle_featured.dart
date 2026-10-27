@@ -23,15 +23,11 @@ class KioskFeaturedAction extends StatelessWidget {
     this.blockedReason,
     this.onHelp,
     this.helpInBanner = false,
-    this.onVoice,
-    this.voiceNotice,
   });
 
   /// 위 안내 띠가 이미 '해결 방법 보기'를 보이고 있나(연결 문제 띠). 그러면 막힌 카드는 같은 단추를 되풀이하지 않고
   /// '지금은 쓸 수 없어요'만 적는다 — 카드를 누르면 여전히 [onHelp](같은 안내)를 연다(첫 사용 평가 4차 10/24: 같은 단추 둘).
   final bool helpInBanner;
-  final VoidCallback? onVoice;
-  final String? voiceNotice;
 
   final KioskRoutine routine;
   final ApplianceMap appliance;
@@ -61,14 +57,16 @@ class KioskFeaturedAction extends StatelessWidget {
   /// [issueOf]는 가전 줄 '!'와 같은 판정([kioskTileIssue]). 가전이 모두 지금 쓸 수 있는 루틴을 먼저 고른다. 그런 루틴이
   /// 없으면 첫 후보를 돌려주고 셋째 값에 그 '!' 문장(이유)을 싣는다 — 화면은 '실행하기'를 흐리게 그린다(첫 사용 평가 10/24).
   /// 넷째 값은 그 이유가 붙은 가전 — '해결 방법 보기'가 그 가전의 안내를 연다(코드 검토 10/24).
-  static (KioskRoutine, ApplianceMap, String?, ApplianceMap?)? pick(List<KioskRoutine>? routines, List<ApplianceMap>? appliances,
+  static (KioskRoutine, ApplianceMap, String?, ApplianceMap?)? pick(
+      List<KioskRoutine>? routines, List<ApplianceMap>? appliances,
       {KioskTileIssue? Function(ApplianceMap a)? issueOf}) {
     if (routines == null || appliances == null) return null;
     (KioskRoutine, ApplianceMap, String?, ApplianceMap?)? firstBlocked;
     for (final r in routines) {
       if (!r.enabled || r.mode != 'approve' || r.timeTriggered) continue;
       final present = [
-        for (final id in r.applianceIds) ...appliances.where((x) => x.id == id).take(1),
+        for (final id in r.applianceIds)
+          ...appliances.where((x) => x.id == id).take(1),
       ];
       if (present.isEmpty) continue;
       String? why;
@@ -93,35 +91,25 @@ class KioskFeaturedAction extends StatelessWidget {
     // 지금 할 수 없으면 부제 자리에 이유(가전 줄 '!'와 같은 말) — '실행하기'는 흐리게, 눌러도 부르지 않는다.
     final blocked = blockedReason;
     // 화면에는 짧게 — 왜 못 쓰는지는 위 안내 띠가 말한다(실패널 10/24: 긴 이유가 카드에서 잘렸다). 읽을 때는 이유까지.
-    final sub = blocked != null ? '지금은 쓸 수 없어요' : (sizeLabel.isNotEmpty ? sizeLabel : appliance.tileName);
-    final spoken = [appliance.tileName, if (sizeLabel.isNotEmpty) sizeLabel].join(' · ');
+    final sub = blocked != null
+        ? '지금은 쓸 수 없어요'
+        : (sizeLabel.isNotEmpty ? sizeLabel : appliance.tileName);
+    final spoken =
+        [appliance.tileName, if (sizeLabel.isNotEmpty) sizeLabel].join(' · ');
     return Column(
       key: const ValueKey('idle-featured'),
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(children: [
-          Expanded(child: Text(voiceNotice ?? '무엇을 할까요?',
-              key: voiceNotice == null ? null : const ValueKey('kiosk-voice-notice'),
-              maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: headSize, height: 1.25, fontWeight: FontWeight.w700,
-                  color: voiceNotice == null ? KioskColors.ink : KioskColors.warning))),
-          Semantics(
-            button: true,
-            label: '말하기',
-            child: GestureDetector(
-              key: const ValueKey('kiosk-voice-button'),
-              onTap: onVoice,
-              behavior: HitTestBehavior.opaque,
-              // 좁은 화면에서도 제목을 밀어내거나 높이를 늘리지 않도록 작은 마이크만 둔다(10/27).
-              child: SizedBox(
-                width: 32,
-                height: headSize * 1.25,
-                child: Center(child: Text('🎤', style: TextStyle(fontSize: KioskType.caption))),
-              ),
-            ),
-          ),
-        ]),
+        Text('무엇을 할까요?',
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: headSize,
+                height: 1.25,
+                fontWeight: FontWeight.w700,
+                color: KioskColors.ink)),
         const SizedBox(height: headGap),
         Semantics(
           button: true,
@@ -143,9 +131,13 @@ class KioskFeaturedAction extends StatelessWidget {
               child: SizedBox(
                 height: cardHeight,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
                   child: Row(children: [
-                    KioskArtTile(category: appliance.category, fallbackIcon: appliance.icon, size: 68),
+                    KioskArtTile(
+                        category: appliance.category,
+                        fallbackIcon: appliance.icon,
+                        size: 68),
                     const SizedBox(width: KioskSpace.sm),
                     Expanded(
                       child: Column(
@@ -157,14 +149,19 @@ class KioskFeaturedAction extends StatelessWidget {
                               maxLines: blocked == null || helpInBanner ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                  fontSize: KioskType.body, height: 1.2, fontWeight: FontWeight.w700, color: KioskColors.ink)),
+                                  fontSize: KioskType.body,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w700,
+                                  color: KioskColors.ink)),
                           KioskText(sub,
                               maxLines: blocked == null ? 1 : 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: KioskType.caption,
                                   height: 1.2,
-                                  color: blocked == null ? KioskColors.muted : KioskColors.warning)),
+                                  color: blocked == null
+                                      ? KioskColors.muted
+                                      : KioskColors.warning)),
                         ],
                       ),
                     ),
@@ -173,28 +170,41 @@ class KioskFeaturedAction extends StatelessWidget {
                     // '해결 방법 보기 ›'(테두리 글자 단추 꼴, 첫 사용 평가 2차 10/24 — 흐린 '실행하기'도 눌리는 모양이었다).
                     if (blocked == null)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md, vertical: KioskSpace.sm),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: KioskSpace.md, vertical: KioskSpace.sm),
                         decoration: BoxDecoration(
-                            color: KioskColors.primary, borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
+                            color: KioskColors.primary,
+                            borderRadius:
+                                BorderRadius.circular(KioskSizes.buttonRadius)),
                         child: Text('실행하기',
                             maxLines: 1,
                             softWrap: false,
                             style: TextStyle(
-                                fontSize: KioskType.body, fontWeight: FontWeight.w700, color: KioskColors.onAccent)),
+                                fontSize: KioskType.body,
+                                fontWeight: FontWeight.w700,
+                                color: KioskColors.onAccent)),
                       )
                     else if (onHelp != null && !helpInBanner)
                       Container(
-                        padding: const EdgeInsets.only(left: KioskSpace.sm, right: KioskSpace.xs, top: 6, bottom: 6),
+                        padding: const EdgeInsets.only(
+                            left: KioskSpace.sm,
+                            right: KioskSpace.xs,
+                            top: 6,
+                            bottom: 6),
                         decoration: BoxDecoration(
                             border: Border.all(color: KioskColors.border),
-                            borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
+                            borderRadius:
+                                BorderRadius.circular(KioskSizes.buttonRadius)),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Text(kProblemHelpShort,
                               maxLines: 1,
                               softWrap: false,
                               style: TextStyle(
-                                  fontSize: KioskType.caption, fontWeight: FontWeight.w700, color: KioskColors.ink)),
-                          Icon(Icons.chevron_right, size: 22, color: KioskColors.muted),
+                                  fontSize: KioskType.caption,
+                                  fontWeight: FontWeight.w700,
+                                  color: KioskColors.ink)),
+                          Icon(Icons.chevron_right,
+                              size: 22, color: KioskColors.muted),
                         ]),
                       ),
                   ]),

@@ -84,6 +84,9 @@ class KioskPalette {
 class KioskColors {
   const KioskColors._();
 
+  /// 화면 안 중앙 창 뒤에 까는 어두운 막.
+  static Color get scrim => Colors.black.withValues(alpha: 0.6);
+
   /// 어두운 화면(설정 '어두운 화면', 시안 B 어두운 모양 10/24). 상태색은 종전 어두운 바탕 값 그대로.
   static const dark = KioskPalette(
     primary: Color(0xFFA0DED2), // 시안 B 어두운 모양 — 민트 면·짙은 글자(onAccent)
@@ -118,7 +121,8 @@ class KioskColors {
     ink: Color(0xFFECEEF3),
     glass: Color(0xFF0A1614),
     glassText: Color(0xFFA0DED2),
-    glassMuted: Color(0xFFBFD9D3), // 유리 위 10:1 이상(10/24 시각 QA — 8FB3AC는 작은 글자에서 흐렸다)
+    glassMuted:
+        Color(0xFFBFD9D3), // 유리 위 10:1 이상(10/24 시각 QA — 8FB3AC는 작은 글자에서 흐렸다)
     well: Color(0xFF252935),
     mint: Color(0xFF1F3C37),
     art: Color(0xFFC9CDD6),
@@ -180,7 +184,8 @@ class KioskColors {
     panelText: Color(0xFFFFFFFF),
     onAccent: Color(0xFF000000),
     // 고대비의 muted는 흰색이라 흐린 타일이 켜진 타일과 같아진다 — 검정 위 8:1 언저리 회색(너무 어둡지 않게).
-    tileDim: Color(0xFFC0C0C0), // 검정 위 11:1 — 흰색(밝게)과는 구분되고 흐려 보이지 않게(10/24 시각 QA)
+    tileDim:
+        Color(0xFFC0C0C0), // 검정 위 11:1 — 흰색(밝게)과는 구분되고 흐려 보이지 않게(10/24 시각 QA)
     ink: Color(0xFFFFFFFF),
     glass: Color(0xFF000000),
     glassText: Color(0xFFFFFFFF),
@@ -228,7 +233,8 @@ class KioskColors {
     _listenable.value = _p;
   }
 
-  static final ValueNotifier<KioskPalette> _listenable = ValueNotifier<KioskPalette>(standard);
+  static final ValueNotifier<KioskPalette> _listenable =
+      ValueNotifier<KioskPalette>(standard);
 
   /// 색 한 벌이 바뀌면 알린다 — 앱 테마(대화 창·알림 줄이 쓰는 색)가 따라 바뀌게(코드 검토 10/24).
   /// 듣는 쪽은 그리는 도중에 바뀔 수 있으니(조용한 시간 어둡게는 build 안에서 바뀐다) 다음 프레임에 다시 그린다.
@@ -238,7 +244,9 @@ class KioskColors {
   /// 앱 테마([base] 없음)와 키오스크 화면 안쪽 테마가 같은 규칙을 쓴다.
   static ThemeData theme([ThemeData? base]) {
     base ??= ThemeData(brightness: brightness);
-    final scheme = ColorScheme.fromSeed(seedColor: primary, brightness: brightness).copyWith(
+    final scheme =
+        ColorScheme.fromSeed(seedColor: primary, brightness: brightness)
+            .copyWith(
       surface: surface,
       onSurface: ink,
       onSurfaceVariant: highContrast ? ink : muted,

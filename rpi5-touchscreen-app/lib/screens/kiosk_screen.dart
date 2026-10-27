@@ -21,8 +21,6 @@ import '../services/kiosk_event_stream.dart';
 import '../services/kiosk_settings_store.dart';
 import '../services/kiosk_tts_service.dart';
 import '../theme/kiosk_colors.dart';
-import '../theme/kiosk_tokens.dart';
-import '../widgets/kiosk/kiosk_text.dart';
 import '../widgets/kiosk/appliance_select_view.dart';
 import '../widgets/kiosk/auto_run_view.dart';
 import '../widgets/kiosk/auto_run_notice.dart';
@@ -45,6 +43,7 @@ import '../widgets/kiosk/manual_view.dart';
 import '../widgets/kiosk/past_result_line.dart';
 import '../widgets/kiosk/suggestion_view.dart';
 import '../widgets/kiosk/voice_proposal_view.dart';
+import '../widgets/kiosk/voice_listen_overlay.dart';
 import '../widgets/kiosk/settings_overlay.dart';
 import '../widgets/kiosk/top_progress_bar.dart';
 import '../widgets/kiosk/room_sleep.dart';
@@ -74,7 +73,8 @@ String suggestionSpeech(KioskSuggestion s) {
   if (server != null && server.isNotEmpty) return server;
   final reason = _sentence(s.userStarted ? '' : s.whyNow);
   if (s.isAdvice) return reason.isNotEmpty ? reason : s.purpose;
-  final question = s.question ?? (s.isScenario ? s.purpose : _askNow(actionName(s.purpose)));
+  final question =
+      s.question ?? (s.isScenario ? s.purpose : _askNow(actionName(s.purpose)));
   return [reason, question].where((p) => p.isNotEmpty).join(' ');
 }
 
@@ -84,7 +84,8 @@ String _sentence(String text) {
   return '$t.';
 }
 
-String _askNow(String name) => name.endsWith('기') ? '${withObject(name)} 지금 할까요?' : '$name, 지금 할까요?';
+String _askNow(String name) =>
+    name.endsWith('기') ? '${withObject(name)} 지금 할까요?' : '$name, 지금 할까요?';
 
 const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
@@ -152,8 +153,7 @@ class _KioskScreenState extends State<KioskScreen> {
   // 주입받은 서비스는 호출자 소유 — 내부 생성분만 dispose한다
   late final bool _ownsApi = widget.api == null;
   late final KioskTtsService _tts = widget.tts ?? KioskTtsService();
-  late final KioskEventStream _events =
-      widget.events ?? KioskEventStream();
+  late final KioskEventStream _events = widget.events ?? KioskEventStream();
   // 큰 글씨 모드 — settings 주입 시 파일에 영속화, 아니면 세션 한정
   bool _largeText = false;
 
@@ -166,16 +166,20 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 자동일 때 마지막으로 따른 방 밝기 — 본체가 '모름'이면 바꾸지 않는다(깜빡이지 않게, 본체가 이미 30초 평균·문턱 두 개로 거른다).
   bool _roomDark = false;
 
-  bool get _darkMode => _tone == KioskScreenTone.dark || (_tone == KioskScreenTone.auto && _roomDark);
+  bool get _darkMode =>
+      _tone == KioskScreenTone.dark ||
+      (_tone == KioskScreenTone.auto && _roomDark);
 
   // 휴대폰에서 말한 내용의 확인 질문(10/26) — 처음 화면에서만 띄운다. 먼저 정한 쪽(폰·키오스크)만 실행한다.
   KioskIntentProposal? _voiceProposal;
   final Set<String> _seenVoiceProposals = {};
   bool _voiceBusy = false;
   bool _kioskVoiceBusy = false;
+  bool _voiceModalOpen = false;
+  bool _voiceFailed = false;
+  int _voiceListenSession = 0;
   int _voiceListenRemaining = 5;
   String? _voiceHeardText;
-  String? _voiceNotice;
   Timer? _voiceListenTimer;
 
   /// 조용한 시간에 화면을 만져 잠시 평소 밝기다([kQuietWakeDuration] 뒤 다시 어둡게).
@@ -311,7 +315,10 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _adoptedThinq(KioskStatus st) {
     final id = st.applianceId;
     final a = id == null ? null : _findIn(_appliances, id);
-    return isAdoptedThinqRun(route: st.route, totalSteps: st.totalSteps, applianceIsThinq: a?.isThinq);
+    return isAdoptedThinqRun(
+        route: st.route,
+        totalSteps: st.totalSteps,
+        applianceIsThinq: a?.isThinq);
   }
 
   bool _doneSuccess = true;
@@ -320,6 +327,7 @@ class _KioskScreenState extends State<KioskScreen> {
   // 끝난 실행의 경로·확인 수준(서버 값, 옛 서버면 null).
   String? _doneRoute;
   String? _doneConfirmation;
+
   /// 끝난 실행의 확인 근거 원값(2026-10-14, /status last_confirmation) — ThinQ 성공 문장을 확인한 사실만큼 고른다.
   String? _doneRawConfirmation;
   String? _doneDetail;
@@ -621,7 +629,9 @@ class _KioskScreenState extends State<KioskScreen> {
       final greeting = room?.greeting;
       // 인사 뒤에 날씨 한 줄을 이어 읽는다(10/26 사용자 — '좋은 아침이에요. 오늘 비 예보가 있어요. 우산 챙기세요').
       final weather = room?.greetingWeather;
-      if (greeting != null && _health.speakGeneral) _tts.speak(weather == null ? greeting : '$greeting $weather');
+      if (greeting != null && _health.speakGeneral) {
+        _tts.speak(weather == null ? greeting : '$greeting $weather');
+      }
       _poll();
     }
   }
@@ -630,7 +640,13 @@ class _KioskScreenState extends State<KioskScreen> {
   bool get _roomSleeping {
     final room = _room;
     if (room == null || !room.sleepScreen) return false;
-    if (_phase != KioskPhase.idle || _overlayOpen || _showEstop || _alert.active || _voiceProposal != null) return false;
+    if (_phase != KioskPhase.idle ||
+        _overlayOpen ||
+        _showEstop ||
+        _alert.active ||
+        _voiceProposal != null) {
+      return false;
+    }
     final wake = _touchWakeUntil;
     return wake == null || DateTime.now().isAfter(wake);
   }
@@ -723,14 +739,17 @@ class _KioskScreenState extends State<KioskScreen> {
     _lastAttentionJobId = st.lastJobId;
     // 사람이 확인한 실행이면(키오스크 지난 일 확인·답, 폰 '기록 보기' — 본체 확인 표시, 2026-10-19) 내린다. 새 실패는 다시 뜬다.
     final acked = st.lastJobId != null && _ackedJobs.containsKey(st.lastJobId);
-    if (!st.running && !acked && last != null &&
+    if (!st.running &&
+        !acked &&
+        last != null &&
         (st.lastOutcome != null || st.lastStatus != null)) {
       final kind = resultKindOf(outcome: st.lastOutcome, status: st.lastStatus);
       if (kind == ResultKind.failed || kind == ResultKind.safetyStop) {
         attention.add(last);
       }
     }
-    if (!_sameSet(running, _runningIds) || !_sameSet(attention, _attentionIds)) {
+    if (!_sameSet(running, _runningIds) ||
+        !_sameSet(attention, _attentionIds)) {
       setState(() {
         _runningIds = running;
         _attentionIds = attention;
@@ -761,7 +780,8 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 본체가 아직 적지 않은 답(검토 10/19 코어 5차 #9) — 실행 번호 → (답, 되살릴 지난 일 줄, 본체에 닿고도 못 적은 횟수).
   /// POST가 성공하거나 본체 목록에 같은 답이 보일 때까지 지키고, 본체 목록을 다시 읽을 수 있을 때마다(연결이 돌아오면) 다시 보낸다.
   /// 예전에는 POST가 한 번 실패하면 버려, 끊긴 동안 답한 확인이 본체에 끝내 남지 않았다.
-  final Map<String, ({String answer, KioskPastResult? restore, int failures})> _unsentAcks = {};
+  final Map<String, ({String answer, KioskPastResult? restore, int failures})>
+      _unsentAcks = {};
   final Set<String> _ackSending = {};
   static const _maxUnsentAcks = 64;
 
@@ -773,9 +793,15 @@ class _KioskScreenState extends State<KioskScreen> {
     final clearPast = past?.jobId != null && acked.containsKey(past!.jobId);
     final attention = {
       for (final id in _attentionIds)
-        if (!(_lastAttentionJobId != null && acked.containsKey(_lastAttentionJobId))) id,
+        if (!(_lastAttentionJobId != null &&
+            acked.containsKey(_lastAttentionJobId)))
+          id,
     };
-    if (!clearPast && attention.length == _attentionIds.length && mapEquals(acked, _ackedJobs)) return;
+    if (!clearPast &&
+        attention.length == _attentionIds.length &&
+        mapEquals(acked, _ackedJobs)) {
+      return;
+    }
     setState(() {
       _ackedJobs = acked;
       if (clearPast) _pastResult = null;
@@ -791,7 +817,9 @@ class _KioskScreenState extends State<KioskScreen> {
     _pendingAcks[jobId] = answer;
     _unsentAcks.remove(jobId);
     _unsentAcks[jobId] = (answer: answer, restore: restore, failures: 0);
-    if (_unsentAcks.length > _maxUnsentAcks) _unsentAcks.remove(_unsentAcks.keys.first);
+    if (_unsentAcks.length > _maxUnsentAcks) {
+      _unsentAcks.remove(_unsentAcks.keys.first);
+    }
     _applyAcks({..._ackedJobs, jobId: answer});
     unawaited(_sendAck(jobId));
   }
@@ -809,7 +837,9 @@ class _KioskScreenState extends State<KioskScreen> {
     } finally {
       _ackSending.remove(jobId);
     }
-    if (!mounted || _unsentAcks[jobId]?.answer != entry.answer) return; // 그사이 새 답 — 그 답이 따로 간다
+    if (!mounted || _unsentAcks[jobId]?.answer != entry.answer) {
+      return; // 그사이 새 답 — 그 답이 따로 간다
+    }
     if (ok) {
       _unsentAcks.remove(jobId);
       if (_ackedJobs[jobId] != entry.answer) {
@@ -826,14 +856,17 @@ class _KioskScreenState extends State<KioskScreen> {
     if (failures >= _maxAckFailures) {
       _unsentAcks.remove(jobId);
     } else {
-      _unsentAcks[jobId] = (answer: current.answer, restore: null, failures: failures);
+      _unsentAcks[jobId] =
+          (answer: current.answer, restore: null, failures: failures);
     }
     if (_pendingAcks[jobId] == entry.answer) {
       _pendingAcks.remove(jobId);
       _applyAcks({...acked, ..._pendingAcks});
     }
     final restore = current.restore;
-    if (restore == null || acked.containsKey(jobId) || _pastResult != null) return;
+    if (restore == null || acked.containsKey(jobId) || _pastResult != null) {
+      return;
+    }
     setState(() => _pastResult = restore);
   }
 
@@ -886,10 +919,14 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() {
       _nextRunBusy = false;
       // '자동 실행' 탭에서 뒤 회차를 건너뛰어도 처음 화면 다음 루틴을 그 회차로 바꾸지 않는다 — 같은 회차일 때만.
-      if (changed != null && (_nextRun == null || _sameRun(_nextRun!, next))) _nextRun = changed;
+      if (changed != null && (_nextRun == null || _sameRun(_nextRun!, next))) {
+        _nextRun = changed;
+      }
       final upcoming = _upcomingRuns;
       if (changed != null && upcoming != null) {
-        _upcomingRuns = [for (final r in upcoming) _sameRun(r, next) ? changed : r];
+        _upcomingRuns = [
+          for (final r in upcoming) _sameRun(r, next) ? changed : r
+        ];
       }
       _nextRunNotice = changed == null ? result.message : null;
     });
@@ -908,7 +945,8 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   /// 같은 루틴의 같은 회차인가(건너뛰기 요청 본문과 같은 두 값).
-  static bool _sameRun(KioskNextRun a, KioskNextRun b) => a.routineId == b.routineId && a.at == b.at;
+  static bool _sameRun(KioskNextRun a, KioskNextRun b) =>
+      a.routineId == b.routineId && a.at == b.at;
 
   /// '자동 실행' 탭 목록을 다시 읽는다(읽기 전용 GET /routines/next).
   Future<void> _fetchUpcoming() async {
@@ -938,19 +976,35 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 정지 대기에서는 두지 않는다(정지·승인이 앞선다). 화면 안 확인 창은 [_tabSuppress]가 따로 가린다.
   /// 화면 안 창(메뉴·설정·방해 금지·연결·확인 창)이 떠 있다 — 패널 전체를 막 색으로.
   bool get _scrimOn =>
-      _tabSuppress.value > 0 || _showSettings || _showDnd || _openConnectionId != null || _estopConfirming;
+      _tabSuppress.value > 0 ||
+      _showSettings ||
+      _showDnd ||
+      _openConnectionId != null ||
+      _estopConfirming ||
+      _voiceModalOpen;
 
   /// 화면 전체를 덮는 창(방해 금지·연결·설정)이 떠 있다 — 뒤 화면을 화면 읽기에서 뺀다(10/24 QA).
-  bool get _overlayOpen => _showDnd || _showSettings || (_openConnectionId != null && _phase == KioskPhase.idle);
+  bool get _overlayOpen =>
+      _showDnd ||
+      _showSettings ||
+      _voiceModalOpen ||
+      (_openConnectionId != null && _phase == KioskPhase.idle);
 
   /// 휴대폰에서 말한 확인 질문(10/26)이 화면을 차지한 동안에도 숨긴다 — 탭을 눌러 질문을 피해 가지 않게(실패널 10/26).
   /// 질문이 정해지거나 목록에서 빠지면 다시 보인다.
   bool get _showTabs =>
-      !_estopConfirming && !_showSettings && !_showDnd && _openConnectionId == null && _voiceProposal == null && !_kioskVoiceBusy &&
-      ((_phase == KioskPhase.idle && !_quietDim) || _phase == KioskPhase.manual);
+      !_estopConfirming &&
+      !_showSettings &&
+      !_showDnd &&
+      _openConnectionId == null &&
+      _voiceProposal == null &&
+      !_voiceModalOpen &&
+      ((_phase == KioskPhase.idle && !_quietDim) ||
+          _phase == KioskPhase.manual);
 
   /// 지금 탭 — 가전 고르기·조작 화면은 '가전'.
-  KioskTab get _currentTab => _phase == KioskPhase.manual ? KioskTab.appliances : _homeTab;
+  KioskTab get _currentTab =>
+      _phase == KioskPhase.manual ? KioskTab.appliances : _homeTab;
 
   /// 아래 탭을 눌렀다. '가전'은 가전 고르기 화면(가전을 고르면 그 조작판), 나머지는 평소 화면의 그 탭.
   /// 평소·가전 화면에서만 받는다 — 확인 창이 떠 있으면 탭 줄이 없어 여기로 오지 않지만, 한 번 더 막는다.
@@ -1073,7 +1127,8 @@ class _KioskScreenState extends State<KioskScreen> {
     // 새로 켜지는 엣지에서만 음성 경보 — 반복 발화하지 않는다.
     // DND 중에도 발화한다: 안전 경보는 방해 금지보다 우선한다.
     if (alert.active && !_alert.active) {
-      _tts.speak('경보 소리가 들려요. 불이 났는지, 가스가 새는지 살펴 주세요. 연기나 냄새가 나면 먼저 밖으로 나가 도움을 요청해 주세요. $kDanger119.');
+      _tts.speak(
+          '경보 소리가 들려요. 불이 났는지, 가스가 새는지 살펴 주세요. 연기나 냄새가 나면 먼저 밖으로 나가 도움을 요청해 주세요. $kDanger119.');
     }
     setState(() {
       // 새로 켜지는 순간(엣지)엔 "확인" 눌렀던 기록을 리셋 — 계속 같은
@@ -1136,7 +1191,8 @@ class _KioskScreenState extends State<KioskScreen> {
       if (!mounted || _phase != KioskPhase.idle) return;
       final ids = list.map((s) => s.id).toSet();
       _shownSuggestionIds.retainAll(ids);
-      final next = list.where((s) => !_shownSuggestionIds.contains(s.id)).firstOrNull;
+      final next =
+          list.where((s) => !_shownSuggestionIds.contains(s.id)).firstOrNull;
       if (next != null) {
         _toSuggestion(next);
       }
@@ -1151,55 +1207,86 @@ class _KioskScreenState extends State<KioskScreen> {
     // 본체에서 막 들은 질문은 목록 반영보다 먼저 올 수 있다. 답할 때까지 같은 화면을 지킨다(10/27).
     if (current != null && _voiceHeardText != null) return;
     if (current != null && list.any((p) => p.id == current.id)) return;
-    final next = list.where((p) => !_seenVoiceProposals.contains(p.id)).lastOrNull;
+    final next =
+        list.where((p) => !_seenVoiceProposals.contains(p.id)).lastOrNull;
     if (next == null) {
       if (current != null) setState(() => _voiceProposal = null);
       return;
     }
     _seenVoiceProposals.add(next.id);
-    if (_seenVoiceProposals.length > 64) _seenVoiceProposals.remove(_seenVoiceProposals.first);
+    if (_seenVoiceProposals.length > 64) {
+      _seenVoiceProposals.remove(_seenVoiceProposals.first);
+    }
     setState(() => _voiceProposal = next);
     if (_health.speakGeneral) {
-      _tts.announce(_voiceCanRun(next) ? "${next.question} 하시려면 화면의 '네'를 눌러 주세요." : next.question);
+      _tts.announce(_voiceCanRun(next)
+          ? "${next.question} 하시려면 화면의 '네'를 눌러 주세요."
+          : next.question);
     }
   }
 
   Future<void> _listenFromKiosk() async {
-    if (_kioskVoiceBusy || _voiceProposal != null || _phase != KioskPhase.idle) return;
+    if (_kioskVoiceBusy || _voiceProposal != null || _phase != KioskPhase.idle) {
+      return;
+    }
+    final session = ++_voiceListenSession;
     setState(() {
+      _voiceModalOpen = true;
       _kioskVoiceBusy = true;
+      _voiceFailed = false;
       _voiceListenRemaining = 5;
-      _voiceNotice = null;
       _voiceHeardText = null;
     });
     _voiceListenTimer?.cancel();
     _voiceListenTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted || !_kioskVoiceBusy) return timer.cancel();
+      if (!mounted || !_kioskVoiceBusy || session != _voiceListenSession) {
+        return timer.cancel();
+      }
       if (_voiceListenRemaining > 0) setState(() => _voiceListenRemaining--);
     });
     try {
       final result = await _api.listenVoice();
-      if (!mounted) return;
+      if (!mounted || session != _voiceListenSession || !_voiceModalOpen) {
+        return;
+      }
       _voiceListenTimer?.cancel();
       setState(() {
         _kioskVoiceBusy = false;
         _voiceHeardText = result.text.isEmpty ? null : result.text;
         _voiceProposal = result.proposal;
-        _voiceNotice = result.proposal == null ? '잘 못 들었어요. 다시 눌러 주세요' : null;
+        _voiceFailed = result.proposal == null;
+        if (result.proposal != null) {
+          _voiceModalOpen = false;
+        }
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || session != _voiceListenSession || !_voiceModalOpen) {
+        return;
+      }
       _voiceListenTimer?.cancel();
       setState(() {
         _kioskVoiceBusy = false;
-        _voiceNotice = '잘 못 들었어요. 다시 눌러 주세요';
+        _voiceFailed = true;
       });
     }
   }
 
+  /// 듣기를 취소하면 늦게 돌아온 본체 응답은 화면에 반영하지 않는다.
+  void _closeVoiceModal() {
+    _voiceListenSession++;
+    _voiceListenTimer?.cancel();
+    setState(() {
+      _voiceModalOpen = false;
+      _kioskVoiceBusy = false;
+      _voiceFailed = false;
+      _voiceHeardText = null;
+    });
+  }
+
   /// 키오스크에서 보낼 길이 있는 동작인가 — 누름(이 본체가 아는 가전)·LG 가전 명령·저장한 루틴.
   bool _voiceCanRun(KioskIntentProposal p) => switch (p.kind) {
-        'buttons' => p.applianceId != null && _findIn(_appliances, p.applianceId!) != null,
+        'buttons' =>
+          p.applianceId != null && _findIn(_appliances, p.applianceId!) != null,
         'thinq' => p.applianceId != null && p.action != null,
         'routine' => p.routineId != null && p.fingerprint != null,
         _ => false,
@@ -1208,7 +1295,9 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 확인 질문의 '네'·'아니요' — 본체에 먼저 정한다(폰과 둘 중 한쪽만). '네'를 이겼을 때만 기존 실행 경로로 보낸다.
   Future<void> _onVoiceAnswer(bool yes) async {
     final p = _voiceProposal;
-    if (p == null || _voiceBusy || (yes && (_admitting || !_voiceCanRun(p)))) return;
+    if (p == null || _voiceBusy || (yes && (_admitting || !_voiceCanRun(p)))) {
+      return;
+    }
     setState(() => _voiceBusy = true);
     void close() => setState(() {
           _voiceBusy = false;
@@ -1221,7 +1310,9 @@ class _KioskScreenState extends State<KioskScreen> {
       close();
       if (yes) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.statusCode == 409 ? '휴대폰에서 이미 정했어요' : '시간이 지났어요. 휴대폰에서 다시 말해 주세요.')));
+            content: Text(e.statusCode == 409
+                ? '휴대폰에서 이미 정했어요'
+                : '시간이 지났어요. 휴대폰에서 다시 말해 주세요.')));
       }
       return;
     } catch (_) {
@@ -1231,8 +1322,8 @@ class _KioskScreenState extends State<KioskScreen> {
         return;
       }
       setState(() => _voiceBusy = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('본체에 보내지 못했어요. 다시 눌러 주세요.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('본체에 보내지 못했어요. 다시 눌러 주세요.')));
       return;
     }
     if (!mounted) return;
@@ -1258,14 +1349,17 @@ class _KioskScreenState extends State<KioskScreen> {
         thinqOnly: thinq,
         thinqActionText: thinq ? p.label : null,
         continueApplianceId: _findIn(_appliances, aid) == null ? null : aid);
-    _execPlanButtons = !thinq && p.buttons.length > 1 ? List.unmodifiable(p.buttons) : null;
+    _execPlanButtons =
+        !thinq && p.buttons.length > 1 ? List.unmodifiable(p.buttons) : null;
     final gen = _admitGen;
     _accepting = true;
     _retryAction = null;
     try {
       final accepted = thinq
-          ? await _api.thinqCommand(aid, p.action!, p.args, clientRequestId: _admitRequestId)
-          : await _api.executeButtons(p.buttons, applianceId: aid, clientRequestId: _admitRequestId);
+          ? await _api.thinqCommand(aid, p.action!, p.args,
+              clientRequestId: _admitRequestId)
+          : await _api.executeButtons(p.buttons,
+              applianceId: aid, clientRequestId: _admitRequestId);
       if (gen != _admitGen) return;
       _accepting = false;
       _activeJobId = accepted.jobId;
@@ -1289,17 +1383,19 @@ class _KioskScreenState extends State<KioskScreen> {
       final result = await _api.triggerRoutine(p.routineId!);
       if (!mounted || _phase != KioskPhase.idle) return;
       final card = result.suggestion;
-      if (card == null || card.scenarioId != 'routine:${p.routineId}@${p.fingerprint!.substring(0, 12)}') {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('동작 내용이 바뀌었어요. 휴대폰에서 다시 말해 주세요.')));
+      if (card == null ||
+          card.scenarioId !=
+              'routine:${p.routineId}@${p.fingerprint!.substring(0, 12)}') {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('동작 내용이 바뀌었어요. 휴대폰에서 다시 말해 주세요.')));
         return;
       }
       _shownSuggestionIds.add(card.id);
       await _onApprove(suggestion: card);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('동작을 불러오지 못했어요. 휴대폰에서 다시 말해 주세요.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('동작을 불러오지 못했어요. 휴대폰에서 다시 말해 주세요.')));
     }
   }
 
@@ -1378,14 +1474,12 @@ class _KioskScreenState extends State<KioskScreen> {
     }
     try {
       final st = await _api.status();
-      if (!mounted || _phase != KioskPhase.executing ||
-          _activeJobId != jobId) {
+      if (!mounted || _phase != KioskPhase.executing || _activeJobId != jobId) {
         return;
       }
       // 이 실행의 진행·결과는 실행 번호로 따로 묻는다 — 기기 전체 값(비상정지·대기·자동 실행·정지 재전송)은 /status([st])에서.
       final lookup = await _api.jobStatus(jobId);
-      if (!mounted || _phase != KioskPhase.executing ||
-          _activeJobId != jobId) {
+      if (!mounted || _phase != KioskPhase.executing || _activeJobId != jobId) {
         return;
       }
       if (lookup.unsupported && _execRoutineRunId != null) {
@@ -1422,7 +1516,10 @@ class _KioskScreenState extends State<KioskScreen> {
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
       // 처리하면 그 완료를 영영 놓친다(추월 레이스).
       // 끝났다고 한 답만(finished, 검토 10/19 — 루틴은 모든 구간이 끝나야 참). 옛 본체·/status는 null이라 종전처럼.
-      if (job != null && job.lastJobId != null && job.lastJobId == _activeJobId && job.finished != false) {
+      if (job != null &&
+          job.lastJobId != null &&
+          job.lastJobId == _activeJobId &&
+          job.finished != false) {
         if (st.lastAutoRun?.jobId == jobId) {
           // 자동 실행(허용 규칙)은 완료 화면 대신 위 한 줄로 실제 결과를 알린다(C2).
           _seenLastJobId = jobId;
@@ -1443,7 +1540,9 @@ class _KioskScreenState extends State<KioskScreen> {
             _executionMode = job.executionMode;
             final prevButton = _currentButton;
             final nowButton = job.currentButton;
-            if (prevButton != null && nowButton != null && nowButton != prevButton) {
+            if (prevButton != null &&
+                nowButton != null &&
+                nowButton != prevButton) {
               _execDoneButtons = [..._execDoneButtons, prevButton];
             }
             _currentButton = nowButton ?? _currentButton;
@@ -1451,8 +1550,7 @@ class _KioskScreenState extends State<KioskScreen> {
             _completedSteps = job.completedSteps ?? _completedSteps;
             _verificationConfidence =
                 job.verificationConfidence ?? _verificationConfidence;
-            _verificationDetail =
-                job.verificationDetail ?? _verificationDetail;
+            _verificationDetail = job.verificationDetail ?? _verificationDetail;
             _execApplianceId = job.applianceId ?? _execApplianceId;
             // 이어받은 실행이 첫 조회에 경로를 몰랐다가 알게 되면 LG 가전 화면으로(평가 10차 10/18). 거꾸로는 하지 않는다 —
             // 승인 때 정한 판정을 서버 값 하나로 내리지 않는다(누름 장치 경로면 [isAdoptedThinqRun]이 거짓이다).
@@ -1466,7 +1564,9 @@ class _KioskScreenState extends State<KioskScreen> {
             }
             // 카드에 묶인 버튼이 더 많으면(명령 하나에 버튼 여럿) 그 버튼 수로 센다 — 끝낸 수는 화면이 본 바뀐 버튼 수.
             final plan = _execPlanButtons;
-            if (plan != null && (_execRoutineSegment ?? 1) <= 1 && (_totalSteps ?? 0) < plan.length) {
+            if (plan != null &&
+                (_execRoutineSegment ?? 1) <= 1 &&
+                (_totalSteps ?? 0) < plan.length) {
               _totalSteps = plan.length;
               _completedSteps = _execDoneButtons.length.clamp(0, plan.length);
               _execBarValue = (_completedSteps! / plan.length).clamp(0.0, 0.95);
@@ -1481,21 +1581,18 @@ class _KioskScreenState extends State<KioskScreen> {
       if (_activeJobId != null) {
         _foreignPolls++;
         if (_foreignPolls >= 5) {
-          _toDone(false, _execTitle,
-              reason: KioskFailureReason.serverLost);
+          _toDone(false, _execTitle, reason: KioskFailureReason.serverLost);
         }
       }
     } catch (_) {
-      if (!mounted || _phase != KioskPhase.executing ||
-          _activeJobId != jobId) {
+      if (!mounted || _phase != KioskPhase.executing || _activeJobId != jobId) {
         return;
       }
       // 연속 실패가 길어지면 서버 유실로 판정하고 실행 화면에서 탈출
       final since = _lastStatusOk;
       if (since != null &&
           DateTime.now().difference(since) > _statusLostTimeout) {
-        _toDone(false, _execTitle,
-            reason: KioskFailureReason.serverLost);
+        _toDone(false, _execTitle, reason: KioskFailureReason.serverLost);
       }
     }
   }
@@ -1504,14 +1601,19 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 구간 번호를 따라가면 구간 하나의 끝을 루틴의 끝으로 말한다. 옛 본체(루틴 필드 없음)는 종전처럼 job_id.
   String? _adoptableJobId(KioskStatus st) {
     final routine = st.routineRunId;
-    if (routine != null && (st.routineStatus == null || st.routineStatus == 'running')) return routine;
+    if (routine != null &&
+        (st.routineStatus == null || st.routineStatus == 'running')) {
+      return routine;
+    }
     return st.running ? st.jobId : null;
   }
 
   /// 본체에서 도는 실행(폰·자동 실행·루틴)을 이어받아 실행 화면으로. 루틴이면 첫 번호를 따라가고 정지는 그 루틴만 멈추는 경로로.
   void _adoptRunning(KioskStatus st) {
     _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
-        applianceId: st.applianceId, jobId: _adoptableJobId(st), thinqOnly: _adoptedThinq(st));
+        applianceId: st.applianceId,
+        jobId: _adoptableJobId(st),
+        thinqOnly: _adoptedThinq(st));
     final routine = st.routineRunId;
     if (routine != null && _activeJobId == routine) {
       _execRoutineRunId = routine;
@@ -1555,8 +1657,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _executionMode = st.lastExecutionMode;
     // last_outcome이 정지 요청(stopped)과 안전 정지·실패를 가른다. 옛 서버는
     // last_status로 판정한다(종전 동작). ThinQ 확인 못 함은 실패가 아니다.
-    final kind =
-        resultKindOf(outcome: st.lastOutcome, status: st.lastStatus);
+    final kind = resultKindOf(outcome: st.lastOutcome, status: st.lastStatus);
     _doneRoute = st.lastRoute;
     _doneRawConfirmation = st.lastConfirmation;
     _doneConfirmation = confirmationLabel(
@@ -1577,8 +1678,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _finishExecuting(
       success: kind == ResultKind.success,
       buttons: st.lastButtons ?? const [],
-      reason: failureReasonOf(kind,
-          route: st.lastRoute, receipt: st.lastReceipt),
+      reason:
+          failureReasonOf(kind, route: st.lastRoute, receipt: st.lastReceipt),
     );
     _loadRunSteps(jobId);
     if (kind == ResultKind.stopped && _doneStopLevel == null) {
@@ -1596,13 +1697,16 @@ class _KioskScreenState extends State<KioskScreen> {
       _seenLastJobId = last;
       return false;
     }
-    if (st.running || last == null || last == _seenLastJobId ||
+    if (st.running ||
+        last == null ||
+        last == _seenLastJobId ||
         last == _activeJobId) {
       return false;
     }
     _seenLastJobId = last;
     if (st.lastAutoRun?.jobId == last) return false;
-    _toExecuting(_nameOf(st.lastApplianceId), applianceId: st.lastApplianceId, jobId: last);
+    _toExecuting(_nameOf(st.lastApplianceId),
+        applianceId: st.lastApplianceId, jobId: last);
     _completeFromStatus(st, last);
     return true;
   }
@@ -1656,9 +1760,13 @@ class _KioskScreenState extends State<KioskScreen> {
       _autoUndoRunId = undo != null ? run.runId : null;
       _autoUndoFor = undo;
     });
-    if (_health.speakGeneral) _tts.speak('자동 실행, $text'); // 조용한 시간·모름에는 소리 없이 한 줄만
+    if (_health.speakGeneral) {
+      _tts.speak('자동 실행, $text'); // 조용한 시간·모름에는 소리 없이 한 줄만
+    }
     // 되돌릴 수 있으면 그 시간(5분 안) 동안 줄을 남긴다 — 단추는 알림 줄이 시간에 맞춰 스스로 거둔다.
-    final keep = undo != null && undo > KioskTimings.autoRunNotice ? undo : KioskTimings.autoRunNotice;
+    final keep = undo != null && undo > KioskTimings.autoRunNotice
+        ? undo
+        : KioskTimings.autoRunNotice;
     _autoNoticeTimer = Timer(keep, () {
       if (mounted) setState(_clearAutoNotice);
     });
@@ -1678,7 +1786,9 @@ class _KioskScreenState extends State<KioskScreen> {
     try {
       message = await _api.undoAutoRun(runId);
     } on KioskApiException catch (e) {
-      message = e.statusCode == 409 && e.detail.isNotEmpty ? e.detail : '되돌리지 못했어요. 연결을 봐 주세요.';
+      message = e.statusCode == 409 && e.detail.isNotEmpty
+          ? e.detail
+          : '되돌리지 못했어요. 연결을 봐 주세요.';
     } catch (_) {
       message = '되돌리지 못했어요. 연결을 봐 주세요.';
     }
@@ -1716,7 +1826,9 @@ class _KioskScreenState extends State<KioskScreen> {
       setState(() => _stopPending = false);
       if (result && _phase == KioskPhase.done && _activeJobId == jobId) {
         _tts.speak(finishedMessage(
-            kind: ResultKind.stopped, stopLevel: _doneStopLevel, executionMode: _executionMode));
+            kind: ResultKind.stopped,
+            stopLevel: _doneStopLevel,
+            executionMode: _executionMode));
       }
     }
 
@@ -1728,7 +1840,8 @@ class _KioskScreenState extends State<KioskScreen> {
         return;
       }
       if (inFlight) return;
-      if (!mounted || _activeJobId != jobId ||
+      if (!mounted ||
+          _activeJobId != jobId ||
           (_phase != KioskPhase.executing && _phase != KioskPhase.done)) {
         end(timer, result: false);
         return;
@@ -1826,9 +1939,10 @@ class _KioskScreenState extends State<KioskScreen> {
       final key = '${st.holdState}/${st.holdStopOutcome}';
       if (_holdSpokenKey != key) {
         _holdSpokenKey = key;
-        _tts.speak(st.holdState == 'fault' || st.holdStopOutcome == 'drive_fault'
-            ? '누름 장치에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
-            : '가전이 멈췄는지 확인하지 못했어요. 지금 가전 정지 버튼을 손으로 눌러 주세요.');
+        _tts.speak(
+            st.holdState == 'fault' || st.holdStopOutcome == 'drive_fault'
+                ? '누름 장치에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
+                : '가전이 멈췄는지 확인하지 못했어요. 지금 가전 정지 버튼을 손으로 눌러 주세요.');
       }
       return;
     }
@@ -1842,7 +1956,8 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   /// 연습 대기 하나를 가리키는 값 — 연습(mock)일 때만. 실제 대기는 null이라 언제나 다시 띄운다(정지가 닿아야 한다).
-  static String? _practiceHoldKey(KioskStatus st) => st.holdExecutionMode == 'mock' ? (st.holdApplianceId ?? '') : null;
+  static String? _practiceHoldKey(KioskStatus st) =>
+      st.holdExecutionMode == 'mock' ? (st.holdApplianceId ?? '') : null;
 
   /// 지금 연습 대기를 만든 실행 번호 — 대기 중인 **그 가전의** 실행일 때만 바꾼다(10/24 실패널: 대기 중 공기청정기를 켜자
   /// 마지막 실행 번호가 바뀌어 닫은 연습 대기가 새 대기로 읽혀 다시 떴다). 대기가 끝나면 [_holdDue]가 지운다.
@@ -1852,7 +1967,9 @@ class _KioskScreenState extends State<KioskScreen> {
   String? _practiceHoldName(KioskStatus st) {
     final app = _practiceHoldKey(st);
     if (app == null) return null;
-    if (st.lastApplianceId != null && st.lastApplianceId == st.holdApplianceId && st.lastJobId != null) {
+    if (st.lastApplianceId != null &&
+        st.lastApplianceId == st.holdApplianceId &&
+        st.lastJobId != null) {
       _holdJob = st.lastJobId;
     }
     return '$app|${_holdJob ?? ''}';
@@ -1899,7 +2016,8 @@ class _KioskScreenState extends State<KioskScreen> {
     if (headline == null) return;
     final name = actionName(_doneLabel);
     final label = name.isNotEmpty ? name : (view.target?.displayName ?? '');
-    _pastResult = KioskPastResult(at: _doneAt, label: label, headline: headline, jobId: _activeJobId);
+    _pastResult = KioskPastResult(
+        at: _doneAt, label: label, headline: headline, jobId: _activeJobId);
   }
 
   /// 조용한 시간에 화면을 만졌다 — 잠시 평소 밝기로(사용자 결정 10/18). 만질 때마다 다시 센다.
@@ -2066,8 +2184,9 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 이어받은 실행의 이름 — 가전 이름, 모르면 빈 문자열(2026-10-14). 예전에는 '실행'으로 메워
   /// "실행 — 다시 누르지 않았어요"가 됐다. 빈 이름이면 완료 화면·음성이 이름 머리를 붙이지 않는다.
-  String _nameOf(String? applianceId) =>
-      applianceId == null ? '' : (_findIn(_appliances, applianceId)?.displayName ?? '');
+  String _nameOf(String? applianceId) => applianceId == null
+      ? ''
+      : (_findIn(_appliances, applianceId)?.displayName ?? '');
 
   Future<void> _fetchAppliances() async {
     final list = await _api.listAppliances();
@@ -2128,7 +2247,9 @@ class _KioskScreenState extends State<KioskScreen> {
   Future<void> _onRoutine(KioskRoutine routine) async {
     // 처음 화면 '무엇을 할까요?' 카드(시안 B 10/24)에서도 온다 — 그때는 카드가 끝나면 처음 화면으로(돌아갈 가전 없음).
     final startedFrom = _phase;
-    if (startedFrom != KioskPhase.manual && startedFrom != KioskPhase.idle) return;
+    if (startedFrom != KioskPhase.manual && startedFrom != KioskPhase.idle) {
+      return;
+    }
     try {
       final result = await _api.triggerRoutine(routine.id);
       if (!mounted || _phase != startedFrom) return;
@@ -2191,8 +2312,11 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() {
       _phase = KioskPhase.manual;
       // 직접 고른 가전에서 실패했으면 그 가전(R7) — 예전에는 가전이 여럿이면 선택을 비웠다.
-      final ctx = _continueApplianceId == null ? null : _findIn(_appliances, _continueApplianceId!);
-      _manualAppliance = ctx ?? (_appliances.length == 1 ? _appliances.single : null);
+      final ctx = _continueApplianceId == null
+          ? null
+          : _findIn(_appliances, _continueApplianceId!);
+      _manualAppliance =
+          ctx ?? (_appliances.length == 1 ? _appliances.single : null);
       _manualOpenBoard = ctx != null && _continueOnBoard;
       _currentSuggestion = null;
       _showDnd = false;
@@ -2207,7 +2331,8 @@ class _KioskScreenState extends State<KioskScreen> {
     // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다("…바꿀까요?").
     // 조용한 시간(2026-10-14)에는 일반 안내 소리를 내지 않는다 — 화면 카드는 그대로.
     if (_health.speakGeneral) {
-      final ownName = suggestion.id == _ownCardId ? suggestion.routineName : null;
+      final ownName =
+          suggestion.id == _ownCardId ? suggestion.routineName : null;
       // 직접 누른 저장된 동작이면 화면 질문과 같은 말('30초 데우기를 할까요?', 10/24 QA).
       if (ownName != null && ownName.isNotEmpty) {
         _tts.speak("${withObject(ownName)} 할까요? 하시려면 화면의 '네'를 눌러 주세요.");
@@ -2238,7 +2363,9 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 제안 화면을 만졌다(접근성 감사 10/18 — 시간 제한 조절) — 남은 시간을 처음 길이로 되돌린다. 이미 더 남았으면 그대로.
   void _touchSuggestion() {
-    if (_phase != KioskPhase.suggestion || _cdRemaining >= _countdownSeconds) return;
+    if (_phase != KioskPhase.suggestion || _cdRemaining >= _countdownSeconds) {
+      return;
+    }
     setState(() => _cdRemaining = _countdownSeconds);
   }
 
@@ -2246,7 +2373,8 @@ class _KioskScreenState extends State<KioskScreen> {
   void _extendSuggestion() {
     if (_phase != KioskPhase.suggestion) return;
     setState(() {
-      _cdRemaining = (_cdRemaining + kSuggestionExtendSeconds).clamp(0, kSuggestionMaxSeconds);
+      _cdRemaining = (_cdRemaining + kSuggestionExtendSeconds)
+          .clamp(0, kSuggestionMaxSeconds);
       if (_cdRemaining > _cdTotal) _cdTotal = _cdRemaining;
     });
   }
@@ -2317,7 +2445,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _lastStatusOk = DateTime.now();
     _foreignPolls = 0;
     // 남은 정지(접수 응답 전에 누른 정지)는 이어받은 실행에도 지킨다(검토 10/19 코어 4차) — 새 실행을 시작하는 쪽이 지운다.
-    _execStop = _stopWhileAccepting ? KioskExecStop.stopping : KioskExecStop.none;
+    _execStop =
+        _stopWhileAccepting ? KioskExecStop.stopping : KioskExecStop.none;
     _admitGen++;
     _accepting = false;
     _admitUnknown = false;
@@ -2353,8 +2482,7 @@ class _KioskScreenState extends State<KioskScreen> {
     });
     final jobId = _activeJobId;
     Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted && _phase == KioskPhase.executing &&
-          _activeJobId == jobId) {
+      if (mounted && _phase == KioskPhase.executing && _activeJobId == jobId) {
         _toDone(success, _execTitle, reason: reason);
       }
     });
@@ -2381,33 +2509,41 @@ class _KioskScreenState extends State<KioskScreen> {
       resultConfirmation: _doneRawConfirmation,
       detail: _doneDetail,
       executionMode: _executionMode,
-      target: _execApplianceId == null ? null : _findIn(_appliances, _execApplianceId!),
+      target: _execApplianceId == null
+          ? null
+          : _findIn(_appliances, _execApplianceId!),
     ).thinqCopy;
-    _tts.speak(thinqCopy != null ? thinqCopy.spoken :
-      // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
-      // 이 시스템이 끝낸 것은 버튼 조작이다.
-      success
-          ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute, confirmation: _doneRawConfirmation, detail: _doneDetail, operationVerified: _doneOperationConfirmed == true && _doneOperationSource == 'real' && _executionMode != 'mock')}'
-          : switch (reason) {
-              KioskFailureReason.serverLost =>
-                '어떻게 됐는지 확인하지 못했어요. 가전을 봐 주세요.',
-              // 정지 단계만큼(2026-10-15). 단계 보고를 아직 기다리면 화면과 같은 진행 말만 하고, 결과는 보고가 오거나
-              // 기다리기를 그만둘 때 말한다(평가 8차 10/18).
-              KioskFailureReason.stopped => _stopPending && _doneStopLevel == null
-                  ? '$kStopPendingHeadline.'
-                  : finishedMessage(
-                      kind: ResultKind.stopped, stopLevel: _doneStopLevel, executionMode: _executionMode),
-              KioskFailureReason.safetyStop =>
-                '$lead${finishedMessage(kind: ResultKind.safetyStop, abortReason: _doneAbortReason)}',
-              KioskFailureReason.unconfirmed =>
-                '$lead${unconfirmedSentence()}',
-              KioskFailureReason.receiptUnknown =>
-                '$lead${unconfirmedSentence(receipt: 'unknown')}',
-              KioskFailureReason.notExecuted =>
-                '$lead가전을 바꾸지 못했어요. 가전 연결을 봐 주세요.',
-              KioskFailureReason.execution =>
-                '$lead눌렸는지 확인하지 못했어요. 가전을 봐 주세요.',
-            },
+    _tts.speak(
+      thinqCopy != null
+          ? thinqCopy.spoken
+          :
+          // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
+          // 이 시스템이 끝낸 것은 버튼 조작이다.
+          success
+              ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute, confirmation: _doneRawConfirmation, detail: _doneDetail, operationVerified: _doneOperationConfirmed == true && _doneOperationSource == 'real' && _executionMode != 'mock')}'
+              : switch (reason) {
+                  KioskFailureReason.serverLost =>
+                    '어떻게 됐는지 확인하지 못했어요. 가전을 봐 주세요.',
+                  // 정지 단계만큼(2026-10-15). 단계 보고를 아직 기다리면 화면과 같은 진행 말만 하고, 결과는 보고가 오거나
+                  // 기다리기를 그만둘 때 말한다(평가 8차 10/18).
+                  KioskFailureReason.stopped =>
+                    _stopPending && _doneStopLevel == null
+                        ? '$kStopPendingHeadline.'
+                        : finishedMessage(
+                            kind: ResultKind.stopped,
+                            stopLevel: _doneStopLevel,
+                            executionMode: _executionMode),
+                  KioskFailureReason.safetyStop =>
+                    '$lead${finishedMessage(kind: ResultKind.safetyStop, abortReason: _doneAbortReason)}',
+                  KioskFailureReason.unconfirmed =>
+                    '$lead${unconfirmedSentence()}',
+                  KioskFailureReason.receiptUnknown =>
+                    '$lead${unconfirmedSentence(receipt: 'unknown')}',
+                  KioskFailureReason.notExecuted =>
+                    '$lead가전을 바꾸지 못했어요. 가전 연결을 봐 주세요.',
+                  KioskFailureReason.execution =>
+                    '$lead눌렸는지 확인하지 못했어요. 가전을 봐 주세요.',
+                },
     );
     _doneReturnTimer?.cancel();
     _doneReturnTimer = null;
@@ -2415,7 +2551,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneAt = DateTime.now();
     _doneAnswered = false;
     _doneHoldGrace?.cancel();
-    _doneHoldGrace = Timer(_largeText ? KioskTimings.doneReturnLarge : _doneReturnDuration, () {});
+    _doneHoldGrace = Timer(
+        _largeText ? KioskTimings.doneReturnLarge : _doneReturnDuration, () {});
     setState(() {
       _phase = KioskPhase.done;
       _doneSuccess = success;
@@ -2433,7 +2570,8 @@ class _KioskScreenState extends State<KioskScreen> {
     // 취소할 수 있는 타이머 — 화면을 만지면 멈춘다(UI 평가 10/17). 예전 Future.delayed는 다음 결과 화면까지 닫을 수 있었다.
     // 큰 글씨는 두 배 — 스크롤해서 읽는 동안 닫히지 않게(UI 평가 4차 10/17).
     // 1초씩 세어 남은 초를 화면에 숫자로 말한다(접근성 감사 10/18 — '잠시 뒤'는 얼마나 남았는지 몰랐다). 전체 길이는 종전과 같다.
-    final total = _largeText ? KioskTimings.doneReturnLarge : _doneReturnDuration;
+    final total =
+        _largeText ? KioskTimings.doneReturnLarge : _doneReturnDuration;
     _doneRemaining = total.inSeconds;
     _doneReturnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted || _phase != KioskPhase.done) {
@@ -2460,7 +2598,10 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() => _doneHeld = true);
   }
 
-  Future<void> _onApprove({KioskSuggestion? suggestion, String? allowFingerprint, String? adoptKey}) async {
+  Future<void> _onApprove(
+      {KioskSuggestion? suggestion,
+      String? allowFingerprint,
+      String? adoptKey}) async {
     if (_dismissingSuggestion || _admitting) return;
     suggestion ??= _currentSuggestion;
     if (suggestion == null) return;
@@ -2481,33 +2622,44 @@ class _KioskScreenState extends State<KioskScreen> {
       _allowConfirmId = null;
     });
     // 실행·완료 화면은 카드의 질문이 아니라 무엇을 하는지(평서형)를 말한다.
-    final label =
-        suggestion.doneLabel(scenarioName: _scenarioNames[suggestion.scenarioId]);
+    final label = suggestion.doneLabel(
+        scenarioName: _scenarioNames[suggestion.scenarioId]);
     // LG 가전 명령 하나뿐인 카드면 버튼판 없는 기다림·결과 창(사용자 요청 10/18). 판정은 승인에 묶인 명령의 경로로.
-    final thinqOnly = isSingleThinqCommand([for (final c in suggestion.commands) c.route]);
+    final thinqOnly =
+        isSingleThinqCommand([for (final c in suggestion.commands) c.route]);
     _beginAdmission();
     final fromRoutine = _routineCard;
-    _routineCard = null; // 한 번 쓰면 끝 — 같은 카드가 나중에 스스로 떠도 이 조작판으로 돌아가지 않는다(코드 검토 10/24)
+    _routineCard =
+        null; // 한 번 쓰면 끝 — 같은 카드가 나중에 스스로 떠도 이 조작판으로 돌아가지 않는다(코드 검토 10/24)
     _toExecuting(label,
         applianceId: suggestion.applianceId,
         thinqOnly: thinqOnly,
         thinqActionText: thinqOnly ? suggestion.commands.single.summary : null,
         // 조작판의 루틴에서 만든 카드면 그 조작판으로 돌아간다. 스스로 뜬 제안은 돌아갈 조작판이 없다.
-        continueApplianceId: fromRoutine != null && fromRoutine.$1 == suggestion.id ? fromRoutine.$2 : null);
+        continueApplianceId:
+            fromRoutine != null && fromRoutine.$1 == suggestion.id
+                ? fromRoutine.$2
+                : null);
     final commands = suggestion.commands;
-    _execPlanButtons = commands.length == 1 && commands.single.route == 'physical' && commands.single.buttons.length > 1
+    _execPlanButtons = commands.length == 1 &&
+            commands.single.route == 'physical' &&
+            commands.single.buttons.length > 1
         ? List.unmodifiable(commands.single.buttons)
         : null;
     final gen = _admitGen;
     _accepting = true;
-    _retryAction = () => _onApprove(suggestion: suggestion, allowFingerprint: allowFingerprint, adoptKey: adoptKey);
+    _retryAction = () => _onApprove(
+        suggestion: suggestion,
+        allowFingerprint: allowFingerprint,
+        adoptKey: adoptKey);
 
     try {
       // job 모델: 즉시 접수 — 진행·완료는 _pollExecuting이 job_id 대조로 따라간다
       final KioskJobAccepted accepted;
       if (adoptKey != null) {
         // 이번 실행 + 매일 그 시각 루틴(+ 맡기기). 저장 결과는 결과 화면 위 한 줄로.
-        final (job, problem) = await _api.approveAndAdoptSuggestion(suggestion.id, adoptKey);
+        final (job, problem) =
+            await _api.approveAndAdoptSuggestion(suggestion.id, adoptKey);
         accepted = job;
         if (mounted && gen == _admitGen) {
           final auto = suggestion.adoptOffer?.auto ?? false;
@@ -2515,8 +2667,10 @@ class _KioskScreenState extends State<KioskScreen> {
           _autoNoticeTimer?.cancel();
           setState(() {
             _clearAutoNotice();
-            _autoNotice =
-                problem ?? (auto ? '$days 이 시간에 알아서 할게요. 설정의 자동 실행에서 끌 수 있어요.' : '$days 이 시간에 여쭤볼게요.');
+            _autoNotice = problem ??
+                (auto
+                    ? '$days 이 시간에 알아서 할게요. 설정의 자동 실행에서 끌 수 있어요.'
+                    : '$days 이 시간에 여쭤볼게요.');
           });
           _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
             if (mounted) setState(() => _autoNotice = null);
@@ -2524,21 +2678,24 @@ class _KioskScreenState extends State<KioskScreen> {
         }
       } else if (allowFingerprint != null) {
         // 이번 실행 + 다음부터 맡기기(서버가 지문으로 화면과 같은 내용인지 다시 본다). 맡기기 저장 결과는 결과 화면 위 한 줄로.
-        final (job, allowFailed) = await _api.approveAndAllowSuggestion(suggestion.id, allowFingerprint,
+        final (job, allowFailed) = await _api.approveAndAllowSuggestion(
+            suggestion.id, allowFingerprint,
             clientRequestId: _admitRequestId);
         accepted = job;
         if (mounted && gen == _admitGen) {
           _autoNoticeTimer?.cancel();
           setState(() {
             _clearAutoNotice();
-            _autoNotice = allowFailed ?? '다음부터는 묻지 않고 할게요. 설정의 자동 실행에서 끌 수 있어요.';
+            _autoNotice =
+                allowFailed ?? '다음부터는 묻지 않고 할게요. 설정의 자동 실행에서 끌 수 있어요.';
           });
           _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
             if (mounted) setState(() => _autoNotice = null);
           });
         }
       } else {
-        accepted = await _api.approveSuggestion(suggestion.id, clientRequestId: _admitRequestId);
+        accepted = await _api.approveSuggestion(suggestion.id,
+            clientRequestId: _admitRequestId);
       }
       if (gen != _admitGen) return;
       _accepting = false;
@@ -2560,7 +2717,9 @@ class _KioskScreenState extends State<KioskScreen> {
         // 412(준비 안 됨)는 서버 문장이 이유를 말한다.
         final message = e.isApprovalChanged
             ? kApprovalChangedMessage
-            : (e.detail.isNotEmpty ? e.detail : '가전을 아직 쓸 수 없어요. 휴대폰 앱에서 가전 설정을 봐 주세요.');
+            : (e.detail.isNotEmpty
+                ? e.detail
+                : '가전을 아직 쓸 수 없어요. 휴대폰 앱에서 가전 설정을 봐 주세요.');
         _tts.speak(message);
         _toIdle();
         ScaffoldMessenger.of(context)
@@ -2569,8 +2728,7 @@ class _KioskScreenState extends State<KioskScreen> {
         return;
       }
       // 접수 거절(409 등) — 올 수 없는 완료를 기다리는 대신 즉시 실패 화면으로 탈출한다.
-      _toDone(false, label,
-          reason: KioskFailureReason.serverLost);
+      _toDone(false, label, reason: KioskFailureReason.serverLost);
     }
   }
 
@@ -2597,13 +2755,16 @@ class _KioskScreenState extends State<KioskScreen> {
     });
   }
 
-  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _admitUnknownNotice;
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>?
+      _admitUnknownNotice;
 
   /// 응답을 잃은 접수가 풀렸다(이어받음·결과 찾음·포기) — '시작됐을 수 있어요' 알림을 내린다. 결과 화면 단추를 가리지 않게.
   void _endAdmitUnknown() {
     _admitUnknown = false;
     // 아직 열린 알림이면 맨 앞이다 — 바로 걷는다(닫히는 움직임 동안에도 결과 화면 단추를 가렸다).
-    if (_admitUnknownNotice != null) ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    if (_admitUnknownNotice != null) {
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    }
     _admitUnknownNotice = null;
   }
 
@@ -2614,7 +2775,11 @@ class _KioskScreenState extends State<KioskScreen> {
     final gen = _admitGen;
     final requestId = _admitRequestId;
     bool stale() =>
-        !mounted || gen != _admitGen || _phase != KioskPhase.executing || !_admitUnknown || _activeJobId != null;
+        !mounted ||
+        gen != _admitGen ||
+        _phase != KioskPhase.executing ||
+        !_admitUnknown ||
+        _activeJobId != null;
     try {
       final st = await _api.status();
       if (stale()) return;
@@ -2625,7 +2790,9 @@ class _KioskScreenState extends State<KioskScreen> {
           : await _api.jobByRequest(requestId);
       if (stale()) return;
       // 무엇도 알지 못했다 — 끊김과 같이 센다(오래 이어지면 [_statusLostTimeout]으로 결과 화면).
-      if (lookup.kind == KioskRequestLookupKind.failed) throw StateError('job lookup failed');
+      if (lookup.kind == KioskRequestLookupKind.failed) {
+        throw StateError('job lookup failed');
+      }
       _lastStatusOk = DateTime.now();
       if (lookup.kind == KioskRequestLookupKind.found) {
         _endAdmitUnknown();
@@ -2674,7 +2841,8 @@ class _KioskScreenState extends State<KioskScreen> {
     } catch (_) {
       if (stale()) return;
       final since = _lastStatusOk;
-      if (since != null && DateTime.now().difference(since) > _statusLostTimeout) {
+      if (since != null &&
+          DateTime.now().difference(since) > _statusLostTimeout) {
         _stopWhileAccepting = false;
         _endAdmitUnknown();
         _toDone(false, _execTitle, reason: KioskFailureReason.serverLost);
@@ -2685,17 +2853,23 @@ class _KioskScreenState extends State<KioskScreen> {
   /// '아니요' — 위 '이 제안 앞으로 받지 않기'를 체크했으면 다시 받지 않기(mute=true), 아니면 이번만.
   Future<void> _onReject() {
     final id = _currentSuggestion?.id;
-    return _dismissSuggestion(mute: id != null && _muteSuggestionId == id && _offersMute(_currentSuggestion!));
+    return _dismissSuggestion(
+        mute: id != null &&
+            _muteSuggestionId == id &&
+            _offersMute(_currentSuggestion!));
   }
 
   /// 체크 줄을 두는 카드 — 서버가 스스로 낸 제안만(내가 연 카드·루틴 카드 제외). 보기([KioskSuggestionView.offersMute])와 같은 규칙.
-  bool _offersMute(KioskSuggestion s) => s.id != _ownCardId && s.routineId == null && !s.isAdvice;
+  bool _offersMute(KioskSuggestion s) =>
+      s.id != _ownCardId && s.routineId == null && !s.isAdvice;
 
   /// 조언 카드의 '알겠어요'(2026-10-26) — 실행 없이 닫고 서버에 '알겠어요'로 남긴다. '괜찮아요'는 보통 거절([_onReject]).
-  Future<void> _onAcknowledge() => _dismissSuggestion(mute: false, reason: 'acknowledged');
+  Future<void> _onAcknowledge() =>
+      _dismissSuggestion(mute: false, reason: 'acknowledged');
 
   /// '이미 했어요'(습관 카드) — 서버가 오늘은 다시 묻지 않는다(거절로 세지 않음). 닫는 흐름은 '아니요'와 같다.
-  Future<void> _onMarkDone() => _dismissSuggestion(mute: false, reason: 'already_done');
+  Future<void> _onMarkDone() =>
+      _dismissSuggestion(mute: false, reason: 'already_done');
 
   Future<void> _dismissSuggestion({required bool mute, String? reason}) async {
     final suggestion = _currentSuggestion;
@@ -2704,19 +2878,24 @@ class _KioskScreenState extends State<KioskScreen> {
     _countdownTimer?.cancel();
     try {
       await _api.rejectSuggestion(suggestion.id, mute: mute, reason: reason);
-      if (mounted && _phase == KioskPhase.suggestion &&
+      if (mounted &&
+          _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
         _muteSuggestionId = null;
         _toIdle();
         if (mute) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(kSuggestionMutedNotice)));
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text(kSuggestionMutedNotice)));
         }
       }
     } catch (_) {
-      if (mounted && _phase == KioskPhase.suggestion &&
+      if (mounted &&
+          _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(mute ? kSuggestionMuteFailedNotice : kSuggestionRejectFailedNotice),
+          content: Text(mute
+              ? kSuggestionMuteFailedNotice
+              : kSuggestionRejectFailedNotice),
         ));
       }
     } finally {
@@ -2755,8 +2934,7 @@ class _KioskScreenState extends State<KioskScreen> {
         return;
       }
       _stopWhileAccepting = false;
-      _toDone(false, button.label,
-          reason: KioskFailureReason.serverLost);
+      _toDone(false, button.label, reason: KioskFailureReason.serverLost);
     }
   }
 
@@ -2798,10 +2976,14 @@ class _KioskScreenState extends State<KioskScreen> {
     if (!_stopWhileAccepting) return;
     final mine = _activeJobId;
     final askedAt = _stopAskedAt;
-    final fresh = askedAt != null && DateTime.now().difference(askedAt) <= _pendingStopWindow;
+    final fresh = askedAt != null &&
+        DateTime.now().difference(askedAt) <= _pendingStopWindow;
     // 루틴을 따라가면(내 번호가 루틴 첫 번호) 구간 사이 기다림·다음 구간도 내 실행이다(검토 10/19).
     final routineMine = mine != null && st.routineRunId == mine;
-    if (routineMine || (st.running && st.jobId != null && (mine == null ? fresh : st.jobId == mine))) {
+    if (routineMine ||
+        (st.running &&
+            st.jobId != null &&
+            (mine == null ? fresh : st.jobId == mine))) {
       unawaited(_sendExecStop());
       return;
     }
@@ -2816,21 +2998,29 @@ class _KioskScreenState extends State<KioskScreen> {
       // (진행 중인 루틴이 아님·옛 본체·끊김) 아래 본체 전체 정지로 갈음한다 — 멈추라는 뜻은 그대로 전한다.
       try {
         await _api.stopRoutineRun(routineRunId);
-        if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) return;
+        if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) {
+          return;
+        }
         setState(() => _execStop = KioskExecStop.stopping);
         return;
       } catch (_) {
-        if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) return;
+        if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) {
+          return;
+        }
       }
     }
     try {
       await _api.stop();
-      if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) return;
+      if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) {
+        return;
+      }
       setState(() => _execStop = KioskExecStop.stopping);
     } catch (_) {
       // 정지 요청조차 실패(통신·본체 거절) — 실행 화면과 정지 단추를 그대로 두고 닿지 않았다고 말한다(검토 10/19).
       // 통신이 계속 끊기면 30초 탈출 타이머가(_pollExecuting의 _statusLostTimeout) 결국 실패 화면으로 빼낸다.
-      if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) return;
+      if (!mounted || gen != _admitGen || _phase != KioskPhase.executing) {
+        return;
+      }
       setState(() => _execStop = KioskExecStop.failed);
     }
   }
@@ -2862,7 +3052,8 @@ class _KioskScreenState extends State<KioskScreen> {
     }
     if (!sent) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(kDndNotSentNotice)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text(kDndNotSentNotice)));
       }
       return;
     }
@@ -2917,7 +3108,8 @@ class _KioskScreenState extends State<KioskScreen> {
                 Offstage(offstage: _roomSleeping, child: _buildScaffold()),
                 if (_roomSleeping)
                   KioskRoomSleep(
-                    onWake: () => setState(() => _touchWakeUntil = DateTime.now().add(const Duration(minutes: 2))),
+                    onWake: () => setState(() => _touchWakeUntil =
+                        DateTime.now().add(const Duration(minutes: 2))),
                   ),
               ]),
             ),
@@ -2927,20 +3119,31 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Widget _buildScaffold() {
     return Scaffold(
-      floatingActionButton: const bool.fromEnvironment('SIMPLELAY_ROUTINE_MOCK') && _phase == KioskPhase.idle && !_showSettings && !_showDnd && !_alert.active
-          ? FloatingActionButton.extended(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => RoutineRehearsalScreen(request: _api.routineRequest),
-              )),
-              label: const Text('여러 가전 연습'), icon: const Icon(Icons.science_outlined),
-            ) : null,
+      floatingActionButton:
+          const bool.fromEnvironment('SIMPLELAY_ROUTINE_MOCK') &&
+                  _phase == KioskPhase.idle &&
+                  !_showSettings &&
+                  !_showDnd &&
+                  !_alert.active
+              ? FloatingActionButton.extended(
+                  onPressed: () =>
+                      Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) =>
+                        RoutineRehearsalScreen(request: _api.routineRequest),
+                  )),
+                  label: const Text('여러 가전 연습'),
+                  icon: const Icon(Icons.science_outlined),
+                )
+              : null,
       // 조용한 시간이면 바탕만 어둡게(접근성 감사 10/18) — 캔버스 바탕과 같은 색이라 안쪽 사각형 테두리가 드러나지 않는다.
       // 창이 떠 있으면 바탕도 막과 같은 색 — 맨 위 3px(진행 막대 자리)·캔버스 가장자리가 밝은 선으로 남았다(실패널 10/24).
       backgroundColor: _roomSleeping
           ? KioskRoomSleep.sleepColor
           : _scrimOn
-          ? Color.alphaBlend(Colors.black.withValues(alpha: KioskCanvas.scrimAlpha), _quietDim ? KioskCanvas.quietBg : KioskColors.bg)
-          : (_quietDim ? KioskCanvas.quietBg : KioskColors.bg),
+              ? Color.alphaBlend(
+                  Colors.black.withValues(alpha: KioskCanvas.scrimAlpha),
+                  _quietDim ? KioskCanvas.quietBg : KioskColors.bg)
+              : (_quietDim ? KioskCanvas.quietBg : KioskColors.bg),
       body: Stack(
         children: [
           Positioned(
@@ -2963,9 +3166,11 @@ class _KioskScreenState extends State<KioskScreen> {
                         confirming: _estopConfirming,
                         acking: _estopAcking,
                         message: _estopMessage,
-                        onRequest: () => setState(() => _estopConfirming = true),
+                        onRequest: () =>
+                            setState(() => _estopConfirming = true),
                         onConfirm: _onEstopConfirm,
-                        onCancel: () => setState(() => _estopConfirming = false),
+                        onCancel: () =>
+                            setState(() => _estopConfirming = false),
                       )
                     : null,
                 child: Stack(
@@ -2978,27 +3183,30 @@ class _KioskScreenState extends State<KioskScreen> {
                       child: ExcludeSemantics(
                         excluding: _overlayOpen,
                         child: KioskEstopLayout(
-                        banner: _topNotices(),
-                        // 아래 탭 줄(시안 B 10/24) — 평소·가전 화면에서만. 화면 안 확인 창이 뜨면 숨는다([_tabSuppress]).
-                        child: KioskTabSuppressScope(
-                          count: _tabSuppress,
-                          child: Column(children: [
-                            Expanded(
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 250),
-                                child: _buildScreen(),
+                          banner: _topNotices(),
+                          // 아래 탭 줄(시안 B 10/24) — 평소·가전 화면에서만. 화면 안 확인 창이 뜨면 숨는다([_tabSuppress]).
+                          child: KioskTabSuppressScope(
+                            count: _tabSuppress,
+                            child: Column(children: [
+                              Expanded(
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 250),
+                                  child: _buildScreen(),
+                                ),
                               ),
-                            ),
-                            if (_showTabs)
-                              ValueListenableBuilder<int>(
-                                valueListenable: _tabSuppress,
-                                builder: (context, suppressed, _) => suppressed > 0
-                                    ? const SizedBox.shrink()
-                                    : KioskTabBar(current: _currentTab, onSelect: _onTab),
-                              ),
-                          ]),
+                              if (_showTabs)
+                                ValueListenableBuilder<int>(
+                                  valueListenable: _tabSuppress,
+                                  builder: (context, suppressed, _) =>
+                                      suppressed > 0
+                                          ? const SizedBox.shrink()
+                                          : KioskTabBar(
+                                              current: _currentTab,
+                                              onSelect: _onTab),
+                                ),
+                            ]),
+                          ),
                         ),
-                      ),
                       ),
                     ),
                     if (_showDnd)
@@ -3019,50 +3227,67 @@ class _KioskScreenState extends State<KioskScreen> {
                     if (_alert.active && !_alertAcknowledged)
                       Positioned.fill(
                         child: DangerAlertOverlay(
-                          onAcknowledge: () => setState(() => _alertAcknowledged = true),
+                          onAcknowledge: () =>
+                              setState(() => _alertAcknowledged = true),
                         ),
                       ),
                     if (_openConnectionId != null && _phase == KioskPhase.idle)
-                      Positioned.fill(child: KioskModalSemantics(label: '연결', child: _buildConnectionModal())),
+                      Positioned.fill(
+                          child: KioskModalSemantics(
+                              label: '연결', child: _buildConnectionModal())),
                     if (_greeting)
                       // 메뉴 단추 왼쪽 빈자리 — 가운데에 두면 날짜·온습도를 가렸다(10/26 실패널 점검).
-                      Positioned(top: 16, right: 100, child: KioskWelcomeBack(text: _room?.greeting ?? '어서 오세요')),
+                      Positioned(
+                          top: 16,
+                          right: 100,
+                          child: KioskWelcomeBack(
+                              text: _room?.greeting ?? '어서 오세요')),
                     if (_showSettings)
                       Positioned.fill(
                         child: KioskModalSemantics(
-                        label: '본체 화면 설정',
-                        child: KioskSettingsOverlay(
-                          currentAppliance: _currentAppliance,
-                          appliances: _appliances,
-                          api: _api,
-                          ttsEnabled: _tts.enabled,
-                          onTtsChanged: (enabled) {
-                            setState(() => _tts.enabled = enabled);
-                            _persistSettings();
-                          },
-                          muted: _tts.muted,
-                          onMutedChanged: (muted) {
-                            setState(() => _tts.muted = muted);
-                            _persistSettings();
-                          },
-                          largeTextEnabled: _largeText,
-                          onLargeTextChanged: (enabled) {
-                            setState(() => _largeText = enabled);
-                            _persistSettings();
-                          },
-                          highContrastEnabled: _highContrast,
-                          onHighContrastChanged: _setHighContrast,
-                          screenTone: _tone,
-                          onScreenToneChanged: _setScreenTone,
-                          countdownSeconds: _countdownSeconds,
-                          onCountdownChanged: (seconds) {
-                            setState(() => _countdownSeconds = seconds);
-                            _persistSettings();
-                          },
-                          onDismiss: () => setState(() => _showSettings = false),
-                          // 조용한 시간은 보여 주기만 — 방해 금지는 메뉴 한 곳에만 둔다(사용자 결정 10/19).
-                          quietSchedule: _health.quietSchedule,
+                          label: '본체 화면 설정',
+                          child: KioskSettingsOverlay(
+                            currentAppliance: _currentAppliance,
+                            appliances: _appliances,
+                            api: _api,
+                            ttsEnabled: _tts.enabled,
+                            onTtsChanged: (enabled) {
+                              setState(() => _tts.enabled = enabled);
+                              _persistSettings();
+                            },
+                            muted: _tts.muted,
+                            onMutedChanged: (muted) {
+                              setState(() => _tts.muted = muted);
+                              _persistSettings();
+                            },
+                            largeTextEnabled: _largeText,
+                            onLargeTextChanged: (enabled) {
+                              setState(() => _largeText = enabled);
+                              _persistSettings();
+                            },
+                            highContrastEnabled: _highContrast,
+                            onHighContrastChanged: _setHighContrast,
+                            screenTone: _tone,
+                            onScreenToneChanged: _setScreenTone,
+                            countdownSeconds: _countdownSeconds,
+                            onCountdownChanged: (seconds) {
+                              setState(() => _countdownSeconds = seconds);
+                              _persistSettings();
+                            },
+                            onDismiss: () =>
+                                setState(() => _showSettings = false),
+                            // 조용한 시간은 보여 주기만 — 방해 금지는 메뉴 한 곳에만 둔다(사용자 결정 10/19).
+                            quietSchedule: _health.quietSchedule,
+                          ),
                         ),
+                      ),
+                    if (_voiceModalOpen)
+                      Positioned.fill(
+                        child: KioskVoiceListenOverlay(
+                          remaining: _voiceListenRemaining,
+                          failed: _voiceFailed,
+                          onCancel: _closeVoiceModal,
+                          onRetry: _listenFromKiosk,
                         ),
                       ),
                   ],
@@ -3078,7 +3303,8 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 평소·결과 화면 위에 줄을 더하는 알림들 — 자동 실행 결과 한 줄(C2)과 처음 화면의 '지난 일'(사용자 결정 10/18).
   /// 지난 일은 처음 화면에서만(결과 화면에는 그 결과가 이미 크게 보인다). 둘 다 없으면 null.
   Widget? _topNotices() {
-    final auto = _autoNotice != null && (_phase == KioskPhase.idle || _phase == KioskPhase.done)
+    final auto = _autoNotice != null &&
+            (_phase == KioskPhase.idle || _phase == KioskPhase.done)
         ? KioskAutoRunNotice(
             key: ValueKey('auto-run-${_autoUndoRunId ?? ''}'),
             text: _autoNotice!,
@@ -3100,7 +3326,10 @@ class _KioskScreenState extends State<KioskScreen> {
           )
         : null;
     if (auto == null || past == null) return auto ?? past;
-    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [auto, past]);
+    return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [auto, past]);
   }
 
   /// 결과 화면 — 화면과 '지난 일' 판정이 같은 값을 쓴다.
@@ -3152,16 +3381,19 @@ class _KioskScreenState extends State<KioskScreen> {
         onStopAgain: _executionMode == 'mock' ? null : _onDoneStopAgain,
         stopAgain: _doneStopAgain,
         onDismiss: _toIdle,
-        onContinue: _continueApplianceId == null ? null : _continueSameAppliance,
+        onContinue:
+            _continueApplianceId == null ? null : _continueSameAppliance,
         onPickOther: _continueApplianceId == null ? null : _pickOtherAppliance,
-        continueName: _continueApplianceId == null ? null : _nameOf(_continueApplianceId),
+        continueName:
+            _continueApplianceId == null ? null : _nameOf(_continueApplianceId),
         // 사람 확인 흐름(휴리스틱 평가 10/18) — 답하면 키오스크 안에 기억하고 처음 화면으로('지난 일' 줄은 남기지 않는다).
         onChecked: _onDoneChecked,
         // '안 바뀌었어요·안 켜졌어요'라고 답한 뒤의 '한 번 더 하기' — 다시 보낼 요청이 있고, 본체 끊김·누름 장치 걸림이 아닐 때.
         // LG 가전 확인 못 함도 사람이 바뀌지 않았다고 본 뒤에는 연다(같은 설정을 다시 보내는 것 — 이미 그 값이면 서버가 보내지 않는다).
         onRetryAfterCheck: _retryAction == null ||
                 _doneReason == KioskFailureReason.serverLost ||
-                (_doneReason == KioskFailureReason.safetyStop && motionAbortSentence(_doneAbortReason) != null)
+                (_doneReason == KioskFailureReason.safetyStop &&
+                    motionAbortSentence(_doneAbortReason) != null)
             ? null
             : () {
                 // 사람이 '안 …'이라고 답한 뒤의 다시 하기 — 답했으니 옛 결과를 '지난 일'로 남기지 않는다. 답은 본체에 적는다.
@@ -3185,11 +3417,15 @@ class _KioskScreenState extends State<KioskScreen> {
       worked: worked,
     ));
     if (_personChecks.length > kPersonCheckKeep) _personChecks.removeAt(0);
-    if (_activeJobId != null) _ack(_activeJobId, worked ? 'moved' : 'not_moved');
+    if (_activeJobId != null) {
+      _ack(_activeJobId, worked ? 'moved' : 'not_moved');
+    }
     _doneAnswered = true;
     // 직접 고른 가전이면 답한 뒤 그 조작판으로(R7) — 처음 화면을 강제하지 않는다. 본체에 닿지 않아 조작판을 열 수 없으면
     // 종전처럼 처음 화면으로(코드 검토 10/24 — 답한 물음이 결과 화면에 남아 있었다). 연결 창은 그대로 열려 있다.
-    if (_continueApplianceId != null && _toManualAfterResult(pickOther: false)) return;
+    if (_continueApplianceId != null && _toManualAfterResult(pickOther: false)) {
+      return;
+    }
     _toIdle();
   }
 
@@ -3220,56 +3456,47 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 처음 화면 — 탭 화면의 메뉴 창([KioskMenuHost])도 이 설정에서 방해 금지·연결·설정 값을 읽는다(같은 창 한 벌).
   KioskIdleView _idleView() => KioskIdleView(
-      key: const ValueKey('idle'),
-      now: _now,
-      connected: _health.ok,
-      ambient: _ambient,
-      connections: _connectionItems,
-      // 서버 목록에서 확인된 가전만 줄에 세운다 — 내장 폴백으로 설치한 적
-      // 없는 가전을 세우지 않는다.
-      appliances: _appliancesFromServer ? _appliances : null,
-      running: _runningIds,
-      attention: _attentionIds,
-      on: _onIds,
-      off: _offIds,
-      air: _air,
-      nextRun: _nextRun,
-      nextRunBusy: _nextRunBusy,
-      nextRunNotice: _nextRunNotice,
-      onToggleNextRunSkip: _toggleNextRunSkip,
-      dndUntil: _health.dndUntil,
-      dndScope: _health.dndScope,
-      quietUntil: _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
-      temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
-      humidity: _sensorData?.mocked == false ? _sensorData?.humidity : null,
-      onSelectAppliance: _toMyAppliance,
-      onOpenConnection: (item) =>
-          setState(() => _openConnectionId = item.id),
-      onDndGesture: () => setState(() => _showDnd = true),
-      onSettingsGesture: () => setState(() => _showSettings = true),
-      // 비상 버튼이 눌려 있을 때 상태 칩·못 쓰는 가전 타일을 누르면 위 띠의 풀기 안내를 연다(평가 4차 10/18).
-      onEstopGuide: () => setState(() => _estopConfirming = true),
-      // '무엇을 할까요?' 카드(시안 B 10/24) — 내 가전 화면 루틴 칸과 같은 길(확인 카드가 승인).
-      routines: _routines,
-      onRoutine: _onRoutine,
-      onVoice: _listenFromKiosk,
-      voiceNotice: _voiceNotice,
-      quietDim: _quietDim,
-      onTouch: _noteIdleTouch,
-    );
+        key: const ValueKey('idle'),
+        now: _now,
+        connected: _health.ok,
+        ambient: _ambient,
+        connections: _connectionItems,
+        // 서버 목록에서 확인된 가전만 줄에 세운다 — 내장 폴백으로 설치한 적
+        // 없는 가전을 세우지 않는다.
+        appliances: _appliancesFromServer ? _appliances : null,
+        running: _runningIds,
+        attention: _attentionIds,
+        on: _onIds,
+        off: _offIds,
+        air: _air,
+        nextRun: _nextRun,
+        nextRunBusy: _nextRunBusy,
+        nextRunNotice: _nextRunNotice,
+        onToggleNextRunSkip: _toggleNextRunSkip,
+        dndUntil: _health.dndUntil,
+        dndScope: _health.dndScope,
+        quietUntil:
+            _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
+        temperature:
+            _sensorData?.mocked == false ? _sensorData?.temperature : null,
+        humidity: _sensorData?.mocked == false ? _sensorData?.humidity : null,
+        onSelectAppliance: _toMyAppliance,
+        onOpenConnection: (item) => setState(() => _openConnectionId = item.id),
+        onDndGesture: () => setState(() => _showDnd = true),
+        onSettingsGesture: () => setState(() => _showSettings = true),
+        // 비상 버튼이 눌려 있을 때 상태 칩·못 쓰는 가전 타일을 누르면 위 띠의 풀기 안내를 연다(평가 4차 10/18).
+        onEstopGuide: () => setState(() => _estopConfirming = true),
+        // '무엇을 할까요?' 카드(시안 B 10/24) — 내 가전 화면 루틴 칸과 같은 길(확인 카드가 승인).
+        routines: _routines,
+        onRoutine: _onRoutine,
+        onVoice: _listenFromKiosk,
+        quietDim: _quietDim,
+        onTouch: _noteIdleTouch,
+      );
 
   Widget _buildScreen() {
     switch (_phase) {
       case KioskPhase.idle:
-        if (_kioskVoiceBusy) {
-          final listening = _voiceListenRemaining > 0;
-          return Center(
-            key: const ValueKey('kiosk-voice-progress'),
-            child: KioskText(listening ? '듣고 있어요… ($_voiceListenRemaining초)' : '생각하고 있어요',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: KioskType.key, fontWeight: FontWeight.w700, color: KioskColors.ink)),
-          );
-        }
         // 휴대폰에서 말한 확인 질문(10/26) — 처음 화면에서만. 실행·대기·결과 화면은 가리지 않는다.
         if (_voiceProposal case final p?) {
           return KioskVoiceProposalView(
@@ -3314,7 +3541,9 @@ class _KioskScreenState extends State<KioskScreen> {
                 entries: _historyEntries,
                 loading: _historyLoading,
                 now: _now,
-                applianceNames: {for (final a in _appliances) a.id: a.displayName},
+                applianceNames: {
+                  for (final a in _appliances) a.id: a.displayName
+                },
                 onReload: _fetchHistory,
                 onMenu: openMenu,
               ),
@@ -3380,14 +3609,14 @@ class _KioskScreenState extends State<KioskScreen> {
           onExecute: _onManualExecute,
           onCancel: _fromManual,
           initialShowBoard: _manualOpenBoard,
-          routines: _routines
-              ?.where((r) => r.involves(manualAppliance.id))
-              .toList(),
+          routines:
+              _routines?.where((r) => r.involves(manualAppliance.id)).toList(),
           onRoutine: _onRoutine,
           applianceNames: {for (final a in _appliances) a.id: a.displayName},
           thinqRead: () => _api.thinqStatus(manualAppliance.id),
-          thinqSend: (action, args, requestId) =>
-              _api.thinqCommand(manualAppliance.id, action, args, clientRequestId: requestId),
+          thinqSend: (action, args, requestId) => _api.thinqCommand(
+              manualAppliance.id, action, args,
+              clientRequestId: requestId),
           thinqLookup: _api.jobByRequest,
           onThinqAccepted: _onThinqAccepted,
         );
@@ -3395,7 +3624,10 @@ class _KioskScreenState extends State<KioskScreen> {
         // 승인 직후 카드를 내린 한 프레임(실행 화면으로 넘어가기 전)에도 무너지지 않게 — 예전에는 그 사이 오류가 나면 화면이
         // 회색으로 멈췄다(10/24 웹 점검).
         final suggestion = _currentSuggestion;
-        if (suggestion == null) return ColoredBox(key: const ValueKey('suggestion-closing'), color: KioskColors.bg);
+        if (suggestion == null) {
+          return ColoredBox(
+              key: const ValueKey('suggestion-closing'), color: KioskColors.bg);
+        }
         final targetId = suggestion.applianceId;
         return KioskSuggestionView(
           key: const ValueKey('suggestion'),
@@ -3406,7 +3638,8 @@ class _KioskScreenState extends State<KioskScreen> {
           cdRemaining: _cdRemaining,
           cdTotal: _cdTotal,
           onTouch: _touchSuggestion,
-          onExtend: _cdRemaining < kSuggestionMaxSeconds ? _extendSuggestion : null,
+          onExtend:
+              _cdRemaining < kSuggestionMaxSeconds ? _extendSuggestion : null,
           scenarioName: _scenarioNames[suggestion.scenarioId],
           blockedWhy: suggestion.isScenario ? _scenarioBlockedWhy : null,
           onApprove: _onApprove,
@@ -3416,20 +3649,24 @@ class _KioskScreenState extends State<KioskScreen> {
           startedByUser: _ownCardId != null && _ownCardId == suggestion.id,
           muteChecked: _muteSuggestionId == suggestion.id,
           onMuteChanged: _offersMute(suggestion)
-              ? (v) => setState(() => _muteSuggestionId = v ? suggestion.id : null)
+              ? (v) =>
+                  setState(() => _muteSuggestionId = v ? suggestion.id : null)
               : null,
-          onAllowAuto: suggestion.autoRuleOffer == null && suggestion.adoptOffer == null
-              ? null
-              : () {
-                  _touchSuggestion();
-                  setState(() => _allowConfirmId = suggestion.id);
-                },
+          onAllowAuto:
+              suggestion.autoRuleOffer == null && suggestion.adoptOffer == null
+                  ? null
+                  : () {
+                      _touchSuggestion();
+                      setState(() => _allowConfirmId = suggestion.id);
+                    },
           allowConfirming: _allowConfirmId == suggestion.id,
           onAllowCancel: () => setState(() => _allowConfirmId = null),
           onAllowConfirm: () => _onApprove(
               suggestion: suggestion,
               allowFingerprint: suggestion.autoRuleOffer?.fingerprint,
-              adoptKey: suggestion.autoRuleOffer == null ? suggestion.adoptOffer?.candidateKey : null),
+              adoptKey: suggestion.autoRuleOffer == null
+                  ? suggestion.adoptOffer?.candidateKey
+                  : null),
         );
       case KioskPhase.executing:
         return KioskExecutingView(
