@@ -62,6 +62,8 @@ String _sentText(DevLogLine line) {
       return '센서 읽기';
     case 'press':
       return parts.length > 1 ? '누르기 ${parts.sublist(1).join(' ')}' : '누르기';
+    case 'press_here':
+      return '현재 위치에서 스위치봇 한 번 누르기';
     case 'stop':
       return '정지';
   }
@@ -78,6 +80,7 @@ String _replyText(DevLogLine line) {
       final where = (x != null && y != null) ? ' (${_f2(x)}, ${_f2(y)})' : '';
       if (line.board['reached'] == false) return '목표 전에 멈춤$where';
       if (line.command?.startsWith('jog') ?? false) {
+        if (x == null || y == null) return '이동 응답 받음 · 위치 미확인';
         return '도착$where${error != null ? ' 오차 ${_f2(error)}' : ''}';
       }
       return '완료$where';
@@ -113,3 +116,24 @@ String _eventText(String event) => switch (event) {
       'command_rejected' => '거절',
       _ => event,
     };
+
+String motionTraceRow(Map<String, dynamic> row) {
+  final direction = switch (row['direction']) {
+    'tx' => '→ 전송 시도',
+    'rx' => '← 받음',
+    'boot' => '보드 재시작 감지',
+    'link_down' => '연결 끊김',
+    'timeout' => '응답 시간 초과',
+    _ => '통신',
+  };
+  final x = row['x_mm'];
+  final y = row['y_mm'];
+  final position = x is num && y is num ? '위치 ($x, $y)mm' : '위치 미확인';
+  final tx = row['target_x_mm'];
+  final ty = row['target_y_mm'];
+  return '#${row['seq'] ?? '?'} · 기준 ${row['generation'] ?? '?'} · ${row['elapsed_ms'] ?? '?'}ms\n'
+      '$direction ${row['action'] ?? row['state'] ?? ''} · ${row['commandId'] ?? '명령 번호 없음'}\n'
+      '${row['context_id'] is String ? '실행·요청 ${row['context_id']}\n' : ''}'
+      '${tx is num && ty is num ? '목표 ($tx, $ty)mm · ' : ''}$position'
+      '${row['homed'] is bool ? ' · 원점 ${row['homed'] == true ? '확인' : '미확인'}' : ''}';
+}

@@ -754,20 +754,20 @@ class ActExecutor:
         try:
             # Run the synchronous controller in a thread so the event loop
             # stays responsive to incoming UART data during execution.
-            if getattr(self._controller, "supports_button_behaviors", False) is True:
-                result = await asyncio.to_thread(
-                    self._controller.execute, list(msg.buttons), msg.targets or None,
-                    button_behaviors=msg.button_behaviors)
-            elif msg.targets:
-                # 좌표가 실린 실행만 targets를 넘긴다 — 좌표 없는 종전 실행은
-                # 호출 모양까지 그대로 둔다.
-                result = await asyncio.to_thread(
-                    self._controller.execute, list(msg.buttons), msg.targets
-                )
-            else:
-                result = await asyncio.to_thread(
-                    self._controller.execute, list(msg.buttons)
-                )
+            context = getattr(self._motion_stop, "diagnostic_context", None)
+            with context(msg.sequence_id) if callable(context) else contextlib.nullcontext():
+                if getattr(self._controller, "supports_button_behaviors", False) is True:
+                    result = await asyncio.to_thread(
+                        self._controller.execute, list(msg.buttons), msg.targets or None,
+                        button_behaviors=msg.button_behaviors)
+                elif msg.targets:
+                    result = await asyncio.to_thread(
+                        self._controller.execute, list(msg.buttons), msg.targets
+                    )
+                else:
+                    result = await asyncio.to_thread(
+                        self._controller.execute, list(msg.buttons)
+                    )
         except Exception:
             log.exception("controller.execute raised for sequence %r", msg.sequence_id)
             self._notify_job("job_end", {"sequence_id": msg.sequence_id, "outcome": "error"})
@@ -1370,6 +1370,10 @@ class ActExecutor:
 
     async def _on_dev_motion(self, msg: DevMotionMsg) -> None:
         base = {"type": "dev_motion_result", "request_id": msg.request_id, "op": msg.op}
+        if msg.op == "trace":
+            fields = self._dev_motion.trace() if self._dev_motion is not None else {"motion_trace": "[]"}
+            await self._send({**base, "ok": True, **fields})
+            return
         if msg.op == "stop":
             # 정지는 어떤 거절에도 걸리지 않는다 — 걸림·실행 중이어도 MCU stop을 보낸다.
             if self._dev_motion is None:

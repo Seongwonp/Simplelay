@@ -436,7 +436,7 @@ def test_act_info_advertises_the_stop_report_protocol(rig) -> None:
     from rpi4.services.act_executor import STOP_REPORT_PROTOCOL
 
     info = run(_t())
-    assert info["dev_motion_protocol"] == DEV_MOTION_PROTOCOL == 2
+    assert info["dev_motion_protocol"] == DEV_MOTION_PROTOCOL == 3
     assert info["stop_report_protocol"] == STOP_REPORT_PROTOCOL == 1
 
 

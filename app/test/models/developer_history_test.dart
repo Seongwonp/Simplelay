@@ -51,4 +51,10 @@ void main() {
     expect(devHistoryRows(_line('stopped', detail: 'user_stop')), ['· 정지 확인 user_stop']);
     expect(devHistoryRows(_line('command_accepted', command: 'home')), ['→ 원점', '← 완료']);
   });
+
+  test('보고 좌표 없는 이동은 도착 좌표를 만들어 말하지 않는다', () {
+    final rows = devHistoryRows(_line('command_accepted', command: 'jog x + 1',
+        board: {'target_x_mm': 1.0, 'target_y_mm': 0.0}));
+    expect(rows.last, '← 이동 응답 받음 · 위치 미확인');
+  });
 }

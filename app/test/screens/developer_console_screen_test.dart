@@ -67,7 +67,7 @@ class _FakeDevServer {
         'heartbeat_ttl_s': 2.0,
         'max_jog_mm': maxJogMm,
         'max_command_len': 64,
-        'allowed_commands': ['status'],
+        'allowed_commands': ['status', 'press_here'],
       };
 
   http.Response _json(Object body, [int status = 200]) => http.Response(
@@ -142,6 +142,11 @@ class _FakeDevServer {
           if (stopLevel != null) 'stop_level': stopLevel,
           if (stopLevel != null) 'stop_ack_ms': stopAckMs,
         });
+      case '/dev/motion-trace':
+        return _json({'supported': true, 'rows': [
+          {'seq': 1, 'generation': 0, 'elapsed_ms': 42, 'direction': 'rx',
+           'commandId': 'wire-1', 'state': 'COMPLETED'}
+        ]});
       case '/dev/log':
         return _json(logEntries);
     }
@@ -897,4 +902,38 @@ void main() {
     expect(find.text('$hms  → 이동 (x 2.0, y 0.0)'), findsOneWidget);
     await _close(tester);
   });
+  testWidgets('단독 누름은 버튼 선택 없이 한 번만 요청하고 중복 탭을 막는다', (tester) async {
+    final server = _realServer();
+    await _open(tester, server);
+    await _startSession(tester);
+    final tap = find.widgetWithText(OutlinedButton, '스위치봇 한 번 누르기');
+    await tester.ensureVisible(tap);
+    await tester.tap(tap);
+    await tester.tap(tap);
+    await tester.pump();
+    await tester.pump();
+    final commands = server.requests.where((r) => r.url.path.endsWith('/commands'));
+    expect(commands.length, 1);
+    expect(jsonDecode(commands.single.body)['text'], 'press_here');
+    await _close(tester);
+  });
+
+  testWidgets('장치 통신은 요청 번호와 미확인 좌표를 구분해 보여 준다', (tester) async {
+    final server = _realServer();
+    await _open(tester, server);
+    final refresh = find.widgetWithText(TextButton, '기록 새로고침');
+    await tester.ensureVisible(refresh);
+    await tester.tap(refresh);
+    await tester.pump();
+    await tester.pump();
+    expect(server.count('/dev/motion-trace'), 1);
+    final section = find.text('장치 통신');
+    await tester.ensureVisible(section);
+    await tester.tap(section);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('wire-1'), findsOneWidget);
+    expect(find.textContaining('위치 미확인'), findsOneWidget);
+    await _close(tester);
+  });
+
 }

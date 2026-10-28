@@ -44,6 +44,7 @@ class DevCommandKind(str, Enum):
     JOG = "jog"
     SENSOR_READ = "sensor read"
     PRESS = "press"
+    PRESS_HERE = "press_here"
     STOP = "stop"
 
 
@@ -93,7 +94,7 @@ def parse_dev_command(text: str) -> DevCommand:
         raise DevCommandRejected("빈 명령입니다")
 
     head = tokens[0]
-    if head in ("status", "home", "stop") and len(tokens) == 1:
+    if head in ("status", "home", "stop", "press_here") and len(tokens) == 1:
         return DevCommand(DevCommandKind(head))
     if tokens == ["sensor", "read"]:
         return DevCommand(DevCommandKind.SENSOR_READ)
@@ -438,6 +439,10 @@ class DeveloperSessionManager:
     def log(self) -> list[DevLogEntry]:
         with self._lock:
             return list(self._log)
+
+    def motion_trace(self) -> dict:
+        reader = getattr(self._adapter, "motion_trace", None)
+        return reader() if callable(reader) else {"supported": False, "rows": []}
 
     @property
     def heartbeat_ttl_s(self) -> float:
@@ -1045,6 +1050,11 @@ class DeveloperSessionManager:
                 self._adapter.home()
             case DevCommandKind.PRESS:
                 self._adapter.press(command.button_id)
+            case DevCommandKind.PRESS_HERE:
+                fn = getattr(self._adapter, "press_here", None)
+                if not callable(fn):
+                    raise DevAdapterRefused("press_here_unsupported", "이 어댑터는 단독 누름을 지원하지 않아요")
+                return fn()
             case DevCommandKind.SENSOR_READ:
                 return self._adapter.read_sensor()
             case DevCommandKind.STATUS | DevCommandKind.STOP:

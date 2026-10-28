@@ -231,6 +231,23 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 - `press`: **지금 위치**에서 솔레노이드 시간 누름 한 번(`SIMPLELAY_MOTION_PRESS_MODE=duration`, 구동+유지 ≤ 800 ms —
   펌웨어 `SOLENOID_ON_MAX_MS`와 같다). `label`은 기록용 버튼 id다 — 버튼 좌표로 이동하지 않는다.
 - `status`: MCU 위치·원점 상태(움직이지 않음). 폰의 '센서 읽기'가 실물에서는 위치를 보인다.
+- **규약 3(2026-10-28)**: `press_here`와 `trace`를 추가한다. RPi5·RPi4·폰을 같은 판으로 배포한다.
+  옛 RPi4에서는 새 조작을 보내지 않고 미지원으로 안내하며, 기존 조그·정지의 규약은 유지한다.
+  - `press_here`: Touch Bridge에서 직전 이동의 일회용 위치 토큰을 소비해 현재 위치에서 한 번 누른다.
+    상태를 다시 읽어 직전 위치와 비교하며, XY 이동·원점 설정·자동 재전송은 하지 않는다.
+    토큰이 없으면 `position_token_required`, 어댑터가 지원하지 않으면 `press_here_unsupported`로 거절한다.
+    한 번 누른 뒤에는 새 이동으로 위치 토큰을 얻어야 한다. 이 응답은 가전 동작 확인을 뜻하지 않는다.
+  - `trace`: 실행 중에도 메모리에 있는 최근 통신을 읽는다. MCU 상태 조회나 이동을 보내지 않고,
+    개발자 모션 작업의 종료를 기다리지 않는다. `trace_supported`와 `motion_trace`(JSON 문자열, 최대 32건)를 답한다.
+    RPi5는 개발자 인증을 거친 `GET /dev/motion-trace`에서 허용 필드만 골라 `supported`·`rows`로 반환한다.
+    각 행은 순서(`seq`), 연결·재시작·명시적 원점 설정의 기준 세대(`generation`), 같은 모션 객체 내 경과 시간(`elapsed_ms`),
+    방향(`direction`), 모션 명령 번호(`commandId`), 종류·상태·보고 좌표·목표 좌표를 담는다.
+    `context_id`가 있으면 일반 실행의 `sequence_id` 또는 RPi4 개발자 요청 번호다. 연결과 번호가 다른 행을
+    같은 실행으로 추측하지 않는다. `tx`는 전송 시도이며 수신·실행 완료의 증거가 아니다.
+    원문, 위치 토큰, 인증정보는 반환하지 않는다. 디스크 전체 로그나 영구 이력 API가 아니다.
+  - RPi4의 목표 좌표는 보고 좌표를 대신하지 않는다. 보고 좌표가 없으면 `x_mm`·`y_mm`은 null이다.
+  - 재부팅·연결 끊김을 감지한 뒤에는 상태 조회만으로 원점 확인을 되살리지 않는다.
+    명시적인 원점 설정/복귀를 수행해야 한다. 누름·복귀 경로에 자동 원점 설정을 추가하지 않는다.
 - `stop`: 어떤 거절에도 걸리지 않는다. RPi4는 MCU에 `stop`을 쓰고(`ok:true` = **정지 줄을 썼다**), 규약 2부터는 답에
   정지 확인 단계 `stop_level`·`ack_ms`를 싣는다(아래 "정지 확인 단계"). 최종 권한은 물리 E-STOP이다. 진행 중 조작은
   `stopped`로 끝난다. 일반 `abort`도 진행 중인 개발자 조작을 멈춘다. RPi4가 `dev_motion_protocol`을 알리지 않으면
@@ -357,7 +374,7 @@ RPi5는 이 결과를 '정지, 0개 눌림'으로 읽는다(수신 `accepted` �
 
 ```json
 { "type": "act_info", "done_watch": ["washer", "microwave"], "outlet": "fake", "motion": "mock", "rehearsal": true }
-{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 2, "stop_report_protocol": 1, "clock_protocol": 1, "heartbeat_protocol": 1, "heartbeat_timeout_s": 3.0 }
+{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 3, "stop_report_protocol": 1, "clock_protocol": 1, "heartbeat_protocol": 1, "heartbeat_timeout_s": 3.0 }
 { "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f6", "op": "home", "ok": true, "homed": true, "x_mm": 0.0, "y_mm": 0.0 }
 { "type": "rehearsal_result", "request_id": "a1b2c3", "ok": true, "action": "appliance_done", "source": "injected", "frame": { "…": "…" } }
 { "type": "ack", "sequence_id": "seq_001", "step": "BT-08", "status": "done" }

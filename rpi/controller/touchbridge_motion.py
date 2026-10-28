@@ -16,6 +16,9 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Mapping
+from collections import deque
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 
 from .models import ExecutionMode, PressCommand
@@ -110,6 +113,7 @@ class TouchBridgeConfig:
 class _Pending:
     action: str
     replies: queue.Queue = field(default_factory=queue.Queue)
+    context_id: str | None = None
 
 
 @dataclass
@@ -122,7 +126,12 @@ class _Stop:
 
 
 def _number(value: object) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 class TouchBridgeMotionClient(GrblClient):
@@ -149,6 +158,7 @@ class TouchBridgeMotionClient(GrblClient):
         self._last_stop_id: int | None = None
         self._state = MotionState.UNKNOWN
         self._homed = False
+        self._origin_unverified = False
         self._connected = False
         self._needs_reconnect = False
         self._motion_active = False
@@ -156,6 +166,11 @@ class TouchBridgeMotionClient(GrblClient):
         self._position: dict | None = None
         self._position_seq = 0
         self._rx_seq = 0
+        self._generation = 0
+        self._trace_seq = 0
+        self._trace_start = time.monotonic()
+        self._trace: deque[dict] = deque(maxlen=100)
+        self._trace_context = ContextVar("motion_context", default=None)
         self.last_status: MotionStatus | None = None
         self.ready_info: dict = {"protocol": PROTOCOL}
         self._reader = threading.Thread(target=self._read_loop, daemon=True, name="touchbridge-reader")
@@ -201,6 +216,39 @@ class TouchBridgeMotionClient(GrblClient):
             self._next += 1
             return self._next, f"sl-{self._prefix}-{self._next}"
 
+    def _trace_event(self, direction: str, fields: dict) -> None:
+        row = {"direction": direction}
+        for key in ("commandId", "action", "state", "context_id"):
+            value = fields.get(key)
+            if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,48}", value):
+                row[key] = value
+        if type(fields.get("homed")) is bool:
+            row["homed"] = fields["homed"]
+        for source, prefix in (("position", ""), ("target", "target_")):
+            pos = fields.get(source)
+            if isinstance(pos, dict):
+                for axis in ("x", "y"):
+                    value = pos.get(axis + "Mm")
+                    if _number(value):
+                        row[prefix + axis + "_mm"] = value
+        with self._lock:
+            self._trace_seq += 1
+            row.update(seq=self._trace_seq, generation=self._generation,
+                       elapsed_ms=round((time.monotonic() - self._trace_start) * 1000))
+            self._trace.append(row)
+
+    def motion_trace(self) -> list[dict]:
+        with self._lock:
+            return [dict(row) for row in self._trace]
+
+    @contextmanager
+    def diagnostic_context(self, request_id: str):
+        token = self._trace_context.set(request_id)
+        try:
+            yield
+        finally:
+            self._trace_context.reset(token)
+
     def _encode(self, wire_id: str, action: str, fields: dict) -> str:
         line = json.dumps({"version": 2, "commandId": wire_id, "action": action, **fields},
                           ensure_ascii=True, allow_nan=False, separators=(",", ":"))
@@ -211,7 +259,7 @@ class TouchBridgeMotionClient(GrblClient):
     def _exchange(self, action: str, timeout: float, **fields) -> dict:
         _, wire_id = self._allocate()
         line = self._encode(wire_id, action, fields)
-        pending = _Pending(action)
+        pending = _Pending(action, context_id=self._trace_context.get())
         with self._lock:
             self._pending[wire_id] = pending
         aggregate: dict = {}
@@ -228,6 +276,8 @@ class TouchBridgeMotionClient(GrblClient):
                 if action not in ("status", "home") and self._stopped.is_set():
                     raise TouchBridgeStopped("전송 전에 중단 요청이 왔어요", requested=True,
                                              press_outcome=press_outcome())
+                self._trace_event("tx", {"commandId": wire_id, "action": action,
+                                         "context_id": pending.context_id, **fields})
                 self._transport.write_line(line)
             while True:
                 if action != "status" and self._stopped.is_set():
@@ -236,6 +286,7 @@ class TouchBridgeMotionClient(GrblClient):
                                              press_outcome="unknown" if action == "press" else None)
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
+                    self._trace_event("timeout", {"commandId": wire_id, "action": action})
                     if action != "status":
                         self.request_stop()
                     exc = MotionTimeout(f"Touch Bridge {action}: 응답 기한 {timeout:g}s 초과")
@@ -343,6 +394,7 @@ class TouchBridgeMotionClient(GrblClient):
                         stop.event.set()
                         break
                 pending = self._pending.get(wire_id) if isinstance(wire_id, str) else None
+                self._trace_event("rx", {**doc, "context_id": pending.context_id if pending else None})
                 if pending is not None:
                     pending.replies.put(doc)
             self._emit("touchbridge_state", doc)
@@ -369,21 +421,28 @@ class TouchBridgeMotionClient(GrblClient):
 
     def _booted(self, fw: str = "Touch Bridge CoreXY") -> None:
         with self._lock:
+            self._generation += 1
             self._connected = False
             self._homed = False
+            self._origin_unverified = True
             self._position = None
             self._state = MotionState.UNKNOWN
             self._needs_reconnect = True
             self.ready_info["fw"] = fw
+        self._trace_event("boot", {})
         self._fail_pending(MotionReset("모션 보드가 다시 켜졌어요"), motions_only=True)
 
     def note_link_down(self, reason: str) -> None:
         with self._lock:
+            if self._connected:
+                self._generation += 1
             self._connected = False
             self._homed = False
+            self._origin_unverified = True
             self._position = None
             self._state = MotionState.UNKNOWN
             self._needs_reconnect = True
+        self._trace_event("link_down", {})
         self._fail_pending(OSError(f"Touch Bridge 연결 끊김: {reason}"))
 
     def connect(self) -> MotionStatus:
@@ -397,22 +456,26 @@ class TouchBridgeMotionClient(GrblClient):
                 self._shutdown.wait(min(0.1, max(0, deadline - time.monotonic())))
 
     def _status(self, timeout: float) -> MotionStatus:
+        with self._lock:
+            generation = self._generation
         reply = self._exchange("status", timeout)
         pos, homed = reply.get("position"), reply.get("homed")
         if not isinstance(pos, dict) or type(homed) is not bool or not all(
                 _number(pos.get(axis)) for axis in ("xMm", "yMm")):
             raise MotionError("Touch Bridge status에 유효한 좌표·기준 상태가 없어요")
         with self._lock:
+            if generation != self._generation:
+                raise MotionReset("상태 조회 중 연결 기준이 바뀌었어요. 다시 연결해 주세요")
             self._connected = True
             self._needs_reconnect = False
-            self._homed = homed
             if reply["_rx_seq"] >= self._position_seq:
+                self._homed = homed and not self._origin_unverified
                 self._position_seq = reply["_rx_seq"]
                 self._position = {"x_mm": pos["xMm"], "y_mm": pos["yMm"]}
             if not self._motion_active:
                 self._state = MotionState.STOPPED if self._stopped.is_set() else (
-                    MotionState.READY if homed else MotionState.UNHOMED)
-            status = MotionStatus(self._state.value, homed, None, None, None, None)
+                    MotionState.READY if self._homed else MotionState.UNHOMED)
+            status = MotionStatus(self._state.value, self._homed, None, None, None, None)
             self.last_status = status
             return status
 
@@ -425,17 +488,28 @@ class TouchBridgeMotionClient(GrblClient):
 
     def home(self) -> None:
         with self._op_lock:
+            with self._lock:
+                self._generation += 1
+                self._origin_unverified = True
+                self._homed = False
+                self._position = None
+                self._token = None
             if self.config.home_mode == "set_origin":
                 self._set_origin_here()
                 return
             self._physical("home", self.config.home_timeout_s)
+            with self._lock:
+                self._origin_unverified = False
             self.status()
 
     def _set_origin_here(self) -> None:
         """원본 스케치 텍스트 명령 ``Z`` — 지금 자리를 원점(0,0)으로, 원점 잡힘으로. 움직이지 않는다.
         답은 텍스트 ``OK``라 JSON 상태(homed)를 다시 읽어 확인한다. 기한 안에 원점이 안 잡히면 시간 초과."""
         with self._write_lock:
+            self._trace_event("tx", {"action": "set_origin", "context_id": self._trace_context.get()})
             self._transport.write_line("Z")
+        with self._lock:
+            self._origin_unverified = False
         deadline = time.monotonic() + self.config.status_timeout_s * 3
         while True:
             status = self.status()
@@ -491,6 +565,29 @@ class TouchBridgeMotionClient(GrblClient):
     def press_with_observation(self, command: PressCommand, before_press: Callable[[], None]) -> None:
         self.press(command, before_press=before_press)
 
+    def press_here(self) -> None:
+        """Consume the last move's token; never move or establish an origin."""
+        with self._op_lock:
+            with self._lock:
+                token = self._token
+                before = dict(self._position) if self._position is not None else None
+                generation = self._generation
+                if not self._homed or token is None or before is None:
+                    raise MotionRefused("먼저 조그로 위치를 확인한 뒤 한 번 눌러 주세요", code="position_token_required")
+            self.status()
+            with self._lock:
+                after = self._position
+                if generation != self._generation or not self._homed or after is None or math.hypot(
+                        after["x_mm"] - before["x_mm"], after["y_mm"] - before["y_mm"]) > self.config.tolerance_mm:
+                    self._homed = False
+                    self._origin_unverified = True
+                    self._token = None
+                    raise MotionPositionMismatch("위치가 달라 누르지 않았어요. 좌표 기준을 다시 확인해 주세요")
+                if self._token != token:
+                    raise MotionRefused("위치 확인값이 바뀌어 누르지 않았어요", code="position_token_required")
+                self._token = None
+            self._physical("press", self.config.press_timeout_s, positionToken=token)
+
     def press(self, command: PressCommand, *, before_press: Callable[[], None] | None = None) -> None:
         if not command.has_coordinates:
             raise MotionNotReady("버튼의 보정 좌표가 없어요", code="coordinates_missing")
@@ -535,6 +632,7 @@ class TouchBridgeMotionClient(GrblClient):
                 del self._stops[next(iter(self._stops))]
         try:
             with self._write_lock:
+                self._trace_event("tx", {"commandId": wire_id, "action": "stop"})
                 self._transport.write_line(self._encode(wire_id, "stop", {}))
             record.sent = True
         except (OSError, RuntimeError):

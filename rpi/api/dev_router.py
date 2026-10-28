@@ -326,6 +326,7 @@ class DevLogEntryView(BaseModel):
 
 
 _ALLOWED_COMMANDS = [
+    DevCommandKind.PRESS_HERE.value,
     DevCommandKind.STATUS.value,
     DevCommandKind.HOME.value,
     DevCommandKind.SENSOR_READ.value,
@@ -600,3 +601,15 @@ def dev_log(
         )
         for e in reversed(entries)
     ]
+
+
+@dev_router.get("/motion-trace")
+def motion_trace(manager: DeveloperSessionManager = Depends(require_dev_access)):
+    from rpi.services.developer_session import DevAdapterRefused
+
+    try:
+        return manager.motion_trace()
+    except DevAdapterRefused as exc:
+        raise _error(503, exc.code, exc.message) from None
+    except Exception:
+        raise _error(503, "trace_unavailable", "장치 통신 기록을 읽지 못했어요") from None

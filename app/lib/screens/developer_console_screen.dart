@@ -80,6 +80,10 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
   int _settleAttempts = 0;
   int _requestSeq = 0;
   List<DevLogLine> _log = const [];
+  List<Map<String, dynamic>> _motionTrace = const [];
+  String? _traceProblem;
+  int _logRead = 0;
+  bool _pressHereConsumed = false;
 
   bool get _hasSession => _sessionId != null && _secret != null;
 
@@ -336,6 +340,9 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
       _stateRead++;
       setState(() => _state = result.state);
       final sensor = result.sensor;
+      if (text.startsWith('jog ') && sensor?['reached'] != 0) {
+        _pressHereConsumed = false;
+      }
       final where = result.state.isReal ? '실제 장치' : '모의';
       final partialJog = result.state.isReal && sensor?['reached'] == 0;
       final position = sensor == null
@@ -345,7 +352,9 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
               .map((e) => '${e.key} ${e.value.toStringAsFixed(1)}')
               .join(' · ');
       _say(
-        partialJog
+        text == 'press_here'
+            ? '누름 장치의 응답을 받았어요. 위치는 센서 읽기로 다시 확인해 주세요.'
+            : partialJog
             ? '목표까지 가지 못하고 멈췄어요. 현재 위치: $position'
             : sensor == null
                 ? (result.state.isReal
@@ -444,14 +453,36 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     final api = _api;
     if (api == null) return;
     final epoch = _epoch;
+    final read = ++_logRead;
     try {
       final lines = await api.log();
-      if (!_current(epoch, api)) return;
+      if (!_current(epoch, api) || read != _logRead) return;
       setState(() => _log = lines);
     } on DevApiException catch (e) {
       if (!_current(epoch, api)) return;
       _say(_describe(e), problem: true);
     }
+    if (!_current(epoch, api) || read != _logRead) return;
+    try {
+      final rows = await api.motionTrace();
+      if (!_current(epoch, api) || read != _logRead) return;
+      setState(() {
+        _motionTrace = rows;
+        _traceProblem = null;
+      });
+    } on DevApiException catch (e) {
+      if (!_current(epoch, api) || read != _logRead) return;
+      setState(() {
+        _motionTrace = const [];
+        _traceProblem = e.statusCode == 404 ? '이 본체는 장치 통신 기록을 지원하지 않아요' : e.message;
+      });
+    }
+  }
+
+  void _pressHere() {
+    if (_pressHereConsumed || _busy) return;
+    setState(() => _pressHereConsumed = true);
+    unawaited(_command('press_here'));
   }
 
   String _describe(DevApiException e) {
@@ -515,6 +546,9 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
       _api = api;
       _message = null;
       _log = const [];
+      _motionTrace = const [];
+      _traceProblem = null;
+      _pressHereConsumed = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _refreshState());
     }
     final installed = ref.watch(installedAppliancesProvider);
@@ -701,6 +735,14 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                       _command('jog $axis $sign ${_MotionBadge._mm(jogStep)}')
                   : null,
             ),
+            if (real) ...[
+              const SizedBox(height: AppSpace.md),
+              _CommandButton(
+                '스위치봇 한 번 누르기',
+                canCommand && state.supportsPressHere && !_pressHereConsumed ? _pressHere : null,
+              ),
+              const Text('XY 이동 없이 현재 자리에서 한 번 눌러요. 먼저 조그로 위치를 확인해 주세요. 누른 뒤에는 다시 위치 확인이 필요해요.'),
+            ],
             if (!_hasSession)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpace.sm),
@@ -778,6 +820,20 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                   style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
                   child: const Text('기록 새로고침'),
                 ),
+              ],
+            ),
+            ExpansionTile(
+              title: const Text('장치 통신'),
+              subtitle: const Text('최근 통신 32건 · 실행기 내부 경과 시간 · 원문·인증정보 제외'),
+              children: [
+                if (_traceProblem != null) Text(_traceProblem!),
+                if (_motionTrace.isEmpty && _traceProblem == null)
+                  const Text('기록 새로고침을 눌러 장치 통신을 읽어 주세요'),
+                for (final row in _motionTrace)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+                    child: SelectableText(motionTraceRow(row)),
+                  ),
               ],
             ),
             if (_log.isEmpty)

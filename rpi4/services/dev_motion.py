@@ -19,6 +19,8 @@ RPi5 개발자 API가 실물 모드(``SIMPLELAY_DEV_MODE`` + ``SIMPLELAY_DEV_REA
 from __future__ import annotations
 
 import logging
+import json
+from contextlib import nullcontext
 import math
 import threading
 
@@ -44,7 +46,7 @@ log = logging.getLogger(__name__)
 #: act_info로 알리는 개발자 조작 규약 판. RPi5는 이 값이 없거나 1 미만이면 보내지 않는다.
 #: 2(2026-10-13): ``stop`` 답에 정지 확인 단계 ``stop_level``(sent·mcu_ack·verified)과 ``ack_ms``를 싣는다.
 #: 1인 RPi4의 답에는 없다 — RPi5는 그때 ``sent``(보냄)로만 읽는다.
-DEV_MOTION_PROTOCOL = 2
+DEV_MOTION_PROTOCOL = 3
 #: 조그 한 번의 절대 상한(mm). RPi5가 더 작은 상한(기본 1 mm)을 따로 둔다 — 이것은 RPi4의 마지막 울타리다.
 DEV_JOG_STEP_CEILING_MM = 10.0
 #: 개발자 누름의 솔레노이드 켜짐 상한(ms) — firmware-motion-corexy SOLENOID_ON_MAX_MS와 같다.
@@ -123,14 +125,24 @@ class DevMotionService:
         """조작 한 번 → 답 필드(``ok`` 포함). 예외를 밖으로 내지 않는다."""
         self._stop_seen.clear()
         self._jog_target = None
-        out = self._run_inner(msg)
+        context = getattr(self._client, "diagnostic_context", None)
+        with context(msg.request_id) if callable(context) else nullcontext():
+            out = self._run_inner(msg)
         target = self._jog_target
         if target is not None:
             out["target_x_mm"], out["target_y_mm"] = round(target[0], 3), round(target[1], 3)
             x, y = out.get("x_mm"), out.get("y_mm")
             if out.get("ok") and isinstance(x, (int, float)) and isinstance(y, (int, float)):
                 out["error_mm"] = round(math.hypot(x - target[0], y - target[1]), 3)
+        if msg.op == "press_here":
+            out.update(self.trace())
         return out
+
+    def trace(self) -> dict:
+        reader = getattr(self._client, "motion_trace", None)
+        rows = reader()[-32:] if callable(reader) else []
+        return {"trace_supported": callable(reader),
+                "motion_trace": json.dumps(rows, ensure_ascii=True, separators=(",", ":"))}
 
     def _run_inner(self, msg: DevMotionMsg) -> dict:
         try:
@@ -182,6 +194,13 @@ class DevMotionService:
             return self._jog(msg)
         if msg.op == "press":
             return self._press(msg)
+        if msg.op == "press_here":
+            fn = getattr(self._client, "press_here", None)
+            if not callable(fn):
+                raise _Refused("press_here_unsupported", "이 누름 장치는 단독 누름을 지원하지 않아요")
+            self._require_homed("단독 누름")
+            fn()
+            return self._position(query=False)
         raise _Refused("bad_args", f"모르는 개발자 조작이에요: {msg.op}")
 
     def _jog(self, msg: DevMotionMsg) -> dict:
@@ -202,7 +221,7 @@ class DevMotionService:
         self._jog_target = (x, y)
         jog_to = getattr(self._client, "jog_to", None)
         reached = jog_to(x, y) if callable(jog_to) else self._client.move_to(x, y)
-        return {**self._position(query=False, fallback=(x, y)), "reached": reached is not False}
+        return {**self._position(query=False), "reached": reached is not False}
 
     def _press(self, msg: DevMotionMsg) -> dict:
         if getattr(self._client, "z_mode", None) == "switchbot":
@@ -225,7 +244,7 @@ class DevMotionService:
         self._client.reset_stop()
         x, y = self._current_xy("누름")
         self._client.press(PressCommand(button=msg.label or "dev", x_mm=x, y_mm=y))
-        return self._position(query=False, fallback=(x, y))
+        return self._position(query=False)
 
     # 내부
 
@@ -257,8 +276,8 @@ class DevMotionService:
             raise _Refused("not_homed", f"{operation}: 원점이 확인되지 않았어요 — 홈을 먼저 눌러 주세요")
         return motor_counts_to_xy(status.a_counts, status.b_counts, self._client.config.kinematics)
 
-    def _position(self, *, query: bool, fallback: tuple[float, float] | None = None) -> dict:
-        """답에 싣는 위치·원점 상태. 위치는 MCU 보고값(없으면 목표값), 모르면 None."""
+    def _position(self, *, query: bool) -> dict:
+        """답에 싣는 위치는 MCU 보고값이며, 없으면 None."""
         x = y = None
         if query:
             status = self._client.status()
@@ -279,8 +298,6 @@ class DevMotionService:
             last = self._client.last_position
             if last is not None and last.get("x_mm") is not None:
                 x, y = last["x_mm"], last["y_mm"]
-            elif fallback is not None:
-                x, y = fallback
         return {"homed": self._client.homed,
                 "x_mm": round(x, 3) if x is not None else None,
                 "y_mm": round(y, 3) if y is not None else None}

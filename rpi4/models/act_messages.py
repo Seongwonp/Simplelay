@@ -204,7 +204,7 @@ class RehearsalMsg:
 
 
 #: 개발자 조작 동작(2026-10-10). stop은 언제나 받는다.
-DEV_MOTION_OPS = ("status", "home", "jog", "press", "stop")
+DEV_MOTION_OPS = ("status", "home", "jog", "press", "press_here", "trace", "stop")
 DEV_MOTION_AXES = ("x", "y", "z")
 
 

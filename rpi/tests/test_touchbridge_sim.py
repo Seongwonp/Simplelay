@@ -313,8 +313,11 @@ def test_set_origin_mode_marks_here_as_origin_without_moving():
         client = r.open(home_mode="set_origin")
         client.connect()
         assert client.homed is False
-        client.home()
+        with client.diagnostic_context('explicit-origin-1028'):
+            client.home()
         assert client.homed is True
+        origins = [row for row in client.motion_trace() if row.get('action') == 'set_origin']
+        assert origins[-1]['context_id'] == 'explicit-origin-1028'
         assert any(text.strip() == "Z" for _, text in r.lines), r.lines
         assert not any('"action":"home"' in text for _, text in r.lines)
         client.move_to(10.0, 5.0)  # 원점이 잡혔으니 이동이 받아들여진다

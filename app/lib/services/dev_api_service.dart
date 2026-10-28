@@ -56,6 +56,7 @@ class DevState {
     this.motionTarget,
     this.realMotionReady,
     this.realMotionReason,
+    this.supportsPressHere = false,
   });
 
   /// idle · active · stopping · fault · execution_busy
@@ -73,6 +74,7 @@ class DevState {
 
   /// 보낼 수 없는 이유(서버 문장). 준비됐거나 모의면 null.
   final String? realMotionReason;
+  final bool supportsPressHere;
 
   /// 서버가 실제 장치로 보낸다고 명시했다 -- 모의 아님 + motion_target `real`.
   bool get isReal => !mock && motionTarget == 'real';
@@ -96,6 +98,7 @@ class DevState {
         motionTarget: json['motion_target'] as String?,
         realMotionReady: json['real_motion_ready'] as bool?,
         realMotionReason: json['real_motion_reason'] as String?,
+        supportsPressHere: (json['allowed_commands'] as List?)?.contains('press_here') == true,
       );
 }
 
@@ -360,6 +363,18 @@ class DevApiService {
     return [
       for (final e in list) DevLogLine.fromJson(e as Map<String, dynamic>)
     ];
+  }
+
+  Future<List<Map<String, dynamic>>> motionTrace() async {
+    final body = await _send('GET', '/dev/motion-trace') as Map<String, dynamic>;
+    if (body['supported'] != true) {
+      throw DevApiException(409, 'trace_unsupported', '장치 통신 기록은 본체와 실행기를 같은 판으로 배포한 뒤 볼 수 있어요');
+    }
+    final rows = body['rows'];
+    if (rows is! List) {
+      throw DevApiException(502, 'trace_invalid', '장치 통신 기록을 읽지 못했어요');
+    }
+    return rows.whereType<Map<String, dynamic>>().take(32).toList();
   }
 
   DevStopResult _stopResult(dynamic raw) {

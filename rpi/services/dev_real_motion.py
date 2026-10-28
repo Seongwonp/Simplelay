@@ -204,6 +204,29 @@ class ActDevMotionAdapter:
         link = self._require_ready()
         self._call(link, "home", HOME_TIMEOUT_S)
 
+    def press_here(self) -> dict:
+        link = self._require_ready()
+        protocol = (self._snapshot(link).get("act_info") or {}).get("dev_motion_protocol")
+        if type(protocol) is not int or protocol < 3:
+            raise DevAdapterRefused("dev_protocol_unsupported", "단독 누름은 본체와 실행기를 같은 판으로 배포한 뒤 사용할 수 있어요")
+        reply = self._call(link, "press_here", MOVE_TIMEOUT_S)
+        return {k: v for k, v in reply.items() if k in ("x_mm", "y_mm") and
+                isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)}
+
+    def motion_trace(self) -> dict:
+        from .motion_diagnostics import motion_trace_rows
+
+        link = self._link()
+        snap = self._snapshot(link)
+        if not snap.get("link_up"):
+            raise DevAdapterRefused("link_down", "실행기 연결이 끊겨 통신 기록을 읽지 못했어요")
+        protocol = (snap.get("act_info") or {}).get("dev_motion_protocol")
+        if type(protocol) is not int or protocol < 3:
+            return {"supported": False, "rows": []}
+        reply = self._call(link, "trace", STATUS_TIMEOUT_S)
+        return {"supported": reply.get("trace_supported") is True,
+                "rows": motion_trace_rows(reply.get("motion_trace"))}
+
     def press(self, button_id: str) -> None:
         # 지금 위치에서 솔레노이드 시간 누름 한 번(RPi4 설정·800 ms 상한). button_id는 기록용 이름이다 —
         # 버튼 좌표로 이동하지 않는다(조그로 맞춘 자리에서 누른다).

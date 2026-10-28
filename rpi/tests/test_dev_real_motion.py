@@ -533,3 +533,37 @@ def test_link_down_for_an_auth_failure_says_so_in_the_reason() -> None:
     code, message = ActDevMotionAdapter(lambda: link).availability()
     assert code == "link_down"
     assert "인증 실패" in message and "SIMPLELAY_LINK_KEY" in message
+
+
+def test_press_here_requires_new_rpi4_before_sending(rig):
+    r = rig()
+    sid, secret = r.open_session()
+    res = r.command(sid, secret, "press_here")
+    assert res.status_code == 409
+    assert _code(res) == "dev_protocol_unsupported"
+    assert r.link.ops() == []
+
+
+def test_press_here_uses_session_dedup_without_requiring_button_mapping(rig):
+    r = rig()
+    r.link.act_info['dev_motion_protocol'] = 3
+    r.manager._is_calibrated = lambda _: False
+    sid, secret = r.open_session()
+    assert r.command(sid, secret, "press_here", request_id='tap-1028').status_code == 200
+    assert r.command(sid, secret, "press_here", request_id='tap-1028').status_code == 409
+    assert r.link.ops() == ['press_here']
+
+
+def test_motion_trace_endpoint_needs_dev_auth_and_never_sends_motion(rig):
+    import json
+    r = rig()
+    r.link.act_info['dev_motion_protocol'] = 3
+    r.link.replies['trace'] = {'ok': True, 'trace_supported': True, 'motion_trace': json.dumps([
+        {'seq': 1, 'generation': 0, 'elapsed_ms': 3, 'direction': 'tx', 'action': 'press',
+         'commandId': 'safe-1', 'token': 'hidden', 'message': 'hidden'}])}
+    assert r.client.get('/dev/motion-trace').status_code in (401, 403)
+    res = r.client.get('/dev/motion-trace', headers=r.headers())
+    assert res.status_code == 200, res.text
+    assert res.json()['rows'][0]['commandId'] == 'safe-1'
+    assert 'hidden' not in res.text
+    assert r.link.ops() == ['trace']
