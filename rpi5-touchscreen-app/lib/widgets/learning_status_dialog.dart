@@ -4,7 +4,7 @@ import '../theme/kiosk_tokens.dart';
 import '../models/learning_status.dart';
 import 'kiosk/kiosk_text.dart';
 
-/// '알게 된 것'(2026-10-26) — 본체가 알아 둔 습관을 그대로 보이고 고칠 수 있게(숨기기·다시 보이기).
+/// 본체가 알아 둔 습관을 확인하고 숨기거나 다시 보이게 하는 창.
 /// Opened on demand; failures never masquerade as an empty learning history.
 class LearningStatusDialog extends StatefulWidget {
   const LearningStatusDialog(

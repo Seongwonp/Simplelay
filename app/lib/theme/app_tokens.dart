@@ -1,10 +1,5 @@
-/// 폰 디자인 토큰 — 글자 5단계와 간격 7단계(UI 개편안 2026-10-17 §5).
-///
-/// 화면 코드는 글자 크기·간격을 **숫자로 쓰지 않고** 이 이름으로만 쓴다.
-/// `test/theme/design_tokens_test.dart`가 소스의 숫자 리터럴을 막는다 — 토큰이
-/// 있어도 코드가 따르지 않아 글자 15종·간격 14종이 됐던 것(감사 10/17)을 되풀이하지 않게.
-///
-/// 16 미만 글자는 없다. 주 사용자가 고령자라 보조 글씨도 16이다.
+/// 글자 5단계와 간격 7단계로 제한한 폰 디자인 토큰.
+/// 화면 코드는 숫자 리터럴 대신 이 토큰을 사용하며 글자는 16 미만으로 두지 않는다.
 library;
 
 import 'package:flutter/widgets.dart';
@@ -45,15 +40,13 @@ class AppSpace {
   static const List<double> all = [xs, sm, md, lg, xl, xxl, xxxl];
 }
 
-/// 카드 그림자 한 단계(라이트). 화면마다 높이를 따로 주지 않는다 — 흰 카드가 줄지어 뜬 인상이
-/// 그림자가 짙을수록 커졌다(평가 3차 10/18). 다크는 그림자 대신 테두리(테마).
+/// 라이트 테마의 단일 카드 그림자. 다크 테마는 테두리를 사용한다.
 class AppElevation {
   AppElevation._();
 
   static const double card = 1;
 }
 
-/// 글자 배율을 따라 커지는 아이콘 크기(평가 15차 10/18: 큰 글씨에서 글자만 커지고 목록 아이콘은 그대로 작았다).
-/// 너무 커져 글 칸을 밀지 않게 [maxScale]배에서 멈춘다.
+/// 글자 배율을 따르되 [maxScale]에서 제한하는 아이콘 크기.
 double textScaledIcon(BuildContext context, double base, {double maxScale = 1.6}) =>
     base * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, maxScale);

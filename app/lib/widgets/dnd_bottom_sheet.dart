@@ -78,7 +78,6 @@ class _DndSheetState extends ConsumerState<_DndSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 핸들
               const SizedBox(height: AppSpace.md),
               Container(
                 width: 36,
@@ -90,7 +89,6 @@ class _DndSheetState extends ConsumerState<_DndSheet> {
               ),
               const SizedBox(height: AppSpace.xl),
 
-              // 헤더
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Row(
@@ -165,7 +163,6 @@ class _DndSheetState extends ConsumerState<_DndSheet> {
               const Divider(height: 1),
               const SizedBox(height: AppSpace.sm),
 
-              // 기간 선택 버튼들
               ..._kOptions.map(
                 (opt) => _OptionTile(
                   label: opt.label,
@@ -184,7 +181,6 @@ class _DndSheetState extends ConsumerState<_DndSheet> {
 
               const Divider(height: 1),
 
-              // 해제
               _OptionTile(
                 label: '방해 금지 끄기',
                 subtitle: isActive ? '다시 물어보고 자동으로 해요' : '지금은 방해 금지가 꺼져 있어요',

@@ -56,11 +56,10 @@ from .service import SimpleLayService
 
 _clock = SystemClock()
 
-# 시간대는 하루를 빈틈없이 덮는다(2026-10-25 — 10~11시·14~17시가 비어 그 시간의 사용이 습관으로 잡히지 않았다.
-# 결선 시연도 오후다). 아침은 11시까지, 오후 14~17시를 더했다.
+# 시간대는 하루 전체를 빈틈없이 덮어야 한다.
 _PATTERN_CONFIG = PatternConfig(
     minimum_occurrences=3,
-    # 평소 시각 10분 전부터 묻는다(저녁 습관을 5시에 묻지 않게, 10/25 사용자).
+    # 평소 시각보다 최대 10분 먼저 묻는다.
     ask_lead_minutes=10,
     time_bands=(
         TimeBand("아침", time(6, 0), time(11, 0)),
@@ -76,15 +75,10 @@ DBUS_TRANSPORT_ENV = "SIMPLELAY_DBUS_TRANSPORT"
 
 
 def _build_vectordb_client():
-    """유사도 계층이 쓸 vectordb 클라이언트를 전송 방식대로 고른다.
+    """전송 설정에 맞는 vectordb 클라이언트를 만든다.
 
-    - ``native`` (기본): dbus-fast로 시스템 버스에 직접 붙는다. 우리 백엔드가 도는
-      플랫폼 컨테이너에는 D-Bus CLI가 없으므로 이쪽이 프로덕션 경로다. 반환값이
-      타입으로 와서 CLI 텍스트 파싱의 불확실성이 없다.
-    - ``cli``: 플랫폼 D-Bus CLI 서브프로세스. CLI가 있는 환경(호스트 직접 실행 등)용.
-
-    ``native``인데 dbus-fast가 없으면(설치 안 됨) 무엇을 깔아야 하는지 짚으며 실패한다
-    -- SIMPLELAY_LLM_MODE=dbus를 켠 사람은 전송도 함께 준비했어야 맞다.
+    ``native``는 dbus-fast 시스템 버스, ``cli``는 외부 D-Bus CLI를 사용한다.
+    native 의존성이 없으면 시작 단계에서 명시적으로 실패한다.
     """
     transport = os.environ.get(DBUS_TRANSPORT_ENV, "native").strip().lower()
     if transport == "cli":
@@ -266,7 +260,7 @@ def receive_appliance_done(record: dict) -> None:
         from rpi.routines.wiring import get_routine_engine  # noqa: PLC0415
 
         get_routine_engine().on_appliance_done(checked)
-    except Exception:  # noqa: BLE001 - 읽기 루프는 살리되 조용히 버리지 않는다(Copilot#3)
+    except Exception:  # noqa: BLE001 - 읽기 루프를 유지하면서 실패를 기록한다.
         log.error("routine dispatch for appliance_done failed (appliance=%s event=%s state=%s source=%s)",
                   checked.get("appliance_id"), checked.get("event"), checked.get("state"),
                   checked.get("source"), exc_info=True)
@@ -302,7 +296,7 @@ def _dispatch_done_to_scenarios(checked: dict) -> None:
                       checked.get("appliance_id"), checked.get("event"))
 
 
-#: 가전 끝 기록을 루틴에 넘기지 못했을 때 알림함 종류(Copilot#3).
+#: 가전 끝 기록을 루틴에 넘기지 못했을 때 쓰는 알림 종류.
 KIND_DONE_DISPATCH_FAILED = "appliance_done_undelivered"
 
 
@@ -589,7 +583,7 @@ def get_node_registry() -> NodeRegistry:
     return NodeRegistry(store=get_db(), controller_factory=_node_controller_factory())
 
 
-# ── 개발자 모드 (기본 OFF, 기본 모의 — 실물은 env 두 개 + RPi4 실물 링크일 때만) ──
+# 개발자 모드 (기본 OFF, 기본 모의 — 실물은 env 두 개 + RPi4 실물 링크일 때만)
 
 DEV_MODE_ENV = "SIMPLELAY_DEV_MODE"
 

@@ -383,7 +383,7 @@ def map_button_centers(
     return mapped
 
 
-# ── 내부 도우미 ─────────────────────────────────────────────────────────────
+# 내부 도우미
 
 
 def _as_xy(value: object, label: str) -> tuple[float, float]:

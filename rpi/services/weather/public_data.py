@@ -51,7 +51,7 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# ── 요청·응답 공통 ────────────────────────────────────────────────────────────
+# 요청·응답 공통
 
 
 def build_url(endpoint: str, service_key: str, params: Mapping[str, object]) -> str:
@@ -151,7 +151,7 @@ class _Refresher:
             log.exception("%s refresh could not start", self._name)
 
 
-# ── 좌표: 위경도 → 에어코리아 TM(중부원점, GRS80 — EPSG:5181과 같은 정의) ─────────────────────
+# 좌표: 위경도 → 에어코리아 TM(중부원점, GRS80 — EPSG:5181과 같은 정의)
 
 
 def latlon_to_tm(lat: float, lon: float) -> tuple[float, float]:
@@ -180,7 +180,7 @@ def latlon_to_tm(lat: float, lon: float) -> tuple[float, float]:
     return x, y
 
 
-# ── 에어코리아: 바깥 미세먼지 ──────────────────────────────────────────────────
+# 에어코리아: 바깥 미세먼지
 
 GRADE_WORDS = {1: "좋음", 2: "보통", 3: "나쁨", 4: "매우 나쁨"}
 #: 등급 칸이 비었을 때(측정소가 계산 중 '-') 환경부 공개 기준으로 값에서 등급을 매긴다(µg/m³, 상한 포함).
@@ -426,7 +426,7 @@ class OutdoorAirService:
                 self._forecast = (merged, now)
 
 
-# ── 천문연: 공휴일 ───────────────────────────────────────────────────────────
+# 천문연: 공휴일
 
 
 class HolidayCalendar:
@@ -482,7 +482,7 @@ class HolidayCalendar:
             self._months[month] = (frozenset(days), now)
 
 
-# ── 생활기상지수(자외선)·해 뜨고 짐 ──────────────────────────────────────────────
+# 생활기상지수(자외선)·해 뜨고 짐
 
 #: 자외선 지역 — 시도 대표 위치와 지역 코드(행정구역 코드 앞 두 자리 + 0). 허브 위치에서 가장 가까운 곳(**추측** — 시도 경계와
 #: 다를 수 있다. ``SIMPLELAY_UV_AREA_NO``로 바꿀 수 있다).

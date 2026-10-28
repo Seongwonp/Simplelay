@@ -1,10 +1,9 @@
 part of '../settings_screen.dart';
 
-// ── 설정 탭 첫 묶음(UI 확정 §2) ──────────────────────────────────────────────
+// 설정 탭 첫 묶음(UI 확정 §2)
 
-/// 설정 한 화면의 줄 문법 하나(평가 15차 10/18: 테두리 묶음·면 없는 목록·구분선 목록이 한 화면에 섞였고, 왼쪽 아이콘·
-/// 오른쪽 화살표 열이 줄마다 어긋났다). 모든 줄 = 안쪽 여백 [kSettingsRowInset] · 아이콘 24 · 간격 [kSettingsRowInset] ·
-/// 이름(+값 오른쪽) · 화살표. 묶음은 테두리 없이 줄 사이 옅은 구분선만.
+/// 설정 행의 공통 여백·아이콘·이름·값·화살표 배치.
+/// 묶음은 테두리 없이 행 사이 구분선만 사용한다.
 const kSettingsRowInset = AppSpace.lg;
 
 /// 설정 첫 화면의 [ListTile]·[SwitchListTile]이 [_ValueRow]와 같은 열에 서게 하는 테마.
@@ -15,7 +14,7 @@ ListTileThemeData settingsListTileTheme(BuildContext context) => ListTileThemeDa
       iconColor: context.appInk,
     );
 
-/// 행 여러 개를 한 묶음으로 — 테두리·면 없이 줄 사이 구분선만(평가 15차 10/18).
+/// 테두리와 배경 없이 구분선으로 나눈 설정 행 묶음.
 class _NavGroup extends StatelessWidget {
   const _NavGroup({required this.children});
   final List<Widget> children;
@@ -50,8 +49,7 @@ class _NavRow extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
 
-  /// 값 글자 색 — 볼 것이 있을 때만 경고색(평가 15차 10/18: 빨간 숫자 칩과 '안 본 알림 7건' 글자가 같은 말을 두 번 했다 →
-  /// 칩 없이 글자 하나, 색은 그 글자에).
+  /// 주의가 필요한 값에만 적용할 글자 색.
   final Color? valueColor;
 
   // 한 줄 = 이름 + 오른쪽 지금 값(2026-10-18). [subtitle]은 그 값이다(설명 문장을 두지 않는다).
@@ -73,7 +71,7 @@ class _NavRow extends StatelessWidget {
       );
 }
 
-/// 설정 한 줄 — 이름 + 오른쪽 지금 값 + 화살표(2026-10-18). 누르면 [detail]을 상세 화면으로 연다.
+/// 이름·현재 값·화살표로 구성된 설정 행. 누르면 [detail]을 연다.
 /// 긴 설명·켜고 끄기는 상세 첫 줄부터 둔다 — 첫 화면이 읽는 문서가 되지 않게.
 class _ValueRow extends StatelessWidget {
   const _ValueRow({
@@ -150,8 +148,7 @@ class _ValueRow extends StatelessWidget {
 
 /// 이름(왼쪽)과 지금 값(오른쪽 끝).
 ///
-/// 둘이 한 줄에 **다 들어갈 때만** 나란히 둔다. 안 들어가면 값을 이름 아래 한 줄로 내린다 — 나란히 둔 채 줄을
-/// 바꾸면 '생활 습관 알아가 / 기', '읽지 않은 알림 / 4건'처럼 이름과 값이 둘 다 갈렸다(평가 4차 10/18).
+/// 이름과 값이 모두 들어갈 때만 한 줄에 배치하고, 아니면 값을 다음 줄로 내린다.
 /// 큰 글씨(130% 넘게)는 늘 두 줄. 이름·값 모두 낱말 단위로만 줄을 바꾼다.
 class _NameValue extends StatelessWidget {
   const _NameValue({required this.name, required this.value, this.valueColor});
@@ -221,7 +218,7 @@ class _SettingDetailScreen extends StatelessWidget {
       );
 }
 
-// ── LG ThinQ 연결 ─────────────────────────────────────────────────────────
+// LG ThinQ 연결
 
 class _ThinqScreen extends ConsumerWidget {
   const _ThinqScreen();
@@ -265,12 +262,12 @@ class _ThinqScreen extends ConsumerWidget {
   }
 }
 
-// ── 음성으로 멈추기 ───────────────────────────────────────────────────────
+// 음성으로 멈추기
 
 /// 음성 정지는 **아직 허브에 들어가지 않았다**(실행 계획 §3-3, 통신 확인 뒤
 /// 착수). 켜는 스위치를 두면 되지도 않는 기능을 된다고 말하게 되므로,
 /// 어떻게 동작할 것인지와 지금 상태만 적는다.
-// ── 글자 크기 ─────────────────────────────────────────────────────────────
+// 글자 크기
 
 /// 앱 안에 따로 글자 크기 설정을 두지 않는다 -- 휴대폰 설정 하나로 모든 앱이
 /// 같이 커지는 편이 헷갈리지 않는다. 200%까지 화면이 넘치지 않는지 확인한다.

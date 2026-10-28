@@ -39,7 +39,8 @@ class KioskVoiceProposalView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(children: [
-            Icon(Icons.smartphone, color: KioskColors.muted, size: 22),
+            Icon(heardText == null ? Icons.smartphone : Icons.mic,
+                color: KioskColors.muted, size: 22),
             const SizedBox(width: 8),
             Text(heardText == null ? caption : '본체에서 말한 내용',
                 key: const ValueKey('voice-proposal-caption'),

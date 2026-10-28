@@ -136,7 +136,7 @@ def build_twin_state(snapshot: dict[str, Any]) -> dict[str, Any]:
     return base
 
 
-# ── 하드웨어 요약(공식 사양 + 미설정 항목) ─────────────────────────────────────
+# 하드웨어 요약(공식 사양 + 미설정 항목)
 # 값은 하드웨어 기술 조사 보고서 A-1·A-2·D절의 공식 표기만 옮긴다. 추정값을 더하지 않는다.
 
 OFFICIAL_SPECS: tuple[dict[str, str], ...] = (
@@ -187,7 +187,7 @@ def build_hardware_summary(env: Mapping[str, str] | None = None) -> dict[str, An
     }
 
 
-# ── 실모드 트윈(GET /twin) — 통신 프레임 탭 + progress 프레임 ─────────────────────
+# 실모드 트윈(GET /twin) — 통신 프레임 탭 + progress 프레임
 # 시뮬레이터 내부 관측(act_local)이 없는 실기기 구성에서 쓴다. 근거는 RPi5가 실제로
 # 주고받은 줄뿐이다(rpi/services/link_tap.py). 결과는 result 프레임에서만 온다.
 
@@ -311,7 +311,7 @@ def build_link_twin_state(
     return state
 
 
-# ── 기록 재생(GET /twin?replay=<name>) ────────────────────────────────────────
+# 기록 재생(GET /twin?replay=<name>)
 
 REPLAY_MAX_GAP_S = 3.0
 

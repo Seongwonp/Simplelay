@@ -77,7 +77,7 @@ String? thinqStateBrief(Map<String, dynamic> map, {bool hideControlled = true}) 
 /// 연습(모의) ThinQ 표시.
 const kThinqPracticeText = '연습이에요. 실제 가전은 그대로예요';
 
-/// ThinQ 가전 상세(2026-10-16, 사용자 요청) — 왼쪽 지금 상태, 오른쪽 큰 조작 단추.
+/// ThinQ 가전 상세: 왼쪽은 현재 상태, 오른쪽은 큰 조작 단추.
 ///
 /// - 상태는 **열 때 한 번**과 '다시 읽기'에서만 읽는다(GET /thinq/status — 클라우드 호출). 못 읽으면 이유만 말하고
 ///   값·조작을 내걸지 않는다(지금 값을 모른다). 읽은 시각을 'HH:MM에 읽음'로 적는다.

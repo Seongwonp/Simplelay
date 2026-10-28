@@ -125,7 +125,7 @@ AIR_QUALITY_HIGH = ScenarioDefinition(
     scenario_id="air_quality_high",
     name="공기가 나빠요",
     question="공기청정기를 강풍으로 바꿀까요?",
-    # 2026-10-15(사용자 요청): 근거는 공기청정기 자체 센서(ThinQ)의 가전 등급뿐 — 판독·재알림은
+    # 2026-10-15: 근거는 공기청정기 자체 센서(ThinQ)의 가전 등급뿐 — 판독·재알림은
     # rpi/services/air_quality.py, 판독 스레드는 rpi/api/air_quality_wiring.py. 센서 값이 없으면 만들지 않는다
     # (시연 트리거로도 만들지 않는다 — 엔진 ``trigger_manual``). 근거 문장은 판독이 채운다(예: '공기청정기 센서: 초미세먼지 42 · 나쁨').
     # '다음부터도 자동으로'는 두지 않는다(auto_allowed=False — 자동 실행 허용 규칙의 범위는 cook_done_air 그대로).

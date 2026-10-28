@@ -41,9 +41,7 @@ _EPS_S = 1e-9
 _HISTORY_MAX = 36_000
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # 샘플 · 센서 경계
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
@@ -127,9 +125,7 @@ class PowerConfig:
             raise ValueError("stop_max_w must be >= 0")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # 변환 (순수 함수)
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 def rms(values: Sequence[float]) -> float:
@@ -155,9 +151,7 @@ def ct_voltage_rms_to_watts(v_rms: float, config: PowerConfig = PowerConfig()) -
     return amps * config.mains_voltage_v * config.power_factor
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # 판정
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class OperationPhase(str, Enum):
@@ -222,9 +216,7 @@ class PowerSignatureDetector:
         self._stop_start_s: float | None = None
         self._finished_at_s: float | None = None
 
-    # ------------------------------------------------------------------
     # 입력
-    # ------------------------------------------------------------------
 
     @property
     def phase(self) -> OperationPhase:
@@ -317,9 +309,7 @@ class PowerSignatureDetector:
         self._phase = OperationPhase.FINISHED
         self._finished_at_s = t_s
 
-    # ------------------------------------------------------------------
     # 판정 규칙
-    # ------------------------------------------------------------------
 
     def _idle_baseline(self, now_s: float) -> float | None:
         """now_s 직전 baseline_window_s 구간 대기 샘플의 중앙값. 샘플이 없으면 None.
@@ -351,9 +341,7 @@ class PowerSignatureDetector:
         values = [s.watts for s in self._history if s.t_s >= since_s - _EPS_S]
         return max(values) if values else None
 
-    # ------------------------------------------------------------------
     # 판정 결과
-    # ------------------------------------------------------------------
 
     def verify_started(self, *, since_s: float) -> L3Verdict:
         """``since_s``(시작 버튼 조작 시각) 이후 동작 시작이 확인됐는지 판정한다.
@@ -492,9 +480,7 @@ def _is_finite(value: float) -> bool:
         return False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # 테스트·리허설용
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class MockPowerSensor:

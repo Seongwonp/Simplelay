@@ -1,33 +1,12 @@
-"""사건 신선도 근거(3차 평가 M1, 2026-10-14) — 다른 장치의 단조 시각을 이 허브(RPi5) 단조 시계로 옮기는 기준점.
+"""다른 장치의 단조 시각을 허브의 단조 시계로 보수적으로 변환한다.
 
-**서로 다른 장치의 monotonic 값은 그대로 비교하지 않는다.** RPi4가 보낸 ``appliance_done``의 끝 시각(``at_s``)과
-프레임 시각(``t_monotonic_ns``)은 RPi4 프로세스의 단조 시계(``clock_id``로 식별)다. 예전 판정(``t_monotonic_ns - at_s``)은
-프레임을 **내기까지**만 셌고, 보낸 뒤 링크·버퍼에서 늦어진 시간은 0으로 봤다.
+``clock_probe``를 보내기 직전의 허브 시각 L0와 ``clock_ref``의 원격 시각 R을
+기준으로 원격 시각 x를 ``L0 + (x - R)``로 옮긴다. 이 값은 왕복 지연만큼
+이르게 잡혀 사건 나이를 실제보다 짧게 계산하지 않는다.
 
-기준점 — 링크 세션마다 한 번(``act_info.clock_protocol`` ≥ 1인 RPi4만):
-
-1. RPi5가 ``clock_probe {probe}``를 보낸다. 보내기 **직전** RPi5 단조 시각 ``L0``을 적는다.
-2. RPi4가 ``clock_ref {probe, clock_id, t_monotonic_ns: R}``로 답한다. RPi4가 R을 읽은 실제 순간은 RPi5 시계로
-   ``L0`` 이후다(``L0 ≤ t* ≤ 받은 시각``).
-3. 그 RPi4 프로세스의 단조 시각 ``x``는 RPi5 시각 ``L0 + (x - R)``로 옮긴다. 실제(``t* + (x - R)``)보다 **이르거나 같으므로**
-   사건 나이는 실제보다 길게(최대 왕복 시간만큼) 잡힌다 — 보수적(더 많이 보류).
-
-근거가 없으면 None — 자동 실행은 **보류**가 기본이다: 기준점이 없음(옛 RPi4·아직 답 없음), 프레임의 ``clock_id``가
-지금 링크 세션의 것과 다름(RPi4 재시작·세션 바뀜), 링크가 끊겨 기준점을 버림. 같은 프로세스(RPi5 모의 주입)에서 만든
-프레임은 ``clock_id``가 이 프로세스의 것이라 그대로 같은 시계다.
-
-**기준점 유효 기간·상대 드리프트(4차 평가 M-N1).** 위 '보수적' 증명은 두 시계 속도가 같다는 전제다. 실제로는 상대 속도 차
-δ가 있어, 옮긴 값의 오차가 기준점과 사건 사이 간격 ``|x − R|``에 비례해 쌓인다(RPi4가 빠르면 사건을 늦게 옮겨 나이를
-짧게 잡는다). 그래서:
-
-- 기준점은 잡은 뒤 ``SIMPLELAY_EVENT_CLOCK_REF_MAX_AGE_S``(기본 600초)까지만 쓴다. 넘기면 근거 없음(보류). RPi5는 연결이
-  유지되는 동안 ``SIMPLELAY_EVENT_CLOCK_REFRESH_S``(기본 60초)마다 다시 탐침한다(``rpi/services/act_client.py``).
-- 그 안에서는 상대 드리프트 상한 ``SIMPLELAY_EVENT_CLOCK_DRIFT_PPM``(기본 500ppm — 리눅스 NTP 최대 보정 속도 수준의
-  설계값, **측정 필요**) × ``|x − R|``만큼 끝 시각을 더 이르게(나이를 길게) 옮긴다. 상대 드리프트가 이 상한 안이면 나이를
-  실제보다 짧게 잡지 않는다.
-- 그 불확실성이 ``SIMPLELAY_EVENT_CLOCK_MAX_UNCERTAINTY_S``(기본 1초)를 넘으면 보류한다.
-
-두 보드 사이 실제 드리프트·왕복 시간은 아직 재지 않았다.
+기준점이 없거나 만료됐거나 ``clock_id``가 다르면 None을 반환해 자동 실행을
+보류한다. 유효 기간 안에서도 설정한 상대 드리프트만큼 사건 시각을 앞당기며,
+불확실성이 상한을 넘으면 보류한다. 실제 드리프트와 왕복 시간은 측정 전이다.
 """
 
 from __future__ import annotations
@@ -104,7 +83,7 @@ class EventClock:
     def monotonic(self) -> float:
         return self._mono()
 
-    # ── 기준점 ────────────────────────────────────────────────────────────
+    # 기준점
     def new_probe(self) -> str:
         """보낼 탐침. 보내기 직전에 부른다(그 순간의 RPi5 단조 시각을 적는다)."""
         probe = uuid4().hex[:16]
@@ -137,7 +116,7 @@ class EventClock:
         with self._lock:
             return self._link[0] if self._link is not None else None
 
-    # ── 옮기기 ────────────────────────────────────────────────────────────
+    # 옮기기
     def end_local_s(self, record: Mapping) -> float | None:
         """사건 끝 시각(``at_s``)을 이 허브 단조 시계로 옮긴 값. 근거가 없으면 None(보류)."""
         clock_id, at_s = record.get("clock_id"), record.get("at_s")

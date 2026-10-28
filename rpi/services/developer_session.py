@@ -1,48 +1,13 @@
-"""개발자 모드 — 세션·구조화 명령·모션 어댑터 계약 + 실행기 연결(Phase 1).
+"""개발자 세션, 구조화 모션 명령, 어댑터 안전 계약을 관리한다.
 
-하드웨어가 오기 전에 굳혀 두는 것은 "무엇을 허용하고 무엇을 막는가"다.
-실제 축 방향·mm당 step·속도·리밋 극성·누름 깊이는 하드웨어 확인 전까지
-모르는 값이라 여기서 정하지 않는다. 이 모듈에는
+명령은 허용 목록만 받고 세션은 하나만 연다. heartbeat 만료와 어댑터 예외는
+정지로 정리하며, 정지가 확인될 때까지 ``ControlArbiter``의 제어권을 반납하지
+않는다. 정지 실패는 fault로 잠그고 확인된 긴급 정지만 이를 해제한다.
 
-- 허용 목록 기반 명령 파서 (셸·파일·raw 바이트 전송 없음)
-- 한 번에 하나의 개발자 세션, heartbeat가 끊기면 스스로 정지
-- 짧은 TTL로만 나가는 jog (무기한 이동 명령 없음)
-- 세션·인증과 무관하게 항상 먼저 도는 긴급 정지
-- 보정 안 된 가전의 press 차단
-- request_id로 이어지는 구조화 로그
-- 기록만 하는 mock 어댑터
-
-가 있다. Phase 1에서 더해진 계약(후속 교차 리뷰 #1~#4):
-
-- **제어권은 ControlArbiter에서 원자적으로 얻는다.** Phase 0의
-  ``execution_busy()`` 콜백은 서로의 락을 반대 순서로 잡는 교착 구조라
-  제거했다. 락 순서: 개발자 락 → 중재자 락(leaf). 서비스 쪽도 서비스 락 →
-  중재자 락이라 역전이 없다.
-- **정지는 명령 처리를 기다리지 않지만, 제어권 반납은 기다린다.** 어댑터
-  호출은 상태 락 밖에서 하고, 정지는 epoch를 올린 뒤 어댑터에 바로 닿는다.
-  정지와 경합해 늦게 나간 명령은 epoch 불일치로 감지해 곧바로 다시 멈추고,
-  그 재정지가 확인될 때까지 제어권은 반납되지 않는다(stopping 상태) --
-  "마지막 호출이 stop이었다"가 아니라 "이전 명령이 다시 동작할 수 없는
-  상태"가 다음 제어권의 조건이다. 어댑터 예외로 끝난 명령도 같은 settle
-  경로를 지나 정지로 정리된다.
-- **정지 실패는 세션 폐기 ≠ 장치 사용 가능.** ``adapter.stop()``이 실패하면
-  세션은 닫되 중재자에 fault(정지 미확인)를 걸어 새 실행·새 세션을 전부
-  막는다. 복구는 명시적이다 — 이후 긴급 정지가 **실제로 확인되면** 푼다.
-- **만료는 단조 시계(monotonic)로 판정한다.** 시스템 시각 변경(NTP 보정·
-  수동 변경)이 heartbeat TTL을 늘리거나 줄이지 못한다.
-- **mock 강제.** 실제 어댑터는 ``allow_real_adapter=True``를 명시해야만
-  물릴 수 있다(H 주차에 하드웨어 확인 후 연다).
-- **실물 경로(2026-10-10).** 서버는 ``SIMPLELAY_DEV_MODE``와 ``SIMPLELAY_DEV_REAL_MOTION``이 둘 다
-  켜졌을 때만 RPi4 링크 어댑터(`rpi.services.dev_real_motion.ActDevMotionAdapter`)를
-  ``allow_real_adapter=True``로 문다. 어댑터가 움직이기 **전에** 거절하면 `DevAdapterRefused`를 올리고,
-  매니저는 그 코드로 거절한다(정지를 따로 보내지 않는다 — 움직이지 않았다). 그 밖의 예외(움직였을 수
-  있음)는 종전대로 정지로 정리한다. 실물 어댑터의 한 번 조그 상한은 ``max_step_mm``로 더 작을 수 있다
-  (`max_jog_mm`).
-
-API 경로는 rpi/api/dev_router.py, 폰 화면은 app/lib/screens/developer_console_screen.dart.
-
-안전 불변식(계획 문서 3.4)을 테스트가 못 박는다:
-`rpi/tests/test_developer_session.py`.
+TTL은 단조 시계로 판정한다. 실제 어댑터는 두 개발자 모드 설정과
+``allow_real_adapter=True``가 모두 있어야 연결하며, 조그는 ``max_jog_mm``와
+어댑터의 ``max_step_mm`` 중 더 작은 상한을 따른다.
+안전 계약 시험: rpi/tests/test_developer_session.py.
 """
 
 from __future__ import annotations
@@ -64,7 +29,7 @@ from rpi.services.control_arbiter import ControlArbiter, ControlConflictError
 
 log = logging.getLogger(__name__)
 
-# ── 명령 ──────────────────────────────────────────────────────────────────
+# 명령
 
 
 class DevAxis(str, Enum):
@@ -82,8 +47,7 @@ class DevCommandKind(str, Enum):
     STOP = "stop"
 
 
-# 한 번의 jog 요청이 움직일 수 있는 상한(mm). **하드웨어 확인 전 임시값**이다 --
-# 실제 안전 이동 범위는 H3·H4에서 재고 정한다. 작게 잡는 쪽이 안전하다.
+# 한 번의 jog 요청 상한(mm). 실측 전 보수적인 임시값이다.
 MAX_JOG_MM = 5.0
 
 # 버튼 id는 서버에 등록된 식별자 모양만 받는다. 공백·셸 문자는 들어올 수 없다.
@@ -169,7 +133,7 @@ def _parse_jog(tokens: list[str]) -> DevCommand:
     )
 
 
-# ── 모션 어댑터 ───────────────────────────────────────────────────────────
+# 모션 어댑터
 
 
 class DevAdapterRefused(RuntimeError):
@@ -269,7 +233,7 @@ class MockMotionAdapter:
         return [c for c in self.calls if c[0] in ("jog", "home", "press")]
 
 
-# ── 세션 ──────────────────────────────────────────────────────────────────
+# 세션
 
 
 class DevSessionConflict(RuntimeError):
@@ -427,7 +391,7 @@ class DeveloperSessionManager:
         # 정지가 올라갈 때마다 1 증가 -- 락 밖에서 진행 중이던 명령이
         # "내가 검증받은 세대"와 대조해 정지 이후의 자신을 알아챈다.
         self._epoch = 0
-        # ── 제어권 반납 판정 상태 (전부 _lock 보호) ──
+        # 제어권 반납 판정 상태 (전부 _lock 보호)
         # 반납은 조건문을 여기저기 두지 않고 _maybe_release_locked() 한곳이
         # 판정한다(후속 리뷰 1.3): "누가 마지막으로 끝났는가"가 아니라
         # "필요한 안전 조건이 모두 충족됐는가"가 기준이다.
@@ -458,7 +422,7 @@ class DeveloperSessionManager:
         self._watch_thread: threading.Thread | None = None
         self._closed = False
 
-    # ── 조회 ──
+    # 조회
 
     @property
     def session(self) -> DevSession | None:
@@ -537,7 +501,7 @@ class DeveloperSessionManager:
             shutting_down=shutting_down,
         )
 
-    # ── 세션 수명 ──
+    # 세션 수명
 
     def start(self, appliance_id: str, node_id: str) -> DevSession:
         # 대상 검증이 제일 먼저다 -- 없는 가전의 세션은 제어권을 잡기 전에
@@ -689,7 +653,7 @@ class DeveloperSessionManager:
         except Exception:  # 종료 절차는 서로를 막지 않는다
             log.exception("developer session shutdown stop failed")
 
-    # ── 명령 ──
+    # 명령
 
     def submit(
         self,
@@ -806,7 +770,7 @@ class DeveloperSessionManager:
                 sensor=sensor, dispatch_failed=False,
             )
 
-    # ── 내부 ──
+    # 내부
 
     def _settle_refused(
         self,

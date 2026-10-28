@@ -348,7 +348,7 @@ class KioskSuggestionView extends StatelessWidget {
                 : Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── 왼쪽: 무엇을 ─────────────────────────────────────────
+                      // 왼쪽: 무엇을
                       Expanded(
                         flex: 5,
                         // 큰 글씨에서 근거 줄이 아래로 넘치면 스크롤 막대가 보인다(2026-10-15).
@@ -364,7 +364,7 @@ class KioskSuggestionView extends StatelessWidget {
                                   )
                                 : question),
                       ),
-                      // ── 오른쪽(시나리오): 어느 가전을 어느 경로로 무엇을 ─────────
+                      // 오른쪽(시나리오): 어느 가전을 어느 경로로 무엇을
                       if (pictureMode) ...[
                         const SizedBox(width: KioskSizes.stopGap),
                         SizedBox(
@@ -416,7 +416,7 @@ class KioskSuggestionView extends StatelessWidget {
                           ),
                         ),
                       ]
-                      // ── 오른쪽: 어떤 순서로 ─────────────────────────────────
+                      // 오른쪽: 어떤 순서로
                       else if (suggestion.steps.isNotEmpty) ...[
                         const SizedBox(width: 28),
                         Expanded(

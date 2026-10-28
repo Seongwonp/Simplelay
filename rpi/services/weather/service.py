@@ -79,7 +79,7 @@ class WeatherService:
         with self._lock:
             return self._last_error
 
-    # ── 영속 ────────────────────────────────────────────────────────────────
+    # 영속
 
     def _load_persisted(self) -> kma.Forecast | None:
         loader = getattr(self._store, "load_setting", None)
@@ -101,7 +101,7 @@ class WeatherService:
         except Exception:  # noqa: BLE001 - 저장 실패가 조회를 막지 않는다
             log.warning("could not persist weather cache")
 
-    # ── 조회 ────────────────────────────────────────────────────────────────
+    # 조회
 
     def snapshot(self, now: datetime | None = None) -> WeatherSnapshot:
         """지금 쓸 수 있는 예보. 네트워크·포털 오류에도 예외 없이 돌아온다."""

@@ -104,7 +104,7 @@ class FakeOutlet:
         for thread in self._threads:
             thread.start()
 
-    # ── 시험·리허설 조작 ───────────────────────────────────────────────────────
+    # 시험·리허설 조작
 
     @property
     def seq(self) -> int:
@@ -171,7 +171,7 @@ class FakeOutlet:
         for thread in self._threads:
             thread.join(timeout=2.0)
 
-    # ── 내부 ─────────────────────────────────────────────────────────────────
+    # 내부
 
     def _send(self, doc: dict) -> None:
         if self.silent:

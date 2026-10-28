@@ -17,18 +17,11 @@ import '../widgets/voice_stop_indicator.dart';
 import 'history_screen.dart' show historyProvider;
 import '../theme/app_tokens.dart';
 
-/// 과업 탭 shell — **홈 · 가전 · 자동 실행 · 기록**(10/23 승인안).
+/// 홈·가전·자동 실행·기록 탭을 제공하는 앱 셸.
 ///
-/// 탭은 늘 네 개다(UI 개편안 §4, 2026-10-18). 개발자 도구는 탭이 아니라 설정
-/// 맨 아래 항목이고, 서버 `/status.developer_mode`가 참일 때만 보인다 -- 시연 날
-/// 제품 화면에 데모 흔적이 남지 않게 한다.
-///
-/// 예전 탭바 가운데의 '말로 조작하기'와 '상태' 탭은 없앴다. 대신
-/// **실행 중에는 어느 탭에서든 탭바 바로 위에 정지 줄이 뜬다** -- 상태
-/// 탭이 사라져도 멈출 수단이 한 번의 터치 안에 있어야 한다.
-///
-/// 콘센트 모듈 비상정지가 걸려 있으면(2026-10-05) 정지 줄 위에 걸림 배너가
-/// 함께 뜬다 — 해제는 사람이 확인 대화를 거쳐서만 한다.
+/// 개발자 도구는 `/status.developer_mode`가 참일 때만 설정에 표시한다.
+/// 실행 중에는 모든 탭에서 정지 줄을 유지한다. 비상정지는 별도 배너로 표시하며,
+/// 해제에는 사용자 확인이 필요하다.
 class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
 

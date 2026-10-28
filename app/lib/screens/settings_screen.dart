@@ -54,12 +54,8 @@ part 'settings/nav_rows.dart';
 part 'settings/hub_screen.dart';
 part 'settings/developer_tab.dart';
 
-/// 설정 줄 '조용한 시간'의 지금 값 — 켜져 있으면 '오후 10:00~오전 7:00', 꺼져 있으면 '꺼짐'. 못 읽었으면 그렇다고 하고 할 일을 붙인다
-/// (꺼짐으로 단정하지 않는다). 예전 '확인하지 못했어요' 한마디는 무엇을 모르는지·어떻게 하는지 말하지 않았다(평가 3차 10/18).
-/// 줄을 누르면 상세가 다시 읽는다.
-///
-/// 평가 10차(10/18): '확인 못 했어요 · 새로 보기'는 까닭이 없었고 '새로 보기'가 값처럼 붙어 있었다 → 까닭은 본체 연결
-/// 상태로 알 때만 앞에 붙이고([hubReadFailReason]), '새로 보기'는 줄 아래 따로 단추([kRefreshLabel]).
+/// 조용한 시간 설정 줄의 현재 값.
+/// 값을 못 읽으면 꺼짐으로 단정하지 않고, 알려진 연결 상태만 실패 이유로 표시한다.
 String quietRowValue(QuietHoursStatus? s,
     {required bool hasApi, RpiConnectionState? hub, bool loading = false}) {
   if (s == null) {
@@ -220,17 +216,17 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpace.xxxl),
 
-          // ── 가전 — 목록은 가전 탭에만(10/25). 본체에 못 보낸 변경이 있을 때만 이 묶음이 보인다. ──
+          // 가전 — 목록은 가전 탭에만(10/25). 본체에 못 보낸 변경이 있을 때만 이 묶음이 보인다.
           _ApplianceSection(),
 
-          // ── 부르는 이름(2026-10-25) — 본체가 오래 비웠다 돌아온 사람에게 인사할 때 ──
+          // 부르는 이름(2026-10-25) — 본체가 오래 비웠다 돌아온 사람에게 인사할 때
           _SectionHeader(title: '인사'),
           const SizedBox(height: AppSpace.sm),
           const _ResidentNameTile(),
 
           const SizedBox(height: AppSpace.xxxl),
 
-          // ── 알림 ──────────────────────────────────────────
+          // 알림
           _SectionHeader(title: '알림'),
           const SizedBox(height: AppSpace.sm),
           // 한 줄 = 이름 + 오른쪽 지금 값(2026-10-18). 긴 설명·켜고 끄기는 줄을 눌러 상세에서.
@@ -273,7 +269,7 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpace.xxxl),
 
-          // ── 생활 습관 ──────────────────────────────────────
+          // 생활 습관
           // 평가 4차 10/18: '물어보기' 섹션 아래 '생활 습관 알아가기'가 어긋났다. 이 구획의 두 가지 — 알아 둔 습관 보기,
           // 그만 묻기로 한 것 다시 받기 — 는 모두 '습관을 보고 묻는 일'에 관한 것이라 섹션 이름을 '생활 습관'으로 합친다.
           _SectionHeader(title: '생활 습관'),
@@ -299,7 +295,7 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpace.xxxl),
 
-          // ── 화면·소리 ────────────────────────────────────────────────────
+          // 화면·소리
           _SectionHeader(title: '화면·소리'),
           const SizedBox(height: AppSpace.xs),
           _ThemeToggleTile(),

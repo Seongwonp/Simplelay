@@ -166,9 +166,8 @@ class DbusAgentLlmClient(LlmClient):
             try:
                 return self._collect_response(monitor, request_id)
             except DbusAgentClientError:
-                # 우리가 기다리기를 그만둬도 에이전트는 계속 처리한다. 포기할 땐
-                # 반드시 상대에게 중단을 알린다 -- ESP 노드 경로에서 세운 것과 같은
-                # 원칙(우리 쪽만 실패로 처리하고 기기는 계속 도는 상태를 만들지 않는다).
+                # 응답 대기를 중단해도 에이전트 처리는 계속되므로 중단 요청을 보낸다.
+                # ESP 노드 경로와 동일하게 호출 측 실패 후 원격 작업이 계속되는 것을 막는다.
                 self._stop_request(request_id)
                 raise
         finally:

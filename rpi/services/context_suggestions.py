@@ -70,7 +70,7 @@ INDOOR_FINE_LEVELS = ("GOOD", "NORMAL")
 #: '보통'부터 넣는다: 나쁨 이상은 공기질 제안도 잡지만, 돌아온 때는 보통이어도 미리 켜 둘지 묻는다(사용자 지시).
 ARRIVAL_AIR_LEVELS = ("NORMAL", "BAD", "VERY_BAD")
 
-# ── 근거·질문 문장(정해 둔 틀, 해요체·느낌표 없음 — docs/UX-문구-기준-2026-10-19.md) ──
+# 근거·질문 문장(정해 둔 틀, 해요체·느낌표 없음 — docs/UX-문구-기준-2026-10-19.md)
 SLEEP_REASON = "불을 끄셨네요. 밤이고 공기청정기가 켜져 있어요."
 ARRIVAL_PREFIX = "다녀오셨어요."
 ARRIVAL_AIR_SENTENCES = {
@@ -105,7 +105,7 @@ class ContextRuleConfig:
     dust_cooldown_s: float = 6 * 3600.0
     #: 공기청정기 상태를 믿는 나이(초) — 공기질 판독 주기 기본 120초의 두 번 + 여유. **추측**.
     purifier_state_max_age_s: float = 300.0
-    # ── 조언(2026-10-26, 표시 없는 값은 **추측** — 사용 뒤 조정) ──
+    # 조언(2026-10-26, 표시 없는 값은 **추측** — 사용 뒤 조정)
     #: 조언을 하는 지역 시각(시작 포함·끝 제외). 사용자 지시 8~21시.
     advice_start_hour: int = 8
     advice_end_hour: int = 21
@@ -273,7 +273,7 @@ class ContextSuggestionMonitor:
             self.last_outcome = outcome
             return outcome
 
-    # ── 판정 ──────────────────────────────────────────────────────────────
+    # 판정
     def _check_locked(self) -> str:
         s = self._signals()
         self._track_dust(s.dust_warning)
@@ -423,7 +423,7 @@ class ContextSuggestionMonitor:
         return "offered"
 
 
-    # ── 조언(실행 없음, 2026-10-26) ─────────────────────────────────────────
+    # 조언(실행 없음, 2026-10-26)
     def _window_likely(self, s: ContextSignals):
         """창문을 열 만한 때인가 — ``(이유 이름, 근거 문장, 칩)``, 아니면 ``(안 되는 이유, None, None)``.
 

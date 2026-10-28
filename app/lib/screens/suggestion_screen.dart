@@ -120,8 +120,7 @@ class SuggestionScreen extends ConsumerWidget {
       _notifyError(context, '30분 동안 이 일은 묻지 않을게요. 그 뒤에도 때가 맞을 때만 물어요.');
     }
     if (mute) {
-      // 무엇이 바뀌었는지 말하고 물릴 길을 같이 준다 -- 설정 화면까지
-      // 찾아 들어가야 되돌릴 수 있으면 되돌릴 수 있는 게 아니다.
+      // 제안 억제 안내에 바로 되돌릴 수 있는 동작을 함께 제공한다.
       _notifyMuted(context, rpiApi, suggestion.label);
     }
     context.pop();
@@ -405,14 +404,14 @@ class SuggestionScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
         children: [
-          // ── 어느 가전인가 ────────────────────────────────────────────────
+          // 어느 가전인가
           // 여러 가전을 다루므로 대상이 질문보다 먼저 보여야 맡길지 판단할
           // 수 있다. 사진이 있으면 사진, 없으면 종류별 실루엣.
           _TargetHeader(appliance: appliance, stepCount: suggestion.steps.length),
 
           const SizedBox(height: AppSpace.xl),
 
-          // ── 무엇을 ──────────────────────────────────────────────────────
+          // 무엇을
           // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
           // 잘라내지 않는다. 긴 말은 줄바꿈해서 다 보여준다.
           if (suggestion.isDemo) const Text('연습용으로 만든 물음이에요', style: AppText.body),
@@ -436,7 +435,7 @@ class SuggestionScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpace.xxxl),
 
-          // ── 어떤 버튼을, 어떤 순서로 ────────────────────────────────────
+          // 어떤 버튼을, 어떤 순서로
           // 단계를 카드 하나하나로 감싸지 않는다. 라벨과 번호가 가장
           // 선명해야 하는데, 카드 테두리·아이콘이 그보다 먼저 보였다.
           Text('누를 순서', style: AppText.title),
@@ -445,7 +444,7 @@ class SuggestionScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpace.xxxl),
 
-          // ── 실제 배치에서 어디인가 ──────────────────────────────────────
+          // 실제 배치에서 어디인가
           // 순서 목록이 주 정보고, 지도는 그것을 실제 버튼판 위에서 다시
           // 확인하는 보조다. 그래서 아래에 두고, 필요할 때 펼친다(2026-10-14 UI 정리).
           _ButtonMapSection(appliance: appliance, steps: suggestion.steps),
@@ -467,7 +466,7 @@ class SuggestionScreen extends ConsumerWidget {
   }
 }
 
-// ── 대상 가전 머리 ────────────────────────────────────────────────────────
+// 대상 가전 머리
 
 class _TargetHeader extends StatelessWidget {
   const _TargetHeader({required this.appliance, required this.stepCount});
@@ -508,7 +507,7 @@ class _TargetHeader extends StatelessWidget {
       );
 }
 
-// ── 누를 순서 ─────────────────────────────────────────────────────────────
+// 누를 순서
 
 /// 번호와 라벨만. 아이콘을 문자열에서 추측해 붙이지 않는다 -- '시작'에
 /// 재생 아이콘을 붙이는 식은 맞을 때도 있지만 틀릴 때 아무도 모른다.
@@ -567,7 +566,7 @@ class _StepList extends StatelessWidget {
       );
 }
 
-// ── 하단 고정 행동 ────────────────────────────────────────────────────────
+// 하단 고정 행동
 
 /// 실행 직전 **대상과 단계 수를 한 번 더** 말하고, 선택지는 둘만 둔다:
 /// 지금 실행(채움) > 다음에(외곽선). 관리 선택지는 위의 '더 보기'(2026-10-14 UI 정리).
@@ -602,8 +601,7 @@ class _ActionBar extends StatelessWidget {
     final run = FilledButton.icon(
       onPressed: onRun,
       icon: const Icon(Icons.play_arrow_rounded),
-      // '승인'은 결재 용어다. 사용자가 하는 일은 결재가 아니라 "지금
-      // 시킬지" 정하는 것 -- 키오스크와 같은 문구를 쓴다.
+      // 키오스크와 같은 실행 문구를 쓴다.
       label: const Text('지금 하기'),
     );
     // 큰 글씨에서는 두 버튼을 나란히 두면 '다음에'가 단어 중간에서
@@ -796,7 +794,7 @@ class _ButtonMapSection extends StatelessWidget {
       );
 }
 
-// ── 대상 가전을 모를 때 ───────────────────────────────────────────────────
+// 대상 가전을 모를 때
 
 /// 제안이 가리키는 가전을 목록에서 찾지 못했을 때.
 ///
@@ -853,7 +851,7 @@ class _UnknownTargetScreen extends StatelessWidget {
   }
 }
 
-// ── 조언 카드(2026-10-26) ─────────────────────────────────────────────────
+// 조언 카드(2026-10-26)
 
 /// 조언 — 가전을 움직이지 않는 말 한마디. '알겠어요'(본체에 알겠어요로 남김)·'괜찮아요'(이번만 닫기) 둘뿐이다.
 class _AdviceScreen extends StatelessWidget {
@@ -909,7 +907,7 @@ class _AdviceScreen extends StatelessWidget {
   }
 }
 
-// ── 시나리오 카드 ─────────────────────────────────────────────────────────
+// 시나리오 카드
 
 /// 승인 재검사 실패(409) 안내. 키오스크와 같은 문장.
 const approvalChangedMessage = '내용이 바뀌었어요. 다시 보고 허락해 주세요';

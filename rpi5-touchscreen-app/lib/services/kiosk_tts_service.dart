@@ -28,10 +28,10 @@ class KioskTtsService {
   final TtsProcessRunner _runner;
   final Future<void> Function() _chimeRunner;
 
-  /// 소리 끄기(2026-10-25 사용자 요청) — 알림음·음성 안내를 모두 내지 않는다. 음성 안내([enabled])를 꺼도 알림음은 울린다.
+  /// 알림음과 음성 안내를 모두 끈다. [enabled]는 음성 안내만 제어한다.
   bool muted = false;
 
-  /// 짧은 알림음(딩동, 2026-10-25 사용자 요청 — 제안이 뜰 때만). 음성 안내가 꺼져 있어도 울리고, 소리 끄기면 울리지 않는다.
+  /// 제안용 알림음. 음성 안내와 별개지만 소리 끄기 상태에서는 울리지 않는다.
   Future<void> chime() async {
     if (muted) return;
     try {

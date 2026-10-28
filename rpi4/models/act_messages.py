@@ -288,7 +288,7 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
             if hold.appliance_id is None:
                 hold = replace(hold, appliance_id=target)
             elif hold.appliance_id != target:
-                # 다른 가전의 정지 버튼·전력으로 대기하지 않는다 — 버리지 않고 거절로 답한다(교차 리뷰 92876bd).
+                # 다른 가전의 정지 버튼이나 전력 상태로 대기하지 않고 거절로 답한다.
                 return ExecuteRefusedMsg(
                     seq_id.strip(), HOLD_TARGET_MISMATCH,
                     f"정지 대기 대상({hold.appliance_id})이 실행 대상({target})과 달라 누르지 않았어요")
@@ -366,7 +366,7 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
     if msg_type == "dev_motion":
         return _parse_dev_motion(doc)
 
-    return None  # unknown type — not an error, just silently ignored
+    return None  # 알 수 없는 형식은 오류 없이 무시한다.
 
 
 _REHEARSAL_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")

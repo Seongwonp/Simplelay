@@ -1,6 +1,6 @@
 part of '../settings_screen.dart';
 
-// ── 섹션 헤더 ─────────────────────────────────────────────────────────────
+// 섹션 헤더
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title});
@@ -12,7 +12,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => Text(title, style: AppText.title);
 }
 
-// ── 공통 카드 컨테이너 ────────────────────────────────────────────────────
+// 공통 카드 컨테이너
 
 /// 설정 항목 한 줄. 이름은 예전 그대로지만 더는 카드가 아니다.
 ///

@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/dev_api_service.dart';
 import 'rpi_api_provider.dart';
 
-// ── 개발자 토큰 (서버 SIMPLELAY_DEV_TOKEN과 짝) ─────────────────────────────
+// 개발자 토큰 (서버 SIMPLELAY_DEV_TOKEN과 짝)
 //
 // 일반 API 키와 따로 둔다 -- 권한이 다르다. 이 값이 없으면 개발자 API
 // 클라이언트 자체를 만들지 않는다.

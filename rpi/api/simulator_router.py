@@ -111,7 +111,7 @@ def parking_event(body: RehearsalEvent, controller=Depends(require_simulator)):
         raise HTTPException(422, str(exc)) from exc
 
 
-# ── 디지털 트윈(개념 모션) 화면 ─────────────────────────────────────────────
+# 디지털 트윈(개념 모션) 화면
 # 읽기 전용이다. 실행·정지는 기존 /execute-buttons·/stop을 그대로 쓴다.
 
 @router.get('/twin', response_class=HTMLResponse)

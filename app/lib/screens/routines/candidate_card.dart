@@ -56,11 +56,9 @@ class _CandidateCard extends StatelessWidget {
 /// 루틴 한 줄의 부제 — 조건 한 줄(알려진 가전 알림은 사람 말로) · 무엇을 · 꺼짐.
 /// '승인 후 실행'은 줄마다 되풀이하지 않는다(실행하기가 승인 카드로 간다).
 ///
-/// 시각은 오전/오후 꼴('매일 오후 10:00', 평가 7차 10/18). [withClock]이 false면 정해진 시각 루틴의 '언제'를 통째로
-/// 뺀다 — 루틴 목록은 이름 위 칩([routineWhenLabel])이 '매일 오전 7:00'을 따로 말한다.
+/// 시각은 오전/오후 형식으로 표시한다. [withClock]이 false면 시각 설명을 생략한다.
 ///
-/// [skipNamed]가 true면 이름이 이미 말하는 '무엇을' 조각은 뺀다(평가 8차 10/18: '아침 공기청정기 끄기' 아래
-/// '공기청정기 끄기'가 같은 말을 되풀이했다). 루틴 목록 줄만 쓴다.
+/// [skipNamed]가 true면 이름과 중복되는 동작 설명을 생략한다.
 String routineSubtitle(Routine r, Map<String, String> applianceNames,
     {bool withClock = true, bool skipNamed = false}) {
   var when = withAmPm(_routineWhen(r, applianceNames));
@@ -78,8 +76,7 @@ String routineSubtitle(Routine r, Map<String, String> applianceNames,
   ].join(' · ');
 }
 
-/// 루틴 목록 줄의 이름 아래 한 줄 — '언제 · 무슨 가전'(평가 10차 10/18: 시각 줄은 시각이 이름 위에 있고 가전이
-/// 없었고, 필요할 때 줄은 가전·버튼이 아래라 줄 모양이 섞였다).
+/// 루틴 이름 아래 표시할 시각과 대상 가전 요약.
 ///
 /// - 언제: 정해진 시각이면 '매일 오전 7:00', 가전 알림이면 그 조건, 직접 실행이면 적지 않는다.
 /// - 무슨 가전: 누르는 가전과 '누를 버튼 N개', LG 가전은 결과 말('공기청정기 바람 세게') — 이름이 이미 그 결과를
@@ -130,6 +127,4 @@ String? routineWhenLabel(Routine r, Map<String, String> applianceNames) {
   return withAmPm(when.contains(clock) ? when : clock);
 }
 
-/// 루틴이 하는 일 — 누르는 가전과 '누를 버튼 N개', LG 가전은 결과 말('공기청정기 켜기').
-///
-/// 평가 5차(10/18): '버튼 2번'은 한 버튼을 두 번 누르는 것으로 읽혔고, 'LG 가전 설정 1번'은 무엇이 되는지 말하지 않았다.
+/// 루틴의 대상 가전과 버튼 수 또는 LG 가전 동작을 설명한다.

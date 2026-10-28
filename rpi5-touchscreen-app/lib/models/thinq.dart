@@ -1,4 +1,4 @@
-/// ThinQ 가전 상태·공기질 — 키오스크용 순수 함수(2026-10-16, 사용자 요청).
+/// ThinQ 가전 상태와 공기질을 표시하는 키오스크용 순수 함수.
 ///
 /// 상태 줄·조작 표는 폰(`app/lib/widgets/thinq_state_card.dart`의 `thinqStateRows`·`kAirPurifierControls`)에서
 /// 필요한 만큼만 옮겼다. 칸 이름·값 이름은 서버 대응표(`rpi/services/thinq/bindings.py`)·공기질 판정
@@ -352,7 +352,7 @@ String _ro(String word) {
 
 String _eulReul(String word) => _jong(word) == 0 ? '를' : '을';
 
-/// 키오스크의 공기청정기 조작 — 전원과 풍량만(사용자 요청 범위). 값은 폰 표·서버 대응표와 같다.
+/// 키오스크의 공기청정기 조작 — 전원과 풍량만. 값은 폰 표·서버 대응표와 같다.
 /// 이 모델이 허용하지 않는 값은 서버가 보내기 전에 거절한다(그 이유를 그대로 보인다).
 const kKioskAirPurifierControls = <ThinqControl>[
   ThinqControl(

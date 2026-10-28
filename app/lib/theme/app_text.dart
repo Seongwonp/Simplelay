@@ -26,10 +26,8 @@ class AppText {
     fontWeight: FontWeight.w400,
   );
 
-  // **색을 여기서 정하지 않는다.** 예전에는 다크용 회색을 상수로 물고 있어서
-  // 라이트 모드의 크림 배경 위에서 2.48:1이었다 — app_colors.dart의 "하드코딩 금지"
-  // 주석이 가리키던 바로 그 실수를 타이포 토큰 자신이 저지르고 있었다.
-  // 색이 필요하면 `context.appCaption`을 쓸 것.
+  // 글자색은 테마에서 정한다. 기존 다크용 회색 상수는 라이트 모드의 크림 배경에서 대비가 2.48:1이었다.
+  // 색이 필요하면 context.appCaption을 쓴다(app_colors.dart 참조).
   static const caption = TextStyle(fontSize: AppFont.caption);
 
   // 센서 수치 표시 — 숫자 너비 고정(탭형 수치)으로 흔들림 방지

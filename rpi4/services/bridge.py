@@ -86,7 +86,7 @@ class UartBridge:
         self._store = store or SequenceStore()
         self._clock = clock
 
-    # ── Public API ───────────────────────────────────────────────────────────
+    # Public API
 
     async def run(self) -> None:
         """Read lines until EOF or task cancellation."""
@@ -119,7 +119,7 @@ class UartBridge:
 
         await self._dispatch(msg)
 
-    # ── Dispatch ─────────────────────────────────────────────────────────────
+    # Dispatch
 
     async def _dispatch(self, msg: InboundMsg) -> None:
         if isinstance(msg, IntentMsg):
@@ -131,7 +131,7 @@ class UartBridge:
         elif isinstance(msg, SensorLogMsg):
             self._on_sensor_log(msg)
 
-    # ── Handlers ─────────────────────────────────────────────────────────────
+    # Handlers
 
     async def _on_intent(self, msg: IntentMsg) -> None:
         try:
@@ -196,7 +196,7 @@ class UartBridge:
         # RPi4 link once that's built, or have ESP32 send it straight to RPi4.
         log.debug("sensor_log: %d mA, %d dB (not forwarded)", msg.current_ma, msg.sound_db)
 
-    # ── IO helper ────────────────────────────────────────────────────────────
+    # IO helper
 
     async def _send(self, doc: dict) -> None:
         payload = (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")

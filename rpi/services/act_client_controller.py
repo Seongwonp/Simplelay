@@ -212,7 +212,7 @@ class ActClientController:
             return {"stop_level": None, "ack_ms": None, "target": None,
                     "stop_detail": f"RPi4에 정지를 보내지 못했어요: {exc}"}
 
-    # ── 정지 대기·확인 주행(2026-09-30) ─────────────────────────────────────
+    # 정지 대기·확인 주행(2026-09-30)
 
     #: 서비스가 이 표시를 보고 실행 직전에 ``arm_stop_hold``를 부른다.
     supports_stop_hold = True
@@ -267,7 +267,7 @@ class ActClientController:
         except RuntimeError:
             log.warning("hello not sent — act client loop closed")
 
-    # ── UART 리허설(2026-10-06) ─────────────────────────────────────────────
+    # UART 리허설(2026-10-06)
     # RPi4가 가짜 콘센트(또는 없음)·모의 모션으로 돌 때만 RPi4가 받는다. RPi5는 SIMPLELAY_UART_REHEARSAL=1일 때만 연다.
 
     def rehearsal_status(self) -> dict:
@@ -309,7 +309,7 @@ class ActClientController:
             future.cancel()
             raise ActLinkTimeoutError("estop_ack timed out") from exc
 
-    # ── 개발자 조작(2026-10-10) ─────────────────────────────────────────────
+    # 개발자 조작(2026-10-10)
 
     def dev_motion_link(self) -> dict:
         """개발자 실물 어댑터가 보는 링크 한 장 ``{"link_up", "link_reason", "act_info", "estop_latched"}`` — 읽기만."""

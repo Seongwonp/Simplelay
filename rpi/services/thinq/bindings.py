@@ -156,7 +156,7 @@ class ThinqBinding:
             return None
         return self.command(target_id, fn.action, dict(fn.args))
 
-    # ── 말 다듬기 비교(2026-10-19) ─────────────────────────────────────────
+    # 말 다듬기 비교(2026-10-19)
     def _device_names(self) -> tuple[str, ...]:
         from rpi.intent.voice_lexicon import DEVICE_NAMES  # noqa: PLC0415
 
@@ -246,7 +246,7 @@ class ThinqBinding:
         return f"{name} {cap.label} {cap.value_label(str(value))}"
 
 
-# ── 기본 대응표 (추측/확인 필요 — 모델 프로필 확인 전) ───────────────────────
+# 기본 대응표 (추측/확인 필요 — 모델 프로필 확인 전)
 
 AIR_PURIFIER_DEVICE_TYPE = "DEVICE_AIR_PURIFIER"
 WASHER_DEVICE_TYPE = "DEVICE_WASHER"

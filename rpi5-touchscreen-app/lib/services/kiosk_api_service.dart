@@ -474,7 +474,7 @@ class KioskStatus {
   /// GET /jobs/{job_id}의 끝남(검토 10/19). /status·옛 본체는 null — 그때는 종전처럼 last_job_id 대조로 본다.
   final bool? finished;
 
-  // ── 루틴 실행(GET /jobs의 첫 실행 번호, 검토 10/19) — 루틴 전체 수명. 루틴이 아니거나 옛 본체면 모두 null ──
+  // 루틴 실행(GET /jobs의 첫 실행 번호, 검토 10/19) — 루틴 전체 수명. 루틴이 아니거나 옛 본체면 모두 null
   /// 루틴 실행 번호(`/routines/runs/{id}/stop`의 번호, 첫 구간 번호와 같다).
   final String? routineRunId;
 
@@ -512,7 +512,7 @@ class KioskStatus {
   /// 서버 개발자 모드(SIMPLELAY_DEV_MODE). 시연 흔적은 이 값이 참일 때만 보인다.
   final bool developerMode;
 
-  // ── 정지 버튼 대기·보관(2026-09-30) — 판정은 RPi4가 하고 서버는 옮기기만 한다.
+  // 정지 버튼 대기·보관(2026-09-30) — 판정은 RPi4가 하고 서버는 옮기기만 한다.
   /// hovering_stop | stopping | parking | parked | fault | released | null(대기 없음)
   final String? holdState;
 

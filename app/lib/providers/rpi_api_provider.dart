@@ -12,7 +12,7 @@ import '../services/simulated_execution_service.dart';
 import 'clock_provider.dart';
 import 'demo_provider.dart';
 
-// ── 기본 URL (mDNS — 라우터 없이도 simplelay.local로 자동 연결) ─────────────
+// 기본 URL (mDNS — 라우터 없이도 simplelay.local로 자동 연결)
 const _kDefaultUrl = 'http://simplelay.local:8000';
 
 /// 사용자가 입력한 서버 주소를 완전한 URL로 정규화한다.
@@ -32,7 +32,7 @@ String normalizeRpiUrl(String input) {
   return v.replaceAll(RegExp(r'/+$'), '');
 }
 
-// ── RPi 서버 URL 저장 ─────────────────────────────────────────────────────
+// RPi 서버 URL 저장
 
 class RpiUrlNotifier extends StateNotifier<String?> {
   RpiUrlNotifier() : super(null) {
@@ -83,7 +83,7 @@ final rpiUrlProvider = StateNotifierProvider<RpiUrlNotifier, String?>(
 // 테스트에서 fake로 교체할 수 있게 provider로 노출
 final mdnsResolverProvider = Provider<MdnsResolver>((_) => MdnsResolver());
 
-// ── API 키 (서버 SIMPLELAY_API_KEY와 짝 — 시연장 공유 Wi-Fi 방어) ──────────
+// API 키 (서버 SIMPLELAY_API_KEY와 짝 — 시연장 공유 Wi-Fi 방어)
 
 class RpiApiKeyNotifier extends StateNotifier<String?> {
   RpiApiKeyNotifier() : super(null) {
@@ -118,7 +118,7 @@ final rpiApiKeyProvider = StateNotifierProvider<RpiApiKeyNotifier, String?>(
   (ref) => RpiApiKeyNotifier(),
 );
 
-// ── RpiApiService 인스턴스 ────────────────────────────────────────────────
+// RpiApiService 인스턴스
 
 /// HTTP 클라이언트 주입점 — 테스트에서 이 provider를 갈아끼워 **실제
 /// 전송이 있었는지**를 센다. 서비스 자체를 통째로 교체해버리면 데모
@@ -145,7 +145,7 @@ final rpiApiServiceProvider = Provider<RpiApiService?>((ref) {
   return service;
 });
 
-// ── RPi 연결 상태 ─────────────────────────────────────────────────────────
+// RPi 연결 상태
 
 enum RpiConnectionState { unconfigured, checking, connected, keyRequired, unreachable }
 
@@ -264,7 +264,7 @@ final rpiConnectionProvider =
   (ref) => RpiConnectionNotifier(ref),
 );
 
-// ── 센서 데이터 (60초마다 폴링) ───────────────────────────────────────────
+// 센서 데이터 (60초마다 폴링)
 
 final sensorProvider = StreamProvider.autoDispose<SensorReading?>((ref) {
   final service = ref.watch(rpiApiServiceProvider);
@@ -289,7 +289,7 @@ final sensorProvider = StreamProvider.autoDispose<SensorReading?>((ref) {
   return controller.stream;
 });
 
-// ── 켜진 ThinQ 가전 (15초마다, 서버 전원 기억 — 2026-10-16) ─────────────────
+// 켜진 ThinQ 가전 (15초마다, 서버 전원 기억 — 2026-10-16)
 
 /// 본체가 읽은 LG 가전 전원(가전 id → 'on'·'off'). 모르는 가전은 없다 — 꺼짐으로 단정하지 않는다.
 final thinqPowerProvider = StreamProvider.autoDispose<Map<String, String>>((ref) {
@@ -322,7 +322,7 @@ final thinqPowerOnProvider = Provider.autoDispose<AsyncValue<Set<String>>>((ref)
             if (e.value == 'on') e.key,
         }));
 
-// ── 집 공기(60초마다, 본체 공기질 기억 — 2026-10-18) ─────────────────────────
+// 집 공기(60초마다, 본체 공기질 기억 — 2026-10-18)
 
 /// 가장 나쁜 공기 등급(GOOD·NORMAL·BAD·VERY_BAD). 모르면 null.
 final thinqAirProvider = StreamProvider.autoDispose<String?>((ref) {
@@ -348,7 +348,7 @@ final thinqAirProvider = StreamProvider.autoDispose<String?>((ref) {
   return controller.stream;
 });
 
-// ── DND 상태 (health 엔드포인트 기반) ────────────────────────────────────
+// DND 상태 (health 엔드포인트 기반)
 
 class DndNotifier extends StateNotifier<DateTime?> {
   DndNotifier(this._ref) : super(null);
@@ -429,7 +429,7 @@ final quietHoursProvider =
   }
 });
 
-// ── 노드 레지스트리 (ESP32 IP 등록 목록) ─────────────────────────────────
+// 노드 레지스트리 (ESP32 IP 등록 목록)
 
 // applianceId → baseUrl 맵. RPi 연결 상태가 바뀌면 자동 재조회.
 final nodeRegistryProvider =
@@ -440,7 +440,7 @@ final nodeRegistryProvider =
   return {for (final n in nodes) n.applianceId: n.baseUrl};
 });
 
-// ── 다단계 실행 결과(G4) ────────────────────────────────────────────────
+// 다단계 실행 결과(G4)
 
 /// 끝난 job [jobId]의 단계별 결과. GET /scenarios/last-run이 **그 job의 기록**일
 /// 때만 값이 있고, 다른 실행의 기록·조회 실패·연결 없음은 null이다 -- 다른
@@ -453,7 +453,7 @@ final scenarioRunForJobProvider = FutureProvider.autoDispose
   return run != null && run.jobId == jobId ? run : null;
 });
 
-// ── ThinQ 가전(서버 구성) ────────────────────────────────────────────────
+// ThinQ 가전(서버 구성)
 
 /// GET /thinq/devices. 허브가 ThinQ를 껐거나(404) 허브 연결이 없으면 null,
 /// 조회 실패는 오류 상태(AsyncError) — 'LG ThinQ 연결' 화면이 셋을 가른다.

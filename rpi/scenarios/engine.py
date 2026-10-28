@@ -43,7 +43,6 @@ class ScenarioEngine:
     def catalog(self) -> ScenarioCatalog:
         return self._catalog
 
-    # ── 트리거 ────────────────────────────────────────────────────────────
     def on_job_finished(self, event) -> None:
         if event.scenario_id is not None or event.route is not ControlRoute.PHYSICAL:
             return
@@ -173,7 +172,7 @@ class ScenarioEngine:
         return self._offer(definition, definition.manual_reason or "연습으로 띄운 제안이에요.", True,
                            raise_unavailable=True)
 
-    # ── 제안 만들기 ───────────────────────────────────────────────────────
+    # 제안 만들기
     def _offer(self, definition: ScenarioDefinition, reason: str, is_demo: bool,
                *, raise_unavailable: bool = False, signals=()):
         try:

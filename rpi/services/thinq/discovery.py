@@ -132,7 +132,7 @@ def classify(device_type: str, profile_raw) -> Support:
     return Support(UNSUPPORTED, "지원하지 않아요 — 이 모델 프로필에 SimpleLay가 쓰는 속성이 없어요")
 
 
-# ── 사용자가 추가한 기기 ───────────────────────────────────────────────────
+# 사용자가 추가한 기기
 
 
 @dataclass(frozen=True)

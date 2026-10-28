@@ -38,7 +38,7 @@ async def _suggestion_refresh_loop() -> None:
     while True:
         try:
             # 동기 집계(SQLite 포함 가능)를 이벤트 루프에서 떼어낸다 —
-            # 이력이 쌓이면 이 검사 동안 API·SSE 응답이 늦어진다(교차 리뷰 #11).
+            # 이력이 쌓이면 이 검사 동안 API·SSE 응답이 늦어진다.
             # 서비스 **최초 생성**(DB 읽기)도 스레드 안에서 — get_suggestion_service()를 to_thread 인자로 부르면
             # 넘기기 전에 루프에서 만들어져, 기동 직후 그 DB 읽기 동안 연결 받기·/stop이 막혔다(외부 재확인 3차).
             await asyncio.to_thread(lambda: get_suggestion_service().create_suggestions())
@@ -250,7 +250,7 @@ _UI_HTML = (pathlib.Path(__file__).parent / "touchscreen" / "index.html").read_t
     encoding="utf-8"
 )
 
-# ── 키오스크 화면 두 벌 ──────────────────────────────────────────────────────
+# 키오스크 화면 두 벌
 #
 # /ui    — 구형 HTML 키오스크(rpi/touchscreen/index.html). 백엔드에 딸려 있어
 #          항상 뜬다. 기능은 제안·상태·정지뿐이고 접근성 개편도 반영돼 있지 않다.

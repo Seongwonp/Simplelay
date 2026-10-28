@@ -101,7 +101,7 @@ class ActDevMotionAdapter:
     def max_step_mm(self) -> float:
         return self._max_step_mm
 
-    # ── 준비 확인 ───────────────────────────────────────────────────────────
+    # 준비 확인
 
     def _link(self):
         try:
@@ -164,7 +164,7 @@ class ActDevMotionAdapter:
             raise DevAdapterRefused(*problem)
         return link
 
-    # ── 명령 ────────────────────────────────────────────────────────────────
+    # 명령
 
     def _call(self, link, op: str, timeout_s: float, **fields) -> dict:
         try:

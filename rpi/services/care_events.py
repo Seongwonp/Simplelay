@@ -36,7 +36,7 @@ KIND_QUIET_ROUTINE = "quiet_routine"
 
 
 # "평소"의 기준 창 — 이 기간 안에서 3일 이상 쓴 것만 루틴이다. 창이 없으면
-# 겨울에 사흘 쓴 가습기가 여름에도 매일 안부 신호를 만든다(교차 리뷰 #12).
+# 오래된 사용 기록만으로 계절이 바뀐 뒤에도 매일 알림을 만들지 않게 한다.
 ROUTINE_WINDOW_DAYS = 14
 
 
@@ -48,7 +48,7 @@ class CareEvent:
     occurred_at: datetime
     purpose: str | None = None
     # 안부 신호의 시간대 등 — 같은 purpose가 아침·저녁 두 루틴일 때 각각
-    # 알리기 위한 dedupe 구성요소 (교차 리뷰 #9). API 응답에는 안 실린다.
+    # 알림 중복 제거에만 쓰며 API 응답에는 싣지 않는다.
     time_band: str | None = None
 
 
@@ -255,7 +255,7 @@ class RoutineQuietChecker:
         created: list[CareEvent] = []
 
         # 이력은 한 번만 읽고 현지화도 한 번만 — 시간대마다 전체 records()를
-        # 다시 돌면 이력이 쌓일수록 60초 주기 루프가 무거워진다(교차 리뷰 #11).
+        # 이력이 쌓여도 60초 주기 루프가 과거 전체를 다시 훑지 않게 한다.
         localized = [
             (record, record.occurred_at.astimezone(now.tzinfo))
             for record in self._usage_log.records()

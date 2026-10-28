@@ -687,7 +687,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                   children: [
                     const SizedBox(height: AppSpace.md),
 
-                    // ── 어느 가전에게 말하는가 ─────────────────────────────
+                    // 어느 가전에게 말하는가
                     // 여러 가전을 다루므로 말이 어디로 가는지 먼저 보여야
                     // 한다. 엉뚱한 가전에 대고 말한 뒤에 알면 늦다.
                     if (widget.targetSelectedAppliance)
@@ -702,18 +702,18 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                       ),
                     const SizedBox(height: AppSpace.xl),
 
-                    // ── 웨이브 비주얼라이저 ────────────────────────────────────────
+                    // 웨이브 비주얼라이저
                     _WaveVisualizer(active: listening, level: _soundLevel),
                     const SizedBox(height: AppSpace.xxxl),
 
-                    // ── 마이크 버튼 ────────────────────────────────────────────────
+                    // 마이크 버튼
                     _MicButton(
                       listening: listening,
                       onTap: _sending ? null : _toggle,
                     ),
                     const SizedBox(height: AppSpace.xxxl),
 
-                    // ── 상태 텍스트 ────────────────────────────────────────────────
+                    // 상태 텍스트
                     Text(
                       listening
                           ? '듣고 있어요…'
@@ -725,7 +725,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                     ),
                     const SizedBox(height: AppSpace.md),
 
-                    // ── 인식된 텍스트 라이브 표시 ──────────────────────────────────
+                    // 인식된 텍스트 라이브 표시
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
                       child: text.isEmpty
@@ -790,7 +790,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
               ),
             ),
 
-            // ── 확인 후 실행 ───────────────────────────────────────────────
+            // 확인 후 실행
             // 듣기 종료와 실행 동의를 분리한다. 인식이 틀렸을 때 고치거나
             // 그만둘 자리가 없으면, 잘못 알아들은 문장이 그대로 물리 조작이 된다.
             if (listening)
@@ -844,7 +844,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   }
 }
 
-// ── 알아들은 일 확인 ──────────────────────────────────────────────────────
+// 알아들은 일 확인
 
 /// 본체가 만든 질문(`question`)을 **그대로** 묻고, 같은 높이의 두 버튼을 나란히 둔다:
 /// 왼쪽 '아니요'(테두리) | 오른쪽 '네'(채움) — 키오스크 제안 카드와 같은 배치(10/26 실기기: 작은 '아니요'가 오른쪽 위,
@@ -943,7 +943,7 @@ class _ProposalConfirmDialogState extends State<_ProposalConfirmDialog> {
   }
 }
 
-// ── 주/부 행동 한 쌍 ──────────────────────────────────────────────────────
+// 주/부 행동 한 쌍
 
 /// 보통은 나란히(부 3 : 주 4), 큰 글씨에서는 주 행동을 위에 두고 세로로.
 class _ActionPair extends StatelessWidget {
@@ -972,7 +972,7 @@ class _ActionPair extends StatelessWidget {
         );
 }
 
-// ── 어느 가전에게 ────────────────────────────────────────────────────────
+// 어느 가전에게
 
 class _TargetLine extends StatelessWidget {
   const _TargetLine({required this.appliance});
@@ -1000,7 +1000,7 @@ class _TargetLine extends StatelessWidget {
       );
 }
 
-// ── 음성 인식을 쓸 수 없는 기기 ──────────────────────────────────────────
+// 음성 인식을 쓸 수 없는 기기
 
 /// 권한이 꺼져 있거나 엔진이 없다. '다시 말하기'는 답이 아니다 -- 버튼
 /// 조작이라는 다른 길을 먼저 내밀고, 권한을 고친 뒤 돌아올 길을 둔다.
@@ -1057,7 +1057,7 @@ class _VoiceUnavailableNotice extends StatelessWidget {
       );
 }
 
-// ── 인식 실패 안내 ────────────────────────────────────────────────────────
+// 인식 실패 안내
 
 /// 스낵바가 사라진 뒤에도 "무슨 일이 있었는지"가 화면에 남게 한다.
 class _FailureNote extends StatelessWidget {
@@ -1088,7 +1088,7 @@ class _FailureNote extends StatelessWidget {
       );
 }
 
-// ── 못 알아들었을 때 ─────────────────────────────────────────────────────
+// 못 알아들었을 때
 
 /// 본체가 준 이유 한 줄, '혹시 이것인가요?' 후보, 이 가전이 할 수 있는 일. 버튼은 모두 **확인으로** 간다 — 실행 아님.
 class _NotUnderstoodPanel extends StatelessWidget {
@@ -1163,7 +1163,7 @@ String _subjectParticle(String word) {
   return (c - 0xAC00) % 28 == 0 ? '가' : '이';
 }
 
-// ── 마이크 버튼 ───────────────────────────────────────────────────────────
+// 마이크 버튼
 
 class _MicButton extends StatelessWidget {
   const _MicButton({required this.listening, required this.onTap});
@@ -1211,7 +1211,7 @@ class _MicButton extends StatelessWidget {
       );
 }
 
-// ── 듣는 중 표시 (5개 바) ────────────────────────────────────────────────
+// 듣는 중 표시 (5개 바)
 
 /// 마이크가 **실제로 듣고 있는 크기**를 보여준다.
 ///

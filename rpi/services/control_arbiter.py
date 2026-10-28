@@ -1,25 +1,7 @@
-"""기계 제어권 중재자 — 일반 실행과 개발자 세션이 같은 기계를 동시에
-움직이지 않게 하는 **단 하나의 원자적 획득점**.
+"""일반 실행과 개발자 세션의 기계 제어권을 원자적으로 중재한다.
 
-Phase 0의 계약은 "서로를 조회한다"였다: 개발자 세션은 자기 락 안에서
-``execution_busy()``를 부르고, 실행기는 자기 락 안에서 ``blocks_execution()``을
-부른다. 그대로 연결하면 두 락을 서로 반대 순서로 잡는 구조가 되어
-
-- 일반 실행: 서비스 락 확보 → 개발자 락 대기
-- 개발자 세션: 개발자 락 확보 → 서비스 락 대기
-
-의 교착이 가능하다(3차 후속 교차 리뷰 #1). 그래서 조회 대신 **획득**으로
-바꾼다: 제어권이 필요한 쪽이 여기서 acquire 하고, 확인과 점유가 중재자 락
-하나 안에서 원자적으로 일어난다.
-
-락 순서 규칙: **이 모듈의 락은 항상 최내곽(leaf)이다.** 서비스 락 안에서
-arbiter를 불러도 되고 개발자 세션 락 안에서 불러도 되지만, arbiter는
-어떤 콜백도 밖으로 부르지 않는다 — 그래서 역전이 생길 수 없다.
-
-fault: 정지를 보냈는데 확인하지 못했다면(어댑터 예외) 기계가 멈췄는지
-모른다. 그 상태에서 새 실행·새 세션을 받으면 "멈춘 줄 아는 기계"를
-움직이게 된다(교차 리뷰 #3). ``trip_fault()``가 걸리면 정지가 다시
-확인될 때까지(``clear_fault()``) 어느 쪽도 제어권을 얻지 못한다.
+중재자 락은 항상 가장 안쪽에서 잡고 외부 콜백을 호출하지 않는다.
+정지 미확인 fault가 걸리면 ``clear_fault()`` 전까지 새 제어권을 내주지 않는다.
 """
 
 from __future__ import annotations
@@ -35,7 +17,7 @@ class ControlConflictError(RuntimeError):
         if holder == ControlArbiter.DEVELOPER:
             message = "개발자 세션이 기기를 점유하고 있습니다 — 세션이 끝난 뒤에 실행할 수 있습니다"
         elif holder == ControlArbiter.VERIFY_PASS:
-            # 확인 주행이 잡고 있으면 그대로 말한다(검토 10/19) — '일반 실행'이라 하면 무엇이 도는지 알 수 없다.
+            # 확인 주행 점유는 일반 실행과 구분해 알린다.
             message = "자리 확인이 진행 중입니다 — 끝난 뒤에 시작할 수 있습니다"
         else:
             message = "일반 실행이 진행 중입니다 — 끝난 뒤에 시작할 수 있습니다"
@@ -75,7 +57,7 @@ class ControlArbiter:
         # 시작 시점의 seq와 대조한다).
         self._fault_seq = 0
 
-    # ── 획득/반납 ──
+    # 획득/반납
 
     def acquire(self, holder: str) -> None:
         """확인과 점유를 한 임계구역에서. 실패는 예외로 — 반환값 확인을
@@ -94,7 +76,7 @@ class ControlArbiter:
             if self._holder == holder:
                 self._holder = None
 
-    # ── fault ──
+    # fault
 
     def trip_fault(self, reason: str) -> None:
         """정지 미확인 잠금. 이후 acquire는 전부 ControlFaultedError."""
@@ -128,7 +110,7 @@ class ControlArbiter:
         with self._lock:
             return self._fault_reason, self._fault_seq
 
-    # ── 조회(표시용 — 판정에 쓰지 말 것: 판정은 acquire가 원자적으로 한다) ──
+    # 조회(표시용 — 판정에 쓰지 말 것: 판정은 acquire가 원자적으로 한다)
 
     @property
     def holder(self) -> str | None:

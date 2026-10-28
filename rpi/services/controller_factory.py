@@ -62,10 +62,8 @@ def build_controller(
     verifier: object = MockVerifier(outcomes=[True] * 100)
     if failure_state is not None:
         verifier = FailureInjectionVerifier(verifier, failure_state)
-    # 데모 페이싱: mock은 즉시 끝나 폐루프가 화면에 안 보인다. 이 플래그가
-    # 켜지면 단계마다 잠깐 멈춰(그리고 재시도도 쉬어) 시연에서 진행이 보인다.
-    # 기본은 꺼짐 -- 평소/테스트 동작은 그대로 지연 0. HW 붙으면 이건 끄고
-    # 실제 모터 시간으로 대체한다.
+    # 모의 실행의 진행을 시연할 수 있도록 단계와 재시도 사이에 지연을 넣는다.
+    # 기본은 지연 0이며, 실제 하드웨어에서는 이 옵션을 끄고 모터 동작 시간을 따른다.
     step_pacer = None
     retry_waiter = None
     if os.environ.get("SIMPLELAY_DEMO_PACING", "").strip().lower() in (

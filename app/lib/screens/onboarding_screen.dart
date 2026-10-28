@@ -50,7 +50,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     children: [
                       const SizedBox(height: AppSpace.xxxl),
 
-                      // ── 아이콘 ─────────────────────────────────────────────────
                       Container(
                         width: 72,
                         height: 72,
@@ -69,7 +68,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       const SizedBox(height: AppSpace.xxxl),
 
-                      // ── 타이틀 ─────────────────────────────────────────────────
                       Text(
                         '반가워요.\nSimpleLay예요',
                         textAlign: TextAlign.center,
@@ -87,7 +85,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                       const SizedBox(height: AppSpace.xxxl),
 
-                      // ── 특징 3가지 ──────────────────────────────────────────────
                       _FeatureRow(
                         icon: Icons.wifi_rounded,
                         title: '본체 연결',
@@ -112,7 +109,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
 
-              // ── 시작 버튼 ── 스크롤 밖에 고정해 항상 닿게 ──────────────
+              // 시작 버튼은 스크롤 밖에 고정해 항상 누를 수 있게 한다.
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(

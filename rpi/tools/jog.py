@@ -72,7 +72,7 @@ HELP = """명령:
   stop | reset | raw JSON | help | quit"""
 
 
-# ── 줄 기록 ──────────────────────────────────────────────────────────────────
+# 줄 기록
 
 
 class LineLog:
@@ -124,7 +124,7 @@ class LoggingTransport:
             close()
 
 
-# ── 클라이언트 ────────────────────────────────────────────────────────────────
+# 클라이언트
 
 
 class JogMotionClient(SerialMotionClient):
@@ -144,7 +144,7 @@ class JogMotionClient(SerialMotionClient):
             self._config = original
 
 
-# ── 세션 ─────────────────────────────────────────────────────────────────────
+# 세션
 
 
 class JogSession:
@@ -205,7 +205,7 @@ class JogSession:
             return False
         return True
 
-    # 명령 -------------------------------------------------------------------
+    # 명령
 
     def _cmd_status(self, rest: str) -> None:
         _no_args("status", rest)
@@ -316,7 +316,7 @@ class JogSession:
             if isinstance(reply, dict) and reply.get("id") == doc["id"]:
                 return
 
-    # 내부 -------------------------------------------------------------------
+    # 내부
 
     def _current_xy(self, operation: str) -> tuple[float, float]:
         """MCU가 보고한 A·B 카운트를 mm로 바꾼다. 호스트가 위치를 짐작하지 않는다."""
@@ -349,7 +349,7 @@ def _two_floats(name: str, rest: str) -> tuple[float, float]:
         raise ValueError(f"{name}: 숫자가 아닙니다 {rest!r}") from exc
 
 
-# ── 진입점 ───────────────────────────────────────────────────────────────────
+# 진입점
 
 
 def build_parser() -> argparse.ArgumentParser:

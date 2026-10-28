@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 날씨 그림·말 — 처음 화면 날씨 줄과 날씨 자세히 창이 함께 쓴다(2026-10-25, idle_view.dart에서 옮김).
+/// 처음 화면과 날씨 상세 화면이 함께 쓰는 날씨 그림·문구.
 
 /// 밤 시간(19~5시)인가. 모르면 낮으로 본다.
 bool isNightHour(int? h) => h != null && (h >= 19 || h < 6);
@@ -15,7 +15,7 @@ String weatherWord(String icon) => switch (icon) {
       _ => '',
     };
 
-/// 예보 아이콘 — 가전 아이콘과 같은 채움 양식(평가 17차 10/18 — 날씨만 가는 선이었다). 밤의 맑음·구름 조금은 해가 아니라 달(외부 평가 10/16 4차, 실패널 0시·3시에 해가 찍혔다).
+/// 예보 아이콘은 가전 아이콘과 같은 채움 양식을 쓴다. 밤의 맑음·구름 조금은 달로 표시한다.
 IconData _hourIcon(String icon, {bool night = false}) => switch (icon) {
       'clear' when night => Icons.nightlight,
       'partly' when night => Icons.nights_stay,
@@ -28,7 +28,7 @@ IconData _hourIcon(String icon, {bool night = false}) => switch (icon) {
       _ => Icons.remove,
     };
 
-/// 기상 특보 아이콘(서버 `warnings[].icon`, 2026-10-25). 모르면 주의 표시.
+/// 서버 `warnings[].icon`의 특보 아이콘. 모르는 값은 주의 표시로 대신한다.
 IconData warningIcon(String icon) => switch (icon) {
       'wind' => Icons.air,
       'rain' => Icons.umbrella,

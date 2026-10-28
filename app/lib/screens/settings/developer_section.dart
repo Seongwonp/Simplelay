@@ -5,7 +5,7 @@ part of '../settings_screen.dart';
 // `developer_console_screen.dart`. 숨김은 접근 제한이 아니다: 서버가
 // 개발자 모드·개발자 토큰으로 따로 막는다.
 
-// ── 개발자 도구 진입 ──────────────────────────────────────────────────────
+// 개발자 도구 진입
 
 class _DeveloperToolsTile extends StatelessWidget {
   @override
@@ -26,12 +26,10 @@ class _DeveloperToolsTile extends StatelessWidget {
       );
 }
 
-// ── 데모 모드 토글 ─────────────────────────────────────────────────────────
+// 데모 모드 토글
 
-/// 가짜 센서·가짜 결과를 화면에 주입해도 되는 상태를 켜고 끈다.
-///
-/// 예전에는 `kDebugMode`가 이 역할을 했는데, 그러면 실기기에 물린 디버그
-/// 빌드에서도 가짜 센서가 섞여 **안 눌린 실행이 성공으로 끝난다.**
+/// 실제 장치 경로와 분리된 모의 센서·결과 주입을 켜고 끈다.
+/// 디버그 빌드 여부만으로 모의 데이터를 활성화해서는 안 된다.
 class _DemoModeTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,7 +61,7 @@ class _DemoModeTile extends ConsumerWidget {
   }
 }
 
-// ── 데모 섹션 ─────────────────────────────────────────────────────────────
+// 데모 섹션
 
 class _DemoSection extends ConsumerWidget {
   @override

@@ -157,7 +157,7 @@ class RoutineEngine:
         self._last_transition_key = None
         self._log: deque[dict] = deque(maxlen=50)
 
-    # ── 제안 서비스·실행 서비스 연결 ─────────────────────────────────────────
+    # 제안 서비스·실행 서비스 연결
     def current_commands(self, scenario_id: str) -> tuple:
         """승인 시 대조용: 카드의 지문이 지금 루틴과 같을 때만 지금 명령을 돌려준다."""
         key = parse_scenario_key(scenario_id)
@@ -218,7 +218,7 @@ class RoutineEngine:
             except Exception:  # noqa: BLE001 — 저장 실패로 카드를 막지 않는다(메모리 기억은 남는다)
                 log.exception("routine fired occurrence save failed")
 
-    # ── 다음 회차 한 번 건너뛰기(2026-10-18) ──────────────────────────────────
+    # 다음 회차 한 번 건너뛰기(2026-10-18)
     def restore_skips(self, load, save) -> None:
         """재시작 뒤에도 '이 회차는 건너뛴다'가 남게 저장값을 읽고 저장 함수를 건다. 깨진 값은 버린다."""
         try:
@@ -327,7 +327,7 @@ class RoutineEngine:
         except Exception:  # noqa: BLE001 — 기록 실패로 건너뛰기를 바꾸지 않는다(실행하지 않는 쪽)
             log.exception("recording the skipped time occurrence failed")
 
-    # ── 트리거 ──────────────────────────────────────────────────────────────
+    # 트리거
     def tick(self, now: datetime | None = None) -> list:
         """주기 호출(main.py). 시각 트리거와 다가옴 트리거를 본다."""
         now = now or self._clock.now()
@@ -503,7 +503,7 @@ class RoutineEngine:
         return self._fire(routine, "직접 실행을 눌렀어요", False, "manual", raise_unavailable=True,
                           check_conditions=False)
 
-    # ── 다음 실행 ────────────────────────────────────────────────────────────
+    # 다음 실행
     def next_runs(self, now: datetime | None = None, limit: int = 3) -> list[dict]:
         """켜진 시각 루틴의 가까운 회차. ``auto``: 허용한 시각 규칙이 켜져 카드 없이 실행한다(외부 평가 10/16 p02 —
         아래 줄의 '자동 실행 켜짐'과 같은 말). ``day_label``: 오늘·내일·요일.
@@ -551,7 +551,7 @@ class RoutineEngine:
         with self._lock:
             return list(reversed(self._log))
 
-    # ── 내부 ────────────────────────────────────────────────────────────────
+    # 내부
     def _registry(self):
         return getattr(self._service, "_appliance_registry", None)
 

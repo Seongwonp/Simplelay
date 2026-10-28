@@ -311,8 +311,7 @@ class RpiStatusResult {
   final int? currentAttempt;
   final int? completedSteps;
   final int? totalSteps;
-  // 폐루프 검증 근거 -- 버튼이 눌렸는지 센서로 확인한 결과.
-  // 이 제품의 차별점이라 화면까지 도달해야 한다.
+  // 폐루프 검증 근거: 센서로 확인한 눌림 결과를 화면에 전달한다.
   final double? verificationConfidence;
   final String? verificationDetail;
   // job 모델: 실행 중이면 jobId, 끝나면 lastJobId에 값이 있다
@@ -1536,7 +1535,7 @@ class RpiApiService {
     _checkStatus(res);
   }
 
-  // ── 안부 확인 일시 중지 (F5) ────────────────────────────────────────
+  // 안부 확인 일시 중지 (F5)
   //
   // 제안 DND(분 단위)와 다른 것이다. 이건 "며칠간 조용한 게 정상이다"이고,
   // 쉬는 동안에도 실행 실패·위험소리 알림은 그대로 간다.
@@ -2171,7 +2170,7 @@ class RpiApiService {
     }
   }
 
-  // ── 허브 상태·위치 (2026-09-30) ─────────────────────────────────────────
+  // 허브 상태·위치 (2026-09-30)
 
   /// GET /status 중 탭 구조·대기 표시에 쓰는 값. 실패는 예외.
   Future<HubStatus> hubStatus() async {
@@ -2212,7 +2211,7 @@ class RpiApiService {
     return HubLocation.fromJson(_decodeMap(res));
   }
 
-  // ── 루틴 (2026-09-30, docs/devlog/devlog_2026-09-30-routines.md §3) ──────────────
+  // 루틴 (2026-09-30, docs/devlog/devlog_2026-09-30-routines.md §3)
   //
   // 이 묶음에는 **실행 호출이 없다.** '지금 실행'도 카드를 만들 뿐이고,
   // 실행은 제안 승인(approveSuggestion) 하나로만 일어난다.
@@ -2289,7 +2288,7 @@ class RpiApiService {
     _checkStatus(res);
   }
 
-  // ── 사용 기록 → 루틴 초안(2026-10-14) — 저장만 한다(실행·카드·자동 실행 허용 없음) ──
+  // 사용 기록 → 루틴 초안(2026-10-14) — 저장만 한다(실행·카드·자동 실행 허용 없음)
 
   Future<List<RoutineCandidate>> routineCandidates() async {
     final res = await _client
@@ -2322,7 +2321,7 @@ class RpiApiService {
     _checkStatus(res);
   }
 
-  // ── 자동 실행 허용 규칙(2026-10-13) — 규칙은 카드에서만 생긴다(빈 폼 없음) ──
+  // 자동 실행 허용 규칙(2026-10-13) — 규칙은 카드에서만 생긴다(빈 폼 없음)
 
   /// '이번에 실행하고 다음부터 자동으로' — 이번 실행(job)과 규칙 저장을 한 번에. 확인 화면이 보여 준
   /// 내용의 지문을 함께 보낸다(다르면 서버 409). 물리 누름 카드는 서버가 422로 거절한다.
@@ -2429,7 +2428,7 @@ class RpiApiService {
     );
   }
 
-  // ── 가전 추가: 사진 매핑·확인 주행 (2026-09-30) ──────────────────────────
+  // 가전 추가: 사진 매핑·확인 주행 (2026-09-30)
 
   Future<MappingFrame> mappingFrame() async {
     final res = await _client

@@ -110,7 +110,7 @@ class FakeThinqCloud:
         self._thread: threading.Thread | None = None
         self._connections: set = set()
 
-    # ── 수명 ──────────────────────────────────────────────────────────────
+    # 수명
     def start(self, host: str = "127.0.0.1", port: int = 0) -> str:
         if host not in LOOPBACK:
             raise ValueError("모의 클라우드는 이 기기 안 주소(127.0.0.1·localhost)에서만 엽니다")
@@ -154,7 +154,7 @@ class FakeThinqCloud:
         host, port = self._server.server_address[:2]
         return f"http://{host}:{port}"
 
-    # ── 시험·리허설 조작 ───────────────────────────────────────────────────
+    # 시험·리허설 조작
     def device_id(self, kind: str) -> str:
         return next(d for d, info in self._devices.items() if info["kind"] == kind)
 
@@ -205,7 +205,7 @@ class FakeThinqCloud:
     def controls(self) -> list[dict]:
         return [r for r in self.requests() if r["method"] == "POST"]
 
-    # ── 요청 처리 ──────────────────────────────────────────────────────────
+    # 요청 처리
     def _record(self, method: str, path: str, headers, body) -> None:
         auth = headers.get("Authorization", "")
         scheme, _, credential = auth.partition(" ")

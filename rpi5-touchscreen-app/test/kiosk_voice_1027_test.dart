@@ -78,6 +78,9 @@ void main() {
     ));
     await tester.pump();
     await tester.pump();
+    expect(find.text('본체에서 말한 내용'), findsOneWidget);
+    expect(find.byIcon(Icons.mic), findsOneWidget);
+    expect(find.byIcon(Icons.smartphone), findsNothing);
     expect(find.text('들은 말: 공기청정기 켜 줘'), findsOneWidget);
     expect(find.byKey(const ValueKey('voice-proposal-yes')), findsOneWidget);
   });

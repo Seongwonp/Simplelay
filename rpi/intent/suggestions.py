@@ -266,7 +266,7 @@ class ProactiveSuggestionService:
         status["paused"] = self.is_dnd()
         return status
 
-    # ── 잠시 쉬기 — 메모리 적용과 저장을 나눈다(HIGH 재확인 H-R2·M-R1) ────────────────────────────
+    # 잠시 쉬기 — 메모리 적용과 저장을 나눈다(HIGH 재확인 H-R2·M-R1)
     def apply_dnd_for(self, minutes: int) -> tuple[datetime, int]:
         """메모리에 바로 켠다(입출력 없음 — 이벤트 루프에서 불러도 된다). (끝 시각, 판 번호)."""
         until = self._clock.now() + timedelta(minutes=minutes)
@@ -292,7 +292,7 @@ class ProactiveSuggestionService:
     def clear_dnd(self) -> None:
         self.persist_pause(self.apply_clear_dnd())
 
-    # ── 잠시 쉬기 영속(2026-10-14 마감 2번) — 재시작 뒤에도 표시한 끝 시각까지 같은 범위 ──────────
+    # 잠시 쉬기 영속(2026-10-14 마감 2번) — 재시작 뒤에도 표시한 끝 시각까지 같은 범위
     def restore_pause(self, load=None, save=None) -> None:
         """DB에 남긴 잠시 쉬기(끝 시각·범위)를 다시 읽는다. 읽지 못하거나 지난 값이면 쉬지 않는 상태로 시작."""
         self._pause.set_save(save)
@@ -628,7 +628,7 @@ class ProactiveSuggestionService:
             self._record(env_suggestion, "created", "environment_condition")
             created.append(env_suggestion)
 
-    # ── 하루 상한·무시 물러서기(2026-10-26 — 허브는 갈수록 덜 묻는다, 새 질문은 없다) ─────────────────
+    # 하루 상한·무시 물러서기(2026-10-26 — 허브는 갈수록 덜 묻는다, 새 질문은 없다)
     def asked_today(self) -> int:
         """오늘(지역 날짜) 먼저 물은 카드 수 — 제안 기록에서 센다(재시작해도 이어진다). 연습·시연·직접 요청·루틴 물어보기 제외."""
         now = self._clock.now()

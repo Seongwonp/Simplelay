@@ -1,45 +1,20 @@
-"""자동 실행 허용 규칙 (2026-10-13, 시연 v4 — docs/본선-시연-계획-v4.md).
+"""승인된 낮은 위험 ThinQ 동작의 자동 실행 규칙.
 
-범위는 하나다: **전자레인지 가열 종료 감지(CT) → ThinQ 공기청정기 동작 하나**. 정책(10/14 사용자 확정, 3차 평가 L1):
-가열 종료가 감지되면 취소·문 열림이어도 제안·자동 실행이 일어날 수 있다 — 낮은 위험 동작(풍량 변경)이라 허용하고
-화면·기록은 '조리 완료가 아닐 수 있음'을 밝힌다. 사용자가 제안 카드에서
-'이번에 실행하고 다음부터 자동으로'를 고르고 조건·동작 확인을 본 뒤에만 생긴다. 자주 승인했다고 저절로
-켜지지 않는다. 규칙은 카드가 보여 준 내용(조건·대상 기기·속성·값)을 그대로 저장한다 — 빈 루틴 폼이 아니다.
+가열 종료 규칙은 전자레인지 CT의 ``appliance_done``에만 반응한다. 취소나 문 열림과
+구별할 수 없으므로 결과에 그 한계를 알린다. 승인 카드에서 조건과 동작을 확인해야
+규칙이 생기며, 반복 승인만으로 자동 실행을 켜지 않는다. 물리 버튼 동작은 대상이 아니다.
 
-필수 조건과 이 모듈이 강제하는 자리:
+실물 대상에는 실물 사건만 허용한다. 사건 키로 중복 전송을 막고, 허브 시계로 환산한
+사건 시각이 없거나 오래됐으면 보내지 않는다. 전송 직전에도 나이를 확인하며,
+결과가 미확인이어도 다시 보내지 않는다. 규칙은 조건·대상·동작·값의 지문에 묶인다.
+대상이 바뀌거나 사라지면 무효화한다. 비상정지는 대기 중 전송을 막고 규칙을 끄지만,
+이미 클라우드에 보낸 명령은 취소하지 못한다.
 
-1. **낮은 위험 ThinQ 동작만**(`LOW_RISK_ACTIONS`: 공기청정기 풍량·운전 모드·전원 켜기). 물리 버튼 누름이 있는
-   카드는 허용 제안이 없고(`offer_for` → None) 서버도 거절한다. 저장된 규칙도 실행 직전에 다시 본다.
-2. **모의 사건 → 모의 ThinQ만.** 대상 실행 환경이 real이면 사건 출처도 real(RPi4 L3 실물 판정)이어야 보낸다.
-3. **같은 사건 한 번.** 사건 키(가전·이벤트·출처·RPi4 끝 시각)로 멱등 — 재전송·재연결로 다시 와도 한 번.
-   사건 나이는 **이 허브 단조 시계로 옮긴 끝 시각**부터 잰다(3차 평가 M1, ``rpi/services/event_clock.py`` — RPi4가
-   프레임을 낸 뒤 링크에서 늦어진 시간까지 센다. 다른 장치의 monotonic을 그대로 비교하지 않는다). 옮길 근거가 없거나
-   (옛 RPi4·연결 세션 바뀜) 사건이 오래됐거나(``SIMPLELAY_AUTO_RULE_MAX_EVENT_AGE_S``, 기본 120초, 측정 필요) 허용하기
-   전에 끝난 가열이면 보내지 않는다(보류가 기본). 전송 직전에도 나이를 다시 본다(전송 대기 중 만료).
-   허용 전후도 같은 허브 단조 시계 축에서 가른다(4차 평가 M-N2) — 재시작 뒤 불러온 허용은 이 프로세스가 시작한 뒤에 끝난
-   가열에만 쓴다.
-   결과가 미확인이어도 **다시 보내지 않는다**(재시도 코드 없음).
-4. **허용은 지문에 묶인다**(조건 가전·이벤트·대상 가전·대상 기기 키·종류·동작·속성·값). 값을 바꾸면 꺼지고 다시
-   허용해야 한다. 대상 기기가 없어지거나 다른 기기로 바뀌면 그 자리에서 무효(꺼짐 + 이유)가 된다.
-5. **비상정지**: 세대를 올려(`halt`) 판단은 끝났지만 아직 보내지 않은 자동 실행을 실행 게이트 안에서 막고
-   (`approval_guard`), 켜진 규칙을 모두 끈다. 이미 클라우드에 보낸 명령은 취소되지 않는다고 그대로 적는다.
-6. **가열 종료 근거**(취소·문 열림과 구분 못 함 — 위 정책, 실측 기록표 §6)는 RPi4 ``appliance_done``(전자레인지 CT 채널 전력 끝, 입력에 ``power``)뿐이다. 실행
-   끝(버튼 누름 완료)은 이 모듈에 오지 않는다.
-
-**시각 규칙(2026-10-16, 사용자 승인)** — 두 번째 조건 종류(``condition_kind="time"``). 시각 루틴(켜짐·승인 루틴·조건 없음·
-**낮은 위험 ThinQ 명령 한 단계**)의 카드에서만 허용이 생기고, 다음 정해진 시각에 루틴 엔진 ``tick``이 :meth:`AutoRuleEngine.on_time_due`
-를 부르면 위와 **같은** ``_try_run``·``_submit`` 경로(조용한 시간·비상정지·정지 세대·지문·전송권·사건 나이·허용 전후 경계)로 보낸다.
-사건 키는 루틴·날짜·시각(재시작 뒤에도 한 번), 사건 나이는 정해진 시각보다 늦게 확인한 시간(허브 시계). 늦음·허용 전·재시작 전은
-보내지 않고 카드(승인)로 돌아간다. 루틴이 바뀌거나 지워지면 규칙이 꺼진다(라우터 철회 + 실행 직전 재검사). 물리 단계는 대상이 아니다.
-가열 종료 규칙의 지문 내용은 바뀌지 않았다(저장된 허용 유지).
-
-**되돌리기(2026-10-26, 맡기기 신뢰 강화)** — 자동 실행이 끝나면 결과 알림이 5분 동안 '되돌리기'를 보인다
-(``UNDO_WINDOW_S``, ``POST /routines/auto-runs/{run_id}/undo``). 누르면 먼저 그 규칙(맡기기)을 끄고 — 루틴은 그대로 두어 다음
-회차부터 다시 묻는다 — 반대 동작이 분명할 때만 보통 승인 실행 경로(``submit_approved`` — 실행 잠금·비상정지·정지 세대)로
-되돌린다: 전원 켜기↔끄기, 바람 세기·모드는 보내기 전 조회로 **본** 원래 값이 있을 때만(``before_value``). 이미 그 값이라
-보내지 않은 실행은 되돌릴 것이 없어 끄기만 한다. 가열·누름 가전은 자동 실행 대상이 아니라 되돌리기도 없다.
-
-**검증 수준: 모의 ThinQ·모의 클라우드 끝-끝까지. 실제 CT 판정·실가전 미검증.**
+시각 규칙은 승인된 단일 저위험 ThinQ 루틴에만 적용한다. 예정 시각보다 늦거나
+승인·재시작 이전의 회차는 실행하지 않고 다시 승인받는다. 루틴 변경도 규칙을 끈다.
+되돌리기는 5분 안에 규칙을 먼저 끈 뒤 원래 값이 확인된 동작만 승인 실행 경로로 보낸다.
+실제 CT 판정과 실가전 동작은 아직 검증되지 않았다.
+설계 범위: docs/본선-시연-계획-v4.md.
 """
 
 from __future__ import annotations
@@ -78,7 +53,7 @@ LOW_RISK_ACTIONS: dict[str, dict[str, tuple[str, ...] | None]] = {
     },
 }
 
-#: 시각 규칙에만 더 허용하는 동작(2026-10-16 사용자 요청 — '밤에 켜고 아침 07:00에 끄기'). 공기청정기 끄기는 위험이
+#: 시각 규칙에만 더 허용하는 동작. 공기청정기 끄기는 위험이
 #: 낮지만 가열 종료 같은 사건에 묶을 이유가 없어 사건 규칙에는 넣지 않는다.
 TIME_RULE_EXTRA_ACTIONS: dict[str, dict[str, tuple[str, ...]]] = {
     "DEVICE_AIR_PURIFIER": {"set_power": ("POWER_OFF",)},
@@ -92,7 +67,7 @@ DEFAULT_MAX_EVENT_AGE_S = 120.0
 APPROVAL_SECONDS = 60
 #: 실행 기록의 시나리오 ID 접두사(시나리오·루틴 트리거가 다시 깨우지 않게).
 AUTO_SCENARIO_PREFIX = "auto:"
-#: 자동 실행 기록의 목적 문장 머리. 폰이 이 글자로 출처 '자동'을 가른다(app display_status.dart) — 바꾸지 않는다.
+#: 앱은 이 접두사로 자동 실행 기록을 식별한다(app/lib/models/display_status.dart).
 AUTO_PURPOSE_PREFIX = "자동 실행 · "
 KIND_AUTO_RULE = "auto_rule"
 CONDITION_BASIS = "ct_power_end"
@@ -124,7 +99,7 @@ PROCESS_SESSION = uuid4().hex
 PERSIST_ATTEMPTS = 3
 PERSIST_RETRY_S = 1.0
 
-# ── 시각 규칙(2026-10-16, 사용자 승인) — 시각 루틴(ThinQ 낮은 위험 동작 하나)의 '다음부터도 자동으로' ──────────
+# 시각 규칙(2026-10-16, 사용자 승인) — 시각 루틴(ThinQ 낮은 위험 동작 하나)의 '다음부터도 자동으로'
 CONDITION_KIND_APPLIANCE_DONE = "appliance_done"
 CONDITION_KIND_TIME = "time"
 #: 시각 규칙의 판단 근거 — 이 허브의 시계(벽시계로 정한 시각, 늦음은 허브 단조 시계 축으로 잰다).
@@ -146,7 +121,7 @@ ROUTINE_OFF_REASON = "루틴이 꺼져 있어 자동 실행을 껐어요. 다시
 TIME_REENABLE_REFUSED = "루틴이 바뀌었거나 없어서 켤 수 없어요. 다음 루틴 카드에서 다시 허락해 주세요."
 TIME_VALUE_REFUSED = "루틴에서 할 일을 바꾼 뒤 카드에서 다시 허락해 주세요."
 
-# ── 되돌리기(2026-10-26, 맡기기 신뢰 강화) ────────────────────────────────────────────────
+# 되돌리기(2026-10-26, 맡기기 신뢰 강화)
 #: 자동 실행 결과 뒤 되돌릴 수 있는 시간(초).
 UNDO_WINDOW_S = 300
 #: 되돌리기 실행의 시나리오 ID 접두사 — 자동 실행 결과(``auto:``)로 다시 잡히지 않고, 사용 기록(습관 학습)에 들어가지 않는다.
@@ -340,14 +315,10 @@ def _legacy_wind(text: str) -> str | None:
 
 
 def display_purpose(purpose: str | None) -> str | None:
-    """기록에 저장된 목적 문장을 지금 문체로(10/18 쉬운 말 3차·4차). 저장값은 고치지 않는다 — 보여 줄 때만.
+    """저장값은 그대로 두고 옛 시나리오 질문·자동 실행 문장·풍량 표현만 화면에서 바꾼다.
 
-    - 옛 시나리오 질문('공기청정기 풍량을 강으로 바꿀까요?') → 지금 질문(시나리오 카탈로그의 ``former_questions``).
-    - 옛 자동 실행 동작 문장('자동 실행 · 공기청정기 전원 끄기') → '자동 실행 · 공기청정기를 꺼요'. 앞의 ``자동 실행 · ``는
-      그대로 둔다(폰이 이 글자로 출처 '자동'을 가른다).
-    - 옛 바람 세기 말(4차): '강풍으로 바꿔줘' → '바람을 세게 해줘', '공기청정기를 약풍으로 바꿀까요?' → '공기청정기 바람을
-      약하게 할까요?', 남은 '풍량' → '바람 세기'. 사람 명령문의 끝('~줘')은 그대로(폰이 '~하기'로 바꾼다).
-    그 밖(말로 한 명령·루틴 이름·지금 형식)은 받은 그대로."""
+    자동 실행 접두사는 앱의 기록 분류에 필요하다. 명령형 어미와 루틴 이름도 바꾸지 않는다.
+    """
     if not purpose:
         return purpose
     from rpi.scenarios.catalog import current_question  # noqa: PLC0415
@@ -510,7 +481,7 @@ class AutoRuleStore:
         if session_load is not None or session_save is not None:
             self._open_session(session_load, now)
 
-    # ── 내구성 경계(4차 평가 M-N3) ─────────────────────────────────────────────
+    # 내구성 경계(4차 평가 M-N3)
     def _open_session(self, session_load, now) -> None:
         """정지의 규칙 끄기는 메모리에서 바로 효력을 내고 DB 쓰기는 뒤에서 한다. 그 쓰기가 끝나기 전에 프로세스가 죽으면
         DB에는 '켜짐'이 남는다 — 그래서 **깨끗이 닫히지 않은 지난 프로세스**(세션 표시가 열린 채, 다른 프로세스)의 켜진
@@ -573,14 +544,14 @@ class AutoRuleStore:
             return False
         return self._write_session(open_=False)
 
-    # ── 읽기: 잠금 없음(불변 사본) ─────────────────────────────────────────────
+    # 읽기: 잠금 없음(불변 사본)
     def list(self) -> tuple[AutoRule, ...]:
         return tuple(self._rules.values())
 
     def get(self, rule_id: str) -> AutoRule | None:
         return self._rules.get(rule_id)
 
-    # ── 메모리 바꾸기(즉시 효력) ─────────────────────────────────────────────
+    # 메모리 바꾸기(즉시 효력)
     def put(self, rule: AutoRule) -> AutoRule:
         with self._mem_lock:
             rules = dict(self._rules)
@@ -599,7 +570,7 @@ class AutoRuleStore:
             self._version += 1
         return True
 
-    # ── 영속 ────────────────────────────────────────────────────────────────
+    # 영속
     def flush(self) -> None:
         """지금 메모리 사본을 DB에 쓴다(이미 쓴 판이면 아무것도 안 함). 실패는 예외로 올린다(메모리는 그대로)."""
         with self._persist_lock:
@@ -763,7 +734,7 @@ class AutoRuleEngine:
             log.exception("quiet hours check failed; skipping auto run")
             return True
 
-    # ── 등록부·문장 ─────────────────────────────────────────────────────────
+    # 등록부·문장
     def _registry(self):
         return getattr(self.service, "_appliance_registry", None)
 
@@ -806,7 +777,7 @@ class AutoRuleEngine:
             cap = None
         return thinq_action_phrase(name, rule.action, rule.value, cap)
 
-    # ── 카드의 허용 제안 ─────────────────────────────────────────────────────
+    # 카드의 허용 제안
     def offer_for(self, suggestion) -> AutoRule | None:
         """카드가 '다음부터도 자동으로'를 고를 수 있으면 그 내용(저장 전 규칙), 아니면 None.
 
@@ -845,7 +816,7 @@ class AutoRuleEngine:
             action=action, arg=cap.arg, value=str(value),
         )
 
-    # ── 시각 루틴(2026-10-16) ─────────────────────────────────────────────────
+    # 시각 루틴(2026-10-16)
     def _routine(self, routine_id: str | None):
         store = self._routines()
         if store is None or not routine_id:
@@ -929,7 +900,7 @@ class AutoRuleEngine:
         return {"condition_text": self.condition_text(draft), "action_text": self.action_text(draft),
                 "caveat": self.caveat(draft), "fingerprint": draft.fingerprint()}
 
-    # ── 정지 세대 ───────────────────────────────────────────────────────────
+    # 정지 세대
     def generation(self) -> int:
         """지금 정지 세대. 허용 요청은 시작할 때 이 값을 잡아 저장 단계까지 넘긴다(3차 평가 H2)."""
         with self._gen_lock:
@@ -1031,7 +1002,7 @@ class AutoRuleEngine:
                  rule.target_appliance_id, rule.action)
         return rule
 
-    # ── 사건 ─────────────────────────────────────────────────────────────────
+    # 사건
     def on_appliance_done(self, record: Mapping) -> list[dict]:
         """검증한 ``appliance_done`` 기록. 켜진 규칙이 맡은 조건이면 자동 실행을 시도하고, 아니면 카드를 띄운다."""
         key = event_key(record)
@@ -1329,7 +1300,7 @@ class AutoRuleEngine:
             notice += " 연습 신호예요."
         return notice
 
-    # ── 실행 결과 ────────────────────────────────────────────────────────────
+    # 실행 결과
     def on_job_finished(self, event) -> None:
         scenario_id = getattr(event, "scenario_id", None) or ""
         if not scenario_id.startswith(AUTO_SCENARIO_PREFIX):
@@ -1447,7 +1418,7 @@ class AutoRuleEngine:
             return f"{name}에 전하지 못했어요. 바뀌지 않았어요.{mock}"
         return f"{name} {label}{_josa(label, '을', '를')} 바꾸지 못했어요.{mock}"
 
-    # ── 비상정지 ─────────────────────────────────────────────────────────────
+    # 비상정지
     def halt(self) -> None:
         """세대만 올린다(입출력 없음) — 정지 경로 맨 앞에서 부른다."""
         with self._gen_lock:
@@ -1500,7 +1471,7 @@ class AutoRuleEngine:
         """서버 종료 — 남은 규칙 쓰기를 마치고 세션 표시를 닫는다(:meth:`AutoRuleStore.close`)."""
         return self.store.close(timeout_s)
 
-    # ── 목록에서 끄기·켜기·수정·삭제 ─────────────────────────────────────────
+    # 목록에서 끄기·켜기·수정·삭제
     def _require(self, rule_id: str) -> AutoRule:
         rule = self.store.get(rule_id)
         if rule is None:
@@ -1611,7 +1582,7 @@ class AutoRuleEngine:
                    and self._generation_ok(r) and self._time_rule_issue(r) is None
                    for r in self.store.list())
 
-    # ── 조회 ─────────────────────────────────────────────────────────────────
+    # 조회
     def payload(self, rule: AutoRule) -> dict:
         if rule.is_time:
             routine = self._routine(rule.condition_routine_id)
@@ -1659,7 +1630,7 @@ class AutoRuleEngine:
         with self._lock:
             return [{**e, "undo_remaining_s": self._undo_remaining_locked(e)} for e in self._runs]
 
-    # ── 되돌리기(2026-10-26) ─────────────────────────────────────────────────
+    # 되돌리기(2026-10-26)
     @staticmethod
     def _inverse_value(entry: Mapping) -> str | None:
         """반대 동작 값 — 분명할 때만. 보내지 않은 실행(이미 그 값)은 되돌릴 것이 없다. 전원은 켜기↔끄기, 그 밖(바람 세기·모드)은

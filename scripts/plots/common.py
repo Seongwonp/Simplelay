@@ -33,7 +33,7 @@ class DataError(ValueError):
     """입력이 비었거나 빠졌거나 모순일 때. 그림을 만들지 않는다."""
 
 
-# ── 데이터 종류 ────────────────────────────────────────────────────────────
+# 데이터 종류
 
 
 def check_kind_flag(flag: str | None) -> str | None:
@@ -57,7 +57,7 @@ def resolve_kind(from_input: str | None, flag: str | None, where: str) -> str:
     return from_input if from_input is not None else flag  # type: ignore[return-value]
 
 
-# ── 표 CSV ────────────────────────────────────────────────────────────────
+# 표 CSV
 
 
 def _require_file(path: Path) -> None:
@@ -128,7 +128,7 @@ def to_flag01(row: dict[str, str], column: str, where: str) -> int:
     return int(value)
 
 
-# ── 원시 기록기 출력(rpi/verifier/recorder.py) ──────────────────────────────
+# 원시 기록기 출력(rpi/verifier/recorder.py)
 
 
 def read_recorder(path: str | Path) -> list[dict[str, Any]]:
@@ -178,7 +178,7 @@ def kind_from_sources(sources: Iterable[str], where: str) -> str:
     return SYNTHETIC if mock else MEASURED
 
 
-# ── 그림 ──────────────────────────────────────────────────────────────────
+# 그림
 
 
 def pyplot():

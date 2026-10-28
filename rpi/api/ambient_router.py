@@ -45,7 +45,7 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ── 허브 위치(2026-09-30) ────────────────────────────────────────────────────
+# 허브 위치(2026-09-30)
 # 폰 앱 "현재 위치로 설정"이 저장한 위치가 환경 변수(LAT/LON·NX/NY)보다 우선한다.
 # 5km 격자 예보라 소수 둘째 자리(약 1km)로 줄여 저장한다 -- 정밀 위치는 남기지 않는다.
 HUB_LOCATION_KEY = "hub_location"
@@ -151,7 +151,7 @@ def holiday_lookup(day) -> bool | None:
     return get_public_data().holidays.is_holiday(day)
 
 
-# ── 응답 모델 ────────────────────────────────────────────────────────────────
+# 응답 모델
 
 
 class AmbientTip(BaseModel):
@@ -247,7 +247,7 @@ class ConnectionsResponse(BaseModel):
     checked_at: str
 
 
-# ── /ambient ────────────────────────────────────────────────────────────────
+# /ambient
 
 
 #: 키오스크 안내 한 줄에 올리는 루틴 안내 종류(시연 v3 갭 S5) — 루틴의 ``announce``와 '알림만' 기록.
@@ -364,7 +364,7 @@ async def ambient(
     return body
 
 
-# ── /connections ────────────────────────────────────────────────────────────
+# /connections
 
 
 def _press_link(service) -> str:
@@ -406,7 +406,7 @@ async def connections(
     }
 
 
-# ── 허브 위치 API ────────────────────────────────────────────────────────────
+# 허브 위치 API
 
 
 class HubLocationRequest(BaseModel):

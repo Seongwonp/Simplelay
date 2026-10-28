@@ -185,7 +185,7 @@ def default_out_path(now: datetime | None = None) -> Path:
     return DEFAULT_OUT_DIR / f"raw-{stamp}.csv"
 
 
-# ── 실기기 입력 (하드웨어 라이브러리가 있을 때만 import) ──────────────────
+# 실기기 입력 (하드웨어 라이브러리가 있을 때만 import)
 
 
 class Ads1115Source:
@@ -242,7 +242,7 @@ def start_audio_stream(
     return stream
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────
+# CLI
 
 
 def build_parser() -> argparse.ArgumentParser:

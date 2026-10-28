@@ -39,7 +39,7 @@ class CurrentSensorConfig:
     # ADC channel index (0–3 for ADS1115)
     channel: int = 0
 
-    # ── 누름 관측 구간(2026-10-07) — 아래 값은 전부 추측, 실측 필요 ──
+    # 누름 관측 구간(2026-10-07) — 아래 값은 전부 추측, 실측 필요
     # 누르는 동안 ADC를 읽는 간격(초). ADS1115 860 SPS면 한 번 읽기에 약 1.2 ms.
     sample_interval_s: float = 0.002
     # 누름 명령이 끝난 뒤에도 더 읽는 시간(초) — 가전 반응 지연을 덮는다.
@@ -176,7 +176,7 @@ class AudioSensorConfig:
     # Device index for PyAudio (None = system default)
     device_index: int | None = None
 
-    # ── 누름 관측 구간(2026-10-07) — 아래 값은 전부 추측, 실측 필요 ──
+    # 누름 관측 구간(2026-10-07) — 아래 값은 전부 추측, 실측 필요
     # 콜백 큐 길이(프레임). 차면 가장 오래된 프레임을 버리고 최신을 남긴다.
     # 512 샘플/16 kHz 기준 128프레임 ≈ 4 s.
     queue_frames: int = 128

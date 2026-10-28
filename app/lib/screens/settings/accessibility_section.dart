@@ -1,6 +1,6 @@
 part of '../settings_screen.dart';
 
-// ── 음성 안내 토글 ─────────────────────────────────────────────────────────
+// 음성 안내 토글
 
 class _VoiceGuideTile extends ConsumerWidget {
   @override
@@ -21,7 +21,7 @@ class _VoiceGuideTile extends ConsumerWidget {
   }
 }
 
-// ── 테마 토글 ─────────────────────────────────────────────────────────────
+// 테마 토글
 
 class _ThemeToggleTile extends ConsumerWidget {
   @override

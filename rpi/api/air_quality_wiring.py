@@ -181,7 +181,7 @@ def reset_air_quality() -> None:
         _monitor = None
 
 
-# ── 리허설 주입(mock·fake_cloud만) ─────────────────────────────────────────────
+# 리허설 주입(mock·fake_cloud만)
 
 def _post_fake_cloud(base_url: str, payload: dict) -> None:
     request = urllib.request.Request(

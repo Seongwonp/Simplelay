@@ -1,16 +1,15 @@
 # SimpleLay 백엔드를 플랫폼 기기 위 컨테이너로 올린다.
 #
-# 왜 컨테이너인가: 플랫폼 이미지의 python3은 온디바이스 AI 서비스 전용으로 격리돼
-# 우리가 못 쓴다(dev-docs 참고). 대신 도커가 되므로 파이썬을 컨테이너가 품고 온다.
+# 플랫폼의 python3은 온디바이스 AI 서비스 전용으로 격리돼 있다(dev-docs 참고).
+# 백엔드는 별도의 Python 런타임을 포함한 컨테이너에서 실행한다.
 # 온디바이스 D-Bus는 시스템 버스 소켓을 마운트해 dbus-fast로 직접 부른다.
 #
 # 빌드(개발 PC, arm64 기기용):
 #   docker build --platform linux/arm64 -f deploy/backend.Dockerfile -t simplelay-backend .
 # 실행은 deploy/run_backend.sh 참고.
 #
-# 의존성을 명시적으로 깐다(pip install -e . 대신). 이유: 우리는 리포를 PYTHONPATH로
-# 얹어 실행하지(py -m pytest / uvicorn rpi.main:app) 패키지로 설치하지 않는다.
-# 컨테이너도 같은 방식이라 pyproject 패키징 메타데이터에 얽히지 않는다.
+# 리포를 패키지로 설치하지 않고 PYTHONPATH에 올려 실행하므로 의존성을 명시적으로 설치한다.
+# 개발 환경(py -m pytest / uvicorn rpi.main:app)과 컨테이너가 같은 실행 방식을 쓴다.
 
 FROM python:3.12-slim
 

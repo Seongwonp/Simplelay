@@ -18,7 +18,7 @@ import 'command_result.dart';
 import 'execution_status.dart';
 import 'hub.dart' show VerifyPassLookup, VerifyPassLookupKind;
 
-// ── 가전 타일 ────────────────────────────────────────────────────────────────
+// 가전 타일
 
 /// 타일 상태의 무게. 색은 이 값에서 나오고, 뜻은 언제나 [TileStatus.text]가 말한다.
 enum TileTone {
@@ -270,7 +270,7 @@ TileStatus applianceTileStatus({
   bool thinqOff = false,
   List<ApplianceMap>? pressHosts,
 }) {
-  // 1. 이 가전이 지금 추적 중인 실행의 대상인가(서버가 말한 대상 id로만).
+  // 이 가전이 지금 추적 중인 실행의 대상인가(서버가 말한 대상 id로만).
   if (execution.applianceId == appliance.id) {
     final total = execution.totalSteps ?? execution.steps.length;
     final count = total > 0 ? ' ${execution.completedSteps}/$total' : '';
@@ -303,7 +303,7 @@ TileStatus applianceTileStatus({
     }
   }
 
-  // 2. 허브 장애가 가전 판정보다 앞선다 — 옛 '준비됨'을 지금의 사실로 쓰지 않는다.
+  // 허브 장애가 가전 판정보다 앞선다 — 옛 '준비됨'을 지금의 사실로 쓰지 않는다.
   switch (hub) {
     case RpiConnectionState.unreachable:
       return const TileStatus('본체 연결을 봐 주세요', TileTone.attention,
@@ -330,13 +330,13 @@ TileStatus applianceTileStatus({
       break;
   }
 
-  // 3. 위치를 아직 맞추지 않은 가전 — 설치 근거가 있는 '설정'.
+  // 위치를 아직 맞추지 않은 가전 — 설치 근거가 있는 '설정'.
   if (needsPanelMapping(appliance)) {
     return const TileStatus(kSetupNeededText, TileTone.attention,
         issue: TileIssue(TileMark.setup, kTilePanelSetup));
   }
 
-  // 4. 서버 판정. 들은 적이 없으면 canExecute 기본값(true)으로 긍정하지 않는다.
+  // 서버 판정. 들은 적이 없으면 canExecute 기본값(true)으로 긍정하지 않는다.
   final r = readinessSource;
   if (r == null || !r.readinessKnown) {
     return const TileStatus('준비됐는지 확인하지 못했어요', TileTone.unknown,
@@ -389,7 +389,7 @@ TileStatus applianceTileStatus({
   }
 }
 
-// ── 가전 타일: 확인 주행 보조 줄 (2026-10-13) ──────────────────────────────────
+// 가전 타일: 확인 주행 보조 줄 (2026-10-13)
 
 /// 타일 상태 줄 아래에 붙는 '확인 주행' 보조 줄. **표시만** 한다 — 실행을 막지 않는다.
 ///
@@ -441,7 +441,7 @@ String? verifyPassLookupNote(VerifyPassLookup lookup) {
   }
 }
 
-// ── 실행 기록 ────────────────────────────────────────────────────────────────
+// 실행 기록
 
 /// 받침이 있으면 '을', 없으면 '를'. 한글이 아니면 '을(를)'.
 String objectParticle(String word) {
@@ -881,7 +881,7 @@ HistoryResult _liveResult(
   }
 }
 
-// ── 가전 타일: 같은 이름 구분 (2026-10-14) ──────────────────────────────────
+// 가전 타일: 같은 이름 구분 (2026-10-14)
 
 /// 타일에 적을 이름(가전 id → 이름). **표시만** 바꾼다 — 저장된 이름은 그대로다.
 ///

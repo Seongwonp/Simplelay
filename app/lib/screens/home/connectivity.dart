@@ -30,7 +30,7 @@ class _NoApplianceStage extends StatelessWidget {
       );
 }
 
-// ── 연결 상세 (접힘) ──────────────────────────────────────────────────────
+// 연결 상세 (접힘)
 
 /// 서버·BLE 사정을 한 줄로 접어 둔다.
 ///
@@ -132,4 +132,4 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
   }
 }
 
-// ── 온습도 스트립 ──────────────────────────────────────────────────────────
+// 온습도 스트립

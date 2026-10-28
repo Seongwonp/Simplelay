@@ -133,9 +133,7 @@ class FakeAudioReader(AudioReader):
         self._index += 1
         return frame
 
-    # ------------------------------------------------------------------
     # Test helpers
-    # ------------------------------------------------------------------
 
     @staticmethod
     def silence(chunk_size: int = 512) -> np.ndarray:
@@ -214,9 +212,7 @@ class AudioSensor:
         self._sleep = sleep
         self._opened_at: float | None = None
 
-    # ------------------------------------------------------------------
     # Public API
-    # ------------------------------------------------------------------
 
     def is_pressed(self) -> tuple[bool, float]:
         """Read one frame and return (sound_detected, band_energy_ratio).

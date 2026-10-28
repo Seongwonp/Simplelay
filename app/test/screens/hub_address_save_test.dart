@@ -79,5 +79,37 @@ void main() {
         reason: '저장한 새 주소는 닿는다 -- 재시도 없이 연결됨이어야 한다');
     expect(find.text('연결됨'), findsOneWidget);
   });
+
+  testWidgets('본체 재확인은 주변 장치 탐색과 구별하고 누름 장치 연결을 따로 안내한다',
+      (tester) async {
+    tester.view.physicalSize = const Size(500, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final requests = <String>[];
+    await tester.pumpWidget(buildScreen(
+      const HubSettingsScreen(),
+      overrides: [
+        rpiHttpClientProvider.overrideWithValue(MockClient((request) async {
+          requests.add(request.url.path);
+          return http.Response('{"status":"ok"}', 200,
+              headers: {'content-type': 'application/json'});
+        })),
+        scanResultsProvider.overrideWith((ref) => Stream.value(const [])),
+      ],
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.widgetWithText(OutlinedButton, '다시 확인'), findsOneWidget);
+    expect(find.text('휴대폰은 본체에 연결해요. 누름 장치는 본체에서 따로 연결해요.'),
+        findsOneWidget);
+    final before = requests.where((path) => path == '/status').length;
+    await tester.tap(find.widgetWithText(OutlinedButton, '다시 확인'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(requests.where((path) => path == '/status').length, before + 1);
+    expect(requests.every((path) => path == '/status' || path == '/hub/location'),
+        isTrue, reason: '연결 재확인은 상태 조회이며 제어·탐색 요청을 보내지 않는다');
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
 

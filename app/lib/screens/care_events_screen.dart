@@ -10,11 +10,7 @@ import '../theme/app_icons.dart';
 import '../theme/app_text.dart';
 import '../theme/app_tokens.dart';
 
-/// 보호자 알림함 — 실패·위험소리·긴급정지·안부 신호를 시간순으로.
-///
-/// 이 사건들은 그동안 키오스크(가전 옆 화면)에만 표시됐다. 정작 걱정하는
-/// 보호자는 밖에 있는데 볼 방법이 없었다 — 실제 고독사 예방 서비스들이
-/// "이상 신호를 담당자에게 알림"을 핵심으로 두는 이유와 같다.
+/// 실패·위험 소리·긴급정지·안부 신호를 시간순으로 표시하는 보호자 알림함.
 class CareEventsScreen extends ConsumerStatefulWidget {
   const CareEventsScreen({super.key});
 
@@ -26,10 +22,8 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
   @override
   void initState() {
     super.initState();
-    // 화면을 연 순간 = 읽음. 프레임 뒤로 미뤄 build 중 상태 변경을 피한다.
-    // refresh를 기다린 뒤에 읽음 처리해야 한다 — cascade로 이어 부르면
-    // 목록이 아직 비어 있을 때 markAllSeen이 돌아 아무것도 읽음이 안 된다
-    // (테스트가 실제로 잡아낸 결함).
+    // build 중 상태 변경을 피하도록 첫 프레임 뒤에 읽음 처리한다.
+    // refresh가 끝나기 전에 markAllSeen을 호출하면 빈 목록에 적용되므로 완료를 기다린다.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final notifier = ref.read(careEventsProvider.notifier);
       await notifier.refresh();

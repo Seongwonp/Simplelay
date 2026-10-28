@@ -108,13 +108,13 @@ const _admitUnknownIdlePolls = 3;
 // 접수 응답 전에 누른 정지를, 실행을 못 찾은 채로 지키는 시간 — 늦게 접수된 실행도 멈춘다. 지나면 남의 실행을 멈추지 않게 버린다.
 const _pendingStopWindow = Duration(seconds: 20);
 
-/// 조용한 시간에 화면을 만지면 이만큼 평소 밝기로 둔다(사용자 결정 10/18 — 예: 30초).
+/// 조용한 시간에 화면을 만진 뒤 평소 밝기를 유지하는 시간.
 const kQuietWakeDuration = Duration(seconds: 30);
 
-/// 제안 화면 '시간 더 주기'가 늘리는 초(접근성 감사 10/18).
+/// 제안 화면에서 한 번에 늘리는 시간.
 const kSuggestionExtendSeconds = 60;
 
-/// '시간 더 주기'로 남길 수 있는 최대 초(10/25 — 누를 때마다 끝없이 늘어 3,000초를 넘었다). 다 차면 단추를 숨긴다.
+/// 제안 화면의 최대 대기 시간. 한도에 도달하면 연장 단추를 숨긴다.
 const kSuggestionMaxSeconds = 300;
 
 class KioskScreen extends StatefulWidget {
@@ -157,7 +157,7 @@ class _KioskScreenState extends State<KioskScreen> {
   // 큰 글씨 모드 — settings 주입 시 파일에 영속화, 아니면 세션 한정
   bool _largeText = false;
 
-  /// 고대비(사용자 결정 10/18) — 큰 글씨와 같은 파일에 저장. 색 토큰([KioskColors])을 바꾸고 화면 전체를 다시 그린다.
+  /// 고대비 설정. 색 토큰을 바꾸고 화면 전체를 다시 그린다.
   bool _highContrast = false;
 
   /// 화면 밝기(10/26 — 밝게·어둡게·자동). 자동은 본체가 정한 방 밝기([_roomDark])를 따른다(새로 설치하면 자동).
@@ -186,11 +186,10 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _quietAwake = false;
   Timer? _quietWakeTimer;
 
-  /// 처음 화면 '지난 일' 한 줄(사용자 결정 10/18) — 실패·'확인 못 함' 결과. '확인'을 누르거나 다른 기기(폰 '기록 보기')에서
-  /// 확인할 때까지 남는다(본체 확인 표시, 2026-10-19).
+  /// 처음 화면에 남기는 실패·미확인 결과. 어느 기기에서든 확인할 때까지 남는다.
   KioskPastResult? _pastResult;
 
-  /// 사람이 확인한 실행(본체 GET /acks, 2026-10-19) — 키오스크·폰 어디서 확인했든. 지난 일 줄·가전 칸 '!'이 이것을 본다.
+  /// 본체 GET /acks로 받은 확인 상태. 지난 일 줄과 가전 경고가 함께 쓴다.
   Map<String, String> _ackedJobs = const {};
 
   /// 결과 화면이 뜬 시각 — 지난 일 한 줄의 시각.
@@ -286,7 +285,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   String? _currentButton;
 
-  // 이 실행에서 이미 누른 버튼(화면이 본 차례대로, 평가 3차 10/18) — 실행 화면 버튼판의 끝난 칸 ✓.
+  // 이 실행에서 이미 누른 버튼. 실행 화면 버튼판의 끝난 칸에 표시한다.
   // 서버는 지금 버튼만 준다. 지금 버튼이 다른 버튼으로 바뀌면 앞 버튼은 누른 것이다(사이를 놓친 버튼은 표시하지 않는다).
   List<String> _execDoneButtons = const [];
 
@@ -302,15 +301,15 @@ class _KioskScreenState extends State<KioskScreen> {
   // 가전, 폰이 시작한 실행은 서버가 말해준 대상.
   String? _execApplianceId;
 
-  /// 이 실행이 LG 가전 명령 하나뿐인가(사용자 요청 10/18) — 실행·결과 화면을 버튼판 없이 기다림·결과 창으로.
-  /// 승인에 묶인 명령이 LG 가전 하나(또는 LG 가전 상세에서 바꾼 것)일 때만. 이어받은 실행·섞인 루틴은 종전 화면.
+  /// LG 가전 명령 하나뿐이면 버튼판 대신 전용 대기·결과 화면을 쓴다.
+  /// LG 가전 하나만 실행할 때 적용하며, 섞인 루틴은 일반 화면을 쓴다.
   bool _execThinqOnly = false;
 
-  /// LG 가전 실행의 하려는 일을 알아볼 문장(승인에 묶인 명령 요약·LG 가전 상세에서 고른 이름, 평가 10차 10/18).
-  /// 이어받은 실행은 모른다(null) — 화면이 지어내지 않고 '설정을 바꾸고 있어요'.
+  /// LG 가전 실행의 동작 요약 또는 상세 화면에서 고른 이름.
+  /// 이어받은 실행처럼 모르면 null이며 화면에서 동작을 추측하지 않는다.
   String? _execThinqActionText;
 
-  /// 이어받은 실행을 LG 가전 화면으로 보일까(평가 10차 10/18) — 서버가 지금 단계 경로 thinq·전체 1단계라고 말하고,
+  /// 이어받은 실행을 LG 가전 화면으로 보일까. 서버가 지금 단계 경로 thinq·전체 1단계라고 말하고,
   /// 대상 가전을 알면 그 가전도 LG 가전일 때만([isAdoptedThinqRun]).
   bool _adoptedThinq(KioskStatus st) {
     final id = st.applianceId;
@@ -357,16 +356,15 @@ class _KioskScreenState extends State<KioskScreen> {
   String? _doneStopLevel;
   int? _doneStopAckMs;
 
-  /// 결과 화면 '다시 멈추기'(누름 장치가 멈췄는지 모르는 정지, 평가 15차 10/18)를 누른 결과 — 'sent' | 'failed' | null.
+  /// 미확인 정지 결과에서 다시 멈추기를 누른 결과: 'sent' | 'failed' | null.
   String? _doneStopAgain;
 
   /// 결과가 먼저 오고 정지 보고가 늦게 올 때의 짧은 후속 조회(평가 2026-10-13 M1). 화면 문구만 고친다.
   Timer? _stopFollowTimer;
 
-  /// 정지로 끝난 job의 확인 보고(stop_level)를 아직 기다리는 중(평가 8차 10/18) — 결과 화면은 그동안 진행 상태
-  /// ('멈추는 중이에요', 처음 화면 단추 없음)로 보이고, 보고가 오거나 기다리기를 그만두면 결과(멈췄어요/확인하지 못했어요)로 바뀐다.
+  /// 정지 확인 보고를 기다리는 동안 결과 화면을 진행 상태로 유지한다.
   bool _stopPending = false;
-  // 화면의 '길어도 N초' 말과 같은 값(휴리스틱 평가 10/18) — 한 곳([KioskTimings])에서.
+  // 화면에 안내하는 정지 대기 시간과 같은 값이다.
   static const _stopFollowInterval = KioskTimings.stopFollowInterval;
   static const _stopFollowTries = KioskTimings.stopFollowTries;
   String? _doneOperationDetail;
@@ -379,7 +377,7 @@ class _KioskScreenState extends State<KioskScreen> {
   // 실패 화면의 '다시 시도'가 무엇을 다시 할지 — 실행을 시작한 쪽이 심는다.
   Future<void> Function()? _retryAction;
 
-  // ── 평소 화면(2026-09-30) ───────────────────────────────────────────
+  // 평소 화면 상태.
   AmbientInfo? _ambient;
   int _ambientFailures = 0;
   // null = 허브에 못 닿음. 첫 응답 전에는 _connectionsLoaded가 거짓이다.
@@ -427,7 +425,7 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 건너뛰기 응답이 오면 늘린다 — 그 전에 떠난 GET /routines/next 응답이 새 상태를 덮지 않게.
   int _nextRunGen = 0;
 
-  // ── 동작 중: 정지 버튼 대기·보관(2026-09-30) ─────────────────────────
+  // 동작 중 정지 버튼 상태.
   KioskStatus? _hold;
   DateTime _holdSince = DateTime.now();
 
@@ -445,7 +443,7 @@ class _KioskScreenState extends State<KioskScreen> {
   // 사람이 확인해야 하는 결과(미확인·이상)를 한 번만 말하기 위한 기록.
   String? _holdSpokenKey;
 
-  // ── 비상정지 걸림(2026-10-05) — /status.estop_latched. 해제는 사람이 확인한 뒤에만.
+  // /status.estop_latched가 걸리면 사람이 확인한 뒤에만 해제한다.
   bool _estopLatched = false;
   String? _estopDetail;
   // 경고 안에서 확인 문장을 보이는 중.
@@ -1512,7 +1510,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _trackEstop(st);
       _followPendingStop(st);
 
-      // ① 완료 판정 최우선 — 내 job 완료 직후 다른 클라이언트의 새 job이
+      // 완료 판정 최우선 — 내 job 완료 직후 다른 클라이언트의 새 job이
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
       // 처리하면 그 완료를 영영 놓친다(추월 레이스).
       // 끝났다고 한 답만(finished, 검토 10/19 — 루틴은 모든 구간이 끝나야 참). 옛 본체·/status는 null이라 종전처럼.
@@ -1576,7 +1574,7 @@ class _KioskScreenState extends State<KioskScreen> {
         }
       }
 
-      // ② 내 job의 흔적 없음 — 접수 응답 대기 창(_activeJobId null 포함)은
+      // 내 job의 흔적 없음 — 접수 응답 대기 창(_activeJobId null 포함)은
       // 정상이므로 몇 번은 기다리고, 계속되면 고착 대신 탈출.
       if (_activeJobId != null) {
         _foreignPolls++;
@@ -2337,7 +2335,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (ownName != null && ownName.isNotEmpty) {
         _tts.speak("${withObject(ownName)} 할까요? 하시려면 화면의 '네'를 눌러 주세요.");
       } else {
-        // 스스로 뜬 제안만 알림음 뒤에 말한다(사용자 요청 10/25 — 화면 근처에 없어도 알게). 직접 누른 확인에는 알림음이 없다.
+        // 자동 제안에만 알림음을 먼저 재생한다. 직접 누른 확인에는 알림음이 없다.
         // 사람에게 말하듯 "<근거> <묻는 말>"(2026-10-26 — '하시려면 화면의 네를 눌러 주세요'는 뺐다).
         _tts.announce(suggestionSpeech(suggestion));
       }
@@ -2498,7 +2496,7 @@ class _KioskScreenState extends State<KioskScreen> {
     // 이름을 모르면(빈 문자열) 이름 머리 없이 말한다(2026-10-14).
     // 음성도 화면 제목과 같은 행동 이름('즉석밥 데우기', 평가 4차 10/18).
     final lead = label.isEmpty ? '' : '${actionName(label)}, ';
-    // LG 가전 결과 창이면 창과 같은 말(사용자 요청 10/18).
+    // LG 가전 결과는 화면과 같은 문구로 안내한다.
     final thinqCopy = KioskDoneView(
       success: success,
       label: label,
@@ -2624,7 +2622,7 @@ class _KioskScreenState extends State<KioskScreen> {
     // 실행·완료 화면은 카드의 질문이 아니라 무엇을 하는지(평서형)를 말한다.
     final label = suggestion.doneLabel(
         scenarioName: _scenarioNames[suggestion.scenarioId]);
-    // LG 가전 명령 하나뿐인 카드면 버튼판 없는 기다림·결과 창(사용자 요청 10/18). 판정은 승인에 묶인 명령의 경로로.
+    // LG 가전 명령 하나뿐이면 버튼판 없는 대기·결과 화면을 쓴다. 승인에 묶인 명령의 경로로 판정한다.
     final thinqOnly =
         isSingleThinqCommand([for (final c in suggestion.commands) c.route]);
     _beginAdmission();

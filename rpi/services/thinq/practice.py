@@ -40,7 +40,7 @@ class PracticeMixClient:
         self._practice = practice
         self._practice_ids = frozenset(practice_ids)
 
-    # ── 가르기 ────────────────────────────────────────────────────────────
+    # 가르기
     @property
     def execution_mode(self) -> ExecutionMode:
         return getattr(self._real, "execution_mode", ExecutionMode.UNKNOWN)
@@ -58,7 +58,7 @@ class PracticeMixClient:
     def practice_client(self) -> MockThinqClient:
         return self._practice
 
-    # ── 포트 ──────────────────────────────────────────────────────────────
+    # 포트
     def list_devices(self) -> tuple[ThinqDeviceInfo, ...]:
         return self._real.list_devices()
 

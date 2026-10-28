@@ -99,7 +99,7 @@ class DevMotionService:
             fn = getattr(self._client, "not_ready_reason", None)
         return fn() if callable(fn) else None
 
-    # ── 정지 ────────────────────────────────────────────────────────────────
+    # 정지
 
     def stop(self, reason: str | None = None) -> bool:
         """MCU에 정지를 보낸다(진행 중 조작은 MotionStopped로 끝난다). 정지 줄을 썼으면 True."""
@@ -117,7 +117,7 @@ class DevMotionService:
         `SerialMotionClient.confirm_stop`."""
         return self._client.confirm_stop(stop_id=stop_id)
 
-    # ── 조작 ────────────────────────────────────────────────────────────────
+    # 조작
 
     def run(self, msg: DevMotionMsg) -> dict:
         """조작 한 번 → 답 필드(``ok`` 포함). 예외를 밖으로 내지 않는다."""
@@ -227,7 +227,7 @@ class DevMotionService:
         self._client.press(PressCommand(button=msg.label or "dev", x_mm=x, y_mm=y))
         return self._position(query=False, fallback=(x, y))
 
-    # ── 내부 ────────────────────────────────────────────────────────────────
+    # 내부
 
     def _refuse_bringup(self) -> None:
         info = getattr(self._client, "ready_info", None) or {}

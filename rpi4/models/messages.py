@@ -19,7 +19,7 @@ import json
 from dataclasses import dataclass
 
 
-# ── Inbound message types ────────────────────────────────────────────────────
+# Inbound message types
 
 @dataclass(frozen=True)
 class IntentMsg:
@@ -47,7 +47,7 @@ class SensorLogMsg:
 InboundMsg = IntentMsg | ConfirmMsg | AbortMsg | SensorLogMsg
 
 
-# ── Parser ───────────────────────────────────────────────────────────────────
+# Parser
 
 def parse_message(raw: str) -> InboundMsg | None:
     """Parse one JSON line from the ESP32 serial stream.

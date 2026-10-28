@@ -26,23 +26,22 @@ class Suggestion {
     this.kind = 'action',
   });
 
-  /// 'action'(승인하면 실행) · 'advice'(조언 — 실행 없음, '알겠어요'·'괜찮아요'만, 본체 `kind` 2026-10-26).
+  /// `action`은 승인 후 실행, `advice`는 실행 없는 조언.
   final String kind;
 
   /// 조언 카드인가 — '네'가 없고 닫기만 한다.
   bool get isAdvice => kind == 'advice';
 
-  /// '왜 지금' 신호(본체 `signals`, 2026-10-26) — 이 카드를 띄운 근거들. 본체가 만든 그대로만 보인다(화면에서 만들지 않음).
+  /// 본체가 제공한 카드 표시 근거. 화면에서 추가로 만들지 않는다.
   final List<SuggestionSignal> signals;
 
   /// 습관 카드면 참(본체 `can_mark_done`) — '이미 했어요'(오늘은 다시 묻지 않음)를 둔다.
   final bool canMarkDone;
 
-  /// '다음부터도 자동으로'를 고를 수 있으면 그 조건·동작(서버 2026-10-13). null이면 버튼을 두지 않는다
-  /// (물리 누름 카드·대상 아닌 카드).
+  /// 자동 실행으로 저장할 조건과 동작. null이면 버튼을 표시하지 않는다.
   final AutoRuleOffer? autoRuleOffer;
 
-  /// 루틴이 만든 카드면 그 루틴 ID·이름(서버 2026-09-30). 없으면 null.
+  /// 루틴이 만든 카드의 루틴 ID와 이름.
   final String? routineId;
   final String? routineName;
 
@@ -53,10 +52,7 @@ class Suggestion {
     return (name != null && name.isNotEmpty) ? name : label;
   }
 
-  /// 승인한 뒤 실행 상태·결과 화면이 부르는 이름. 서버 `purpose`는 승인 전
-  /// **질문**("'아침 데우기' 루틴을 실행할까요?")이라, 승인 뒤에 그대로 쓰면
-  /// 끝난 일을 아직 묻는 말이 된다(2026-10-07 에뮬레이터). 키오스크
-  /// `KioskSuggestion.doneLabel`(15ac5b6)과 같은 규칙이다.
+  /// 승인 후 상태·결과 화면에 사용할 이름. 질문형 `purpose`는 결과 문구로 쓰지 않는다.
   String doneLabel({String? scenarioName}) {
     final routine = routineName;
     if (routine != null && routine.isNotEmpty) return "'$routine' 루틴";

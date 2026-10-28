@@ -51,7 +51,7 @@ class DangerAlertStore:
         with self._lock:
             # rising edge 판정과 상태 갱신만 락 안에서 — care append는
             # SQLite commit(블로킹 I/O)이라 락 안에서 하면 current()와
-            # 경보 SSE 반영이 디스크 쓰기를 기다린다 (교차 리뷰 #15).
+            # 경보 SSE 반영은 디스크 쓰기가 끝날 때까지 기다린다.
             rising = event.raised and not self._state.active
             self._state = DangerAlertState(
                 active=event.raised,

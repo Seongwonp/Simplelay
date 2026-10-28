@@ -189,7 +189,7 @@ def stop_room_presence_poller() -> None:
     _stop.set()
 
 
-# ── 방 밝기(2026-10-26) — SIMPLELAY_ROOM_LIGHT_FILE이 있을 때만. 사람 감지와 따로 도는 가벼운 데몬 스레드. ──
+# 방 밝기(2026-10-26) — SIMPLELAY_ROOM_LIGHT_FILE이 있을 때만. 사람 감지와 따로 도는 가벼운 데몬 스레드.
 
 _light_stop = threading.Event()
 _light_thread: threading.Thread | None = None

@@ -12,10 +12,8 @@ import 'execution_status_provider.dart';
 import 'rpi_api_provider.dart';
 import 'voice_provider.dart';
 
-/// 실행 중 '멈춰' 듣기에 쓰는 인식기 — 홈 '말로 조작하기'와 **같은 엔진**이다
-/// (폰 음성 인식, 2026-10-07). 엔진이 하나라 두 쪽이 서로의 세션을 끊을 수 있고,
-/// 그때는 [SpeechRecognizer.listen]의 `onInterrupted`로 안다. 시험은 이 provider를
-/// 가짜 인식기로 바꾼다.
+/// 실행 중 정지와 홈 음성 조작이 공유하는 인식기.
+/// 세션 선점은 `onInterrupted`로 알리고 테스트에서는 provider를 교체한다.
 final speechRecognizerProvider =
     Provider<SpeechRecognizer>((ref) => ref.watch(voiceServiceProvider));
 
@@ -48,9 +46,7 @@ bool isStopPhrase(String text) {
   return true;
 }
 
-/// 폰이 추적하지 않는 실행(키오스크·루틴·정지 버튼 위 대기)을 음성 '멈춰'로 멈췄을 때 보일 한 줄 — 정지 버튼과 같은
-/// 정지 단계 문장([stopLevelSentence]). 예전에는 아무것도 보이지 않아 멈추라고 갔는지 알 수 없었다(검토 10/19).
-/// 폰이 추적하는 실행은 실행 상태가 같은 문장을 띄우므로 여기 싣지 않는다. 보여 준 화면(`VoiceStopIndicator`)이 잠시 뒤 비운다.
+/// 폰이 추적하지 않는 실행의 음성 정지 결과. 폰이 추적하는 실행은 실행 상태가 표시한다.
 final voiceStopNoticeProvider = StateProvider<String?>((ref) => null);
 
 /// 음성 정지 결과 한 줄 — 서버가 알린 정지 단계까지만(말로 조작하기의 정지 문장과 같은 규칙).
@@ -66,36 +62,16 @@ class VoiceStopState {
   final bool listening;
 }
 
-/// 실행 중 음성 '멈춰' 정지(9/30 결정, 2026-10-07 구현, 10/8 인계 5차 수리).
+/// 실행 중 음성 정지 제어기.
 ///
-/// - **실행 중**일 때만 듣는다. 실행 중은 세 가지로 안다:
-///   폰이 추적하는 실행(정지 줄이 보이는 단계: waiting·running·retrying·unknown),
-///   서버 `/status.running`(키오스크·루틴이 시작한 실행 포함),
-///   **정지 버튼 위 대기**(`hold_state == hovering_stop`). 서버 조회가 실패하면
-///   뒤의 두 값은 꺼진 것으로 본다 — 모르는 채 마이크를 열어 두지 않는다.
-/// - 정지 말이면 폰이 추적하는 실행에는 화면 정지 버튼과 **같은 호출**
-///   (`ExecutionStatusNotifier.emergencyStop`)을, 그 밖(서버만 아는 실행·대기)에는
-///   그 호출이 쓰는 같은 `POST /stop`을 부른다. 별도 정지 경로는 없다.
-/// - 정지 요청은 한 실행(듣기 구간)에 **보낸 것이 확인되면** 한 번만 — 보내는 중
-///   중복도, 보낸 뒤 반복도 무시한다. **보내지 못했으면**(HTTP 실패) 다시 듣고,
-///   다시 말하면 다시 요청한다. 정지 버튼은 그대로 있다.
-/// - 정지는 **최종 인식 결과**로만 한다. 부분 결과가 정지 말뿐이면
-///   [partialStopDelay]만큼 다른 말이 이어지지 않을 때 보낸다("그만" 뒤에
-///   "그만 데워줘"가 오면 보내지 않는다). 정지가 그만큼 늦어지는 것은 감수한다.
-/// - "듣는 중" 표시는 엔진 세션이 열려 있는 동안만이다. 엔진이 스스로 끝나면
-///   (`done`) 표시를 끄고 잠시 뒤 다시 연다.
-/// - **마이크 권한이 이미 있을 때만** 듣는다. 실행 중에는 OS 권한 창을 띄우지 않는다
-///   (외부 평가 2026-10-13 M3) — 권한 요청은 '말로 조작하기' 마이크 버튼에서.
-/// - 인식 오류·권한 없음·엔진 없음은 조용히 넘어간다(화면 안내 없음).
-///   침묵으로 끝난 세션(`error_no_match`·`error_speech_timeout`)은 오류가 아니다 —
-///   보통 끝남처럼 [restartDelay] 뒤 다시 연다(데우는 중·대기처럼 긴 조용한 구간).
-///   포기는 **권한 거부·엔진 없음**뿐이고, 그 밖의 오류는 간격을 늘려
-///   ([errorRestartDelay]부터 두 배씩, [maxErrorRestartDelay] 상한) 다시 연다(10/8 리뷰).
-/// - '보냈다'는 **실행 단위**다. 실행 식별(폰이 추적하는 `sequenceId`, 아니면
-///   서버 `/status.job_id`, 정지 버튼 위 대기면 `last_job_id`)이 바뀌면 듣기 구간이
-///   끊기지 않았어도 새 실행으로 보고 다시 듣는다(10/8 리뷰). 서버 값은 5초 조회만큼
-///   늦고, 식별을 주지 않는 옛 서버에서는 듣기 구간이 끝날 때만 지운다.
-/// - 이 듣기는 정지 말 말고는 아무것도 하지 않는다 — **음성으로 실행 시작 금지.**
+/// 실행 중이거나 정지 버튼 위에서 대기할 때만 듣고, 서버 상태를 모르면 마이크를 열지 않는다.
+/// 모든 정지는 화면 정지 버튼과 같은 경로를 사용하며 실행당 한 번만 전송한다.
+/// 전송 실패 시에는 재시도를 허용한다. 부분 인식은 [partialStopDelay] 뒤에도 정지 말만
+/// 남아 있을 때 처리해 긴 문장의 오인식을 피한다.
+///
+/// 실행 중에는 기존 마이크 권한만 사용한다. 침묵은 [restartDelay] 뒤 재개하고,
+/// 다른 오류는 지수 백오프로 재개한다. 권한 거부와 엔진 부재만 포기한다.
+/// 실행 식별자가 바뀌면 새 실행으로 취급한다. 음성으로 실행을 시작하지 않는다.
 class VoiceStopController extends StateNotifier<VoiceStopState>
     with WidgetsBindingObserver {
   VoiceStopController(this._ref) : super(const VoiceStopState()) {

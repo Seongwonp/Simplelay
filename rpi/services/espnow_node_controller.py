@@ -151,7 +151,7 @@ class EspNowGatewayLink:
         self._reader.start()
         self._dispatcher.start()
 
-    # ── 수신 ──────────────────────────────────────────────────────────────
+    # 수신
 
     def _read_loop(self) -> None:
         while not self._closed.is_set():
@@ -222,18 +222,18 @@ class EspNowGatewayLink:
                         waiter.retry = 0
                 waiter.done.set()
                 return
-            # 이미 포기한 실행의 늦은 응답 — 버리되 조용히는 아니다
+            # 대기자가 없는 늦은 응답은 기록 후 버린다.
             log.info("임자 없는 노드 응답(늦은 도착?): %s", sequence_id)
             return
 
-        # BLE 브릿지 트래픽 등 우리 것이 아닌 줄. 이전에는 여기서 사라졌다.
+        # BLE 브릿지 등 다른 소비자의 트래픽을 전달한다. 기존에는 이 지점에서 버렸다.
         try:
             self._unclaimed.put_nowait(doc)
         except queue.Full:
             # 소비자가 밀렸다. 리더를 막느니 버린다 -- 막으면 실행 응답까지 멈춘다.
             log.warning("임자 없는 줄 큐가 가득 참 — %s 한 줄을 버립니다", kind)
 
-    # ── 송신 ──────────────────────────────────────────────────────────────
+    # 송신
 
     def _next_sequence_id(self) -> str:
         with self._waiters_lock:

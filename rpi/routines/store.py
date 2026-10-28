@@ -54,7 +54,7 @@ class RoutineStore:
     def new_id() -> str:
         return f"rt-{uuid4().hex[:10]}"
 
-    # ── 읽기: 잠금 없음(불변 사본) ───────────────────────────────────────────
+    # 읽기: 잠금 없음(불변 사본)
     def list(self) -> tuple[Routine, ...]:
         return tuple(self._routines.values())
 
@@ -67,7 +67,7 @@ class RoutineStore:
             raise RoutineNotFoundError(routine_id)
         return routine
 
-    # ── 쓰기: 쓰기 잠금 안에서 DB 먼저, 성공하면 사본 교체 ───────────────────────
+    # 쓰기: 쓰기 잠금 안에서 DB 먼저, 성공하면 사본 교체
     def _write_locked(self, routine: Routine) -> Routine:
         if self._db is not None:
             self._db.save_routine(

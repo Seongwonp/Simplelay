@@ -133,7 +133,6 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     }
   }
 
-  // ── 동작 ───────────────────────────────────────────────────────────────
 
   // 서버의 세션 ID와 별개인 UI 세대. 정지/이탈/연결 변경 뒤 도착한
   // 성공·실패·finally 모두 현재 화면을 변경하지 못한다.
@@ -501,7 +500,6 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         _ => e.message,
       };
 
-  // ── 화면 ───────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -825,7 +823,6 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:${t.second.toString().padLeft(2, '0')}';
 }
 
-// ── 조각 ───────────────────────────────────────────────────────────────────
 
 /// '모의' / '실제 장치' 표시. 근거는 서버 응답뿐이고, 색만으로 말하지 않는다
 /// -- 글자 배지·아이콘·문장을 함께 둔다.

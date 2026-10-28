@@ -1,31 +1,23 @@
 import 'rpi_api_service.dart';
 
-/// 데모(모의) 실행 — **실제 전송 없이** 실행 흐름만 재현한다.
+/// 실제 명령 전송 없이 실행과 진행 조회만 모의한다.
 ///
-/// 예전에는 데모 모드가 화면 배너만 바꿨다. 그래서 데모를 켜고 제안을
-/// 승인하면 **실제 갠트리가 움직이는데 화면은 "실제 조작이 아닙니다"라고
-/// 말했다.** 폐루프의 존재 이유가 "눌림을 확인했는가"인데 그 확인을 화면이
-/// 뒤집는 셈이라, 문구가 아니라 **전송 경로**에서 갈라야 한다.
-///
-/// 갈라내는 범위는 **실행과 그 진행 조회**뿐이다. 제안 목록·가전 목록·이력·
-/// 센서는 실제 서버에서 받아야 데모가 성립하고, `stop()`도 실제로 나가야
-/// 한다 — 데모를 켜기 전에 시작한 진짜 작업을 멈출 수단이 사라지면 안 된다.
+/// 제안·가전·이력·센서 조회와 `stop()`은 실제 서버를 사용한다. 모의 모드 전에
+/// 시작된 실제 작업도 정지할 수 있어야 한다.
 class SimulatedExecutionService extends RpiApiService {
   SimulatedExecutionService(super.baseUrl, {super.client, super.apiKey});
 
   static int _counter = 0;
 
-  /// 지금 흉내내고 있는 job. 새 모의 실행이 시작되면 이전 것을 덮으므로,
-  /// 지연된 옛 job의 진행이 새 작업 위로 흘러들지 않는다.
+  /// 현재 모의 job. 새 실행이 이전 job의 지연된 진행을 대체한다.
   String? _jobId;
   DateTime? _startedAt;
   List<String> _buttons = const [];
 
-  /// 한 단계에 쓰는 시간. 실기기의 한 번 누름과 비슷한 체감을 준다.
+  /// 모의 실행의 단계별 지연.
   static const _perStep = Duration(milliseconds: 900);
 
-  /// 미리보기가 없는 경로(음성·제안 승인)의 기본 단계 수. 서버가 실제로
-  /// 몇 단계인지 알려주지 않으므로 진행 바를 그릴 만큼만 가정한다.
+  /// 단계 수를 알 수 없는 경로의 진행 표시용 기본 단계.
   static const _unknownSequence = ['1단계', '2단계', '3단계'];
 
   RpiJobAccepted _begin(List<String> buttons) {
@@ -36,7 +28,7 @@ class SimulatedExecutionService extends RpiApiService {
     return RpiJobAccepted(jobId: _jobId!);
   }
 
-  // ── 실행: 나가지 않는다 ──────────────────────────────────────────────
+  // 실행: 나가지 않는다
 
   @override
   Future<RpiJobAccepted> execute(

@@ -197,7 +197,7 @@ class CommandExecutionMixin:
         self._stop_sticky = False
         self._step_suffix: str | None = None
 
-    # ── 조회 ──────────────────────────────────────────────────────────────
+    # 조회
     @property
     def thinq_controller(self):
         return self._thinq
@@ -269,7 +269,7 @@ class CommandExecutionMixin:
         appliance = self._appliance_registry.get(appliance_id) if self._appliance_registry else None
         return appliance.name if appliance is not None else appliance_id
 
-    # ── ThinQ 목적 → 명령 ─────────────────────────────────────────────────
+    # ThinQ 목적 → 명령
     def resolve_thinq_purpose(self, purpose: str, appliance_id: str) -> Command:
         from rpi.services.thinq import CapabilityError  # noqa: PLC0415
 
@@ -306,7 +306,7 @@ class CommandExecutionMixin:
             return f"{name} {command.action}"
         return f"{name} {' → '.join(command.buttons)}"
 
-    # ── 실행 직전 재검사 ───────────────────────────────────────────────────
+    # 실행 직전 재검사
     def _prepare(self, command: Command, approved: ApprovedCommand | None) -> _Step:
         from rpi.services.thinq import CapabilityError  # noqa: PLC0415
 
@@ -361,7 +361,7 @@ class CommandExecutionMixin:
             button_behaviors=self._button_behaviors_snapshot(target, buttons),
         )
 
-    # ── 진입점 ────────────────────────────────────────────────────────────
+    # 진입점
     def submit_command(self, command: Command, *, purpose: str | None = None,
                        usage_source: UsageSource = UsageSource.DIRECT,
                        approval_guard=None, action_title: bool = False) -> str:
@@ -422,7 +422,7 @@ class CommandExecutionMixin:
         return self._start_plan(steps, purpose.strip(), usage_source, approval_guard, None,
                                 background=background)
 
-    # ── 실행 ──────────────────────────────────────────────────────────────
+    # 실행
     def _start_plan(self, steps, purpose, usage_source, approval_guard, scenario_id, *, background,
                     dispatch_guard=None, on_admitted=None):
         if not steps:
@@ -714,7 +714,7 @@ class CommandExecutionMixin:
         ))
         return result
 
-    # ── 물리 결과의 계약 필드(기존 경로에서 부른다) ────────────────────────
+    # 물리 결과의 계약 필드(기존 경로에서 부른다)
     def _physical_contract_fields(self, result: ExecutionResult, expected: int | None) -> dict:
         try:
             return {
@@ -824,7 +824,7 @@ class CommandExecutionMixin:
             except Exception:
                 log.exception("job listener failed")
 
-    # ── 정지 ──────────────────────────────────────────────────────────────
+    # 정지
     def _stop_command_paths(self) -> tuple[tuple[str, ...], tuple[str, ...]]:
         """ThinQ 경로 정지(결정 #5). (보내기 전 취소한 가전, 이미 보내 취소 못 한 가전)."""
         if self._thinq is None:

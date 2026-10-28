@@ -353,7 +353,7 @@ async def job_by_request(client_request_id: str, request: Request) -> JobByReque
     return JobByRequestResponse(client_request_id=client_request_id, job_id=job_id)
 
 
-# ── 가전 레지스트리 — 폰·키오스크가 공유하는 가전 정의 ──────────────────────
+# 가전 레지스트리 — 폰·키오스크가 공유하는 가전 정의
 
 
 def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
@@ -1072,7 +1072,7 @@ def _cleanup_after_delete(
     """
     steps = (
         # 연결 노드 — 남겨두면 유령 노드에 긴급 정지가 계속 가고, 같은 id
-        # 재등록 시 예전 주소가 조용히 재사용된다 (교차 리뷰 #4)
+        # 재등록할 때 예전 주소를 조용히 재사용하지 않는다.
         ("node", lambda: nodes.unregister(appliance_id)),
         # 그 가전을 대상으로 하던 제안 카드 (R1) — 남겨두면 실행할 수 없는
         # 것을 계속 권유하고, 승인하면 404로 거절된다.
@@ -1989,7 +1989,7 @@ async def clear_dnd(
     return SettingSavedResponse.of(await asyncio.to_thread(svc.persist_pause, version))
 
 
-# ── 조용한 시간(2026-10-14, 5번 정책 b) — 매일 시간대 + 잠시 쉬기를 한 판정으로 ─────────────
+# 조용한 시간(2026-10-14, 5번 정책 b) — 매일 시간대 + 잠시 쉬기를 한 판정으로
 
 
 @router.get("/quiet-hours")
@@ -2110,8 +2110,7 @@ def unregister_node(
     return OkResponse()
 
 
-# SSE 이벤트 변화 감지 주기(서버 내부) — 클라이언트 체감은 "즉시".
-# 기존 3초 폴링 대비 위험 경보 지연을 사실상 0으로 줄인다.
+# SSE 이벤트 변화는 0.3초마다 확인한다. 실제 전달 지연에는 처리·통신 시간이 추가된다.
 _SSE_CHECK_INTERVAL = 0.3
 _SSE_KEEPALIVE_EVERY = 50  # 0.3s * 50 = 15초마다 keepalive 주석
 
@@ -2177,7 +2176,7 @@ def status_event_payload(service: SimpleLayService) -> dict:
         ),
         # 진행 필드 — GET /status와 같은 의미(실행 중일 때만 값). 이게 없으면
         # SSE만 보는 클라이언트는 "몇 번째 버튼을 재시도 중인지"를 위해 결국
-        # 폴링을 병행해야 했다(교차 리뷰 #13). 버튼 진행·재시도 시마다
+        # 폴링도 병행해야 한다. 버튼 진행·재시도 시마다
         # payload가 달라지므로 변화 푸시로 즉시 흘러간다 — 키오스크의
         # "status 이벤트 → 즉시 /status 폴링" 패턴이 진행바에도 적용된다.
         "current_button": progress.button if progress else None,

@@ -369,15 +369,13 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
         children: [
-          // ── 어느 가전인가 ────────────────────────────────────────────────
+          // 어느 가전인가
           _TargetHeader(appliance: appliance),
 
           const SizedBox(height: AppSpace.lg),
 
-          // ── 지금 눌러도 되는가 ───────────────────────────────────────────
-          // 이 가전이 아직 준비 안 됐으면 **여기서 먼저 말한다.** 눌러 보고
-          // 나서 실패로 알게 되면, 실제로는 서버가 막았는데 사용자는 가전이
-          // 고장 난 줄 안다.
+          // 지금 눌러도 되는가
+          // 준비되지 않은 가전은 조작 전에 사유를 표시해 서버의 실행 거절을 가전 고장으로 오해하지 않게 한다.
           if (!canRun)
             _NotReadyNotice(appliance: source)
           else
@@ -392,7 +390,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
 
           const SizedBox(height: AppSpace.xl),
 
-          // ── 버튼판 ──────────────────────────────────────────────────────
+          // 버튼판
           // 등록 때 찍은 사진이 있으면 그 위에 격자를 겹친다 -- 실제 배치를
           // 눈으로 확인하며 누른다. 사진이 없으면 격자만, 카드 없이.
           // 준비 안 된 가전의 버튼판은 흐리게 -- 위 안내와 같은 말을 모양으로도
@@ -426,7 +424,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   }
 }
 
-// ── 어느 가전인가 ────────────────────────────────────────────────────────
+// 어느 가전인가
 
 class _TargetHeader extends StatelessWidget {
   const _TargetHeader({required this.appliance});
@@ -484,7 +482,7 @@ const kManualHint = '누를 때마다 누름 장치가 한 번 눌러요';
 double manualCellHeight(double screenHeight, int rows) =>
     rows <= 0 ? 72 : ((screenHeight * 0.7) / rows - 8).clamp(72.0, 136.0);
 
-// ── 방금 누른 결과 ────────────────────────────────────────────────────────
+// 방금 누른 결과
 
 /// 셀 색만으로 말하지 않는다. 무엇을 눌렀고 어떻게 됐는지 문장으로 남기고,
 /// 실패했으면 실행 상태(정지·재확인이 있는 곳)로 가는 길을 둔다.
@@ -602,7 +600,7 @@ class _FeedbackLine extends StatelessWidget {
   }
 }
 
-// ── 연결 안 됨 ───────────────────────────────────────────────────────────
+// 연결 안 됨
 
 /// 버튼을 대신 눌러 줄 기기와 아직 이어지지 않았다. 내부 이름(RPi·URL)을
 /// 사용자에게 말하지 않는다 -- 무엇이 없고 어디서 하면 되는지만.
@@ -690,7 +688,7 @@ class _NotReadyNotice extends StatelessWidget {
   }
 }
 
-// ── 버튼판 ───────────────────────────────────────────────────────────────
+// 버튼판
 
 /// 등록 때 찍어둔 버튼 패널 사진이 있으면 그리드 뒤에 깔아준다 — 사용자가
 /// 실제 가전 버튼 배치를 눈으로 확인하며 누를 수 있다. 사진 파일이

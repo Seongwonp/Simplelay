@@ -151,13 +151,13 @@ class HomeScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpace.lg),
 
-            // ── 연결 문제(기기에 닿지 않을 때만 맨 위) ──────────────────────
+            // 연결 문제(기기에 닿지 않을 때만 맨 위)
             if (serverDown) ...[
               connectionDetails,
               const SizedBox(height: AppSpace.md),
             ],
 
-            // ── 방해 금지 배너 ─────────────────────────────────────────────
+            // 방해 금지 배너
             if (dndActive) ...[
               _DndBanner(
                 until: dndUntil,
@@ -180,7 +180,7 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpace.lg),
             ],
 
-            // ── 실패 경고(있을 때만, 맨 위 따로 — 휴리스틱 평가 10/18) ─────────────────
+            // 실패 경고(있을 때만, 맨 위 따로 — 휴리스틱 평가 10/18)
             _FailureAlert(execution: execution),
 
             if (!appliancesOnly) ...[
@@ -188,9 +188,9 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpace.lg),
             ],
 
-            // ── 지금 우리 집 ─────────────────────────────────────────────
+            // 지금 우리 집
 
-            // ── ① 지금 할 일 ──────────────────────────────────────────────
+            // ① 지금 할 일
             // 빈 제안 문장("지금 확인할 제안이 없어요")은 두지 않는다(2026-10-13).
             if (!appliancesOnly && suggestion != null) ...[
               _SuggestionCard(
@@ -211,7 +211,7 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpace.xxl),
             ],
 
-            // ── ④ 내 루틴 타일 ─────────────────────────────────────────────
+            // ④ 내 루틴 타일
             if (!appliancesOnly) _HomeRoutines(
               featureFirst: suggestion == null,
               hubConnected: rpiState == RpiConnectionState.connected,
@@ -224,9 +224,9 @@ class HomeScreen extends ConsumerWidget {
               },
             ),
 
-            // ── ② 해야 할 일(설정 남음)·안 본 알림(설정과 같은 수) ─────────────────────
+            // ② 해야 할 일(설정 남음)·안 본 알림(설정과 같은 수)
 
-            // ── ③ 가전 ────────────────────────────────────────────────────
+            // ③ 가전
             if (!appliancesOnly) _SectionTitle('가전', key: const Key('home-appliances')),
             if (appliances.isEmpty)
               _NoApplianceStage(
@@ -258,7 +258,7 @@ class HomeScreen extends ConsumerWidget {
             _TodoAndUnread(setupCandidates: setupCandidates),
             if (!appliancesOnly) const _HomeNow(),
 
-            // ── 온습도 ─────────────────────────────────────────────────────
+            // 온습도
             const SizedBox(height: AppSpace.lg),
             sensorAsync.when(
               data: (reading) => _SensorStrip(reading: reading),
@@ -266,7 +266,7 @@ class HomeScreen extends ConsumerWidget {
               error: (_, __) => const SizedBox.shrink(),
             ),
 
-            // ── 예비 연결(기기에는 닿을 때만 아래) ──────────────────────────
+            // 예비 연결(기기에는 닿을 때만 아래)
             if (!serverDown) ...[
               const SizedBox(height: AppSpace.sm),
               connectionDetails,

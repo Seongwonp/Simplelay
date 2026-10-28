@@ -35,18 +35,14 @@ class _Wire:
         self.frames: list[dict] = []
         self.dropped: list[dict] = []
         self.fragments: deque[bytes] = deque()
-        # Set when a result frame is dropped (the act side has finished).
+        # 결과 프레임 유실은 act 실행 완료 뒤에만 발생한다.
         self.result_dropped = threading.Event()
-        # lost_response premise: the act finished and only its result line was lost.
-        # The hub's 0.1 s timer races the mock act (progress frames hop threads), so
-        # under load the abort used to land mid-execution and turn the rehearsal into
-        # a different fault (stop). Hold the abort on the wire until the act's result
-        # has been dropped; the hub still times out, still sends exactly one abort.
+        # lost_response 시나리오에서는 결과 유실까지 abort를 보류해 다른 정지 오류와 섞이지 않게 한다.
         self.hold_abort_until = hold_abort_until
         self.held: deque[bytes] = deque()
 
     def write(self, data: bytes) -> None:
-        # Production writers emit one complete JSON line per write.
+        # 운영 writer와 같이 write 한 번에 JSON 한 줄을 보낸다.
         doc = json.loads(data)
         self.frames.append(doc)
         if self.drop_result and doc.get("type") == "result":
@@ -57,7 +53,7 @@ class _Wire:
             self.held.append(data)
             return
         if self.fragment:
-            # Split inside UTF-8 characters as well as JSON tokens.
+            # UTF-8 문자와 JSON 토큰 내부까지 한 바이트씩 분할한다.
             for byte in data:
                 self.fragments.append(bytes([byte]))
         else:

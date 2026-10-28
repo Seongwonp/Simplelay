@@ -133,8 +133,7 @@ class PresenceConfig:
     arrival_hint_ttl_s: float = 600.0
 
     def __post_init__(self) -> None:
-        # 구역이 겹치거나 뒤집히면 상태 기계가 조용히 이상하게 돈다 — 생성
-        # 시점에 시끄럽게 막는다.
+        # 구역이 겹치거나 경계 순서가 뒤집히면 생성 시점에 거절한다.
         if not (0.0 < self.near_enter_m <= self.near_exit_m):
             raise ValueError("near_enter_m은 0보다 크고 near_exit_m 이하여야 합니다")
         if not (self.near_exit_m <= self.far_enter_m <= self.far_exit_m):
@@ -243,7 +242,7 @@ class PresenceStateMachine:
         self._arrival_hint_at: float | None = None
         self._history: deque[Transition] = deque(maxlen=_HISTORY_MAXLEN)
 
-    # ── 조회 ──
+    # 조회
 
     @property
     def config(self) -> PresenceConfig:
@@ -273,7 +272,7 @@ class PresenceStateMachine:
         with self._lock:
             return list(self._history)
 
-    # ── S0 귀가 신호 ──
+    # S0 귀가 신호
 
     def phone_arriving(self) -> Transition | None:
         """폰 지오펜스의 "집에 도착 중" 신호.
@@ -304,7 +303,7 @@ class PresenceStateMachine:
             self._history.append(transition)
             return transition
 
-    # ── 관측·시간 ──
+    # 관측·시간
 
     def observe(self, distance_m: float | None) -> list[Transition]:
         """레이더 한 틱의 관측. ``None``은 이번 틱에 감지 없음.
@@ -350,7 +349,7 @@ class PresenceStateMachine:
             self._check_dwell_locked(now, out)
             return out
 
-    # ── 실행 고정 ──
+    # 실행 고정
 
     def begin_execution(self) -> None:
         """AT_DEVICE에서만 허용. 그 밖에서는 액추에이터 전원이 없으므로 실행을
@@ -379,7 +378,7 @@ class PresenceStateMachine:
             self._reconcile_locked(now, out, suffix=suffix)
             return out
 
-    # ── 내부(락 보유 상태에서만 호출) ──
+    # 내부(락 보유 상태에서만 호출)
 
     def _hint_active_locked(self, now: float) -> bool:
         return (

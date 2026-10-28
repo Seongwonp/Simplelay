@@ -158,7 +158,7 @@ class MockThinqClient:
         self._events: deque[dict] = deque(maxlen=50)
         self._listeners: list[Callable[[dict], None]] = []
 
-    # ── 장애 주입 ──────────────────────────────────────────────────────────
+    # 장애 주입
     def set_online(self, online: bool) -> None:
         with self._lock:
             self._online = online
@@ -249,7 +249,7 @@ class MockThinqClient:
     def online(self) -> bool:
         return self._online
 
-    # ── 포트 ──────────────────────────────────────────────────────────────
+    # 포트
     def _delay(self) -> None:
         if self.latency_seconds > 0:
             self._sleep(self.latency_seconds)
@@ -364,7 +364,7 @@ class MockThinqClient:
                 kept.append((dev, resource, prop, value, reads_left - 1))
         self._pending = kept
 
-    # ── 이벤트(세탁 완료 등) ───────────────────────────────────────────────
+    # 이벤트(세탁 완료 등)
     def subscribe(self, listener: Callable[[dict], None]) -> None:
         with self._lock:
             self._listeners.append(listener)

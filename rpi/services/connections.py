@@ -48,7 +48,7 @@ class ConnectionItem:
         }
 
 
-# ── 와이파이(허브 네트워크) ────────────────────────────────────────────────────
+# 와이파이(허브 네트워크)
 
 
 def read_interface_state(root: str | os.PathLike = "/sys/class/net") -> str:
@@ -114,7 +114,7 @@ def network_item(interface: str, internet: str = "unknown") -> ConnectionItem:
     )
 
 
-# ── 누름 장치(RPi4 링크) ──────────────────────────────────────────────────────
+# 누름 장치(RPi4 링크)
 
 
 def press_link_from_frames(
@@ -211,7 +211,7 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
     )
 
 
-# ── 플러그(콘센트 모듈 · L3 전력) ─────────────────────────────────────────────
+# 플러그(콘센트 모듈 · L3 전력)
 
 _PLUG_FIXES = (
     "콘센트가 벽에 끝까지 꽂혀 있는지 봐 주세요.",

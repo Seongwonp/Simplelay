@@ -44,7 +44,7 @@ class _SensorStrip extends StatelessWidget {
   }
 }
 
-// ── DND 활성 배너 ─────────────────────────────────────────────────────────
+// DND 활성 배너
 
 class _DndBanner extends StatelessWidget {
   const _DndBanner({required this.until, required this.onClear, this.carried = false});
@@ -100,7 +100,7 @@ class _DndBanner extends StatelessWidget {
       );
 }
 
-// ── RPi 연결 상태 카드 ────────────────────────────────────────────────────
+// RPi 연결 상태 카드
 
 class _RpiStatusCard extends ConsumerWidget {
   const _RpiStatusCard({required this.state});
@@ -224,7 +224,7 @@ class _RpiStatusCard extends ConsumerWidget {
   }
 }
 
-// ── BLE 연결 상태 카드 (미연결 시만 표시) ─────────────────────────────────
+// BLE 연결 상태 카드 (미연결 시만 표시)
 
 class _BleStatusCard extends StatelessWidget {
   const _BleStatusCard({required this.connected});

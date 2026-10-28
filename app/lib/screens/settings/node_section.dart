@@ -1,6 +1,6 @@
 part of '../settings_screen.dart';
 
-// ── ESP32 노드 등록 ───────────────────────────────────────────────────────
+// ESP32 노드 등록
 
 class _NodeSection extends ConsumerWidget {
   @override
@@ -221,7 +221,6 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: AppSpace.md),
-              // 핸들
               Container(
                 width: 36,
                 height: 4,
@@ -232,7 +231,6 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
               ),
               const SizedBox(height: AppSpace.xl),
 
-              // 헤더
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Row(
@@ -280,7 +278,6 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
               const Divider(height: 1),
               const SizedBox(height: AppSpace.lg),
 
-              // 입력 필드
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: TextField(
@@ -314,7 +311,6 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
 
               const SizedBox(height: AppSpace.lg),
 
-              // 버튼 행
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Row(

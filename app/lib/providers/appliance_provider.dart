@@ -11,7 +11,7 @@ import 'appliance_sync_provider.dart';
 import 'demo_provider.dart';
 import 'server_appliance_provider.dart';
 
-// ── 사용자 정의 가전 (기기 추가) ────────────────────────────────────────────
+// 사용자 정의 가전 (기기 추가)
 
 class CustomAppliancesNotifier extends StateNotifier<List<ApplianceMap>> {
   CustomAppliancesNotifier() : super(const []) {
@@ -43,12 +43,9 @@ class CustomAppliancesNotifier extends StateNotifier<List<ApplianceMap>> {
   }
 
   Future<void> add(ApplianceMap appliance) async {
-    // 서버 내장 가전은 이 폰의 등록 목록이 아니다. 여기 들어오면 기기에
-    // 저장되고 다음 동기화가 PUT으로 올려 보낸다 -- 서버 것을 서버에
-    // 되돌려 보내는 셈이다. 어떤 경로로 오든 여기서 막는다.
+    // 서버 내장 가전은 로컬 등록 목록에서 제외해 동기화 시 PUT으로 재등록하지 않는다.
     if (!appliance.isCustom) return;
-    // 읽기가 끝나기 전에 고치면, 뒤늦게 끝난 `_load()`가 이 변경을 덮어쓴다.
-    // 앱을 켜자마자 가전을 추가한 사람은 방금 등록한 것이 사라지는 걸 본다.
+    // 초기 읽기가 끝나야 _load()가 새로 등록한 가전을 덮어쓰지 않는다.
     await _loadFuture;
     state = [...state, appliance];
     await _save();
@@ -155,7 +152,7 @@ final applianceStartupProvider = FutureProvider<void>((ref) async {
   await ref.read(selectedApplianceProvider.notifier).ensureLoaded();
 });
 
-// ── 선택된 가전 ──────────────────────────────────────────────────────────
+// 선택된 가전
 
 /// 지금 조작할 가전. **없을 수 있다.**
 ///

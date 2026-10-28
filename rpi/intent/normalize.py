@@ -105,7 +105,7 @@ def refuses_matching(text: str | None) -> bool:
     return is_negated(text) or is_stop_phrase(normalize_utterance(text))
 
 
-# ── 한글 자모 편집 거리 ──────────────────────────────────────────────────
+# 한글 자모 편집 거리
 
 
 @lru_cache(maxsize=4096)

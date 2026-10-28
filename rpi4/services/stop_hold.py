@@ -337,7 +337,7 @@ class StopHoldSession:
         self.target: tuple[float, float] | None = None
         self._thread = threading.Thread(target=self._run, daemon=True, name="stop-hold")
 
-    # ── 바깥 호출 ─────────────────────────────────────────────────────────────
+    # 바깥 호출
 
     def start(self) -> None:
         with self._lock:
@@ -390,7 +390,7 @@ class StopHoldSession:
         with self._lock:
             return self._view()
 
-    # ── 배경 스레드 ───────────────────────────────────────────────────────────
+    # 배경 스레드
 
     def _view(self, **extra: object) -> dict:
         plan = self.plan

@@ -158,8 +158,7 @@ class KioskIdleView extends StatelessWidget {
     return '편안한 밤 보내세요.';
   }
 
-  /// 실내 온습도 — 날짜 옆 두 조각(온도계 '24°' · 물방울 '57%', 사용자 요청 10/20). 실측일 때만 값이 온다
-  /// (kiosk_screen이 모의면 null을 넘긴다). 온도가 없으면 아무것도 두지 않는다.
+  /// 실측한 실내 온습도. 온도가 없으면 표시하지 않는다.
   _IndoorEnv? get _indoor {
     final t = temperature;
     if (t == null) return null;
@@ -861,21 +860,13 @@ abstract final class _Idle {
   static const double stripStatus = KioskType.body;
 }
 
-/// 공기 줄은 나쁠 때(나쁨·매우 나쁨)만(사용자 결정 10/18) — 평소(좋음·보통)에는 그 자리에 다음 루틴을 담담하게 적는다.
-/// 공기청정기 전원은 가전 타일이 말하므로 공기 줄에서 뺐다.
+/// 나쁨·매우 나쁨만 공기 줄에 보인다. 전원 상태는 가전 타일이 표시한다.
 KioskAirReading? airIfBad(KioskAirReading? air) =>
     air != null && (air.grade == 'BAD' || air.grade == 'VERY_BAD') ? air : null;
 
-/// 다음 루틴 — 시계 아래 담담한 묶음(사용자 결정 10/18, 오른쪽 큰 카드를 대신한다).
-///
-/// - 머리말(작은 회색): '자동 실행'(카드 없이 자동으로 하는 회차만) · '물어볼 루틴' · '알림 루틴' · '다음 루틴'([KioskNextRun.kindLabel]).
-/// - 본 줄: '오후 10:00 · 저녁 공기청정기 켜기'(오늘이면 날 말 없이, 분까지 — 폰과 같은 꼴). 한 줄에 다 안 들어가면 시각 뒤에서
-///   줄을 바꾼다(이름 가운데서 꺾여 '켜기'만 홀로 남지 않게).
-/// - 끝 줄: 작은 글자 단추 '오늘은 건너뛰기' — 머리말과 같은 작은 글씨·회색 계열, 테두리 없음(사용자 요청 10/18 — 테두리 단추가 너무
-///   튀었다). 누르는 자리는 높이·폭 48 이상(실패널 약 98px). 건너뛰었으면 '오늘은 건너뛰어요 · 되돌리기' 같은 꼴.
-///   조용한 시간이라 이미 건너뛰는 회차는 단추 대신 그 이유만. 실패 안내가 있으면 잠시 단추 앞에.
-/// 끝 줄은 단추 옆 남는 폭에서 줄을 바꾸고, 그 폭이 너무 좁으면(넓은 글꼴·큰 글씨) 단추를 아래로 내린다 — 높이는
-/// [heightFor]가 화면과 같은 규칙으로 잰다(시계·타일 높이를 정한다).
+/// 시계 아래의 다음 루틴 요약. 종류, 시각, 이름과 건너뛰기 상태를 표시한다.
+/// 이름은 단어 중간에서 나누지 않고, 조작의 터치 영역은 최소 48px로 유지한다.
+/// 큰 글씨에서 공간이 부족하면 조작을 다음 줄로 내리며 [heightFor]도 같은 배치를 계산한다.
 class _NextRunLine extends StatelessWidget {
   const _NextRunLine(
       {super.key,
@@ -1247,9 +1238,7 @@ class _NextRunLine extends StatelessWidget {
       });
 }
 
-/// '오늘은 건너뛰기'·'되돌리기'·공기 줄 할 일 — 작은 글자 단추(테두리·면 없음, 사용자 요청 10/18). 글자는 머리말과 같은 작은
-/// 회색 계열 굵은 글자(밑줄·테두리 없음 — 사용자 결정 10/18), 누르는 자리는 높이·폭 [minHeight] 이상. 보내는 중에는 눌리지
-/// 않고 더 흐려진다.
+/// 다음 루틴과 공기 줄에 쓰는 보조 조작. 터치 영역은 [minHeight] 이상이며 전송 중에는 비활성화한다.
 class _SkipButton extends StatelessWidget {
   const _SkipButton({
     super.key,
@@ -1310,8 +1299,7 @@ class _SkipButton extends StatelessWidget {
       );
 }
 
-/// 날짜 옆 실내 온습도(사용자 요청 10/20) — 온도계 '24°' · 물방울 '57%'. 날짜와 같은 글자·색, 아이콘은 글자 크기.
-/// 화면 읽기는 한 덩어리로 '실내 온도 24도, 습도 57퍼센트'.
+/// 날짜 옆 실내 온습도. 화면 읽기는 온도와 습도를 한 문장으로 읽는다.
 class _IndoorEnv extends StatelessWidget {
   const _IndoorEnv({required this.temperature, this.humidity});
 
@@ -1640,15 +1628,14 @@ IconData _tipIcon(String icon) => switch (icon) {
       _ => Icons.error_outline,
     };
 
-/// 날씨 안내인가(비·눈·더위·추위) — 예보 줄을 카드 안에 품는다. 알림(루틴 안내·확인 필요 가전·위험 소리)은 아니다(평가 15차 10/18).
-/// 종류(kind)를 모르는 옛 서버면 아이콘으로 본다.
+/// 비·눈·더위·추위 안내인지 판별한다. 종류가 없는 옛 응답은 아이콘을 사용한다.
 bool isWeatherTip(AmbientTip tip) {
   const kinds = {'rain', 'snow', 'heat', 'cold'};
   if (tip.kind.isNotEmpty) return kinds.contains(tip.kind);
   return const {'rain', 'snow', 'hot', 'cold'}.contains(tip.icon);
 }
 
-/// 예보 줄의 한 칸(사용자 요청 10/18) — 맨 앞 '지금' 칸 또는 서버 3시간 칸.
+/// 예보 줄의 '지금' 칸 또는 서버의 3시간 예보 칸.
 class ForecastSlot {
   const ForecastSlot(
       {required this.label,
@@ -1684,8 +1671,8 @@ bool _nightHour(int? h) => isNightHour(h);
   );
 }
 
-/// 평소 화면 예보 줄의 칸들(사용자 요청 10/18) — 맨 앞 '지금'([outsideNowSlot]), 그 뒤 서버 3시간 칸. 모두 [max]칸까지
-/// (1~2 m에서 읽히게 칸을 늘리지 않는다 — 지금 칸이 있으면 예보는 3칸). 지금 칸으로 쓴 서버 칸은 다시 두지 않는다.
+/// '지금' 뒤에 3시간 예보를 붙여 최대 [max]칸을 만든다.
+/// 멀리서 읽을 수 있도록 칸 수를 제한하고, '지금'에 쓴 서버 칸은 중복하지 않는다.
 List<ForecastSlot> forecastSlots(AmbientInfo? ambient, DateTime now,
     {int max = 4}) {
   if (ambient == null) return const [];
@@ -1700,14 +1687,11 @@ List<ForecastSlot> forecastSlots(AmbientInfo? ambient, DateTime now,
   ].take(max).toList(growable: false);
 }
 
-/// 예보 줄 첫 칸 '지금'에 쓸 칸(사용자 요청 10/18). 서버 예보(`hourly`)는 3시간 간격 칸이고 다음 경계부터 온다
-/// (8:20이면 9·12·15·18시). 칸 시각이 지금 ±90분 안(3시간 칸이 대표하는 범위)이고 기온이 있을 때만 그 칸을 쓴다 —
-/// 먼 칸의 값을 지금 날씨처럼 보이지 않는다. 없으면 null(지금 칸을 두지 않는다).
+/// '지금' 칸에는 서버의 현재 값 또는 90분 이내의 대체 예보만 쓴다.
+/// 기온이 없거나 가까운 칸이 없으면 현재 날씨를 추측하지 않는다.
 AmbientHour? outsideNowSlot(AmbientInfo? ambient, DateTime now) {
   if (ambient == null) return null;
-  // 서버가 `now` 키를 보내면 그 값만 쓴다(평가 15차 10/18) — 서버 '지금'은 날씨 안내 문장과 같은 정의(지난 정시 칸, 없으면
-  // 앞뒤 30분 안)다. null이면 '지금' 칸을 두지 않는다: 여기서 3시간 칸을 대신 고르면 오후 2:21에 3시 칸(비)이 '지금'으로
-  // 그려져 '오후 3시부터 비' 안내와 엇갈렸다. 키가 없는 옛 서버일 때만 아래 대체(앞뒤 90분 안 3시간 칸).
+  // 명시적인 `now`가 null이면 '지금' 칸을 비운다. 옛 응답에만 90분 이내 예보를 대신 쓴다.
   if (ambient.nowKnown) {
     final n = ambient.now;
     return n != null && n.temp != null ? n : null;

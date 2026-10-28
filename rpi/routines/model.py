@@ -87,7 +87,7 @@ def parse_hhmm(value, what: str = "시각") -> dtime:
     return dtime(int(hour), int(minute))
 
 
-# ── 단계 ────────────────────────────────────────────────────────────────────
+# 단계
 
 
 @dataclass(frozen=True)
@@ -163,7 +163,7 @@ class RoutineStep:
         return self.kind in DEVICE_STEP_KINDS
 
 
-# ── 트리거·조건 ───────────────────────────────────────────────────────────────
+# 트리거·조건
 
 
 @dataclass(frozen=True)
@@ -308,7 +308,7 @@ class RoutineCondition:
         return cls(kind, **values)
 
 
-# ── 루틴 ────────────────────────────────────────────────────────────────────
+# 루틴
 
 
 @dataclass(frozen=True)
@@ -425,7 +425,7 @@ def index_of_last_device(steps) -> int | None:
     return last
 
 
-# ── 가전 검증·명령 만들기 ─────────────────────────────────────────────────────
+# 가전 검증·명령 만들기
 
 
 def _button_label(appliance, token: str) -> str | None:
@@ -485,7 +485,7 @@ def validate_against(routine: Routine, registry, known_routine_ids=()) -> None:
             _fail(f"'{trigger.appliance_id}' 가전이 등록되어 있지 않아요")
 
 
-# ── 저장 문서 이관 ──────────────────────────────────────────────────────────
+# 저장 문서 이관
 
 
 def migrate_document(doc: dict) -> dict:

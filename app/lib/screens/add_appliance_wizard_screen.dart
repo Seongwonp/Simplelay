@@ -21,18 +21,14 @@ import '../widgets/input_guard.dart';
 import '../widgets/appliance_setup_card.dart';
 import 'appliance_editor_screen.dart';
 
-/// 가전 추가 5단계(UI 확정 §2, 실행 계획 §3-2):
+/// 가전 추가 5단계:
 /// ① 사진 ② 누름 장치 칸 맞추기 ③ 버튼 짚고 이름 붙이기 ④ 정지 버튼과 기다리는 자리
 /// ⑤ 확인 주행.
 ///
-/// ②는 2026-10-26 실사용 피드백으로 바꿨다 — 자가 없어 버튼판 mm를 잴 수 없었고 적은 크기와 사진 비율이 다르다고
-/// 거절당했다. 이제 실제 크기는 본체가 아는 누름 장치가 닿는 범위다. 사진 위에 그 칸을 겹치고 사용자는 네 귀퉁이를
-/// 끌어 사진 속 장치 자리에 맞춘다. 장치가 옆으로 놓였으면 '돌리기'·'뒤집기'로 원점과 축 방향을 맞춘다.
+/// 누름 장치 범위는 본체에서 받고, 사진 위 네 귀퉁이와 방향을 맞춘다.
 ///
-/// **사진 파일은 서버로 보내지 않는다.** 사진 크기와 짚은 좌표(px)만 보내고,
-/// 사진 → mm 계산은 서버(`PUT /appliances/{id}/mapping`)가 한다. 거절 사유(422)는
-/// 서버가 쓴 문장을 그대로 보여 준다. 확인 주행은 누르지 않고 버튼 위를
-/// 지나가기만 하며, 모의 주행이면 그렇다고 말한다.
+/// 사진 파일은 전송하지 않는다. 사진 크기와 좌표(px)만 보내고 서버가 mm로 변환한다.
+/// 확인 주행은 버튼을 누르지 않으며, 모의 주행은 명시한다.
 class AddApplianceWizardScreen extends ConsumerStatefulWidget {
   const AddApplianceWizardScreen({super.key, this.initial, this.verifyOnly = false});
   final ApplianceMap? initial;
@@ -59,13 +55,13 @@ const _stepTitles = [
   '자리 확인',
 ];
 
-/// ② 단계의 한 줄 설명(실사용 10/26 — 사용자가 고른 말).
+/// 누름 장치 범위 맞추기 안내.
 const kAreaHint = '누름 장치가 닿는 칸을 사진 속 장치 자리에 맞춰 주세요';
 
 /// 누름 장치 칸 밖을 짚었을 때 바로 보이는 말(버튼·정지 버튼·기다리는 자리).
 const kOutsideAreaMessage = '여기는 누름 장치가 닿지 않아요';
 
-/// ③ 버튼 단계 안내 — 정지 버튼을 빠뜨리면 ④에서 고를 수 없었다(실사용 10/26).
+/// 버튼 선택 단계의 정지 버튼 안내.
 const kStopTapHint = '정지 버튼도 꼭 찍어 주세요';
 
 /// 본체가 누름 장치 범위를 모를 때.
@@ -94,7 +90,7 @@ bool pointInArea(List<PhotoPoint> corners, PhotoPoint p) {
 const kNoStopConsequence = '정지 버튼과 기다리는 자리를 둘 다 정하지 않으면, 가전이 도는 중에 멈춰 달라고 해도 '
     '누름 장치가 가전의 정지 버튼을 눌러 드리지 못해요.';
 
-/// 본체에 닿지 못해 저장하지 못했을 때 — 무엇을 보고 무엇을 다시 누를지, 고른 것은 남아 있다는 것까지(실화면 10/19).
+/// 오프라인 저장 실패 안내. 선택 내용은 유지된다.
 const kSaveOfflineMessage = '본체와 연결되지 않아 저장하지 못했어요. 와이파이를 확인하고 "저장하고 다음"을 다시 눌러 주세요. 고른 자리는 그대로 있어요.';
 
 /// 본체의 가전 정의가 이 화면을 연 뒤에 바뀌어 저장을 거절했을 때(409). 서버 문장('다른 기기에서')은 다른 기기가
@@ -104,13 +100,10 @@ const kSaveConflictMessage = '본체에 저장된 내용이 그사이 바뀌어 
 /// 새 가전을 본체에 올린 뒤 버튼 자리 저장이 안 됐고, 되돌리기(지우기)도 못 했을 때 덧붙이는 말.
 const kSaveOrphanNote = '본체에는 이 가전이 버튼 자리 없이 남았을 수 있어요. 다시 저장하거나, 그만두려면 가전 목록에서 지워 주세요.';
 
-/// 본체가 자리 확인을 받지 않을 때(지금 구성에서 할 수 없음). 서버 문장('갠트리' 등)은 처음 쓰는 사람에게 뜻이 없고
-/// 다음에 할 일을 말하지 않았다(실화면 10/19).
+/// 현재 구성에서 자리 확인을 지원하지 않을 때의 안내.
 const kPassUnavailableMessage = '지금은 자리 확인을 할 수 없어요. "자리 확인 없이 끝내기"를 누르고, 처음 누를 때 자리가 맞는지 지켜봐 주세요.';
 
-/// 본체가 이 가전을 누를 장치가 없다고 거절할 때(서버 `VERIFY_NOT_LOCAL_DETAIL` '이 가전 위에는 누름 장치가 없어…', 옛 본체
-/// '…갠트리에 연결되지 않았어요'). 자리 확인만이 아니라 누르기도
-/// 안 된다 — '처음 누를 때 지켜봐 주세요'라고 하면 누를 수 있는 것처럼 읽혔다(검토 10/19).
+/// 누름 장치가 없어 자리 확인과 실제 누르기가 모두 불가능할 때의 안내.
 const kPassNoPressDeviceMessage = '이 가전에는 아직 누름 장치가 연결되지 않아 자리 확인도, 누르기도 할 수 없어요. '
     '"자리 확인 없이 끝내기"를 누르고, 설치하는 분께 이 가전의 누름 장치 연결을 부탁해 주세요.';
 
@@ -217,7 +210,7 @@ class _AddApplianceWizardScreenState
     super.dispose();
   }
 
-  // ── 단계 이동 ─────────────────────────────────────────────────────────
+  // 단계 이동
 
   bool get _canNext => switch (_step) {
         0 => _photo != null &&
@@ -385,7 +378,7 @@ class _AddApplianceWizardScreenState
     return false;
   }
 
-  // ── ① 사진 ────────────────────────────────────────────────────────────
+  // ① 사진
 
   Future<void> _takePhoto({bool fromGallery = false}) async {
     final service = ref.read(photoServiceProvider);
@@ -419,7 +412,7 @@ class _AddApplianceWizardScreenState
     });
   }
 
-  // ── ② 모서리 ──────────────────────────────────────────────────────────
+  // ② 모서리
 
   Future<void> _loadFrame() async {
     final api = ref.read(rpiApiServiceProvider);
@@ -439,7 +432,7 @@ class _AddApplianceWizardScreenState
     });
   }
 
-  // ── ③ 버튼 ────────────────────────────────────────────────────────────
+  // ③ 버튼
 
   Future<void> _addButton(PhotoPoint p) async {
     if (!_reachable(p)) return;
@@ -553,7 +546,7 @@ class _AddApplianceWizardScreenState
     );
   }
 
-  // ── ④ 저장 ────────────────────────────────────────────────────────────
+  // ④ 저장
 
   Future<void> _saveMapping() async {
     final api = ref.read(rpiApiServiceProvider);
@@ -760,7 +753,7 @@ class _AddApplianceWizardScreenState
     return _keptPhoto = await ref.read(photoServiceProvider).persist(photo, _id);
   }
 
-  // ── ⑤ 확인 주행 ───────────────────────────────────────────────────────
+  // ⑤ 확인 주행
 
   Future<void> _startPass() async {
     final api = ref.read(rpiApiServiceProvider);
@@ -828,7 +821,7 @@ class _AddApplianceWizardScreenState
     context.go('/');
   }
 
-  // ── 화면 ──────────────────────────────────────────────────────────────
+  // 화면
 
   @override
   Widget build(BuildContext context) {

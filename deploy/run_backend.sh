@@ -73,7 +73,7 @@ fi
 
 # 기존 컨테이너 정리(재실행 안전) — 먼저 종료 신호로 세운다(2026-10-16). `rm -f`로 바로 죽이면 서버가 정상 종료 표시를
 # 남기지 못해 '허브가 갑자기 꺼짐'으로 보고 사용자가 허용한 자동 실행을 모두 끈다(배포할 때마다 자동 실행이 풀렸다).
-# uvicorn은 열린 연결을 5초까지만 기다리고(--timeout-graceful-shutdown 5) 정상 종료 처리를 한다 — 15초 안에 끝난다.
+# uvicorn의 연결 종료 대기는 최대 5초(--timeout-graceful-shutdown 5)이며, docker stop은 최대 15초 기다린다.
 docker stop --time 15 simplelay-backend >/dev/null 2>&1 || true
 docker rm -f simplelay-backend 2>/dev/null || true
 

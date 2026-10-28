@@ -118,7 +118,6 @@ log = logging.getLogger(__name__)
 PROTOCOL_NOTE = "line-json/v0 (실물 미검증)"
 
 
-# ── 오류 ─────────────────────────────────────────────────────────────────────
 
 
 class MotionError(RuntimeError):
@@ -220,7 +219,7 @@ class MotionPositionMismatch(MotionError):
     motion_abort_reason = "motion_position_mismatch"
 
 
-# ── 전송 ─────────────────────────────────────────────────────────────────────
+# 전송
 
 
 class LineTransport(Protocol):
@@ -452,7 +451,7 @@ def _close_quietly(transport: object) -> None:
             close()
 
 
-# ── 설정 ─────────────────────────────────────────────────────────────────────
+# 설정
 
 PRESS_MODES = ("depth", "duration")
 
@@ -645,7 +644,7 @@ def heartbeat_off_warning(config: MotionConfig) -> str | None:
     )
 
 
-# ── 상태 ─────────────────────────────────────────────────────────────────────
+# 상태
 
 
 class MotionState(str, Enum):
@@ -681,7 +680,7 @@ class MotionStatus:
 EventHook = Callable[[str, dict], None]
 
 
-# ── 정지 확인 단계(2026-10-13) ─────────────────────────────────────────────────
+# 정지 확인 단계(2026-10-13)
 
 #: 정지 줄을 전송 계층에 썼다(MCU가 받았는지는 모름).
 STOP_SENT = "sent"
@@ -883,7 +882,7 @@ class SerialMotionClient(GrblClient):
         elif value is not None:
             log.warning("motion: unknown z_mode=%r ignored", value)
 
-    # ── 상태 조회 ──────────────────────────────────────────────────────────────
+    # 상태 조회
 
     @property
     def state(self) -> MotionState:
@@ -914,7 +913,7 @@ class SerialMotionClient(GrblClient):
             self._state = MotionState.READY
             return True
 
-    # ── 명령 ─────────────────────────────────────────────────────────────────
+    # 명령
 
     def connect(self) -> MotionStatus:
         """포트를 연 직후의 상태 조회. MCU가 알람이면 준비 안 됨. MCU가 홈 완료를 보고해도 READY가 아니라 UNHOMED다
@@ -1168,7 +1167,7 @@ class SerialMotionClient(GrblClient):
             self._set_state(MotionState.STOPPED)
         return sent
 
-    # ── 정지 확인(2026-10-13) ────────────────────────────────────────────────
+    # 정지 확인(2026-10-13)
 
     @property
     def last_stop(self) -> StopReport | None:
@@ -1363,7 +1362,7 @@ class SerialMotionClient(GrblClient):
         self._reset_mid_run = False
         self._reset_encoder_evidence(keep_reference=True)
 
-    # ── 내부 ─────────────────────────────────────────────────────────────────
+    # 내부
 
     def _move_request(self, x_mm: float, y_mm: float) -> dict:
         kin = self._config.kinematics

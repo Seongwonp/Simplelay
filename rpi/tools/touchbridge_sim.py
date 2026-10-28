@@ -134,7 +134,7 @@ class TouchBridgeSim:
         self._worker = threading.Thread(target=self._run, daemon=True, name="touchbridge-sim")
         self._worker.start()
 
-    # ── output ──
+    # output
     def _out(self, line: str) -> None:
         self._emit(line)
 
@@ -159,7 +159,7 @@ class TouchBridgeSim:
             self._wake.notify_all()
         self._worker.join(timeout=1)
 
-    # ── input ──
+    # input
     def feed(self, data: bytes) -> None:
         with self._lock:
             for byte in data:
@@ -185,7 +185,7 @@ class TouchBridgeSim:
             else:
                 self._handle_text(line)
 
-    # ── state helpers ──
+    # state helpers
     def busy(self) -> bool:
         return self._active is not None or bool(self._queue)
 
@@ -234,7 +234,7 @@ class TouchBridgeSim:
         self._invalidate_token()
         self._wake.notify_all()
 
-    # ── JSON v2 ──
+    # JSON v2
     def _handle_json(self, line: str) -> None:
         try:
             doc = json.loads(line)
@@ -323,7 +323,7 @@ class TouchBridgeSim:
             return
         self._state(cid, "ERROR_PROTOCOL", message="UNKNOWN_ACTION")
 
-    # ── text commands ──
+    # text commands
     def _handle_text(self, line: str) -> None:
         word = line.split(" ", 1)[0].upper()
         if word in ("STOP", "S", "!"):
@@ -385,7 +385,7 @@ class TouchBridgeSim:
     def _enqueue_text_move(self, x: float, y: float) -> None:
         self._queue.append(_Step("move", "text", "", x, y))
 
-    # ── worker ──
+    # worker
     def _run(self) -> None:
         with self._lock:
             while not self._closed:
@@ -484,7 +484,7 @@ class TouchBridgeSim:
         self._wake.notify_all()
 
 
-# ── TCP front end ──
+# TCP front end
 
 class _Log:
     def __init__(self, stream=None) -> None:

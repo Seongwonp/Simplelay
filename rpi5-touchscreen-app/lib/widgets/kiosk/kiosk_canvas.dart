@@ -88,9 +88,8 @@ class KioskCanvas extends StatelessWidget {
               ? Color.alphaBlend(Colors.black.withValues(alpha: scrimAlpha), dim ? quietBg : KioskColors.bg)
               : (dim ? quietBg : KioskColors.bg),
         ),
-        // SizedBox.expand로 **꽉 찬 제약**을 줘야 FittedBox가 확대한다.
-        // Center처럼 느슨한 제약을 주면 FittedBox가 자식 크기(800x480)로
-        // 쪼그라들어 배율이 1.0이 된다 -- 화면만 커지고 UI는 그대로인 함정.
+        // SizedBox.expand로 꽉 찬 제약을 줘야 FittedBox가 확대한다.
+        // Center처럼 느슨한 제약이면 자식 크기(800x480)에 맞춰 배율이 1.0에 머문다.
         Padding(
           padding: EdgeInsets.all(inset),
           child: SizedBox.expand(

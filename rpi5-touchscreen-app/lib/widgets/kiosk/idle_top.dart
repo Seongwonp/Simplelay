@@ -433,9 +433,8 @@ class KioskIdleProblemBar extends StatelessWidget {
     });
   }
 
-  /// 처음 화면 알림 꼴(10/25 사용자 요청 — 앰버 띠가 너무 컸다): 폰 위 알림처럼 흰 알약 하나 —
-  /// 앰버 아이콘·본문보다 작은 굵은 제목·오른쪽 끝 '해결 방법 보기 ›'(같은 알약 안 글자 단추). 알약 어디를 눌러도 연결 창.
-  /// 높이는 [compactHeight](누르는 자리 48).
+  /// 처음 화면 알림은 공간을 적게 쓰는 흰 알약 모양으로 보인다.
+  /// 알약 어디를 눌러도 연결 창이 열리며 높이는 [compactHeight]이다.
   Widget _notice(Color tone) {
     const radius = compactHeight / 2;
     final shape = RoundedRectangleBorder(

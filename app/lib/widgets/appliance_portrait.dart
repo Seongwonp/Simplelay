@@ -6,20 +6,13 @@ import '../models/appliance.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 
-/// 화면에서 가전을 대표하는 그림.
-///
-/// 이 앱의 주인공은 앱이 아니라 **그 집의 실제 가전**이다. 그래서 표시
-/// 우선순위가 이렇다.
+/// 화면에서 가전을 대표하는 그림. 표시 우선순위:
 ///
 /// 1. 사용자가 등록한 사진(`photoPath`)
 /// 2. 무채색 평면 일러스트 — 사진이 없을 때
 /// 3. 이름 중심의 타이포그래피 — 실루엣도 어울리지 않는 작은 자리
 ///
-/// **사진 등록을 사용 조건으로 만들지 않는다.** 사진이 없어도 화면이 완성된
-/// 것처럼 보여야 하고, 등록 유도는 주 행동과 경쟁하지 않는 작은 자리에 둔다.
-///
-/// 작은 글리프를 그냥 크게 확대하지 않는다 — 아이콘은 목록의 표식이지
-/// 화면의 주인공이 아니라서, 키우면 오히려 시안처럼 보인다.
+/// 사진은 필수가 아니며, 사진이 없을 때도 완성된 대체 그림을 제공한다.
 class AppliancePortrait extends StatelessWidget {
   const AppliancePortrait({
     required this.appliance,
@@ -35,13 +28,10 @@ class AppliancePortrait extends StatelessWidget {
   final double size;
   final double borderRadius;
 
-  /// 파일 대신 쓸 이미지. **골든 테스트가 실제 렌더를 확인하기 위한 자리**다
-  /// -- 위젯 테스트는 파일 이미지를 디코딩하지 못해서, 이 구멍이 없으면
-  /// 크롭·BoxFit·모서리 처리가 아무 데서도 검증되지 않는다.
+  /// 파일 이미지 디코딩 없이 렌더링을 검증하기 위한 테스트용 이미지.
   final ImageProvider? imageOverride;
 
-  /// 사진이 실제로 열리는가. 경로만 있고 파일이 지워진 경우가 있어서
-  /// (다른 폰에서 등록한 가전을 내려받으면 경로만 따라온다) 존재를 확인한다.
+  /// 로컬 경로가 실제 파일을 가리킬 때만 사진을 반환한다.
   File? get _photo {
     final path = appliance.photoPath;
     if (path == null || path.isEmpty) return null;
@@ -54,10 +44,7 @@ class AppliancePortrait extends StatelessWidget {
     final photo = _photo;
     final provider = imageOverride ?? (photo == null ? null : FileImage(photo));
 
-    // 사진이 없을 때는 **배경판을 두지 않는다.** 큰 둥근 회색 사각형 안에
-    // 그림 하나를 넣으면 그게 곧 "자리만 차지하는 플레이스홀더 카드"라,
-    // 걷어내려던 시안 문법이 화면에서 가장 큰 요소로 돌아온다. 실루엣은
-    // 화면 바탕에 그대로 앉힌다.
+    // 사진이 없으면 별도 배경 카드 없이 화면 바탕에 실루엣을 그린다.
     if (provider == null) {
       return SizedBox(
         width: size,
@@ -89,11 +76,7 @@ class AppliancePortrait extends StatelessWidget {
   }
 }
 
-/// 사진이 없을 때의 가전 그림.
-///
-/// **평면 일러스트**로 그린다. 선 몇 개만 옅게 그리면 "그림이 들어갈 자리"로
-/// 읽혀 화면이 미완성처럼 보였다(9/16 화면 평가). 반대로 사진처럼 그럴듯한
-/// 제품 그림은 사진이 이미 있다고 오해하게 한다. 그래서 그 중간:
+/// 사진이 없을 때 사용하는 평면 가전 그림.
 ///
 /// - 몸체는 카드와 같은 면색, 윤곽은 글자와 같은 무채색 -- 강조색을 쓰지
 ///   않는다. 화면의 강조색은 주 행동 몫이다.

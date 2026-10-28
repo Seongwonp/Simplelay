@@ -1,6 +1,6 @@
 part of '../settings_screen.dart';
 
-// ── RPi 연결 상태 타일 ────────────────────────────────────────────────────
+// RPi 연결 상태 타일
 
 class _RpiConnectionTile extends ConsumerWidget {
   @override
@@ -46,7 +46,7 @@ class _RpiConnectionTile extends ConsumerWidget {
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Text('다시 찾기', style: TextStyle(fontSize: AppFont.caption)),
+          : const Text('다시 확인', style: TextStyle(fontSize: AppFont.caption)),
     );
     // 큰 글씨에서는 오른쪽 버튼이 제목을 세 줄로 꺾는다. 버튼을 아래로.
     final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
@@ -71,13 +71,17 @@ class _RpiConnectionTile extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: AppSpace.sm),
               child: retry,
             ),
+          Text(
+            '휴대폰은 본체에 연결해요. 누름 장치는 본체에서 따로 연결해요.',
+            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
+          ),
         ],
       ),
     );
   }
 }
 
-// ── 저장된 BLE 기기 ───────────────────────────────────────────────────────
+// 저장된 BLE 기기
 
 class _SavedDeviceSection extends ConsumerWidget {
   @override
@@ -178,7 +182,7 @@ class _SavedDeviceSection extends ConsumerWidget {
   }
 }
 
-// ── 고급 설정 (URL 오버라이드) ────────────────────────────────────────────
+// 고급 설정 (URL 오버라이드)
 
 class _AdvancedSection extends ConsumerWidget {
   const _AdvancedSection({
@@ -206,7 +210,7 @@ class _AdvancedSection extends ConsumerWidget {
           const SizedBox(height: AppSpace.xs),
           Text(
             '기본값: http://simplelay.local:8000\n'
-            '같은 와이파이에서 본체를 찾아요.',
+            '휴대폰과 본체를 같은 와이파이에 연결해 주세요. 저장한 주소로 연결을 확인해요.',
             style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
           const SizedBox(height: AppSpace.md),
@@ -282,7 +286,7 @@ class _AdvancedSection extends ConsumerWidget {
   }
 }
 
-// ── BLE 스캔 섹션 ─────────────────────────────────────────────────────────
+// BLE 스캔 섹션
 
 class _BleSection extends ConsumerWidget {
   @override

@@ -231,7 +231,7 @@ class _KioskManualViewState extends State<KioskManualView> {
   }
 
   Widget _board(ApplianceMap appliance) {
-    // ThinQ 가전에는 누를 버튼이 없다(G5). 대신 지금 상태와 큰 조작 단추(2026-10-16, 사용자 요청).
+    // ThinQ 가전에는 누를 버튼이 없다(G5). 현재 상태와 큰 조작 단추를 표시한다(2026-10-16).
     if (appliance.isThinq) {
       return KioskThinqPanel(
         key: ValueKey('thinq-panel-${appliance.id}'),

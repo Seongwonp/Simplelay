@@ -384,7 +384,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ),
           const SizedBox(height: AppSpace.xxl),
 
-          // ── 1. 종류 ─────────────────────────────────────────────────────
+          // 1. 종류
           const _StepTitle(number: 1, title: '어떤 가전인가요?'),
           const SizedBox(height: AppSpace.xs),
           Text(
@@ -398,7 +398,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ),
           divider,
 
-          // ── 2. 이름과 위치 ─────────────────────────────────────────────
+          // 2. 이름과 위치
           const _StepTitle(number: 2, title: '이름과 위치'),
           const SizedBox(height: AppSpace.md),
           Text('가전 이름',
@@ -433,7 +433,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ),
           divider,
 
-          // ── 3. 사진 (선택) ─────────────────────────────────────────────
+          // 3. 사진 (선택)
           // 사진은 필수가 아니다. 없어도 등록과 조작이 그대로 된다 -- 있으면
           // 홈의 그림이 되고, 아래 격자를 그 위에 겹쳐 실제 위치를 보며
           // 배치할 수 있다.
@@ -493,7 +493,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           divider,
 
           ],
-          // ── 4. 버튼 배치 ───────────────────────────────────────────────
+          // 4. 버튼 배치
           const _StepTitle(number: 4, title: '버튼 자리'),
           const SizedBox(height: AppSpace.xs),
           Text(

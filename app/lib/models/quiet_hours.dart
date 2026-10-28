@@ -1,10 +1,10 @@
 import 'clock_text.dart';
 import 'auto_rule.dart';
 
-/// 조용한 시간(2026-10-14, 서버 `GET/PUT /quiet-hours`). 키오스크는 같은 상태를 /health의 `quiet`로 본다.
+/// 서버 `GET/PUT /quiet-hours`의 조용한 시간 상태.
 ///
-/// 매일 시간대(사용자 설정)와 '제안 잠시 쉬기'를 서버가 한 판정으로 묶는다. 실제 범위는 서버 `scope` 문장 그대로
-/// 보인다 — 새 제안과 일반 안내 소리, 아직 시작하지 않은 자동 실행만. 직접 실행·정지는 그대로다.
+/// 매일 시간대와 일시 중지를 한 판정으로 표현한다. 적용 범위는 서버 `scope`를 따른다.
+/// 직접 실행과 정지는 제한하지 않는다.
 class QuietHoursStatus {
   const QuietHoursStatus({
     required this.enabled,
@@ -43,7 +43,7 @@ class QuietHoursStatus {
     );
   }
 
-  /// 설정 줄 — "매일 오후 10:00~오전 7:00, 지금 조용한 시간이에요" / ", 꺼져 있어요"(시각 꼴은 평가 8차 10/18).
+  /// 설정 화면에 표시할 시간대와 현재 상태.
   String get summary {
     final range = '매일 ${ampmRange(start, end)}';
     if (!enabled) return '$range, 꺼져 있어요';
@@ -65,8 +65,7 @@ bool quietWindowContains(String start, String end, String hhmm) {
   return s < e ? (s <= t && t < e) : (t >= s || t < e);
 }
 
-/// 조용한 시간 때문에 건너뛸 자동 실행(켜진 시각 규칙만)을 한 줄로. 없으면 null.
-/// 켜져 있으면 '조용한 시간이라 …', 꺼져 있으면 '켜면 …'(UI 평가 6차 10/17 — 켜는 순간 소리 없이 건너뛰어졌다).
+/// 조용한 시간과 겹치는 활성 시각 규칙 안내. 없으면 null.
 String? quietSkipLine(QuietHoursStatus s, List<AutoRule> rules) {
   final hit = [
     for (final r in rules)
@@ -78,18 +77,15 @@ String? quietSkipLine(QuietHoursStatus s, List<AutoRule> rules) {
   return '${s.enabled ? '조용한 시간이라 이때는 자동으로 안 해요' : '켜면 이때는 자동으로 안 해요'}: ${hit.join(', ')}';
 }
 
-/// 규칙 카드의 한 줄 — 조용한 시간이 **켜져 있어** 이 시각 규칙을 실제로 건너뛸 때만(UI 평가 7차 10/17). 아니면 null.
-///
-/// 평가 6차(10/18): 조용한 시간이 꺼져 있을 때의 '켜면 이때는 자동으로 안 해요'가 카드마다 늘 굵게 서 있었다 —
-/// 그 말은 조용한 시간 설정 줄([quietSkipLine])에만 둔다.
+/// 조용한 시간이 활성화되어 규칙을 실제로 건너뛸 때만 표시한다.
 String? quietRuleNote(QuietHoursStatus? s, AutoRule r) {
   final t = r.conditionTime;
   if (s == null || !s.enabled || t == null || !quietWindowContains(s.start, s.end, t)) return null;
   return '조용한 시간(${ampmRange(s.start, s.end)})이라 이때는 자동으로 안 해요';
 }
 
-/// '제안 잠시 쉬기'를 [minutes]분 켜면 그 안에 시각이 드는 켜진 시각 규칙('이름(HH:MM)'). 다음에 오는 그 시각을
-/// 센다(지금과 같으면 아직 시작 전이라 포함). 요일은 규칙 목록이 주지 않아 매일로 본다(UI 평가 7차 10/17).
+/// [minutes]분의 일시 중지와 겹치는 다음 활성 시각 규칙.
+/// 요일 정보가 없으므로 규칙을 매일 반복으로 계산한다.
 List<String> pauseSkippedRules(DateTime now, int minutes, List<AutoRule> rules) {
   final end = now.add(Duration(minutes: minutes));
   final out = <String>[];
@@ -106,9 +102,8 @@ List<String> pauseSkippedRules(DateTime now, int minutes, List<AutoRule> rules) 
   return out;
 }
 
-/// 설정 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 잠시 쉬기·
-/// 조용한 시간 공통. 허브를 다시 켜면 마지막으로 저장된 설정으로 시작한다.
+/// `persisted: false`일 때의 안내. 재시작하면 마지막 저장 설정으로 돌아간다.
 const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. 본체를 다시 켜면 전 설정으로 돌아가요.';
 
-/// 잠시 쉬기가 끝나는 시각 '오후 10:04'(이 기기 현지 시각, 2026-10-14 마감 확인 A5). 남은 시간만으로는 '언제까지'를 셈해야 한다.
+/// 일시 중지가 끝나는 현지 시각.
 String pauseEndClock(DateTime until) => ampmOf(until.toLocal());

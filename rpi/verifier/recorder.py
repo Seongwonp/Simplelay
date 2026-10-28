@@ -101,7 +101,7 @@ WINDOW_CLOSE_EVENT = "press_end"
 DEFAULT_OUT_DIR = Path("data") / "bench"
 
 
-# ── 기록 대상(싱크) ─────────────────────────────────────────────────────────
+# 기록 대상(싱크)
 
 
 class CsvSink:
@@ -138,7 +138,7 @@ def _csv_cell(value: object) -> object:
     return value
 
 
-# ── 기록기 ─────────────────────────────────────────────────────────────────
+# 기록기
 
 
 class PressWindowRecorder:
@@ -178,7 +178,7 @@ class PressWindowRecorder:
     def now_ns(self) -> int:
         return self._clock()
 
-    # 샘플 ------------------------------------------------------------------
+    # 샘플
 
     # ``source``: 행의 source 칸. 합성 입력은 ``mock_current``처럼 따로 적어 실측과 섞이지 않게 한다.
 
@@ -202,7 +202,7 @@ class PressWindowRecorder:
             fields["audio_pcm"] = [float(v) for v in block]
         self._sample(t_ns, source, **fields)
 
-    # 이벤트 ----------------------------------------------------------------
+    # 이벤트
 
     def mark(self, event: str, note: str = "", t_ns: int | None = None) -> None:
         """이벤트를 찍는다. 창 모드에서는 press_start가 창을 열고 press_end가 닫는다."""
@@ -247,7 +247,7 @@ class PressWindowRecorder:
         with self._lock:
             self._sink.flush()
 
-    # 내부 ------------------------------------------------------------------
+    # 내부
 
     def _sample(self, t_ns: int | None, source: str, **fields: Any) -> None:
         with self._lock:
@@ -278,7 +278,7 @@ class PressWindowRecorder:
         self.rows += 1
 
 
-# ── 실행 경로 훅 ───────────────────────────────────────────────────────────
+# 실행 경로 훅
 
 
 class RecordingGrblClient(GrblClient):
@@ -360,7 +360,7 @@ def _press_note(command: PressCommand) -> str:
     return " ".join(parts)
 
 
-# ── 샘플링 루프 ────────────────────────────────────────────────────────────
+# 샘플링 루프
 
 
 def run_source_loop(
@@ -401,7 +401,7 @@ def power_sensor_step(
     return lambda: recorder.record_power(sensor.read(), source=source)
 
 
-# ── 모의 입력(시험·CLI --mock) ─────────────────────────────────────────────
+# 모의 입력(시험·CLI --mock)
 
 
 def mock_sources(n: int = 256) -> tuple[FakeCurrentReader, FakeAudioReader, MockPowerSensor]:
@@ -415,7 +415,7 @@ def mock_sources(n: int = 256) -> tuple[FakeCurrentReader, FakeAudioReader, Mock
     return FakeCurrentReader(voltages), FakeAudioReader(frames), MockPowerSensor(power)
 
 
-# ── 실행 경로 상시 기록(act_main 배선) ─────────────────────────────────────
+# 실행 경로 상시 기록(act_main 배선)
 
 
 class SourceChoice:
@@ -582,7 +582,7 @@ def _open_microphone() -> AudioReader:
     return SounddeviceReader(AudioSensorConfig())
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────
+# CLI
 
 
 def default_out_path(fmt: str, now: datetime | None = None) -> Path:

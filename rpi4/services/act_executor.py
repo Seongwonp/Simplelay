@@ -345,7 +345,7 @@ class ActExecutor:
         #: 아직 RPi5에 알리지 못한 것 — 다음 ``act_info``에 한 번 싣고 비운다.
         self._unreported_link_stop: dict | None = None
 
-    # ── Public API ───────────────────────────────────────────────────────────
+    # Public API
 
     async def run(self) -> None:
         """Read lines until EOF or task cancellation."""
@@ -471,7 +471,7 @@ class ActExecutor:
             await self._send({"type": "alert_cleared", "kind": "danger_sound"})
             log.info("danger sound alert cleared")
 
-    # ── 가전 완료(세탁 끝, 2026-10-06) ───────────────────────────────────────
+    # 가전 완료(세탁 끝, 2026-10-06)
 
     def report_appliance_done(self, frame: dict) -> None:
         """세탁 끝 관찰(`appliance_done_watch.ApplianceDoneWatch`)이 낸 ``appliance_done`` 프레임을 RPi5로 보낸다.
@@ -504,7 +504,7 @@ class ActExecutor:
         self._write_now(frame)
         return frame
 
-    # ── Dispatch ─────────────────────────────────────────────────────────────
+    # Dispatch
 
     async def _dispatch(self, msg: InboundActMsg) -> None:
         if isinstance(msg, ExecuteMsg):
@@ -543,7 +543,7 @@ class ActExecutor:
             await self._send({"type": "dev_motion_result", "request_id": msg.request_id, "op": msg.op, "ok": False,
                               "reason": msg.reason, "detail": msg.detail, "moved": False})
 
-    # ── Handlers ─────────────────────────────────────────────────────────────
+    # Handlers
 
     async def _on_execute(self, msg: ExecuteMsg) -> None:
         if self._dev_running():
@@ -831,7 +831,7 @@ class ActExecutor:
             msg.sequence_id, outcome, retry,
         )
 
-    # ── 실행 중 생존 신호 감시(2026-10-16, 안전 보고 G5) ──────────────────────────
+    # 실행 중 생존 신호 감시(2026-10-16, 안전 보고 G5)
 
     def _arm_link_watch(self, msg: "ExecuteMsg | VerifyPassMsg") -> None:
         """``heartbeat_s``가 실린 실행·확인 주행(10/19)만 감시한다(옛 RPi5는 생존 신호를 보내지 않는다). 시작 시각을 마지막 수신으로 둔다.
@@ -891,7 +891,7 @@ class ActExecutor:
         self._abort("drive")
         return True
 
-    # ── 정지 대기·보관·확인 주행(2026-09-30) ───────────────────────────────────
+    # 정지 대기·보관·확인 주행(2026-09-30)
 
     def _mode_value(self) -> str:
         mode = getattr(self._controller, "execution_mode", ExecutionMode.UNKNOWN)
@@ -1157,7 +1157,7 @@ class ActExecutor:
                 log.warning("outlet E-STOP acknowledgement refused: %s", reason)
         await self._send(self._estop_state_doc(reason))
 
-    # ── 연결 알림·리허설(2026-10-06) ─────────────────────────────────────────
+    # 연결 알림·리허설(2026-10-06)
 
     def set_rehearsal(self, hooks: object | None) -> None:
         """리허설 주입 부품을 꽂는다(act_main: 가짜 콘센트·모의 모션일 때만). None이면 rehearsal을 거절한다."""
@@ -1329,7 +1329,7 @@ class ActExecutor:
         self._stop_tasks.add(task)
         task.add_done_callback(self._stop_tasks.discard)
 
-    # ── 개발자 조작(2026-10-10) ──────────────────────────────────────────────
+    # 개발자 조작(2026-10-10)
 
     def _dev_running(self) -> bool:
         return self._dev_task is not None and not self._dev_task.done()
@@ -1409,7 +1409,7 @@ class ActExecutor:
             fields = {"ok": False, "reason": "motion_error", "detail": str(exc), "moved": None}
         await self._send({**base, **fields})
 
-    # ── IO helper ────────────────────────────────────────────────────────────
+    # IO helper
 
     async def _send(self, doc: dict) -> None:
         payload = self._encode(doc)
@@ -1419,7 +1419,7 @@ class ActExecutor:
         self._writer.write(payload)
         await self._writer.drain()
 
-    # ── 링크 인증(2026-10-12) ───────────────────────────────────────────────────
+    # 링크 인증(2026-10-12)
 
     def _authentic(self, raw: str) -> bool:
         """키가 있을 때: 받은 줄이 올바른 hello이거나 지금 세션의 서명·``seq``가 맞는지."""

@@ -128,7 +128,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
           ],
           const SizedBox(height: AppSpace.xl),
 
-          // ── 내 루틴 ───────────────────────────────────────────────────────
+          // 내 루틴
           _Card(
             // 큰 글씨에서는 버튼을 아래 줄로 — 한 줄이면 버튼 글자가 넘친다.
             child: Flex(
@@ -173,7 +173,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpace.md),
 
-          // ── 오늘 사용 ─────────────────────────────────────────────────────
+          // 오늘 사용
           _TodayUse(applianceId: a.id, thinq: a.isThinq),
 
           if (!a.isThinq) ...[

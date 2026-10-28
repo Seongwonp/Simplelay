@@ -1,30 +1,25 @@
 #!/bin/sh
 # RPi4 실행기(rpi4.act_main) 컨테이너를 세운다. 이미지는 백엔드와 같은 simplelay-backend다.
 #
-# 시험 배선(2026-09-30): 두 보드 사이 UART 선 대신 같은 LAN을 쓴다. 컨테이너 안에서
-# socat이 TCP 7000을 가상 시리얼(/tmp/vserial)로 바꾸고, act_main이 그 가상 시리얼을 연다.
+# LAN 모드에서는 socat이 TCP 7000을 가상 시리얼(/tmp/vserial)로 바꾼다.
 # RPi5는 SIMPLELAY_UART_PORT=socket://<RPi4 IP>:7000 으로 붙는다.
 # 실제 UART 선을 쓸 때는 LINK=uart 로 실행한다(/dev/ttyAMA0를 컨테이너에 넘긴다).
 #
-# 장치 넘기기(2026-10-06 평가): 컨테이너는 넘겨준 장치만 본다. env 파일($DATA_DIR/env)에서
+# 컨테이너에는 env 파일($DATA_DIR/env)에 지정된 장치만 넘긴다.
 #   - SIMPLELAY_OUTLET_PORT·SIMPLELAY_MOTION_PORT가 /dev/… 이면 그 장치를 자동으로 넘긴다(fake·비움은 넘기지 않는다).
 #   - SIMPLELAY_ACT_DEVICES=/dev/snd /dev/i2c-1 처럼 공백으로 더 적는다(마이크: 종료음·위험 소리면 /dev/snd).
 # 적힌 장치가 없으면 컨테이너를 세우지 않는다 — USB가 빠진 채 조용히 돌지 않게. USB 이름이 바뀌면
 # /dev/serial/by-id/… 경로를 쓰는 편이 낫다(실기기 확인 전).
 #
-# 무선(2026-10-12): RPi5가 사라져도(Wi-Fi 끊김·백엔드 재시작) socat은 연결 하나만 받는 구조라 죽은 연결을
-# 계속 붙잡고 새 연결을 받지 못했다. TCP keepalive(5 s 뒤 2 s 간격 3회 ≈ 11 s)로 죽은 상대를 알아채
-# socat이 끝나게 하고, 아래 restart 정책이 다시 세운다.
-# 둘 중 하나(socat·act_main)가 끝나면 컨테이너가 끝나고 restart 정책이 둘 다 다시 세운다
-# — 연결이 끊긴 가상 시리얼을 act_main이 붙잡고 있는 상태를 남기지 않기 위해서다.
+# TCP keepalive로 끊긴 단일 연결을 정리한다. socat이나 act_main이 끝나면
+# 컨테이너도 끝나며 restart 정책이 둘을 함께 다시 세운다.
 #
-# 링크 인증(2026-10-12): TCP 7000은 같은 망 누구에게나 열려 있다. env 파일에 SIMPLELAY_LINK_KEY(RPi5 env와
+# TCP 7000 링크는 env 파일의 SIMPLELAY_LINK_KEY(RPi5 env와
 # 같은 값, 16자 이상)를 두면 서명된 프레임만 받는다(docs/protocol.md "링크 인증"). 키가 들어가므로 파일은 600.
-# 2026-10-14부터 키가 **필수**다 — 없으면 실행기가 시작을 거절하고 컨테이너가 재시작을 되풀이한다(docker logs에 이유).
+# 키가 없으면 실행기가 시작을 거절한다.
 # SIMPLELAY_LINK_AUTH=off_for_mock은 모의 구성 전용이고, 모션 serial·실물 콘센트 등 실물 경로와 함께면 거절된다.
 #
-# 선점(2026-10-14 보안 점검): socat은 연결 **하나만** 받는다. 키 없는 기기가 RPi5보다 먼저 7000에 붙으면 실행은 못 하지만
-# (서명 없는 프레임은 버린다) 그 연결이 살아 있는 동안 RPi5가 붙지 못한다(keepalive는 살아 있는 상대를 끊지 않는다).
+# socat은 연결 하나만 받으므로 허용 주소를 제한하지 않으면 연결 선점이 가능하다.
 # 완화: env 파일에 SIMPLELAY_LINK_ALLOW_FROM=<RPi5 IPv4>를 두면 socat이 그 주소의 연결만 받는다(range=…/32).
 # 비워 두면 종전과 같다. 실기기 미검증 — 도커 포트 공개(-p)에서 원래 출발 주소가 보이는지 배포 때 확인한다.
 set -e

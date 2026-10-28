@@ -140,7 +140,7 @@ class DbusFastVectordbClient:
         raw = self._sync(self._invoke(self._cfg, "SearchText", input_text, top_k))
         return [_to_result(item) for item in (raw or [])]
 
-    # ── 실행 ──────────────────────────────────────────────────────────────
+    # 실행
 
     def _sync(self, coro: Awaitable[Any]) -> Any:
         """코루틴을 완료까지 돌린다.

@@ -224,7 +224,7 @@ class StatusSnapshot:
     last_appliance_id: str | None = None
     execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
     last_execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
-    # ── 명령 계약(U1-a) — 실행 환경과 독립인 축 ──
+    # 명령 계약(U1-a) — 실행 환경과 독립인 축
     route: str | None = None
     last_route: str | None = None
     last_receipt: str | None = None
@@ -550,7 +550,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         finally:
             self._end_run()
 
-    # ── 비동기 job 모델 ──────────────────────────────────────────────────────
+    # 비동기 job 모델
     # HTTP 엔드포인트용. 실기기에서 버튼 시퀀스는 수 초~수십 초 걸리는데
     # 클라이언트(폰 8초·키오스크 4초) 타임아웃 안에 동기 응답이 불가능하므로,
     # 의도 해석(즉시 실패 가능한 부분)만 동기로 끝내고 물리 실행은 백그라운드
@@ -785,7 +785,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         )
         # 보호자 알림도 남긴다 — 오히려 진짜 하드웨어 장애(UART 단절 등)
         # 일수록 예외로 끝나는데, 그게 알림함에서 빠지면 안 된다
-        # (교차 리뷰 #7). 내부 예외 문구는 노출하지 않는다.
+        # 내부 예외 문구는 노출하지 않는다.
         if self._care_events is not None:
             label = purpose or ", ".join(buttons[:2])
             try:
@@ -1087,7 +1087,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         with self._lock:
             # 원격이 보고한 모드로 이번 실행의 표시값을 고친다(_end_run이 last로 옮긴다).
             self._execution_mode = run_mode
-        # stop 여부는 실행이 반환된 '직후' 스냅샷+소진한다 (교차 리뷰 #8) —
+        # stop 여부는 실행이 반환된 직후 스냅샷을 읽고 소진한다 —
         # 이후에 도착한 stop이 자연 실패(재시도 소진)를 '긴급 정지로 멈춤'
         # 으로 오분류하는 창을 최소화한다. (완전 제거는 컨트롤러가 종료
         # 사유를 반환해야 가능 — 실기기 통합 때 termination_reason 검토)

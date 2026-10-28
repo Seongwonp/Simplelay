@@ -51,7 +51,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _foreignHub = null;
   }
 
-  // ── HTTP job 추적 (비동기 job 모델) ──────────────────────────────────────
+  // HTTP job 추적 (비동기 job 모델)
   // 서버는 실행 접수 시 즉시 job_id를 돌려주고, 진행·완료는 그 job의 조회(GET /jobs/{job_id}, 옛 본체는 /status) 폴링으로
   // 확인한다. BLE 스트림(_onMessage)은 폴백 경로용으로 그대로 남는다.
   Timer? _pollTimer;
@@ -142,7 +142,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     if (resendStop) unawaited(emergencyStop());
   }
 
-  // ── 보내는 중(검토 10/19) ────────────────────────────────────────────────
+  // 보내는 중(검토 10/19)
   // 실행 요청(승인·말·버튼)의 접수 답(job_id)을 기다리는 사이에도 본체는 이미 받아 움직이고 있을 수 있다. 예전에는 답이 올
   // 때까지(최대 시간 초과까지) 실행 상태가 없어 정지 띠가 없었다. 보내기 **전에** 이 단계로 들어가 정지를 남기고, 그사이 누른
   // 정지는 바로 본체 전체 정지로 보낸 뒤 job_id가 오거나 복구가 그 실행을 찾으면 한 번 더 보낸다.
@@ -228,7 +228,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _beforeSubmit = null;
   }
 
-  // ── 보냈는데 접수 답을 못 받은 실행(검토 10/19) ──────────────────────────
+  // 보냈는데 접수 답을 못 받은 실행(검토 10/19)
   // 시간 초과·연결 끊김으로 접수 응답이 사라졌다 — 본체가 이미 받아 시작했을 수 있다(job_id 모름). '보내지 못했다'로 끝내지
   // 않고 '모름'으로 두어 정지(본체 전체 /stop)를 그 본체로 남기고, 잠깐 /status를 보며 돌고 있는 실행이 보이면 그 실행을
   // 이어서 본다. [recoverJobId]는 같은 요청을 다시 물어 job_id를 받는 길이다(제안 승인 — 이미 승인된 카드면 본체가 같은
@@ -355,11 +355,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _announce(submissionNotAcceptedNotice);
   }
 
-  // ── 진행 중 job 보존 ────────────────────────────────────────────────────
+  // 진행 중 job 보존
   //
-  // 실행은 수 초~수십 초 걸리고, 그 사이 앱이 내려갈 수 있다(사용자가 홈으로
-  // 나가거나 OS가 정리). 그때 job_id를 잃으면 물리 조작은 계속되는데 화면은
-  // "실행한 적 없음"으로 돌아온다 -- 가전 앞에 있는 사람에게 가장 나쁜 상태다.
+  // 앱이 종료돼도 물리 조작은 계속될 수 있으므로 job_id를 저장해 재시작 후 추적을 복원한다.
 
   Future<void> _rememberPendingJob(String jobId, String label, String hub) async {
     try {
@@ -480,7 +478,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (!mounted || _httpJobId != jobId) return;
       _lastPollSuccess = DateTime.now();
 
-      // ⓪ 따라가던 번호가 루틴의 2번째 이후 구간이다(새 본체가 routine_run_id를 실었다, 검토 10/19) — 그 구간의 끝은 루틴의
+      // 따라가던 번호가 루틴의 2번째 이후 구간이다(새 본체가 routine_run_id를 실었다, 검토 10/19) — 그 구간의 끝은 루틴의
       // 끝이 아니다. 루틴 첫 번호로 갈아타 루틴이 다 끝날 때까지 하는 중으로 보이고 정지는 그 루틴만 멈춘다.
       final root = status.routineRunId;
       if (root != null && root != jobId) {
@@ -488,7 +486,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         return;
       }
 
-      // ① 완료 판정을 최우선 — 내 job(J1) 완료 직후 다른 클라이언트의
+      // 완료 판정을 최우선 — 내 job(J1) 완료 직후 다른 클라이언트의
       // J2가 시작되면 running=true여도 last_job_id는 여전히 J1이다.
       // running을 먼저 보고 return하면 그 완료를 영영 놓친다(추월 레이스).
       // 끝남은 본체가 끝났다고 할 때만 — 루틴은 구간 사이 기다림도 끝나지 않은 것이다(finished=false). /status·옛 본체는 null.
@@ -544,7 +542,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         return;
       }
 
-      // ② 내 job이 실행 중 — 진행 갱신
+      // 내 job이 실행 중 — 진행 갱신
       if (status.running && status.jobId == jobId && routine) {
         // 루틴(검토 10/19) — 구간 사이 기다림도 하는 중이다. 구간 하나의 칸 수·번호는 루틴 전체 칸과 맞지 않아 싣지 않고,
         // 지금 구간 순번과 그 구간의 폐루프 증거만 싣는다.
@@ -578,8 +576,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           completedSteps: status.completedSteps ?? state.completedSteps,
           // 서버는 끝낸 칸 이름을 주지 않는다 — 본 '지금 버튼'을 그 칸 번호에 묶어 둔다(키오스크와 같은 뜻, 10/19).
           stepNames: _withStepName(state.stepNames, index, status.currentButton),
-          // 폐루프 증거를 그대로 흘려보낸다 -- 여기서 버리면 화면은
-          // "빙글빙글 돌다 완료되는 앱"이 된다(차별점이 안 보임).
+          // 서버의 폐루프 검증 결과를 전달해 화면에서 누름 진행과 확인 근거를 표시한다.
           currentButton: status.currentButton,
           totalSteps: status.totalSteps,
           applianceId: status.applianceId,
@@ -592,7 +589,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         return;
       }
 
-      // ③ 내 job의 흔적이 없다 — 시작 전 창(정상, 짧음)이거나 서버
+      // 내 job의 흔적이 없다 — 시작 전 창(정상, 짧음)이거나 서버
       // 재시작·결과 슬롯 추월 유실. 몇 번은 기다리고, 계속되면 탈출.
       _missingPolls++;
       if (_missingPolls >= 10) {

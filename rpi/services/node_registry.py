@@ -46,8 +46,7 @@ class NodeRegistry:
         self._lock = threading.Lock()
         self._persist_lock = threading.Lock()
         self._store = store
-        # store가 있으면 서버 재시작 시 이전 등록을 복원한다 — 키오스크에서
-        # 등록한 ESP32 IP가 재시작마다 증발하던 문제의 수리 지점.
+        # store가 있으면 서버 재시작 시 등록된 ESP32 주소를 복원한다.
         self._base_urls: dict[str, str] = (
             dict(store.nodes()) if store is not None else {}
         )

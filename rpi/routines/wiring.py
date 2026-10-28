@@ -116,7 +116,7 @@ def stop_routines_if_any(reason: str = "전체 정지 요청") -> int:
     return runner.stop_all(reason)
 
 
-# ── 자동 실행 허용 규칙(2026-10-13, v4) ─────────────────────────────────────
+# 자동 실행 허용 규칙(2026-10-13, v4)
 
 _auto_engine = None
 _auto_lock = threading.Lock()
@@ -202,7 +202,7 @@ def close_auto_rules_if_any(timeout_s: float = 5.0) -> bool:
         return False
 
 
-# ── 사용 기록 → 루틴 초안(2026-10-14, 4번) ────────────────────────────────────
+# 사용 기록 → 루틴 초안(2026-10-14, 4번)
 
 
 @lru_cache(maxsize=1)

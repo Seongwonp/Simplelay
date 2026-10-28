@@ -109,7 +109,7 @@ class LinkFrameTap:
         self.transport = transport
         self.write_errors = 0
 
-    # ── 조회 ──────────────────────────────────────────────────────────────────
+    # 조회
 
     @property
     def enabled(self) -> bool:
@@ -133,7 +133,7 @@ class LinkFrameTap:
         with self._lock:
             return self._last_execute
 
-    # ── 기록 ──────────────────────────────────────────────────────────────────
+    # 기록
 
     def record(self, direction: str, message: dict | None, raw: str | None = None) -> dict | None:
         """프레임 하나를 남긴다. 어떤 예외도 호출자(통신 경로)로 올리지 않는다."""
@@ -221,7 +221,7 @@ class LinkFrameTap:
         with self._lock:
             self._close_locked()
 
-    # ── 환경 변수 ────────────────────────────────────────────────────────────
+    # 환경 변수
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None, **kwargs: Any) -> "LinkFrameTap":

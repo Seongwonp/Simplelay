@@ -102,7 +102,7 @@ class TargetBinder:
         self._none = l3_none_targets or frozenset()
         self._cache: dict[str, TargetBinding] = {}
 
-    # ── 채널 ────────────────────────────────────────────────────────────────
+    # 채널
 
     def channel_for(self, appliance_id: str | None) -> int | None:
         """대상의 CT 채널(없으면 None). 대응이 비면 누르는 가전만 채널 0."""
@@ -123,7 +123,7 @@ class TargetBinder:
         channel = getattr(self._outlet, "channel", None)
         return channel(ch) if callable(channel) else self._outlet
 
-    # ── 실행 결속 ────────────────────────────────────────────────────────────
+    # 실행 결속
 
     def bind(self, appliance_id: str) -> TargetBinding:
         cached = self._cache.get(appliance_id)

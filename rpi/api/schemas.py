@@ -14,7 +14,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 from .job_receipts import CLIENT_REQUEST_ID_PATTERN
 
-# ── 물리 실행 입력의 제품 계약(상한) ─────────────────────────────────────────
+# 물리 실행 입력의 제품 계약(상한)
 # 무한 입력은 장시간 물리 실행·거대 LLM 프롬프트·로그/DB 팽창으로 이어진다.
 # 실사용 최대치의 몇 배 여유를 두고 명시적으로 자른다.
 MAX_PURPOSE_LEN = 200        # 음성 발화 한 문장
@@ -23,10 +23,10 @@ MAX_BUTTON_LABEL_LEN = 40
 MAX_KNOWN_BUTTONS = 50       # 가전 버튼맵 상한(6x6 그리드 여유)
 MAX_DND_MINUTES = 24 * 60
 
-# ── 전송 경로 바이트 예산 (단일 기준값) ──────────────────────────────────────
+# 전송 경로 바이트 예산 (단일 기준값)
 # 개수·글자수 상한만으로는 전송 버퍼를 정할 수 없다. **한글은 UTF-8에서 3바이트**라
 # "20개 × 40자"는 800바이트가 아니라 약 2.5KB다. 이 착각으로 버퍼를 800 기준으로
-# 잡았다가, 큰 요청이 UART에서 조용히 잘리는 상태였다(교차 리뷰 지적).
+# 잡았다가 큰 요청이 UART에서 조용히 잘릴 수 있다.
 #
 # 그래서 글자 수가 아니라 **직렬화 바이트 수**를 여기서 한 번 정하고, 아래 경로가
 # 전부 이 값에 맞춘다. 어느 한 곳이라도 이보다 작으면 그 지점에서 잘린다:
@@ -167,7 +167,7 @@ class ApplianceButtonModel(BaseModel):
     label: str
     x: int
     y: int
-    # ── 버튼맵 확장 — 모두 선택. 구버전 폰·키오스크는 보내지도 읽지도 않는다 ──
+    # 버튼맵 확장 — 모두 선택. 구버전 폰·키오스크는 보내지도 읽지도 않는다
     #: button | dial. 모르는 값은 거절한다(누르기·돌리기는 다른 물리 동작).
     behavior: str = "unknown"
 
@@ -263,7 +263,7 @@ class ApplianceResponse(BaseModel):
     # 저장할 때마다 오르는 판 번호. 클라이언트가 "내가 본 판"을 밝히고
     # 저장하면 그 사이 다른 기기가 먼저 바꿨는지 서버가 가려준다.
     revision: int = 0
-    # ── 준비 상태 (F1) ──────────────────────────────────────────────
+    # 준비 상태 (F1)
     # disconnected | needs_setup | operable. **등록됐다는 것과 조작할 수
     # 있다는 것은 다르다** -- heartbeat만으로 operable을 선언하지 않는다.
     readiness: str = "disconnected"
@@ -278,7 +278,7 @@ class ApplianceResponse(BaseModel):
     functions: dict[str, list[str]] = {}
     # 버튼 mm 좌표를 만든 보정 결과의 버전. 보정 전이거나 무효화되면 None.
     calibration_version: str | None = None
-    # ── 정지 대기·보관(2026-09-30). 옛 클라이언트는 무시한다 ──
+    # 정지 대기·보관(2026-09-30). 옛 클라이언트는 무시한다
     #: 정지(취소) 버튼 id와 정지까지 누를 횟수(1~3).
     stop_button: str | None = None
     stop_presses: int = 1
@@ -404,7 +404,7 @@ class ApplianceRegisterRequest(BaseModel):
         if len(v) > MAX_KNOWN_BUTTONS:
             raise ValueError(f"at most {MAX_KNOWN_BUTTONS} buttons")
         # id·라벨 중복 금지 — 실행은 라벨로 전송되므로 같은 라벨의 물리
-        # 버튼 두 개는 어느 좌표를 누를지 구분할 수 없다 (교차 리뷰 #5)
+        # 버튼 두 개는 어느 좌표를 누를지 구분할 수 없다.
         ids = [b.id for b in v]
         if len(set(ids)) != len(ids):
             raise ValueError("duplicate button id")
@@ -727,7 +727,7 @@ class StatusResponse(BaseModel):
     #: 서버 개발자 모드(SIMPLELAY_DEV_MODE) 여부. 앱은 이 값이 true일 때만
     #: "개발자" 탭을 띄운다(2026-09-30). 옛 클라이언트는 무시한다.
     developer_mode: bool = False
-    # ── 정지 대기·보관(2026-09-30) — RPi4 보고를 옮긴다. 옛 클라이언트는 무시한다 ──
+    # 정지 대기·보관(2026-09-30) — RPi4 보고를 옮긴다. 옛 클라이언트는 무시한다
     #: hovering_stop | stopping | parking | parked | fault | released | None(대기 없음)
     hold_state: str | None = None
     #: stopped(정지됨·전력 하강 확인) | requested_unconfirmed(정지 요청함·미확인) |
@@ -745,7 +745,7 @@ class StatusResponse(BaseModel):
     hold_probe_source: str | None = None
     #: 대기를 하지 않은 이유(no_stop_button | no_appliance | no_park_position). 이때 hold_state는 null이다.
     hold_unavailable_reason: str | None = None
-    # ── 콘센트 모듈 비상정지 걸림(2026-10-05) — RPi4 보고. 옛 클라이언트는 무시한다 ──
+    # 콘센트 모듈 비상정지 걸림(2026-10-05) — RPi4 보고. 옛 클라이언트는 무시한다
     #: true면 POST /stop/ack로 해제 확인 전까지 실행을 거절한다. 보고 수단이 없는 실행기면 None.
     estop_latched: bool | None = None
     estop_detail: str | None = None
@@ -783,7 +783,7 @@ class StatusResponse(BaseModel):
     last_appliance_id: str | None = None
     execution_mode: str = "unknown"
     last_execution_mode: str = "unknown"
-    # ── 명령 계약(U1-a) — 실행 환경(real/mock)과 독립인 축. 옛 클라이언트는 무시한다.
+    # 명령 계약(U1-a) — 실행 환경(real/mock)과 독립인 축. 옛 클라이언트는 무시한다.
     #: 제어 경로 physical | thinq (실행 중 / 마지막).
     route: str | None = None
     last_route: str | None = None
@@ -795,7 +795,7 @@ class StatusResponse(BaseModel):
     last_confirmation: str | None = None
     #: 사람이 읽을 한 줄(ThinQ 결과). ThinQ면 last_status가 unconfirmed일 수 있다(실패 아님).
     last_detail: str | None = None
-    # ── 2026-09-29 (G1·G2) — 옛 클라이언트는 무시한다.
+    # 2026-09-29 (G1·G2) — 옛 클라이언트는 무시한다.
     #: 마지막 물리 실행의 재시도 합(버튼별 시도 수 - 1의 합). ThinQ·버튼 결과 없음이면 None.
     last_retry_count: int | None = None
     #: L3(가전 동작) 판정 true/false. 판정기가 없거나 판정하지 못했으면 None.
@@ -809,13 +809,13 @@ class StatusResponse(BaseModel):
     #: receipt, confirmation, execution_mode, target_name, setting_label, value_label, run_id, undo_until,
     #: undo_remaining_s(되돌리기 남은 초 — 없으면 null, 2026-10-26), undone}. 없으면 None.
     last_auto_run: dict | None = None
-    # ── 정지 확인 단계(2026-10-13) — 마지막 긴급 정지의 모션 확인. 새 실행이 시작되면 null. 옛 클라이언트는 무시 ──
+    # 정지 확인 단계(2026-10-13) — 마지막 긴급 정지의 모션 확인. 새 실행이 시작되면 null. 옛 클라이언트는 무시
     #: sent | mcu_ack | verified | None
     last_stop_level: str | None = None
     last_stop_ack_ms: int | None = None
     #: 그 정지가 멈춘 실행의 job_id(실행 중이 아닐 때의 정지면 None). 클라이언트는 자기 job과 같을 때만 단계를 쓴다(H1).
     last_stop_job_id: str | None = None
-    # ── 루틴 실행(검토 10/19) — 옛 클라이언트는 무시 ──
+    # 루틴 실행(검토 10/19) — 옛 클라이언트는 무시
     # /status: 루틴이 도는 동안(구간 실행 중·구간 사이 기다림·안내 포함)만 싣는다 — 쉬다가 /status로 루틴을 알아챈
     # 클라이언트가 구간 번호 대신 루틴 첫 번호(``GET /jobs/{routine_run_id}``)를 따라가게. 루틴이 없으면 모두 null.
     # ``GET /jobs/{id}``: 첫 번호면 루틴 전체 수명, 구간 번호면 그 구간이 속한 루틴(``routine_run_id``로 갈아탄다).
@@ -890,7 +890,7 @@ class HistoryEntryResponse(BaseModel):
     status: str
     retry_count: int
     buttons: list[HistoryButton]
-    # ── 실험 계측 (F4) ──────────────────────────────────────────────
+    # 실험 계측 (F4)
     # 이 열이 생기기 전 기록은 값이 없거나 'unknown'이다 — 지어내지 않는다.
     appliance_id: str | None = None
     # real | mock | unknown. mock 실행이 실제 성공률에 섞이지 않게 가른다.
@@ -962,7 +962,7 @@ class StopResponse(BaseModel):
     #: 전달됐다(2026-09-30). 결과(정지됨/미확인)는 /status의 hold_stop_outcome으로 온다.
     appliance_stop_requested: bool = False
     hold_state_at_request: str | None = None
-    # ── 정지 확인 단계(2026-10-13) — RPi4 정지 보고. 옛 클라이언트는 무시한다 ──
+    # 정지 확인 단계(2026-10-13) — RPi4 정지 보고. 옛 클라이언트는 무시한다
     #: sent(정지 명령을 보냄) | mcu_ack(모션 보드가 받음) | verified(엔코더로 멈춤 확인) | None(보고 수단 없음·멈출 것 없음)
     stop_level: str | None = None
     #: 정지를 보낸 뒤 모션 보드 응답까지(ms). mcu_ack 이상일 때만.
@@ -1350,7 +1350,7 @@ class LearningRoutineResponse(BaseModel):
     established: bool
     muted: bool
     recent_days: list[str] = []  # 실제로 쓴 날(ISO 날짜, 최근 5일) — 화면이 '왜 습관인지' 근거로 보인다
-    # ── '알게 된 것'(2026-10-26) — 모두 선택 필드(옛 화면은 무시한다) ──
+    # '알게 된 것'(2026-10-26) — 모두 선택 필드(옛 화면은 무시한다)
     usual_time: str | None = None  # 평소 시각 "HH:MM"
     confident: bool = True  # 시각이 모여 있나(아니면 화면은 정확한 시각 대신 '저녁 이맘때')
     paused_until: str | None = None  # 연달아 거절해 묻기를 쉬는 끝 시각(ISO), 아니면 null

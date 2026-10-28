@@ -10,7 +10,7 @@ import '../services/rpi_api_service.dart';
 import '../theme/app_text.dart';
 import '../theme/app_tokens.dart';
 
-/// 가전 하나의 확인 주행 조회. 실패를 '기록 없음'으로 뭉개지 않는다(2026-10-13).
+/// 가전 하나의 확인 주행 상태를 조회한다.
 ///
 /// - 200 + state(running·done·failed) → [VerifyPassLookup.found]
 /// - 200인데 state가 없거나 모르는 값 → [VerifyPassLookup.unknown]
@@ -33,12 +33,8 @@ Future<VerifyPassLookup> lookupVerifyPass(RpiApiService? api, String id) async {
   }
 }
 
-/// 가전 하나의 확인 주행 조회. 읽는 쪽은 [setupPassLookupOf]로 읽는다.
-///
-/// 허브가 **다시 연결되면** 새로 묻는다(검토 M3, 2026-10-13) — 서버가 재시작해 메모리의
-/// 확인 주행 기록이 사라졌거나, 끊기기 전 조회가 실패했을 수 있다. 홈이 계속 구독해
-/// autoDispose되지 않으므로 연결을 듣지 않으면 예전 결과가 남는다. 연결이 아닐 때는
-/// 묻지 않고 모름이다.
+/// 연결 시 확인 주행 상태를 조회하고 재연결 때 갱신한다.
+/// 연결되지 않았으면 이전 결과를 재사용하지 않고 모름으로 처리한다.
 final setupPassProvider = FutureProvider.autoDispose
     .family<VerifyPassLookup, String>((ref, id) {
   final connected = ref.watch(rpiConnectionProvider
@@ -48,7 +44,7 @@ final setupPassProvider = FutureProvider.autoDispose
   return lookupVerifyPass(api, id);
 });
 
-/// 조회 중(다시 묻는 중 포함)·오류·값 없음은 모름 — 예전 결과를 지금의 것으로 쓰지 않는다.
+/// 조회 중·오류·값 없음은 모름으로 처리한다.
 VerifyPassLookup setupPassLookupOf(AsyncValue<VerifyPassLookup> value) =>
     value.isLoading || !value.hasValue
         ? const VerifyPassLookup.unknown()
@@ -69,7 +65,7 @@ class ApplianceSetupCard extends ConsumerWidget {
   });
   final ApplianceMap appliance;
 
-  /// 다른 카드('확인이 필요해요') 안에 놓일 때 — 카드를 겹치지 않는다(2026-10-18).
+  /// 다른 카드 안에서 사용할 때 바깥 카드를 생략한다.
   final bool flat;
 
   /// 아래 목록(시트) 안에서 쓰일 때 -- 다음 화면을 열기 전에 시트를 닫는다.
@@ -115,10 +111,8 @@ class ApplianceSetupCard extends ConsumerWidget {
   }
 }
 
-/// 설정이 남은 가전(위치 미설정, 또는 실제 확인 주행 전). 홈 '확인이 필요해요'가 쓴다(2026-10-18).
-///
-/// 위치를 아직 안 맞춘 가전은 그것만으로 설정이 남았으니 확인 주행 상태를
-/// 묻지 않는다. 묻는 것은 위치를 맞춘 가전뿐이다(가전마다 요청하지 않게).
+/// 위치가 없거나 실제 확인 주행을 마치지 않은 가전.
+/// 위치가 없는 가전은 확인 주행 상태를 조회하지 않는다.
 List<ApplianceMap> pendingSetupAppliances(WidgetRef ref, List<ApplianceMap> appliances) => [
       for (final a in appliances)
         if (a.panelMapping == null ||
@@ -134,10 +128,7 @@ String setupSummaryNames(List<ApplianceMap> appliances) {
   return rest > 0 ? '$names 외 $rest대' : names;
 }
 
-/// '확인이 필요해요' 안의 한 줄 — '세탁기, 인터폰 설정이 남았어요', 누르면 가전별 설정 카드 목록(시트).
-///
-/// 설정이 남았다는 말은 홈에서 **이 한 줄만** 한다(평가 3차 10/18) — 가전 타일은 아이콘 점, 루틴 타일은
-/// 말하지 않는다. 그래서 어느 가전인지 이름을 여기서 적는다(세 대 넘으면 '외 N대').
+/// 설정이 남은 가전을 요약하고 가전별 설정 목록을 여는 행.
 class SetupSummaryRow extends StatelessWidget {
   const SetupSummaryRow({super.key, required this.appliances});
   final List<ApplianceMap> appliances;

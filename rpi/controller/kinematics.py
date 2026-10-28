@@ -134,7 +134,7 @@ class CoreXYConfig:
         if self.stop_mode is not None and self.stop_mode not in STOP_MODES:
             raise ValueError(f"stop_mode는 {STOP_MODES} 중 하나여야 합니다: {self.stop_mode!r}")
 
-    # ── 설정 상태 ────────────────────────────────────────────────────────────
+    # 설정 상태
 
     def missing(self, names: tuple[str, ...]) -> tuple[str, ...]:
         return tuple(name for name in names if getattr(self, name) is None)
@@ -148,7 +148,7 @@ class CoreXYConfig:
         if missing:
             raise KinematicsNotConfigured(operation, missing)
 
-    # ── 생성 ─────────────────────────────────────────────────────────────────
+    # 생성
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, object]) -> "CoreXYConfig":
@@ -187,7 +187,7 @@ class MotorCounts:
     b: float
 
 
-# ── 식 (보고서 C·D절) ───────────────────────────────────────────────────────
+# 식 (보고서 C·D절)
 
 
 def xy_to_belt(dx_mm: float, dy_mm: float) -> tuple[float, float]:

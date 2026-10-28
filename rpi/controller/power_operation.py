@@ -190,7 +190,7 @@ class PowerOperationVerifier(OperationVerifier):
         )
 
 
-# ── L3 배선 모드(SIMPLELAY_L3_MODE) ─────────────────────────────────────────
+# L3 배선 모드(SIMPLELAY_L3_MODE)
 #
 # off(기본)  L3 검증기 없음 -- 결과의 operation은 None(판정기 없음).
 # mock       MockPowerSensor 합성 파형으로 판정한다. 결과는 ``mock=True``라 통과해도

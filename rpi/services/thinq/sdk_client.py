@@ -131,7 +131,7 @@ class SdkThinqClient:
         return (f"SdkThinqClient(execution_mode={self.execution_mode.value}, country={self.country}, "
                 f"redirected={self.redirected})")
 
-    # ── 루프 ──────────────────────────────────────────────────────────────
+    # 루프
     def _wait(self, coro, timeout: float):
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return future.result(timeout + 5.0)
@@ -146,7 +146,7 @@ class SdkThinqClient:
         self._loop.call_soon_threadsafe(self._loop.stop)
         self._thread.join(5.0)
 
-    # ── 호출 상한 ──────────────────────────────────────────────────────────
+    # 호출 상한
     def _take_slot(self) -> None:
         now = self._monotonic()
         with self._lock:
@@ -164,7 +164,7 @@ class SdkThinqClient:
         with self._lock:
             return sum(1 for t in self._calls if now - t < 60.0)
 
-    # ── SDK 호출 ──────────────────────────────────────────────────────────
+    # SDK 호출
     def _call(self, method: str, *args, control: bool = False):
         self._take_slot()
         api_method = getattr(self._api, method)

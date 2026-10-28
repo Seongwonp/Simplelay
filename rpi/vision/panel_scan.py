@@ -234,7 +234,7 @@ def map_draft_to_mm(
     return result, mapped
 
 
-# ── 내부 도우미 ─────────────────────────────────────────────────────────────
+# 내부 도우미
 
 
 def _parse_box(value: object) -> tuple[float, float, float, float] | None:

@@ -165,7 +165,7 @@ def _build_verifier() -> Verifier:
         from rpi.verifier import SensorConfig, SensorVerifier
         from rpi.verifier.config import check_current_sensor_config, current_sensor_config_from_env
 
-        # 장치를 열기 전에 설정 모순(영전류 전압이 ADC 범위 밖 등)을 거절한다(2026-10-07, 평가 M2).
+        # 장치를 열기 전에 ADC 범위를 벗어난 설정을 거절한다.
         # 기본값(2.5 V·gain 2)은 이 검사에 걸린다 — 분압 회로 확인 뒤 env로 맞춘다(실측 필요).
         current = current_sensor_config_from_env()
         check_current_sensor_config(current)
@@ -238,7 +238,7 @@ class MotionConnectRetry:
 _motion_retry: MotionConnectRetry | None = None
 
 
-#: 포트 다시 열기 백오프(초)와 감시 주기(초) — 호스트 박자(2026-10-14, 발견 1). 시험이 바꿔 끼운다.
+#: 포트 재연결 백오프와 감시 주기(초). 테스트에서 교체할 수 있다.
 MOTION_REOPEN_BACKOFF_S = (0.5, 1.0, 2.0, 4.0, 8.0)
 MOTION_WATCH_INTERVAL_S = 0.5
 
@@ -724,7 +724,7 @@ def _build_target_binder(outlet, recorder: "LiveRecorder | None" = None):
     if outlet is not None:
         from rpi.verifier.power_tail import TailConfig
 
-        # 잔여 전류 설정은 시작 때 한 번 읽는다 — 잘못된 값은 첫 실행이 아니라 시작에서 거절(교차 리뷰 92876bd).
+        # 잔여 전류 설정 오류는 첫 실행까지 미루지 않고 시작할 때 거절한다.
         tail_config = TailConfig.from_env()
 
     def make_tail(view, operation):
@@ -909,7 +909,7 @@ def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
             return
         try:
             loop.call_soon_threadsafe(executor.handle_outlet_estop, source)
-        except RuntimeError:  # 루프가 닫힌 뒤(Copilot#2) — 로그로 끝내지 않고 이 스레드에서 바로 멈춘다
+        except RuntimeError:  # 루프가 닫혔으면 이 스레드에서 구동부를 바로 멈춘다.
             log.error("outlet estop arrived after the event loop closed — stopping drive synchronously")
             executor.emergency_stop_sync(source)
 

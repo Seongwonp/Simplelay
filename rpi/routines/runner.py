@@ -1,43 +1,15 @@
-"""승인된 루틴 실행 — 기존 명령 실행(시나리오 엔진과 같은 규칙) 위의 얇은 순서기.
+"""승인된 루틴을 기존 명령 실행 경로에서 순서대로 실행한다.
 
-진입점은 **제안 승인뿐이다.** 제안 서비스가 ``routine:`` 카드를 승인하면
-``submit_approved``/``execute_approved``를 부른다(``ApprovedCommand`` 없이는 부를 방법이
-없다). 여기서 하는 일:
+승인 카드의 단계 지문을 현재 루틴과 대조한다. 루틴이 바뀌거나 꺼졌으면 재승인을 요구한다.
+첫 구간은 즉시 접수해 거절을 호출자에게 돌려주고, 이후 구간은 순서대로 실행한다.
+앞 단계가 확인되지 않았거나 정지 요청이 있으면 남은 단계를 보내지 않는다.
 
-1. 카드의 ``scenario_id``에 적힌 단계 지문과 지금 루틴의 지문을 대조한다. 다르거나
-   루틴이 꺼졌거나 '알림만'으로 바뀌었으면 ``ApprovalMismatchError``(재승인).
-2. 단계를 구간으로 나눈다: 이어진 장치 단계는 한 번의 ``execute_approved``(다가전
-   시나리오와 같은 게이트 · 앞 단계가 확인되지 않으면 뒤 단계를 보내지 않음 · 정지
-   요청이면 남은 단계 미전송). ``announce``는 알림 기록, ``wait_until_done``은 앞 결과의
-   확인 수준을 본다.
-3. 첫 구간은 호출 스레드에서 **제출**한다 -- 바쁨(409)·준비 안 됨(412) 같은 거절이 그대로
-   승인 응답으로 올라가고, 제안 서비스가 카드를 되돌린다. 나머지는 백그라운드에서 이어간다.
-
-``wait_until_done`` 판정(실물 미검증, 2026-10-06 갭 M2 · 같은 날 평가 B1·B4·B5·Copilot#5):
-- **끝 센서가 있는 가전**(RPi4가 ``act_info.done_watch``로 알린 목록, 알기 전에는 ``SIMPLELAY_ROUTINE_DONE_SENSORS``
-  — `DoneSensorSet`)이면 그 가전의 마지막 결과가 성공이기만 하면(L1 눌림 확인이어도 — L3는 전자레인지 채널만
-  읽으므로 세탁기는 L3 시작 확인을 받을 수 없다, 평가 B4) RPi4가 그 가전 CT 채널 전력 하강(`rpi/verifier/cycle_end.py`)
-  으로 보내는 ``appliance_done``을 기다린다 — 구간을 보내기 전에 잡은 표(`ApplianceDoneLog.mark`) 뒤에 온 것만,
-  가전별 상한(``SIMPLELAY_ROUTINE_DONE_TIMEOUT_<가전>_S`` → ``SIMPLELAY_ROUTINE_DONE_TIMEOUT_S`` → 가전별 기본
-  `DEFAULT_DONE_TIMEOUTS_S` → 1200 s, 전부 측정 필요)까지.
-  **``done_confirmed``(전력·종료음 둘 다)만 끝남 확인**이다(평가 B1). 입력 하나뿐(``done_power_only``·``done_beep_only``)
-  이면 "끝난 것 같아요."로 시작하는 문장을 남기고 뒤 단계(안내·장치)를 **보내지 않고** 루틴을 멈춘다(보수적 선택).
-  안 오면 루틴을 멈추고 알림함에 남긴다.
-- 끝 센서가 없으면 L3·상태 확인으로 통과하되 단계에 **"시작한 것만 확인했어요. 끝났는지는 확인하지 못했어요."**(``basis: start_only``).
-- 정지: 루틴 정지·전체 정지(``POST /stop`` → `stop_all`)·비상정지 걸림(실행 중 한 번이라도 걸렸으면 해제 확인 뒤에도)은
-  기다림을 끊고 남은 단계를 보내지 않는다(평가 B5).
-- 구간 사이 정지(2026-10-16 안전 보고 G3): 정지는 (1) 각 단계 앞, (2) 다른 명령이 끝나기를 기다린 **뒤**, (3) 다음 구간의
-  실행 시작 게이트 안(``approval_guard`` — 실행 서비스가 정지 기록을 지우는 바로 그 잠금 안)에서 본다. (3)이 없으면
-  마지막 확인과 실행 시작 사이에 온 정지는 쉬는 서비스에 기록되지 않고(``was_running`` 거짓) 실행 시작이 실행 대상의 정지
-  표시까지 지워 다음 구간이 그대로 나갔다. 구간 결과에 정지 표시가 있으면(버튼은 다 눌렸어도) 루틴은 ``stopped``다.
-- 기다리는 동안 실행 서비스는 쉬는 중이다 — 새 사용자 명령은 막히지 않는다. 다음 장치 단계는 그 명령이 끝나기를
-  ``idle_timeout``만큼 기다렸다가, 안 끝나면 루틴을 멈춘다(Copilot#5).
-- 모의 실행(``mock``)의 성공은 센서가 있어도 기다리지 않고 **시연 통과**로 적는다(``basis: mock``).
-- 그 밖(L1 눌림만·보고만·미확인·실패)은 루틴을 멈추고 보호자 알림함에 남긴다.
-
-이어지는 구간의 승인: 첫 구간을 제출할 때 카드의 유효 시간·상황 재검사를 통과했다.
-뒤 구간은 **같은 승인의 연속**이라 카드 유효 시간(15분)으로 끊지 않는다(세탁처럼 긴
-대기). 명령 지문 대조와 실행 직전 재검사(대상·경로·동작 범위·준비 상태)는 그대로 한다.
+끝 센서가 있는 가전은 구간 시작 뒤의 ``appliance_done``을 가전별 상한까지 기다린다.
+전력과 종료음이 모두 확인된 ``done_confirmed``만 다음 단계로 진행한다. 단일 근거나
+시간 초과는 루틴을 멈춘다. 센서가 없으면 시작 확인만 기록하고, 모의 결과는 시연으로 구분한다.
+정지는 단계 전, 다른 실행을 기다린 뒤, 다음 실행 게이트 안에서 다시 확인한다.
+후속 구간은 같은 승인에 속하므로 카드 유효 시간이 지나도 실행 직전 지문과 준비 상태를 재검사한다.
+실물 가전의 종료 감지는 아직 검증되지 않았다.
 """
 
 from __future__ import annotations
@@ -88,8 +60,7 @@ _ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 def routine_done_timeouts_from_env(env=None) -> dict[str, float]:
-    """가전별 기다림 상한(Copilot#5). 앞선 것이 이긴다: ``SIMPLELAY_ROUTINE_DONE_TIMEOUT_<가전>_S`` →
-    ``SIMPLELAY_ROUTINE_DONE_TIMEOUT_S``(모든 가전) → `DEFAULT_DONE_TIMEOUTS_S`. 반환에 없는 가전은 러너 기본값."""
+    """가전별 대기 상한을 읽는다. 개별 설정, 공통 설정, 기본값 순으로 적용한다."""
     src = os.environ if env is None else env
     out = dict(DEFAULT_DONE_TIMEOUTS_S)
     common = (src.get(DONE_TIMEOUT_ENV) or "").strip()
@@ -267,12 +238,11 @@ class RoutineRunner:
         self._done_sensors = (done_sensors if isinstance(done_sensors, DoneSensorSet)
                               else frozenset(done_sensors))
         self._done_timeout = done_timeout_seconds
-        #: 가전별 기다림 상한(Copilot#5). 없는 가전은 ``done_timeout_seconds``.
+        #: 가전별 기다림 상한. 없는 가전은 ``done_timeout_seconds``.
         self._done_timeouts = dict(done_timeouts or {})
         self._lock = threading.Lock()
         self._runs: deque[RoutineRun] = deque(maxlen=20)
 
-    # ── 제안 서비스가 부르는 곳 ─────────────────────────────────────────────
     @staticmethod
     def handles(scenario_id: str | None) -> bool:
         return parse_scenario_key(scenario_id) is not None
@@ -331,7 +301,7 @@ class RoutineRunner:
         self._continue_safely(run, routine, rest, record.job_id, record, scenario_id, kwargs)
         return run
 
-    # ── 조회·정지 ─────────────────────────────────────────────────────────
+    # 조회·정지
     def runs(self) -> tuple[RoutineRun, ...]:
         with self._lock:
             return tuple(reversed(self._runs))
@@ -419,7 +389,7 @@ class RoutineRunner:
     def _halted(self, run: RoutineRun) -> bool:
         return run.cancel.is_set() or self._estop_hit(run)
 
-    # ── 내부 ──────────────────────────────────────────────────────────────
+    # 내부
     def _plan(self, scenario_id, approved) -> tuple[Routine, list]:
         key = parse_scenario_key(scenario_id)
         routine = self._store.get(key[0]) if key else None

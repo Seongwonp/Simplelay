@@ -46,7 +46,7 @@ class KioskSpace {
 class KioskSizes {
   const KioskSizes._();
 
-  // ── 정지 영역(§1-1) — 실행·정지 대기·정지 미확인 세 화면에서 같은 자리·같은 크기 ─────────
+  // 정지 영역(§1-1) — 실행·정지 대기·정지 미확인 세 화면에서 같은 자리·같은 크기
   /// 정지 단추 폭·높이(1920x1080에서 약 558x197px — 규격 560x200).
   static const double stopWidth = 272;
   static const double stopHeight = 96;
@@ -65,7 +65,7 @@ class KioskSizes {
   /// 정지 단추 아이콘(■ 하나).
   static const double stopIcon = 40;
 
-  // ── 상태 띠(§1-2) — 제안·실행·정지 대기·결과에 같은 위치·같은 높이 ───────────────────────
+  // 상태 띠(§1-2) — 제안·실행·정지 대기·결과에 같은 위치·같은 높이
   /// 띠 높이(1920x1080에서 82px — 규격 48~88). 보통 글씨에서는 이 높이로 고정되고, 큰 글씨에서
   /// 글이 넘치면 줄을 바꿔 늘어난다(글자를 줄이지 않는다).
   static const double bandHeight = 40;
@@ -86,7 +86,7 @@ class KioskSizes {
   /// 길어질 때 그림이 아주 작아졌다, 2026-10-16 골든 `hold_estop_confirm`).
   static const double panelCaptionMinHeight = 200;
 
-  // ── 상태 영역(§1-2) — 실행 계열 화면 왼쪽 위 같은 기준선 ─────────────────────────────
+  // 상태 영역(§1-2) — 실행 계열 화면 왼쪽 위 같은 기준선
   /// 상태 아이콘(규격 96~120px → 48 = 98px).
   static const double statusIcon = 48;
 
@@ -94,7 +94,7 @@ class KioskSizes {
   static const double runLeft = 36;
   static const double runTop = 12;
 
-  // ── 단추(§1-5) ────────────────────────────────────────────────────────────────
+  // 단추(§1-5)
   /// 주 단추(채움) 높이 — 규격 144~152px → 72 = 148px.
   static const double primaryButton = 72;
 
@@ -103,7 +103,7 @@ class KioskSizes {
 
   static const double buttonRadius = 12;
 
-  // ── 결과 화면(§1-7) ─────────────────────────────────────────────────────────────
+  // 결과 화면(§1-7)
   /// 결과 아이콘 원(규격 200px → 88 = 180px, 세로 자리가 모자라 출발값보다 조금 작게).
   static const double resultIcon = 88;
 

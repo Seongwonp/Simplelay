@@ -56,7 +56,7 @@ class JobHistoryEntry:
     purpose: str | None  # 버튼 직접 실행(수동 조작)은 목적 문자열이 없다
     status: str  # succeeded | safety_stopped | failed
     buttons: tuple[ButtonAttempt, ...]
-    # ── 실험 계측 (F4) — 실기기 실험을 시작하면 바로 필요해지는 것들 ──
+    # 실험 계측 (F4) — 실기기 실험을 시작하면 바로 필요해지는 것들
     #: 어떤 가전에서 했나. 가전마다 성공률이 다르므로 분모를 가르는 열쇠다.
     appliance_id: str | None = None
     execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
@@ -83,7 +83,7 @@ class JobHistoryEntry:
     #: 검증 실패 안전 정지를 뭉갠다. 원격 실행기가 보고한 값도 여기 남는다.
     #: 이 열이 생기기 전 기록은 None — `effective_outcome`이 보수적으로 유도한다.
     outcome: str | None = None
-    # ── 명령 계약(U1-a) — 실행 환경과 독립인 두 축 ────────────────────────
+    # 명령 계약(U1-a) — 실행 환경과 독립인 두 축
     #: 제어 경로 physical | thinq. 열이 생기기 전 기록은 unknown.
     route: str = "unknown"
     #: 상대가 받았나 accepted | unknown | not_dispatched (옛 기록 unknown).
@@ -164,7 +164,7 @@ class InMemoryJobHistory:
         return tuple(reversed(items))[:limit]  # 최신순
 
 
-# ── 실험 기록 내보내기 ──────────────────────────────────────────────────────
+# 실험 기록 내보내기
 
 #: CSV로 나가는 열. **허용 목록**이다 -- 새 필드가 늘어도 여기 적지 않으면
 #: 나가지 않는다. 주소·API 키·가정 식별정보·원문 음성은 이 목록에 없다.

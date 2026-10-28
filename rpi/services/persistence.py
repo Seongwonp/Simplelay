@@ -149,7 +149,7 @@ class SimpleLayDb:
                     self._conn.commit()
                     _log.info("job_history migrated: %s column added", column)
 
-    # ── 기기 설정 ───────────────────────────────────────────────────────────
+    # 기기 설정
 
     def load_wellness_pause(self) -> date | None:
         """안부 확인 일시 중지의 종료 날짜 (F5).
@@ -211,7 +211,7 @@ class SimpleLayDb:
             )
             self._conn.commit()
 
-    # ── 사용 이력 (패턴 학습) ────────────────────────────────────────────────
+    # 사용 이력 (패턴 학습)
 
     def append_suggestion_event(self, event: dict) -> None:
         from rpi.intent.feedback import EVENT_CAPACITY
@@ -270,7 +270,7 @@ class SimpleLayDb:
             for occurred_at, purpose, outcome, appliance_id, execution_mode, source in rows
         )
 
-    # ── 노드 등록 (appliance_id → ESP32 base_url) ───────────────────────────
+    # 노드 등록 (appliance_id → ESP32 base_url)
 
     def save_node(self, appliance_id: str, base_url: str) -> None:
         with self._lock:
@@ -295,7 +295,7 @@ class SimpleLayDb:
             ).fetchall()
         return dict(rows)
 
-    # ── 보호자 알림 이력 ─────────────────────────────────────────────────────
+    # 보호자 알림 이력
 
     def append_care_event(
         self, kind: str, message: str, purpose, occurred_at, time_band=None
@@ -313,7 +313,7 @@ class SimpleLayDb:
     def care_event_exists_on(self, kind, purpose, day, time_band=None) -> bool:
         # 같은 (kind, purpose, time_band, 현지 날짜) 이벤트 존재 여부 —
         # 메모리 링(200건)이 밀려나거나 재시작해도 dedupe가 유지되도록 DB에
-        # 직접 묻는다 (교차 리뷰 #10). occurred_at은 서버 현지 tz의 ISO라
+        # 직접 조회한다. occurred_at은 서버 현지 tz의 ISO라
         # 날짜 prefix 비교가 곧 현지 날짜 비교다. NULL 비교는 IS로.
         with self._lock:
             row = self._conn.execute(
@@ -347,7 +347,7 @@ class SimpleLayDb:
             for row in reversed(rows)
         )
 
-    # ── 커스텀 가전 (appliance_id → 정의 JSON) ──────────────────────────────
+    # 커스텀 가전 (appliance_id → 정의 JSON)
 
     def save_appliance(self, appliance) -> None:
         from .appliance_registry import ApplianceDef  # noqa: PLC0415 — 순환 회피
@@ -485,11 +485,11 @@ class SimpleLayDb:
                     )
                 )
             except Exception:
-                # 한 행이 손상돼도 나머지 가전은 살아야 한다 (교차 리뷰 #16)
+                # 한 행이 손상돼도 나머지 가전 기록은 계속 읽는다.
                 _log.exception("skipping corrupt appliance row %r", appliance_id)
         return tuple(result)
 
-    # ── 실행(job) 이력 ──────────────────────────────────────────────────────
+    # 실행(job) 이력
 
     def append_job_history(self, entry: JobHistoryEntry) -> None:
         with self._lock:
@@ -570,7 +570,7 @@ class SimpleLayDb:
             for row in rows
         )
 
-    # ── 제안 억제(다시 추천 안 함) ───────────────────────────────
+    # 제안 억제(다시 추천 안 함)
 
     def add_suppression(self, purpose: str) -> None:
         with self._lock:
@@ -594,7 +594,7 @@ class SimpleLayDb:
             ).fetchall()
         return frozenset(row[0] for row in rows)
 
-    # ── 실행 이력의 명령 계약 열(U1-a) ──────────────────────────────────────
+    # 실행 이력의 명령 계약 열(U1-a)
     # 기존 job_history 행을 건드리지 않고 job_id로 붙이는 옆 표다. 옛 기록은
     # 여기 행이 없어 route·receipt·confirmation이 unknown으로 읽힌다(지어내지 않음).
 
@@ -634,7 +634,7 @@ class SimpleLayDb:
         return {r[0]: (r[1] or "unknown", r[2] or "unknown", r[3] or "unknown", r[4] or "")
                 for r in rows}
 
-    # ── 실행 이력의 L3 판정 열(2026-09-29, G2) ────────────────────────────
+    # 실행 이력의 L3 판정 열(2026-09-29, G2)
     # 같은 방식의 옆 표. 행이 없으면 판정 없음(None)으로 읽는다.
 
     def _ensure_operation_meta_locked(self) -> None:
@@ -673,7 +673,7 @@ class SimpleLayDb:
             ).fetchall()
         return {r[0]: (None if r[1] is None else bool(r[1]), r[2] or "") for r in rows}
 
-    # ── 사용자 루틴(2026-09-30, rpi/routines) ────────────────────────────────
+    # 사용자 루틴(2026-09-30, rpi/routines)
     # 문서(JSON) 한 칸 + 형식 번호. 문서 안의 형식 이관은 rpi.routines.model이 한다.
     # 초안 표(routine_id, document)만 있는 DB에는 빠진 열을 ALTER로 더한다.
 

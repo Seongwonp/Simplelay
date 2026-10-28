@@ -460,7 +460,7 @@ class OutletLink:
         self.dropped_out_of_order = 0
         self.started_at_s = clock()
 
-    # ── 수명 ─────────────────────────────────────────────────────────────────
+    # 수명
 
     def start(self) -> "OutletLink":
         reader = threading.Thread(target=self._read_loop, daemon=True, name="outlet-reader")
@@ -489,7 +489,7 @@ class OutletLink:
         """power 외 자발 이벤트(ready·estop·fault·host_timeout)를 받는다. **읽기 스레드에서** 불린다."""
         self._listeners.append(listener)
 
-    # ── 전력 샘플(채널마다, 기본 채널 0) ───────────────────────────────────────
+    # 전력 샘플(채널마다, 기본 채널 0)
 
     def _state(self, ch: int) -> _ChannelState:
         """채널 상태(없으면 만든다). ``_cond``를 쥔 채로 부른다."""
@@ -540,7 +540,7 @@ class OutletLink:
             return "콘센트가 응답하지 않아요. 선이 꽂혀 있는지 봐 주세요."
         return None
 
-    # ── 명령 ─────────────────────────────────────────────────────────────────
+    # 명령
 
     def request(self, cmd: str, timeout_s: float | None = None, **fields: Any) -> dict:
         """명령 하나를 보내고 같은 id의 응답을 기다린다. ``ok:false``면 `OutletRefused`."""
@@ -639,7 +639,7 @@ class OutletLink:
                 continue
         return None
 
-    # ── 내부 ─────────────────────────────────────────────────────────────────
+    # 내부
 
     def _write(self, body: dict) -> None:
         with self._write_lock:

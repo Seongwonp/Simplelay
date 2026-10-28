@@ -349,7 +349,7 @@
   // Poll pacing: fast only while the server job runs.
   function pollInterval(twin) { return twin && twin.running ? 400 : 2000; }
 
-  // ── Real-mode twin (/twin) and recorded replay (/twin?replay=) ──────────────
+  // Real-mode twin (/twin) and recorded replay (/twin?replay=)
   // Which page is this? /simulator/twin keeps the simulator's own state route.
   function pageConfig(pathname, search) {
     const path = String(pathname || '');

@@ -191,7 +191,7 @@ class SimulatorController(ActClientController):
             with self._state_lock:
                 self._busy = False
 
-    # ── 정지 대기 흉내(2026-10-06, 시연 v3 갭 M3) ───────────────────────────────
+    # 정지 대기 흉내(2026-10-06, 시연 v3 갭 M3)
     # 전부 모의 등급에는 정지 버튼 mm·보관 위치가 없어 대기 장면이 없었다. 정지 버튼이 등록된
     # 가전이면 모의 위치로 같은 hold 계획을 실어 보낸다 — RPi4 실행기·상태 기계·보고 프레임은
     # UART 모드와 같은 코드다. UART(ActClientController)는 이 표시가 없어 종전 그대로다.
@@ -254,7 +254,7 @@ class SimulatorController(ActClientController):
                 },
             }
 
-    # ── 리허설 비상 버튼(2026-10-06, 시연 v3 갭 S3) ────────────────────────────
+    # 리허설 비상 버튼(2026-10-06, 시연 v3 갭 S3)
     # 실물 콘센트 모듈이 아니다. 모의 RPi4 실행기의 ``handle_outlet_estop``(실물 모듈의 estop 이벤트가
     # 부르는 것과 같은 함수)을 부르고, 해제 확인 때 버튼이 눌린 채인지만 흉내 낸다.
 
@@ -280,7 +280,7 @@ class SimulatorController(ActClientController):
         with self._state_lock:
             self._rehearsal_button_held = False
 
-    # ── 리허설 세탁 끝(2026-10-06, 시연 v3 갭 S8) ──────────────────────────────
+    # 리허설 세탁 끝(2026-10-06, 시연 v3 갭 S8)
     # 실물 세탁기·CT·마이크가 아니다. 모의 RPi4 실행기가 같은 융합 규칙으로 ``appliance_done``
     # (``source:"injected"``) 프레임을 보내고, RPi5 ActClient → 루틴 엔진은 실물 프레임과 같은 길로 받는다.
 

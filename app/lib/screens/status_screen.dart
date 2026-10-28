@@ -84,8 +84,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
 
     final now = _NowState.of(status);
 
-    // HTTP 경로엔 원시 mA/dB가 없다. 값이 없는데 차트를 띄우면 '--'만 남아
-    // 개발 도구처럼 보인다 -- 실제 측정값이 있을 때만 센서 카드를 보여준다.
+    // HTTP 경로에는 원시 mA/dB 값이 없으므로 실제 측정값이 있을 때만 센서 카드를 표시한다.
     // 전기·소리 수치는 개발자 모드(본체가 켠 개발자 조건)일 때만 — 일반 화면에 mA·dB를 내지 않는다(평가 5차 10/18).
     final hasRawSensor = ref.watch(developerModeProvider) &&
         (status.currentMa != null ||
@@ -97,10 +96,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
       appBar: AppBar(title: const Text('실행 상태')),
       body: Column(
         children: [
-          // **지금 보고 있는 실행이** 모의일 때만 말한다. 전역 토글을
-          // 보면 진짜로 움직이고 있는 작업 위에도 이 배너가 떠서, 화면이
-          // 정반대의 말을 하게 된다 -- 폐루프의 존재 이유가 "눌림을
-          // 확인했는가"인데 그 확인을 화면이 뒤집는 셈이다.
+          // 실행 시점의 모의 여부를 표시한다. 전역 토글을 사용하면 실제 실행에도 모의 배너가 붙을 수 있다.
           if (status.phase != ExecutionPhase.idle && status.modeLabel.isNotEmpty)
             Semantics(
               liveRegion: true,
@@ -135,7 +131,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
               children: [
-                // ── 어느 가전, 무슨 일 ─────────────────────────────────────
+                // 어느 가전, 무슨 일
                 // liveRegion: 실행 상태는 사용자가 화면을 다시 훑지 않아도
                 // 스크린리더가 바뀔 때마다 읽어줘야 하는 정보다. 눈으로
                 // 진행 표시를 볼 수 없는 사용자에게는 이것이 유일한 채널.
@@ -177,10 +173,8 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                         ),
                         const SizedBox(height: AppSpace.lg),
 
-                        // ── 지금 무엇을 하고 있는가 — 가장 크게 ────────────
-                        // 이 제품의 차별점(실제 버튼을 누르고 센서로 확인)이
-                        // 화면에 도착하는 지점이다. 없으면 '빙글빙글 돌다
-                        // 완료되는 앱'이 된다.
+                        // 지금 무엇을 하고 있는가 — 가장 크게
+                        // 현재 버튼과 센서 검증 결과를 실행 상태의 주 정보로 표시한다.
                         _NowBlock(now: now),
                         // 끝난 실행의 경로·확인 수준. 서버가 준 값만 말한다.
                         if (_finished(status.phase))
@@ -190,17 +184,15 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   ),
                 ),
 
-                // ── 단계별 결과(G4) ───────────────────────────────────────
+                // 단계별 결과(G4)
                 // 위 한 줄은 /status의 **마지막 단계** 기준이다. 두 가전을 잇는
                 // 실행이 끝났으면 단계마다 경로·확인 수준을 따로 보인다 -- 그
                 // job의 기록일 때만(다른 실행의 단계를 내 결과로 보이지 않는다).
                 if (_finished(status.phase) && status.sequenceId != null)
                   _RunSteps(jobId: status.sequenceId!),
 
-                // ── 진행 — 구간형 ─────────────────────────────────────────
-                // 연속 퍼센트가 아니다. 버튼 5개 중 2개를 눌렀다는 사실은
-                // 40%가 아니라 '5개 중 2개'다. 퍼센트는 마치 남은 시간을
-                // 아는 것처럼 보이게 하는데, 우리는 모른다.
+                // 진행 — 구간형
+                // 완료한 버튼 수를 표시한다. 버튼별 소요 시간이 달라 남은 시간의 비율로 해석하지 않는다.
                 // 조작이 하나뿐이면 진행 막대를 그리지 않는다 — 위 결과 문장이 다 말한다(외부 평가 10/16 p08).
                 if (status.phase != ExecutionPhase.idle && totalSteps > 1) ...[
                   const SizedBox(height: AppSpace.xxl),
@@ -211,7 +203,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   ),
                 ],
 
-                // ── 누를 순서(세로, 크게) ─────────────────────────────────
+                // 누를 순서(세로, 크게)
                 // 버튼 목록이 없는 실행(서버가 이름을 미리 주지 않음)에도 진행 아래가 비지 않게(출시 검토 10/18 — 아래 60%가
                 // 비었다). 키오스크 '누를 순서'와 같은 뜻: 끝낸 칸 ✓, 지금 칸은 지금 버튼 이름, 남은 칸은 번호만(이름을 지어내지 않는다).
                 if (status.phase != ExecutionPhase.idle &&
@@ -241,11 +233,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     ),
                 ],
 
-                // ── 실제 버튼판에서 지금 어디인가 ──────────────────────────
-                // 이 제품이 하는 일은 실제 버튼을 누르는 것이다. 이름 목록만
-                // 있으면 '앱이 돌다 끝나는 화면'과 구별되지 않는다 -- 가전의
-                // 버튼판 위에 지금 누르는 자리를 보여준다. 대상 가전을 모르면
-                // (지웠거나 구버전 서버) 배치를 지어내지 않고 목록만 둔다.
+                // 실제 버튼판에서 지금 어디인가
+                // 버튼판에 현재 누르는 위치를 표시한다. 대상 가전을 모르면
+                // (삭제됐거나 구버전 서버인 경우) 배치를 추정하지 않고 목록만 표시한다.
                 // 스크린리더에는 위의 실시간 안내와 아래 목록이 같은 말을
                 // 이미 하므로, 그림은 읽지 않는다.
                 // ThinQ 가전은 누를 버튼판이 없다 — 그리지 않는다(2026-10-15).
@@ -267,7 +257,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   ),
                 ],
 
-                // ── 단계 목록 ─────────────────────────────────────────────
+                // 단계 목록
                 // ThinQ 한 단계는 제목과 같은 말이라 목록을 되풀이하지 않는다(외부 평가 10/16 p08).
                 if (status.steps.length > 1 ||
                     (status.steps.isNotEmpty && target?.isThinq != true)) ...[
@@ -291,12 +281,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     ),
                 ],
 
-                // ── 센서 기록 (접힘) ───────────────────────────────────────
+                // 센서 기록 (접힘)
                 //
-                // 실행 중에 사용자가 판단해야 하는 것은 mA·dB 값이 아니라
-                // **눌림을 확인했는가**다. 차트를 위에 크게 두면 화면이 기술
-                // 데모 대시보드가 되고, 이 제품의 논지(실제로 누르고 센서로
-                // 확인한다)가 숫자 뒤로 밀린다. 근거가 필요한 사람은 펼친다.
+                // 눌림 확인 결과를 먼저 보여 주고, mA·dB 측정 근거는 펼쳐 볼 수 있게 둔다.
                 if (hasRawSensor) ...[
                   const SizedBox(height: AppSpace.xl),
                   _SensorRecord(
@@ -332,7 +319,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
             ),
           ),
 
-          // ── 하단 고정 조작 영역 ──────────────────────────────────────
+          // 하단 고정 조작 영역
           // 정지는 스크롤 안에 두면 안 된다. 큰 글씨에서는 화면 밖으로
           // 밀리고, 정작 급한 순간(동작을 확인할 수 없을 때)에 손이 닿지
           // 않는다. 센서 카드 아래가 아니라 항상 같은 자리에 둔다.
@@ -373,10 +360,8 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
     );
   }
 
-  /// 다시 실행을 권해도 되는가. 실패는 **미전송 근거(not_dispatched)가 있을 때만** — 접수된 뒤 일부를 누르고
-  /// 실패했을 수 있어 일괄 재시도 권고는 이미 한 조작을 되풀이하게 한다(외부 평가 2026-10-13 M4).
-  /// 안전 정지는 종전대로(가전을 확인한 뒤).
-  /// 모션 걸림·재시작 등(abortReason)은 권하지 않는다 — 장치를 먼저 봐야 하고 같은 조작을 되풀이하면 또 걸린다(2026-10-14).
+  /// 재실행은 미전송이 확인된 실패에만 권한다.
+  /// 일부 실행 가능성이 있거나 모션 중단 원인이 있으면 중복 동작 위험 때문에 권하지 않는다.
   bool _retryAdvised(ExecutionStatus status) => switch (_kindOf(status)) {
         ResultKind.safetyStop => status.abortReason == null,
         ResultKind.failed => status.receipt == 'not_dispatched',
@@ -399,7 +384,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
           : readableStep(code);
 }
 
-// ── 끝난 실행의 경로·확인 수준 ──────────────────────────────────────────
+// 끝난 실행의 경로·확인 수준
 
 bool _finished(ExecutionPhase p) =>
     p == ExecutionPhase.completed ||
@@ -416,11 +401,8 @@ ResultKind _kindOf(ExecutionStatus s) => s.outcome != null
 
 /// 결과 한 단어 · 경로 · 확인 수준. 옛 서버(필드 없음)면 결과 단어만 남는다.
 ///
-/// 물리 경로 칩은 두지 않는다 — 결과 문장("버튼 조작을 마쳤어요"·"누름 장치가
-/// 응답했어요")이 이미 말한다(2026-10-13, 기록 문구 규칙과 같은 원칙). ThinQ는
-/// 결과 문장만으로 경로가 드러나지 않을 수 있어 남긴다.
-/// 낭독 문장 잇기. 이미 마침표·물음표로 끝난 문장 뒤에는 '. '를 또 붙이지 않는다 — '…않았어요.. 됐어요'처럼
-/// 점이 겹쳤다(2026-10-19 에뮬레이터 점검).
+/// 물리 경로는 결과 문장이 이미 설명하므로 칩을 생략한다. ThinQ 경로는 칩을 유지한다.
+/// 낭독 문장을 이을 때 기존 문장부호를 중복하지 않는다.
 String _joinSentence(String acc, String part) {
   if (acc.isEmpty) return part;
   return RegExp(r'[.?!…]$').hasMatch(acc.trimRight()) ? '${acc.trimRight()} $part' : '$acc. $part';
@@ -564,8 +546,8 @@ class _RunSteps extends ConsumerWidget {
 /// 실행 환경을 판정보다 먼저 본다 — 모의 실행의 true는 모의 판정일 뿐이다
 /// (10/6 Copilot 리뷰 66990be).
 ///
-/// 외부 평가 2026-10-13 M5: 실물 모션이어도 L3 판정의 입력은 따로 모의일 수 있다(RPi4 `L3_MODE=mock`).
-/// 그래서 **판정 출처가 real일 때만** 실제 동작을 확인했다고 말한다. mock이면 모의 판정, 출처를 모르면 단정하지 않는다.
+/// 판정 출처가 `real`일 때만 실제 동작을 확인했다고 표시한다.
+/// 모의 판정과 출처 불명은 실제 확인으로 취급하지 않는다.
 String? operationSentence(ExecutionStatus s) => switch (s.operationConfirmed) {
       true when s.isDemo || s.executionMode == 'mock' =>
         '연습이라 실제 가전은 보지 않았어요',
@@ -633,7 +615,7 @@ class _OperationLine extends StatelessWidget {
   }
 }
 
-// ── 지금 상태 ─────────────────────────────────────────────────────────────
+// 지금 상태
 
 /// 화면이 가장 크게 말할 한 줄과 그 근거.
 ///
@@ -769,8 +751,7 @@ class _NowState {
           headline: '자리를 맞춰 다시 누르고 있어요',
           detail: evidence.isEmpty ? null : evidence,
           tone: _Tone.caution,
-          // '재시도'는 실패로 읽힌다. 눌림이 확인되지 않아 자리를 다시
-          // 맞추고 누르는 것은 이 제품이 하기로 한 일이다.
+          // 눌림 미확인에 따른 위치 보정·재누름을 최종 실패와 구분해 안내한다.
           retryNote: '눌렸는지 확인하지 못했어요.',
         );
       case ExecutionPhase.completed:
@@ -968,7 +949,7 @@ class _MoreChecksState extends State<_MoreChecks> {
       );
 }
 
-// ── 대상 가전 한 줄 ───────────────────────────────────────────────────────
+// 대상 가전 한 줄
 
 class _TargetLine extends StatelessWidget {
   const _TargetLine({required this.appliance});
@@ -990,7 +971,7 @@ class _TargetLine extends StatelessWidget {
       );
 }
 
-// ── 구간형 진행 ───────────────────────────────────────────────────────────
+// 구간형 진행
 
 /// N칸 중 K칸. 채운 칸은 완료, 지금 칸은 테두리로 구분, 나머지는 비움.
 /// 색을 빼도 채움/테두리/비움 세 가지가 남는다.
@@ -1054,7 +1035,7 @@ class _SegmentedProgress extends StatelessWidget {
   }
 }
 
-// ── 단계 행 ───────────────────────────────────────────────────────────────
+// 단계 행
 
 enum _StepState { done, current, pending }
 
@@ -1131,7 +1112,7 @@ class _StepRow extends StatelessWidget {
   }
 }
 
-// ── 정지 영역 ─────────────────────────────────────────────────────────────
+// 정지 영역
 
 /// 긴급 정지는 색뿐 아니라 **정지 기호·두꺼운 외곽선·격리된 자리**로
 /// 구분한다. 흑백에서 '다시 확인'과 같은 회색 막대 둘로 보이면, 급한 순간에
@@ -1225,7 +1206,7 @@ Widget _sensorPair({required bool stacked, required List<Widget> children}) {
       crossAxisAlignment: CrossAxisAlignment.start, children: unwrapped);
 }
 
-// ── 센서 바차트 카드 ──────────────────────────────────────────────────────
+// 센서 바차트 카드
 
 /// 센서 기록 — 평상시 접혀 있고, 근거가 필요할 때만 편다.
 class _SensorRecord extends StatefulWidget {

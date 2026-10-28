@@ -131,9 +131,7 @@ class CurrentSensor:
         self._baseline_a = 0.0
         self._opened_at = 0.0
 
-    # ------------------------------------------------------------------
     # Public API
-    # ------------------------------------------------------------------
 
     def read_current_a(self) -> float:
         """Return the instantaneous current in amperes."""
@@ -241,9 +239,7 @@ class CurrentSensor:
         for _ in range(n):
             self._window.append(self.read_current_a())
 
-    # ------------------------------------------------------------------
     # Internal helpers
-    # ------------------------------------------------------------------
 
     def _collect(self, generation: int, halt: threading.Event, opened_at: float) -> None:
         deadline = opened_at + self._cfg.max_window_s

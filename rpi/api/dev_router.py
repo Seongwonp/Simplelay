@@ -88,7 +88,7 @@ def _error(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, "message": message})
 
 
-# ── API 층 상태(소유권·빈도) ────────────────────────────────────────────────
+# API 층 상태(소유권·빈도)
 
 
 class DevApiState:
@@ -155,7 +155,7 @@ def _api_state() -> DevApiState:
     return get_dev_api_state()
 
 
-# ── 접근 제한 의존성 ────────────────────────────────────────────────────────
+# 접근 제한 의존성
 
 
 def require_dev_access(
@@ -233,7 +233,7 @@ def _require_owner(
         raise _error(403, "not_session_owner", "이 세션을 연 기기에서만 사용할 수 있습니다")
 
 
-# ── 요청·응답 모델 ──────────────────────────────────────────────────────────
+# 요청·응답 모델
 
 
 class DevSessionStartRequest(BaseModel):
@@ -416,7 +416,7 @@ def _raise_for_result(result: DevResult) -> None:
     raise HTTPException(status_code=status, detail=detail)
 
 
-# ── 라우터 ──────────────────────────────────────────────────────────────────
+# 라우터
 
 # 모든 엔드포인트가 동기 함수다 -- FastAPI가 스레드풀에서 돌려, 매니저의
 # 락·어댑터 호출이 이벤트 루프(SSE·다른 API)를 막지 않는다.
@@ -501,7 +501,7 @@ def dev_command(
     is_stop = body.text.strip().lower() == "stop"
     request_id = body.request_id or uuid.uuid4().hex[:12]
     if not is_stop:
-        # 정지는 빈도·중복 검사에서 뺀다 -- 멈추라는 말은 언제나 통한다.
+        # 정지 요청은 명령 빈도 제한과 중복 검사에서 제외한다.
         state = _api_state()
         if not state.commands.allow(session_id):
             raise _error(429, "rate_limited", "명령이 너무 잦습니다")

@@ -128,7 +128,7 @@ class ButtonKind(str, Enum):
         raise ValueError(f"unknown button kind '{raw}' (button|dial)")
 
 
-# ── 버튼맵 확장 필드의 물리 상한 — 설계 초기값, 하드웨어 실측 후 조정 ──────────
+# 버튼맵 확장 필드의 물리 상한 — 설계 초기값, 하드웨어 실측 후 조정
 #: 누름 유지 시간(ms). 짧으면 접점이 안 붙고, 길면 '길게 누르기' 기능이 된다.
 PRESS_MS_RANGE = (30, 3000)
 #: 갠트리 좌표(mm). 프레임 안쪽만 의미가 있다 -- 음수·무한대는 계산 오류다.
@@ -253,7 +253,7 @@ class ApplianceDef:
     #: ``thinq`` 등록 정보(기기 ID·동작 대응표)로만 실행한다.
     control_path: ControlRoute = ControlRoute.PHYSICAL
     thinq: "ThinqBinding | None" = None
-    # ── 정지 대기·보관(2026-09-30, rpi/services/stop_park.py가 검증) ──
+    # 정지 대기·보관(2026-09-30, rpi/services/stop_park.py가 검증)
     #: 정지(취소) 버튼 id. 실행이 끝나고 가전이 동작하는 동안 캐리지가 이 버튼 위에서 기다린다.
     stop_button: str | None = None
     #: 정지까지 누를 횟수 1~3(예: 전자레인지 1회 일시정지·2회 취소).
@@ -293,7 +293,7 @@ class ApplianceDef:
         return self.category.value
 
 
-# ── 내장 가전 — docs/button-maps/*.json과의 일치를 테스트가 고정한다 ─────────
+# 내장 가전 — docs/button-maps/*.json과의 일치를 테스트가 고정한다
 BUILTIN_MICROWAVE = ApplianceDef(
     appliance_id="microwave",
     name="전자레인지",
@@ -700,7 +700,7 @@ class ApplianceRegistry:
             )
             # DB를 먼저 커밋한다 — 메모리를 먼저 바꾸면 DB 실패(500) 시
             # "지금은 조회되는데 재시작하면 사라지는" 가전이 생긴다
-            # (교차 리뷰 #2). DB가 던지면 메모리는 그대로라 상태가 일치한다.
+            # DB 쓰기가 실패하면 메모리는 그대로여서 상태가 어긋나지 않는다.
             if self._store is not None:
                 self._store.save_appliance(stamped)
             with self._mem_lock:

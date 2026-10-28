@@ -125,7 +125,7 @@ class ActClientConfig:
     response_timeout_seconds: float = 30.0
     # 버튼 1개당 추가 여유 — 실기기에서 버튼 하나는 이동+누름+검증+재시도
     # (최대 3회)로 수 초가 걸린다. 고정 30s는 6버튼 이상 시퀀스가 정상
-    # 진행 중인데도 timeout으로 오판되는 원인이었다(교차 리뷰 #6).
+    # 진행 중인 실행을 timeout으로 오판하지 않도록 한다.
     #
     # 기본 6초는 실측이 아닌 설계 추정치다. 실기기에서 (이동 최악값 + 누름 +
     # 센서 판정 창 + 재시도 3회)의 p95를 재서 SIMPLELAY_UART_PER_BUTTON_TIMEOUT
@@ -455,7 +455,7 @@ class ActClient:
     #: hello를 보낸 뒤 서명된 답을 이만큼 기다리고, 없으면 인증 실패로 보고 늘어나는 간격으로 다시 보낸다.
     AUTH_REPLY_TIMEOUT_S = 3.0
 
-    # ── Public API ───────────────────────────────────────────────────────────
+    # Public API
 
     async def start(self) -> None:
         """Start the background read loop. Call once before execute()/abort()."""
@@ -611,7 +611,7 @@ class ActClient:
         confirmed, detail, source = parse_operation(doc)
         if reported is None and confirmed is not None:
             # 옛 RPi4(결과에 대상 없음)의 L3는 어느 가전 채널로 본 것인지 모른다 — 확인으로 쓰지 않고 '모름'으로
-            # 낮춘다(교차 리뷰 92876bd: 전자레인지 CT 확인이 세탁기를 확인하지 않게).
+            # 낮춘다. 전자레인지 CT 확인이 세탁기를 확인해서는 안 된다.
             log.warning("ActClient: result %r has no appliance_id (old RPi4) — operation_confirmed %r "
                         "treated as unknown", seq_id, confirmed)
             confirmed = None
@@ -806,7 +806,7 @@ class ActClient:
         동기 브리지(ActClientController)가 자기 대기 시간을 여기에 맞춘다."""
         return self._cfg.timeout_for(button_count)
 
-    # ── Background read loop ────────────────────────────────────────────────
+    # Background read loop
 
     async def _read_loop(self) -> None:
         """줄을 읽는다. 끊기면(EOF·읽기 오류) 끊김으로 표시하고, ``connector``가 있으면 다시 잇는다."""
@@ -1065,7 +1065,7 @@ class ActClient:
             self._on_alert(event)
         # "ack" and unknown types: recorded by the tap only, otherwise ignored.
 
-    # ── IO helper ────────────────────────────────────────────────────────────
+    # IO helper
 
     async def _send(self, doc: dict) -> None:
         if not self.link_up:
@@ -1100,7 +1100,7 @@ class ActClient:
             raise
 
 
-    # ── 링크 인증(2026-10-12) ───────────────────────────────────────────────────
+    # 링크 인증(2026-10-12)
 
     def _signed_hello(self) -> dict:
         assert self._link_key is not None

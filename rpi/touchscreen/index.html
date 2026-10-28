@@ -31,7 +31,7 @@
       font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
     }
 
-    /* ── 화면 전환 ─────────────────────────────────────────────────── */
+    /* 화면 전환 */
     .screen {
       position: absolute; inset: 0;
       display: flex;
@@ -41,7 +41,7 @@
     }
     .screen.active { opacity: 1; pointer-events: all; }
 
-    /* ── 상단 진행 바 ──────────────────────────────────────────────── */
+    /* 상단 진행 바 */
     #topBar {
       position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 99;
     }
@@ -50,9 +50,7 @@
       width: 0%; transition: width 0.5s ease;
     }
 
-    /* ════════════════════════════════════════════════════════════════
-       1. 대기 화면
-    ════════════════════════════════════════════════════════════════ */
+    /* 대기 화면 */
     #idle {
       flex-direction: column;
       align-items: center;
@@ -105,9 +103,7 @@
       pointer-events: none;
     }
 
-    /* ════════════════════════════════════════════════════════════════
-       2. 제안 화면
-    ════════════════════════════════════════════════════════════════ */
+    /* 제안 화면 */
     #suggestion { flex-direction: row; }
 
     /* 좌측 — 텍스트 + 버튼 */
@@ -220,9 +216,7 @@
       font-size: 9px; font-weight: 800; color: #000;
     }
 
-    /* ════════════════════════════════════════════════════════════════
-       3. 실행 중 화면
-    ════════════════════════════════════════════════════════════════ */
+    /* 실행 중 화면 */
     #executing { flex-direction: row; }
 
     /* 좌측 — 진행 */
@@ -347,9 +341,7 @@
     }
     .btn-stop:active { background: rgba(239,68,68,0.24); }
 
-    /* ════════════════════════════════════════════════════════════════
-       4. 완료 화면
-    ════════════════════════════════════════════════════════════════ */
+    /* 완료 화면 */
     #done {
       flex-direction: column;
       align-items: center; justify-content: center; gap: 10px;
@@ -386,7 +378,7 @@
 <!-- 상단 진행 바 -->
 <div id="topBar"><div id="topBarFill"></div></div>
 
-<!-- ── 1. 대기 ───────────────────────────────────────────────────── -->
+<!-- 대기 -->
 <div class="screen active" id="idle">
   <div class="idle-clock-bg" id="idleClock">00:00</div>
 
@@ -416,7 +408,7 @@
   </div>
 </div>
 
-<!-- ── 2. 제안 ───────────────────────────────────────────────────── -->
+<!-- 제안 -->
 <div class="screen" id="suggestion">
   <div class="sug-left">
     <div class="sug-tag">✦&nbsp;AI 제안</div>
@@ -449,7 +441,7 @@
   </div>
 </div>
 
-<!-- ── 3. 실행 중 ─────────────────────────────────────────────────── -->
+<!-- 실행 중 -->
 <div class="screen" id="executing">
   <div class="exec-left">
     <div class="exec-header">
@@ -505,7 +497,7 @@
   </div>
 </div>
 
-<!-- ── 4. 완료 ───────────────────────────────────────────────────── -->
+<!-- 완료 -->
 <div class="screen" id="done">
   <div class="done-ring ok" id="doneRing">✓</div>
   <div class="done-title ok" id="doneTitle">완료</div>
@@ -516,13 +508,12 @@
 </div>
 
 <script>
-// ── 설정 ──────────────────────────────────────────────────────────────────
 const POLL_MS          = 2000;
 const COUNTDOWN_SEC    = 10;
 const DONE_RETURN_MS   = 3000;
 const EXEC_BAR_FILL_SEC = 9;   // 승인 후 가짜 진행 바 채우는 초
 
-// ── 가전 데이터 (Flutter 앱과 동기화) ────────────────────────────────────
+// 가전 데이터 (Flutter 앱과 동기화)
 const APPLIANCES = {
   microwave: {
     name: '전자레인지', rows: 4, cols: 3,
@@ -556,7 +547,6 @@ const APPLIANCES = {
   },
 };
 
-// ── 상태 ──────────────────────────────────────────────────────────────────
 let state              = 'idle';      // idle | suggestion | executing | done
 let currentSuggestion  = null;
 let currentAppliance   = APPLIANCES.microwave;
@@ -565,7 +555,6 @@ let countdownTimer     = null;
 let cdRemaining        = COUNTDOWN_SEC;
 let pollTimer          = null;
 
-// ── 유틸 ──────────────────────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 4000);
@@ -588,7 +577,6 @@ function setTopBar(pct) {
   document.getElementById('topBarFill').style.width = `${pct}%`;
 }
 
-// ── 시계 ──────────────────────────────────────────────────────────────────
 function tick() {
   const d = new Date();
   const t = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
@@ -598,7 +586,6 @@ function tick() {
 tick();
 setInterval(tick, 1000);
 
-// ── 헬스 체크 ─────────────────────────────────────────────────────────────
 async function checkHealth() {
   try {
     const r = await apiFetch('/health');
@@ -611,7 +598,6 @@ async function checkHealth() {
   }
 }
 
-// ── 버튼 맵 그리드 렌더링 ─────────────────────────────────────────────────
 function renderGrid(appliance, highlightIds = []) {
   const grid = document.getElementById('btnGrid');
   grid.style.gridTemplateColumns = `repeat(${appliance.cols}, 1fr)`;
@@ -654,7 +640,6 @@ function renderGrid(appliance, highlightIds = []) {
     `${appliance.name} 버튼 배치`;
 }
 
-// ── 단계 목록 렌더링 ──────────────────────────────────────────────────────
 function renderSteps(buttons, running) {
   // buttons: [{button, success}] or [] while pending
   const list = document.getElementById('stepsList');
@@ -696,7 +681,6 @@ function renderSteps(buttons, running) {
   setTopBar(running ? pct * 0.8 : 100);
 }
 
-// ── 카운트다운 ────────────────────────────────────────────────────────────
 function startCountdown() {
   cdRemaining = COUNTDOWN_SEC;
   document.getElementById('cdSec').textContent  = cdRemaining;
@@ -718,7 +702,6 @@ function startCountdown() {
   }, 1000);
 }
 
-// ── 화면 전환 함수 ────────────────────────────────────────────────────────
 function toIdle() {
   clearInterval(countdownTimer);
   state = 'idle';
@@ -790,7 +773,6 @@ function toDone(success, label, buttons = []) {
   setTimeout(toIdle, DONE_RETURN_MS);
 }
 
-// ── 센서 업데이트 ─────────────────────────────────────────────────────────
 function updateSensor(type, value) {
   if (value == null) return;
   if (type === 'ma') {
@@ -808,7 +790,6 @@ function updateSensor(type, value) {
   }
 }
 
-// ── 폴링 ──────────────────────────────────────────────────────────────────
 async function poll() {
   if (state === 'idle') {
     try {
@@ -848,7 +829,6 @@ async function poll() {
   }
 }
 
-// ── 버튼 이벤트 ───────────────────────────────────────────────────────────
 document.getElementById('btnApprove').addEventListener('click', async () => {
   if (!currentSuggestion) return;
   clearInterval(countdownTimer);
@@ -897,7 +877,6 @@ document.getElementById('btnStop').addEventListener('click', async () => {
   toDone(false, execTitle || '실행');
 });
 
-// ── 초기화 ────────────────────────────────────────────────────────────────
 checkHealth();
 poll();
 setInterval(poll, POLL_MS);

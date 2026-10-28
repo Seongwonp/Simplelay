@@ -129,7 +129,7 @@ class PlatformAgent:
     def enabled(self) -> bool:
         return self._adapter is not None
 
-    # ── 실패 처리: 처음 한 번만 경고, 그 뒤엔 쉬었다가 ──
+    # 실패 처리: 처음 한 번만 경고, 그 뒤엔 쉬었다가
 
     def _blocked(self) -> bool:
         return self._now() < self._retry_at
@@ -146,7 +146,7 @@ class PlatformAgent:
             log.info("플랫폼 AI 에이전트 다시 연결됨")
         self._failing = False
 
-    # ── 보내기 ──
+    # 보내기
 
     def set_people_count(self, n: int) -> bool:
         """사람 수를 보낸다 — 바뀔 때만, 10초에 한 번까지. 보냈으면 True(안 보냈거나 실패하면 False)."""
@@ -171,7 +171,7 @@ class PlatformAgent:
             self._last_sent, self._last_sent_at = n, now
             return True
 
-    # ── 읽기 ──
+    # 읽기
 
     def snapshot(self) -> dict:
         """{weather: dict|None, suggestion: str|None, available: bool} — 30초 동안은 지난 값을 준다."""

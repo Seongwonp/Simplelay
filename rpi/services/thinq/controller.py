@@ -1,12 +1,9 @@
 """ThinQ 경로 실행기 — ``Command`` → 클라이언트 제어 호출 → ``CommandResult``.
 
-**왜 ``ButtonSequenceController``를 구현하지 않나.** 그 프로토콜은
-``execute(buttons)``이고, 동작명을 버튼 라벨 자리에 밀어 넣으면 풍량·온도처럼
-인자와 허용값이 있는 동작을 표현할 수 없다(계약 §2·§7 "문자열 동작명 금지").
-그래서 옆에 ``CommandController``(``execute_command(cmd) -> CommandResult``)를 둔다.
-서비스의 잠금·이력·정지 흐름은 그대로 재사용한다.
+풍량·온도처럼 인자와 허용값이 있는 동작을 표현하기 위해
+``ButtonSequenceController`` 대신 ``CommandController``를 사용한다.
 
-확인 수준(계약 §3, 9/27 결정 1 — 수신과 확인을 분리):
+수신 여부와 상태 확인은 분리한다.
 
 | 상황                                              | status      | receipt        | confirmation     |
 |---------------------------------------------------|-------------|----------------|------------------|
@@ -18,17 +15,10 @@
 | 클라우드가 거절 응답                               | failed      | accepted       | none             |
 | 보내기 전에 미연결 확인 / 정지로 전송 취소          | failed/stopped | not_dispatched | none          |
 
-``unconfirmed``는 실패가 아니다. 자동으로 다시 보내지 않는다(중복 실행).
-
-이미 목표값(2026-10-14 보드 날 발견 3): 보내기 전 조회에서 확인할 속성이 이미 목표값이면 보내지 않고
-``already_at_target``("이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요.")로 끝낸다. 조회가 실패했거나 값이
-없으면(불확실) 보내고(최대 1회), 보낸 뒤 목표값이면 ``state_confirmed_unknown_before``("강풍으로 설정된 것을
-확인했어요." — '바꿨어요' 금지). 정지(미전송 취소)·전송 직전 재판정·전송권 확인을 모두 지난 뒤에만 이 결과를 낸다.
-문장은 :mod:`.wording`.
-
-정지(결정 5): ``request_stop()``은 **아직 보내지 않은** 명령만 취소한다. 이미 보낸
-명령은 취소할 수 없으므로 ``sent_uncancellable``로 보고하고, 확인 대기만 끊는다.
-가전 운전 정지(전원 끄기) 명령은 자동으로 보내지 않는다 -- 그것은 별도 승인 동작이다.
+``unconfirmed``는 실패가 아니며 중복 실행을 막기 위해 자동 재전송하지 않는다.
+이미 목표 상태면 전송하지 않고 ``already_at_target``으로 끝낸다. 사전 상태를
+모르면 한 번만 보내고 확인 결과를 ``state_confirmed_unknown_before``로 구분한다.
+``request_stop()``은 미전송 명령만 취소하며 이미 보낸 명령은 끄지 않는다.
 """
 
 from __future__ import annotations
@@ -228,7 +218,7 @@ class ThinqController:
             return self.execution_mode
         return getattr(self._client_for(binding.device_id), "execution_mode", ExecutionMode.UNKNOWN)
 
-    # ── 준비 상태 ─────────────────────────────────────────────────────────
+    # 준비 상태
     def readiness(self, appliance_id: str) -> ThinqReadiness:
         binding = self._binding_of(appliance_id)
         if binding is None:
@@ -292,7 +282,7 @@ class ThinqController:
         cached = getattr(client, "cached_status", None)
         return cached(device_id) if cached is not None else client.get_status(device_id)
 
-    # ── 프로필 ────────────────────────────────────────────────────────────
+    # 프로필
     def _profile(self, device_id: str) -> DeviceProfile | None:
         """기기 프로필. 클라이언트가 프로필을 주지 않으면 None(판정 생략 -- 옛 대역 호환)."""
         get_profile = getattr(self._client_for(device_id), "get_profile", None)
@@ -332,7 +322,7 @@ class ThinqController:
             support[cap.action] = {"property": key, "allowed": allowed}
         return support
 
-    # ── 정지 ──────────────────────────────────────────────────────────────
+    # 정지
     def reset_stop(self) -> None:
         with self._lock:
             self._cancel = False
@@ -348,7 +338,7 @@ class ThinqController:
                 return StopOutcome.SENT_UNCANCELLABLE
             return StopOutcome.IDLE
 
-    # ── 실행 ──────────────────────────────────────────────────────────────
+    # 실행
     def _result(self, command, status, receipt, confirmation, detail, requested_at,
                 accepted_at=None, confirmed_at=None, provider_ref=None, stop_requested=False):
         return CommandResult(
@@ -452,7 +442,7 @@ class ThinqController:
                 return self._result(command, failed, not_sent, none,
                                     f"{reason} {NOT_SENT_RESULT}", requested_at)
 
-        # 3) 전송 직전 재판정(3차 평가 H1) -- 위 조회를 기다리는 동안 자동 실행 규칙이 꺼지거나 바뀌거나 지워졌으면,
+        # 3) 전송 직전 재판정 -- 위 조회를 기다리는 동안 자동 실행 규칙이 꺼지거나 바뀌거나 지워졌으면,
         #    또는 대상 바인딩이 판단 때와 다르면 보내지 않는다. 메모리 판정만(입출력 없음), 이 실행기 잠금 밖.
         commit = None
         if dispatch_guard is not None:

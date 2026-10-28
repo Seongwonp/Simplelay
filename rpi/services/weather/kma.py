@@ -151,7 +151,7 @@ class Forecast:
         )
 
 
-# ── 발표 시각 ────────────────────────────────────────────────────────────────
+# 발표 시각
 
 
 def base_datetime(now: datetime) -> datetime:
@@ -174,7 +174,7 @@ def base_params(now: datetime) -> tuple[str, str]:
     return b.strftime("%Y%m%d"), b.strftime("%H%M")
 
 
-# ── 요청 ────────────────────────────────────────────────────────────────────
+# 요청
 
 
 def encode_service_key(key: str) -> str:
@@ -224,7 +224,7 @@ def urllib_get(url: str, timeout: float) -> tuple[int, bytes]:
         raise KmaError("network", None, type(exc).__name__) from None
 
 
-# ── 응답 해석 ────────────────────────────────────────────────────────────────
+# 응답 해석
 
 
 def _xml_error(text: str) -> KmaError:
@@ -356,7 +356,7 @@ def fetch_forecast(
     raise AssertionError("unreachable")
 
 
-# ── 리허설용 고정 예보 ────────────────────────────────────────────────────────
+# 리허설용 고정 예보
 
 # (시, 기온, 강수확률, 강수형태, 하늘) -- 맑은 아침 → 흐려지다 오후 3시부터 비.
 _MOCK_DAY = (

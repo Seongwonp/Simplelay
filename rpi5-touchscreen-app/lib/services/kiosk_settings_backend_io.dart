@@ -47,8 +47,8 @@ class SettingsBackend {
     final tmp = File('${_file.path}.tmp');
     try {
       tmp.writeAsStringSync(json, flush: true);
-      // 직전 성공본을 백업으로 남긴 뒤 교체 — rename은 같은 파일시스템에서
-      // 원자적이라 "둘 중 하나는 온전한 파일"이 항상 보장된다.
+      // 직전 파일을 백업한 뒤 같은 파일시스템의 임시 파일을 rename해 교체한다.
+      // 쓰기·복사·rename 실패는 호출자에게 전달한다.
       if (_file.existsSync()) {
         _file.copySync('${_file.path}.bak');
       }

@@ -166,7 +166,7 @@ async def routine_templates() -> list[dict]:
     return template_payloads()
 
 
-# ── 사용 기록 → 루틴 초안(2026-10-14, 4번) — 저장만 한다(실행·카드·자동 실행 허용 없음) ──
+# 사용 기록 → 루틴 초안(2026-10-14, 4번) — 저장만 한다(실행·카드·자동 실행 허용 없음)
 
 
 def _candidate_error(exc) -> HTTPException:
@@ -238,7 +238,7 @@ async def routine_trigger_log() -> list[dict]:
     return (await _routine_engine()).recent_log()
 
 
-# ── 자동 실행 허용 규칙(2026-10-13, 시연 v4) ─────────────────────────────────
+# 자동 실행 허용 규칙(2026-10-13, 시연 v4)
 # 규칙은 제안 카드에서만 생긴다(빈 폼 없음). 목록에서는 끄기·켜기(다시 허용)·설정값 바꾸기·삭제만.
 
 

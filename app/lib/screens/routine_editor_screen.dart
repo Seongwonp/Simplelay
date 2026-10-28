@@ -139,7 +139,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
             const SizedBox(height: AppSpace.md),
           ],
 
-          // ── 문장 카드 ───────────────────────────────────────────────────
+          // 문장 카드
           Container(
             padding: const EdgeInsets.all(AppSpace.lg),
             decoration: BoxDecoration(
@@ -195,7 +195,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           ),
           const SizedBox(height: AppSpace.lg),
 
-          // ── 실행 방식 ───────────────────────────────────────────────────
+          // 실행 방식
           const Text('실행 방식',
               style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpace.sm),
@@ -351,7 +351,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
     }
   }
 
-  // ── 편집 동작 ─────────────────────────────────────────────────────────
+  // 편집 동작
 
   Future<void> _rerecord(int index, ApplianceMap a) async {
     final buttons = await context.push<List<String>>('/routine/record/${a.id}');
@@ -540,7 +540,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
     }
   }
 
-  // ── 서버 ──────────────────────────────────────────────────────────────
+  // 서버
 
   Future<void> _save() async {
     if (!_whenChosen) {
@@ -657,7 +657,7 @@ String routineEnableNote(Routine r, {required bool auto}) {
   return '끄면 때가 되어도 묻지 않아요';
 }
 
-// ── 문장 조각 ─────────────────────────────────────────────────────────────
+// 문장 조각
 
 class _Line extends StatelessWidget {
   const _Line({required this.keyWord, required this.child, this.trailing});
@@ -739,7 +739,7 @@ class _Token extends StatelessWidget {
   }
 }
 
-// ── '언제' 고르기 ─────────────────────────────────────────────────────────
+// '언제' 고르기
 
 class _TriggerSheet extends StatefulWidget {
   const _TriggerSheet({required this.initial, required this.appliances});

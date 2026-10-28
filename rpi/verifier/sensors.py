@@ -58,9 +58,6 @@ class SensorVerifier(Verifier):
         self._current = CurrentSensor(current_reader, cfg.current, clock=clock)
         self._audio = AudioSensor(audio_reader, cfg.audio, clock=clock)
 
-    # ------------------------------------------------------------------
-    # 누름 관측 구간
-    # ------------------------------------------------------------------
 
     def begin_press(self, button: str) -> None:  # noqa: ARG002
         """누르기 직전 — 전류 기준선을 잡고, 그때까지 쌓인 소리를 버린다."""
@@ -76,9 +73,7 @@ class SensorVerifier(Verifier):
         self._current.cancel_window()
         self._audio.cancel_window()
 
-    # ------------------------------------------------------------------
     # Verifier protocol
-    # ------------------------------------------------------------------
 
     def verify(self, button: str) -> VerificationResult:
         """누름 구간을 닫고 두 센서 증거를 합친다.
