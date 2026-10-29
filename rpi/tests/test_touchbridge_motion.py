@@ -397,6 +397,46 @@ def test_position_error_keeps_the_reported_position_for_the_operator(rig):
     assert client.last_position == {"x_mm": 2.9, "y_mm": 6.1}
 
 
+def test_settle_fault_trace_keeps_bounded_diagnostics(rig):
+    client, mcu, _ = rig
+    client.connect()
+    with ThreadPoolExecutor() as pool:
+        move = _held_move(client, mcu, pool)
+        mcu.send(mcu.move, "ERROR_POSITION", reason="SETTLE",
+                 target={"xMm": 3.0, "yMm": 4.0},
+                 position={"xMm": 2.9, "yMm": 3.8},
+                 errorMm=0.224, settleMs=1000)
+        with pytest.raises(MotionAlarm):
+            move.result(timeout=1)
+    error = [row for row in client.motion_trace() if row.get("state") == "ERROR_POSITION"][-1]
+    assert error["reason"] == "SETTLE"
+    assert error["error_mm"] == 0.224
+    assert error["settle_ms"] == 1000
+    assert error["target_x_mm"] == 3.0
+    assert error["y_mm"] == 3.8
+    assert "positionToken" not in error
+    sent = [row for row in client.motion_trace() if row.get("action") == "move_only"][-1]
+    assert sent["target_x_mm"] == 3.0
+
+
+@pytest.mark.parametrize("alarm", ["ERROR_POSITION", "ERROR_STALL", "ERROR_TIMEOUT"])
+def test_move_alarm_requires_explicit_origin_before_another_move(rig, alarm):
+    client, mcu, _ = rig
+    client.connect()
+    with ThreadPoolExecutor() as pool:
+        move = _held_move(client, mcu, pool)
+        mcu.send(mcu.move, alarm)
+        with pytest.raises(MotionAlarm):
+            move.result(timeout=1)
+    # The board can still say homed after an incomplete move. That must not
+    # restore the host's position basis or permit another motor command.
+    client.status()
+    assert not client.homed
+    with pytest.raises(MotionNotReady):
+        client.move_to(3, 4)
+    assert [c["action"] for c in mcu.commands].count("move_only") == 1
+
+
 def test_not_homed_reply_clears_the_homed_flag_without_sending_home(rig):
     client, mcu, _ = rig
     client.connect()

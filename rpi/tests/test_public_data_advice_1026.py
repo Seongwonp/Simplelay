@@ -234,9 +234,16 @@ def test_ventilation_advice_needs_every_condition(change, outcome):
 
 
 def test_warm_indoor_also_suggests_ventilation():
-    monitor, box = _advice_monitor(_vent(indoor_humidity=50.0, indoor_temp=26.0, outdoor_temp=20.0))
+    monitor, box = _advice_monitor(_vent(indoor_humidity=50.0, indoor_temp=29.0, outdoor_temp=20.0))
     monitor.check_once()
-    assert box["advice"][0][1].startswith("실내가 26도로 바깥보다 더워요. 바깥은 20도로 선선하니")
+    assert box["advice"][0][1].startswith("실내 온도는 29도예요. 바깥은 20도로 선선하니")
+
+
+@pytest.mark.parametrize('inside,outside', [(21, 13), (20, 10), (26, 20), (27, 15)])
+def test_temperature_gap_alone_does_not_mean_the_room_is_hot(inside, outside):
+    monitor, box = _advice_monitor(_vent(indoor_humidity=50, indoor_temp=inside, outdoor_temp=outside))
+    assert 'ventilate:indoor_ok' in monitor.check_once()
+    assert not box['advice']
 
 
 def test_bad_outdoor_air_says_keep_windows_closed_once():

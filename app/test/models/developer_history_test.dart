@@ -57,4 +57,26 @@ void main() {
         board: {'target_x_mm': 1.0, 'target_y_mm': 0.0}));
     expect(rows.last, '← 이동 응답 받음 · 위치 미확인');
   });
+
+  test('정착 실패 통신 기록은 목표와 측정 좌표, 오차와 시간을 보여 준다', () {
+    final text = motionTraceRow({
+      'seq': 8,
+      'generation': 2,
+      'elapsed_ms': 1400,
+      'direction': 'rx',
+      'state': 'ERROR_POSITION',
+      'commandId': 'move-8',
+      'reason': 'SETTLE',
+      'target_x_mm': 0.0,
+      'target_y_mm': 5.0,
+      'x_mm': 0.0,
+      'y_mm': 4.87,
+      'error_mm': 0.13,
+      'settle_ms': 1000,
+    });
+    expect(text, contains('정착 실패'));
+    expect(text, contains('위치 (0.0, 4.87)mm'));
+    expect(text, contains('오차 0.13mm'));
+    expect(text, contains('정착 대기 1000ms'));
+  });
 }

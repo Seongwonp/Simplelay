@@ -24,7 +24,7 @@
 - 값이 없으면 지어내지 않는다: 공기청정기 상태가 오래됐거나(``purifier_state_max_age_s``) 칸이 없으면 그 규칙은 넘어간다.
 - 습도: 공기청정기 카드(A·B·C)의 근거에는 넣지 않는다(공기청정기와 무관). 습도는 아래 조언 D가 쓴다.
 - D ``advice_ventilate`` 환기 조언(2026-10-26, **실행 없음** — '알겠어요'·'괜찮아요'만): 사람이 있고 8~21시, 실내가 습하고
-  바깥이 덜 습하거나 실내가 바깥보다 3도 넘게 따뜻하고, 비가 없고(강수형태 0·강수확률 40% 미만) 황사 특보가 없고 바깥
+  바깥이 덜 습하거나 실내 온도 기준과 실내외 온도 차를 모두 만족하고, 비가 없고(강수형태 0·강수확률 40% 미만) 황사 특보가 없고 바깥
   미세먼지(에어코리아)가 좋음·보통이면 창문 열기를 권한다. 하루 한 번.
 - E ``advice_windows_closed``: D와 같은 '창문 열 만한 때'인데 바깥 미세먼지가 나쁨 이상이면 창문을 닫아 두자고 한다. 하루 한 번.
 - 조언도 하루 묻는 상한·무시 물러서기·조용한 시간·잠시 쉬기·부재를 똑같이 따른다(제안 서비스 ``create_advice``).
@@ -113,8 +113,10 @@ class ContextRuleConfig:
     vent_humidity_pct: float = 70.0
     #: 바깥 습도가 실내보다 이만큼 낮아야 '바깥이 덜 습하다'.
     vent_humidity_gap: float = 10.0
-    #: 실내가 바깥보다 이만큼 따뜻하면 '실내가 바깥보다 덥다'. 사용자 지시 3도.
+    #: 실내 온도 기준도 만족할 때 필요한 실내외 온도 차.
     vent_temp_gap: float = 3.0
+    #: 온도 차만으로 환기를 권하지 않는다. 기존 환경 제안과 같은 제품 기본값이며 체감 온도 판정은 아니다.
+    vent_min_indoor_c: float = 28.0
     #: 바깥이 이보다 추우면 창문 열기를 권하지 않는다.
     vent_min_outdoor_c: float = 10.0
     #: 강수확률이 이 이상이면 권하지 않는다. 사용자 지시 40%.
@@ -427,7 +429,7 @@ class ContextSuggestionMonitor:
     def _window_likely(self, s: ContextSignals):
         """창문을 열 만한 때인가 — ``(이유 이름, 근거 문장, 칩)``, 아니면 ``(안 되는 이유, None, None)``.
 
-        사람이 집에 있고, 낮(8~21시), 실내가 습하고 바깥이 덜 습하거나 실내가 바깥보다 3도 넘게 따뜻하고, 바깥이 너무 춥지
+        사람이 집에 있고, 낮(8~21시), 실내가 습하고 바깥이 덜 습하거나 실내 온도 기준과 실내외 온도 차를 모두 만족하고, 바깥이 너무 춥지
         않고, 비·눈이 없고 강수확률이 낮고, 황사 특보가 없을 때. 바깥 미세먼지는 부르는 쪽(D·E)이 따로 본다."""
         c = self.config
         if s.presence != PRESENT:
@@ -445,11 +447,12 @@ class ContextSuggestionMonitor:
         humid = (s.indoor_humidity is not None and s.indoor_humidity >= c.vent_humidity_pct
                  and s.outdoor_humidity is not None
                  and s.outdoor_humidity <= s.indoor_humidity - c.vent_humidity_gap)
-        warm = s.indoor_temp is not None and s.indoor_temp >= s.outdoor_temp + c.vent_temp_gap
+        warm = (s.indoor_temp is not None and s.indoor_temp >= c.vent_min_indoor_c
+                and s.indoor_temp >= s.outdoor_temp + c.vent_temp_gap)
         if humid:
             return "humid", f"실내 습도가 {s.indoor_humidity:.0f}%로 꽤 습해요.", [f"실내 습도 {s.indoor_humidity:.0f}%"]
         if warm:
-            return "warm", f"실내가 {s.indoor_temp:.0f}도로 바깥보다 더워요.", [f"실내 {s.indoor_temp:.0f}°C"]
+            return "warm", f"실내 온도는 {s.indoor_temp:.0f}도예요.", [f"실내 {s.indoor_temp:.0f}°C"]
         return "indoor_ok", None, None
 
     def _give_advice(self, advice_id: str, title: str, text: str, chips, s: ContextSignals) -> str:

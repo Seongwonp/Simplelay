@@ -222,6 +222,12 @@ class TouchBridgeMotionClient(GrblClient):
             value = fields.get(key)
             if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,48}", value):
                 row[key] = value
+        if fields.get("reason") in ("SETTLE", "TOLERANCE"):
+            row["reason"] = fields["reason"]
+        if _number(fields.get("errorMm")) and 0 <= fields["errorMm"] <= 1000:
+            row["error_mm"] = fields["errorMm"]
+        if type(fields.get("settleMs")) is int and 0 <= fields["settleMs"] <= 60000:
+            row["settle_ms"] = fields["settleMs"]
         if type(fields.get("homed")) is bool:
             row["homed"] = fields["homed"]
         for source, prefix in (("position", ""), ("target", "target_")):
@@ -333,6 +339,13 @@ class TouchBridgeMotionClient(GrblClient):
     def _raise_error_inner(self, action: str, reply: dict, *, accepted: bool) -> None:
         state, message = reply["state"], reply.get("message", "")
         self._note_reported_position(reply)
+        if action == "move_only" and state in {"ERROR_POSITION", "ERROR_STALL", "ERROR_TIMEOUT"}:
+            # A failed move may have changed the carriage position. A later
+            # status(homed=true) cannot establish the old coordinate basis.
+            with self._lock:
+                self._origin_unverified = True
+                self._homed = False
+                self._token = None
         if action == "press":
             # The received sketch has no line-json press_outcome. Every press rejection it can send
             # (INVALID_TOKEN, AUTH_REQUIRED, ...) comes before RECEIVED; after RECEIVED/PRESSING the Bot
@@ -542,6 +555,9 @@ class TouchBridgeMotionClient(GrblClient):
     def _move(self, x_mm: float, y_mm: float) -> None:
         if not all(_number(v) for v in (x_mm, y_mm)):
             raise MotionRefused("목표는 유한한 XY 좌표여야 해요", code="bad_args")
+        with self._lock:
+            if self._origin_unverified or not self._homed:
+                raise MotionNotReady("모션 보드의 좌표 기준을 다시 확인해 주세요", code="not_homed")
         reply = self._physical("move_only", self.config.move_timeout_s,
                                target={"xMm": x_mm, "yMm": y_mm}, toleranceMm=self.config.tolerance_mm)
         pos, token = reply.get("position"), reply.get("positionToken")

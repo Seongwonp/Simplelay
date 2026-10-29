@@ -131,9 +131,15 @@ String motionTraceRow(Map<String, dynamic> row) {
   final position = x is num && y is num ? '위치 ($x, $y)mm' : '위치 미확인';
   final tx = row['target_x_mm'];
   final ty = row['target_y_mm'];
+  final reason = row['reason'];
+  final error = row['error_mm'];
+  final settle = row['settle_ms'];
   return '#${row['seq'] ?? '?'} · 기준 ${row['generation'] ?? '?'} · ${row['elapsed_ms'] ?? '?'}ms\n'
       '$direction ${row['action'] ?? row['state'] ?? ''} · ${row['commandId'] ?? '명령 번호 없음'}\n'
       '${row['context_id'] is String ? '실행·요청 ${row['context_id']}\n' : ''}'
       '${tx is num && ty is num ? '목표 ($tx, $ty)mm · ' : ''}$position'
-      '${row['homed'] is bool ? ' · 원점 ${row['homed'] == true ? '확인' : '미확인'}' : ''}';
+      '${row['homed'] is bool ? ' · 원점 ${row['homed'] == true ? '확인' : '미확인'}' : ''}'
+      '${reason == 'SETTLE' ? ' · 정착 실패' : reason == 'TOLERANCE' ? ' · 허용 오차 초과' : ''}'
+      '${error is num ? ' · 오차 ${error}mm' : ''}'
+      '${settle is int ? ' · 정착 대기 ${settle}ms' : ''}';
 }

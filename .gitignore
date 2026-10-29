@@ -52,3 +52,8 @@ dev-docs/
 *.pdf
 # Generated vendor archive; reviewed loose files and pack script are tracked.
 /housing/SimpleLay_vendor_first_print_R2.zip
+
+# 로컬 보존용 옛 원본 (깃 추적 제외)
+docs/archive/Claude-계획평가-2026-09-22.md
+docs/archive/데스크톱-Claude-인계-2026-09-22.md
+docs/devlog/devlog_2026-10-14-codex-fix.md
