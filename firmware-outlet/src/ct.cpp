@@ -173,6 +173,23 @@ bool ct_window_finish(const CtWindow& w, uint8_t ch, PowerReport* out) {
   if (w.n == 0 || ch >= OUTLET_CT_CHANNELS) return false;
   const double n = static_cast<double>(w.n);
   const double mean = static_cast<double>(w.sum_uv) / n;
+#if OUTLET_CT_SOURCE == OUTLET_CT_ESP32_ADC
+  // DFRobot SEN0211: DC 0.2V ~ 2.8V maps to 0 ~ 20A AC RMS
+  const double v_dc = mean / 1e6;  // V
+  double amps = 0.0;
+  if (v_dc > 0.20) {
+    amps = (v_dc - 0.20) * (20.0 / 2.6) * kCalGain[ch];
+  }
+  const double floor_a = kNoiseFloorA[ch];
+  amps = amps > floor_a ? sqrt(amps * amps - floor_a * floor_a) : 0.0;
+  out->ch = ch;
+  out->ct_mv_rms = static_cast<float>(mean / 1000.0);  // 실제 측정된 DC mV 표시
+  out->irms_a = static_cast<float>(amps);
+  out->watts = static_cast<float>(amps * MAINS_VRMS_EST * kPowerFactor[ch]);
+  out->n = w.n;
+  out->read_errors = w.read_errors;
+  return true;
+#else
   double var = static_cast<double>(w.sum_sq_uv) / n - mean * mean;  // DC(바이어스) 제거 = 분산
   if (var < 0.0) var = 0.0;
   const double v_rms = sqrt(var) / 1e6;  // V
@@ -187,4 +204,5 @@ bool ct_window_finish(const CtWindow& w, uint8_t ch, PowerReport* out) {
   out->n = w.n;
   out->read_errors = w.read_errors;
   return true;
+#endif
 }

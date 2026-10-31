@@ -895,6 +895,12 @@ def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
         log.warning("outlet estop events not wired to the executor (no running event loop)")
         return
 
+    # 물리 비상정지 버튼을 쓰지 않는 구성(SIMPLELAY_OUTLET_IGNORE_ESTOP=1)이면
+    # 모듈의 estop 알림/걸림을 실행기로 넘기지 않는다 (RPi5 팝업 방지).
+    ignore_estop = os.getenv("SIMPLELAY_OUTLET_IGNORE_ESTOP", "").strip() in ("1", "true", "yes")
+    if ignore_estop:
+        log.warning("outlet module physical E-STOP ignored by configuration (SIMPLELAY_OUTLET_IGNORE_ESTOP=1)")
+
     def on_event(doc: dict) -> None:
         event = doc.get("event")
         source = doc.get("source") if isinstance(doc.get("source"), str) else "button"
@@ -907,6 +913,9 @@ def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
             return
         if event != "estop":
             return
+        if ignore_estop:
+            log.info("outlet estop event ignored (SIMPLELAY_OUTLET_IGNORE_ESTOP=1)")
+            return
         try:
             loop.call_soon_threadsafe(executor.handle_outlet_estop, source)
         except RuntimeError:  # 루프가 닫혔으면 이 스레드에서 구동부를 바로 멈춘다.
@@ -917,7 +926,7 @@ def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
     executor.set_estop_reset(reset if callable(reset) else outlet.reset_estop_if_released)
     executor.set_outlet_readiness(_outlet_readiness(outlet))
     outlet.add_listener(on_event)
-    if getattr(outlet, "module_estop", None) is True:
+    if not ignore_estop and getattr(outlet, "module_estop", None) is True:
         loop.call_soon(executor.handle_outlet_estop, "ready")
 
 
