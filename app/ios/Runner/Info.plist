@@ -28,7 +28,7 @@
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>SimpleLay 기기와 연결하여 명령을 전송합니다.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>가전 버튼 위치를 등록하기 위해 카메라를 사용합니다.</string>
+	<string>본체 화면의 QR을 찍어 연결하고, 가전 버튼 위치를 등록하기 위해 카메라를 사용합니다.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>가전 제어 음성 명령을 듣기 위해 마이크를 사용합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

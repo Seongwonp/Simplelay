@@ -89,22 +89,24 @@ void main() {
   }
 
   // 첫 사용 검토 10/19: 본체 주소와 '코드 또는 QR 연결 주소'를 한꺼번에 물어 처음 쓰는 사람이 무엇을 적을지 몰랐다.
-  testWidgets('QR 없이 열면 QR 찍기부터 말하고, 주소·코드 칸은 누르면 펼쳐요', (tester) async {
+  testWidgets('QR 없이 열면 QR 찍기부터 말하고, 코드 칸은 누르면 펼쳐요', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(buildScreen(const PairingScreen(),
         overrides: [rpiServerOverride(RpiConnectionState.unconfigured)]));
     await tester.pumpAndSettle();
-    expect(find.text('본체의 QR을 휴대폰 카메라로 찍어 주세요.'), findsOneWidget);
+    expect(find.text('"QR 찍기"를 누르고 본체 화면의 QR을 찍어 주세요.'), findsOneWidget);
+    expect(find.text('QR 찍기'), findsOneWidget);
     expect(find.text('본체 주소'), findsNothing);
     expect(find.text('여섯 자리 숫자'), findsNothing);
     expect(find.text('연결 요청하기'), findsNothing, reason: '보낼 코드가 없다');
-    await tester.tap(find.text('QR 없이 주소와 숫자로 연결하기'));
+    await tester.tap(find.text('코드로 연결하기'));
     await tester.pumpAndSettle();
-    expect(find.text('본체 주소'), findsOneWidget);
+    expect(find.text('본체 주소'), findsNothing, reason: '주소는 찾지 못했을 때만 묻는다');
     expect(find.text('여섯 자리 숫자'), findsOneWidget);
     await tester.tap(find.text('연결 요청하기'));
     await tester.pumpAndSettle();
-    expect(find.text('본체 주소와 여섯 자리 숫자를 봐 주세요.'), findsOneWidget);
+    expect(find.text('여섯 자리 숫자를 봐 주세요.'), findsOneWidget);
+    expect(find.text('본체 주소'), findsNothing, reason: '숫자가 틀린 것이지 주소 문제가 아니다');
   });
 
   testWidgets('QR로 받은 주소에 닿지 않으면 주소·코드 칸을 펼쳐 고칠 곳을 보여요', (tester) async {

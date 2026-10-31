@@ -29,6 +29,8 @@ dependencies:
   flutter_tts: ^4.2.0
   # 설정 → 허브 → "현재 위치로 설정"(날씨 예보 격자용 대략 위치, 2026-09-30)
   geolocator: ^14.0.2
+  # 폰 연결 화면 안에서 본체 QR을 바로 찍는다. 7.x의 Android 기본 빌드는 인식 모델을 앱에 포함해 인터넷 없이 읽는다.
+  mobile_scanner: 7.2.0
 
 dev_dependencies:
   flutter_test:
