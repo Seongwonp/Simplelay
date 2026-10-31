@@ -12,7 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
-import 'package:simplelay/models/display_status.dart' show purposeActionName;
+import 'package:simplelay/models/display_status.dart' show kGantryAbsentReason, purposeActionName;
 import 'package:simplelay/models/hub.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/providers/server_appliance_provider.dart';
@@ -270,13 +270,13 @@ void main() {
           appliances: [
             _hubItem('microwave', '전자레인지', custom: false),
             _hubItem('induction', '인덕션',
-                custom: false, readiness: 'needs_setup', reasons: const ['누름 장치가 이 가전에 달려 있지 않아요']),
+                custom: false, readiness: 'needs_setup', reasons: const [kGantryAbsentReason]),
           ],
           customAppliances: [_hubItem('custom_1', '전자레인지', custom: true, readiness: 'disconnected')],
         )));
     await _settle(tester);
 
-    const notice = '이 가전에는 아직 누름 장치가 연결되지 않아 지금은 누를 수 없어요. 누름 장치는 지금 전자레인지 위에 있어요. '
+    const notice = '이 가전에는 아직 누름 장치가 연결되지 않아 지금은 누를 수 없어요. '
         '설치하는 분께 이 가전의 누름 장치 연결을 부탁해 주세요.';
     expect(find.text(notice), findsOneWidget);
 

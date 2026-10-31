@@ -78,6 +78,9 @@ class ExecuteMsg:
     #: 멈춘다. 없거나 모양이 틀리면 None — 감시하지 않는다(옛 RPi5와 같다).
     heartbeat_s: float | None = None
     button_behaviors: dict[str, str] = field(default_factory=dict)
+    #: 선택 — 이 대상이 세트에 연결된 가전이라는 허브의 표시(``appliance_id``와 같은 값만 받는다). RPi4는 콘센트 CT를 이 가전의
+    #: 것으로 읽는다. 없으면(옛 허브) ``SIMPLELAY_OUTLET_PRESS_APPLIANCE``를 따른다.
+    press_appliance: str | None = None
 
 
 def _run_ref(doc: dict) -> str | None:
@@ -172,6 +175,13 @@ class HelloMsg:
 
 
 @dataclass(frozen=True)
+class KitQueryMsg:
+    """허브가 세트의 지금 상태를 묻는다 — ``kit_status``로 답한다(``act_info.kit_protocol`` ≥ 1)."""
+
+    request_id: str
+
+
+@dataclass(frozen=True)
 class HeartbeatMsg:
     """실행 중 생존 신호(2026-10-16 G5). 답하지 않는다 — 받은 것 자체가 링크가 살아 있다는 근거다.
 
@@ -236,7 +246,7 @@ class DevMotionRefusedMsg:
 
 InboundActMsg = (
     ExecuteMsg | ExecuteRefusedMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg | EstopAckMsg
-    | HelloMsg | ClockProbeMsg | RehearsalMsg | DevMotionMsg | DevMotionRefusedMsg | HeartbeatMsg
+    | HelloMsg | ClockProbeMsg | RehearsalMsg | DevMotionMsg | DevMotionRefusedMsg | HeartbeatMsg | KitQueryMsg
 )
 
 #: 정지 버튼 누름 횟수 상한(전자레인지: 1회 일시정지·2회 취소 등). 레지스트리와 같다.
@@ -261,6 +271,12 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
         return None
 
     msg_type = doc.get("type")
+
+    if msg_type == "kit_query":
+        request_id = doc.get("request_id")
+        if not isinstance(request_id, str) or not request_id.strip():
+            return None
+        return KitQueryMsg(request_id)
 
     if msg_type == "execute":
         seq_id = doc.get("sequence_id", "")
@@ -296,7 +312,8 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
                           targets=targets, hold=hold, run_ref=_run_ref(doc),
                           heartbeat_s=parse_declared_period(doc.get("heartbeat_s")),
                           button_behaviors={b: button_behavior(doc["button_behaviors"].get(b)) for b in buttons}
-                          if isinstance(doc.get("button_behaviors"), dict) else {})
+                          if isinstance(doc.get("button_behaviors"), dict) else {},
+                          press_appliance=target if doc.get("press_appliance") == target else None)
 
     if msg_type == "abort":
         scope = doc.get("scope", "appliance")

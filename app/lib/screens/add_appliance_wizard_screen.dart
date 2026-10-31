@@ -19,11 +19,13 @@ import '../widgets/appliance_kind_picker.dart';
 import '../widgets/panel_photo_view.dart';
 import '../widgets/input_guard.dart';
 import '../widgets/appliance_setup_card.dart';
+import '../widgets/kit_widgets.dart';
 import 'appliance_editor_screen.dart';
 
-/// 가전 추가 5단계:
-/// ① 사진 ② 누름 장치 칸 맞추기 ③ 버튼 짚고 이름 붙이기 ④ 정지 버튼과 기다리는 자리
-/// ⑤ 확인 주행.
+/// 가전 추가 6단계:
+/// ① 누름 장치 찾기 ② 사진 ③ 누름 장치 칸 맞추기 ④ 버튼 짚고 이름 붙이기 ⑤ 정지 버튼과 기다리는 자리
+/// ⑥ 확인 주행. 세트는 버튼 자리를 저장한 뒤에 잇는다 — 중간에 그만둬도 지금 쓰는 가전은 그대로다.
+/// 등록된 가전의 자리를 다시 맞출 때는 ①이 없다.
 ///
 /// 누름 장치 범위는 본체에서 받고, 사진 위 네 귀퉁이와 방향을 맞춘다.
 ///
@@ -48,6 +50,7 @@ class _Tapped {
 }
 
 const _stepTitles = [
+  '누름 장치 찾기',
   '버튼판 사진',
   '누름 장치 칸 맞추기',
   '버튼 고르고 이름 붙이기',
@@ -101,15 +104,30 @@ const kSaveConflictMessage = '본체에 저장된 내용이 그사이 바뀌어 
 const kSaveOrphanNote = '본체에는 이 가전이 버튼 자리 없이 남았을 수 있어요. 다시 저장하거나, 그만두려면 가전 목록에서 지워 주세요.';
 
 /// 현재 구성에서 자리 확인을 지원하지 않을 때의 안내.
-const kPassUnavailableMessage = '지금은 자리 확인을 할 수 없어요. "자리 확인 없이 끝내기"를 누르고, 처음 누를 때 자리가 맞는지 지켜봐 주세요.';
+const kPassUnavailableMessage = '지금은 자리 확인을 할 수 없어요. 끝내면 이 가전은 "자리 확인 전"으로 남고, 자리 확인을 마칠 때까지 누르지 않아요.';
 
 /// 누름 장치가 없어 자리 확인과 실제 누르기가 모두 불가능할 때의 안내.
 const kPassNoPressDeviceMessage = '이 가전에는 아직 누름 장치가 연결되지 않아 자리 확인도, 누르기도 할 수 없어요. '
-    '"자리 확인 없이 끝내기"를 누르고, 설치하는 분께 이 가전의 누름 장치 연결을 부탁해 주세요.';
+    '끝낸 뒤 가전 화면에서 세트를 연결해 주세요.';
+
+/// 자리 확인 없이 끝낼 때의 결과.
+const kPassSkipNote = '자리 확인 없이 끝내면 이 가전은 "자리 확인 전"으로 남아요. 자리 확인을 마칠 때까지 누르지 않아요.';
 
 class _AddApplianceWizardScreenState
     extends ConsumerState<AddApplianceWizardScreen> {
-  int _step = 0;
+  // -1은 ① 누름 장치 찾기. 등록된 가전을 다시 맞출 때는 없다.
+  late int _step = widget.initial == null ? -1 : 0;
+
+  // ① 누름 장치 세트
+  KitStatus? _kit;
+  bool _kitLoading = true;
+  bool _kitFailed = false;
+
+  /// 다른 가전을 맡은 세트를 이 가전으로 옮겨도 된다고 사람이 확인했나.
+  bool _kitReleaseConfirmed = false;
+
+  /// 저장 뒤 세트 연결이 실패했을 때의 이유. 있으면 자리 확인 전에 다시 연결한다.
+  String? _bindError;
 
   // ① 사진
   File? _photo;
@@ -188,6 +206,52 @@ class _AddApplianceWizardScreenState
       }
     }
     _initialSnapshot = _snapshot();
+    if (a == null) unawaited(_loadKit());
+  }
+
+  Future<void> _loadKit() async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (mounted) setState(() => _kitLoading = true);
+    KitStatus? kit;
+    var failed = api == null;
+    if (api != null) {
+      try {
+        kit = await api.kitStatus();
+      } catch (_) {
+        failed = true;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _kit = kit;
+      _kitFailed = failed;
+      _kitLoading = false;
+      _error = null;
+      // 찾을 때마다 세트가 맡은 가전이 바뀔 수 있다 — 지난 확인을 이어 쓰지 않는다.
+      _kitReleaseConfirmed = false;
+    });
+  }
+
+  Future<void> _releaseKit() async {
+    final name = _kit?.boundName;
+    if (name == null || !await confirmKitRelease(context, name)) return;
+    if (!mounted) return;
+    setState(() {
+      _kitReleaseConfirmed = true;
+      _step = 0;
+    });
+  }
+
+  /// 버튼 자리를 저장한 뒤 세트를 잇는다. 실패해도 등록·자리는 저장돼 있다 — 이유를 보이고 다시 할 수 있게 둔다.
+  Future<void> _bindKit(RpiApiService api) async {
+    try {
+      await api.bindKit(_id, confirmRelease: _kitReleaseConfirmed);
+      if (mounted) setState(() => _bindError = null);
+    } on RpiApiException catch (e) {
+      if (mounted) setState(() => _bindError = e.statusCode == 0 ? kSaveOfflineMessage : e.message);
+    } catch (_) {
+      if (mounted) setState(() => _bindError = kSaveOfflineMessage);
+    }
   }
 
   /// 처음 연 때의 입력([_snapshot]). 이와 같으면 닫을 때 묻지 않는다 — 위치를 다시 맞추러 들어와 아무것도
@@ -213,6 +277,10 @@ class _AddApplianceWizardScreenState
   // 단계 이동
 
   bool get _canNext => switch (_step) {
+        -1 => !_kitLoading &&
+            !_offline &&
+            (_kit?.found ?? false) &&
+            (_kit?.boundName == null || _kitReleaseConfirmed),
         0 => _photo != null &&
             _photoSize != null &&
             _name.text.trim().isNotEmpty &&
@@ -229,6 +297,10 @@ class _AddApplianceWizardScreenState
   String? get _nextBlockedReason {
     if (_canNext) return null;
     switch (_step) {
+      case -1:
+        if (_kitLoading) return '누름 장치 세트를 찾는 중이에요';
+        if (_kit?.found ?? false) return '세트 연결을 어떻게 할지 골라야 다음으로 갈 수 있어요';
+        return '누름 장치 세트를 찾아야 다음으로 갈 수 있어요';
       case 0:
         final noPhoto = _photo == null || _photoSize == null;
         final noName = _name.text.trim().isEmpty;
@@ -627,6 +699,7 @@ class _AddApplianceWizardScreenState
         await notifier.add(local);
       }
       await ref.read(selectedApplianceProvider.notifier).select(local);
+      if (widget.initial == null) await _bindKit(api);
       if (!mounted) return;
       setState(() {
         _saved = local;
@@ -794,7 +867,7 @@ class _AddApplianceWizardScreenState
       });
     } on RpiApiException catch (e) {
       // 409: 다른 일을 하는 중(서버 문장 그대로 — 끝난 뒤 다시) 또는 이 구성에서 할 수 없음(쉬운 말과 다음 할 일로).
-      final busy = e.message.contains('다른');
+      final busy = e.message.contains('다른 일') || e.message.contains('진행 중');
       final noDevice = e.message.contains('누름 장치가 없어') || e.message.contains('갠트리에 연결되지 않았');
       if (mounted) {
         setState(() => _error = e.statusCode != 409 || busy
@@ -827,6 +900,10 @@ class _AddApplianceWizardScreenState
   Widget build(BuildContext context) {
     // 연결이 바뀌면 다시 그린다 — 첫 단계의 '다음'과 연결 안내가 [_offline]을 본다.
     ref.watch(rpiConnectionProvider);
+    // 끊겨서 세트를 못 찾았으면, 다시 이어진 뒤 사람이 찾기를 또 누르게 하지 않는다.
+    ref.listen(rpiConnectionProvider, (previous, next) {
+      if (_step == -1 && next == RpiConnectionState.connected && previous != next) unawaited(_loadKit());
+    });
     return InputGuard(
       dirty: _dirty,
       // 시스템 뒤로 가기는 한 단계 앞으로(2~4단계). 등록 전체를 닫는 것은 위 X다.
@@ -847,11 +924,12 @@ class _AddApplianceWizardScreenState
         children: [
           _Stepper(step: _step),
           const SizedBox(height: AppSpace.md),
-          Text('${_step + 1}. ${_stepTitles[_step]}',
+          Text('${_step + 2}. ${_stepTitles[_step + 1]}',
               key: const Key('wizard-step-title'),
               style: const TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpace.xs),
           ...switch (_step) {
+            -1 => _kitStep(),
             0 => _photoStep(),
             1 => _cornerStep(),
             2 => _buttonStep(),
@@ -886,7 +964,7 @@ class _AddApplianceWizardScreenState
                         Expanded(
                           child: OutlinedButton(
                             key: const Key('wizard-back'),
-                            onPressed: _step == 0 || _busy ? null : _back,
+                            onPressed: _step <= 0 || _busy ? null : _back,
                             child: const Text('이전'),
                           ),
                         ),
@@ -943,6 +1021,36 @@ class _AddApplianceWizardScreenState
   List<Widget> _hint(String text) => [
         Text(text, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         const SizedBox(height: AppSpace.md),
+      ];
+
+  List<Widget> _kitStep() => [
+        ..._hint('이 가전을 누를 누름 장치 세트를 찾아요. 세트 하나는 가전 하나를 맡아요.'),
+        if (_offline)
+          Padding(
+            key: const Key('wizard-kit-offline'),
+            padding: const EdgeInsets.only(bottom: AppSpace.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('지금 본체와 연결되지 않아 세트를 찾을 수 없어요.',
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
+                OutlinedButton.icon(
+                  key: const Key('wizard-connect'),
+                  onPressed: () => context.push('/settings/hub'),
+                  icon: const Icon(Icons.wifi_rounded),
+                  label: const Text('본체 연결하기'),
+                ),
+              ],
+            ),
+          ),
+        KitFindStep(
+          kit: _kit,
+          loading: _kitLoading,
+          failed: _kitFailed,
+          releaseConfirmed: _kitReleaseConfirmed,
+          onRetry: () => unawaited(_loadKit()),
+          onRelease: () => unawaited(_releaseKit()),
+        ),
       ];
 
   List<Widget> _photoStep() => [
@@ -1303,11 +1411,27 @@ class _AddApplianceWizardScreenState
         for (final note in mapping.stopParkNotes)
           Text('· $note', style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
       ],
+      if (_bindError != null) ...[
+        const SizedBox(height: AppSpace.sm),
+        Text('세트를 연결하지 못했어요. $_bindError',
+            key: const Key('wizard-bind-error'),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
+        TextButton(
+          key: const Key('wizard-bind-retry'),
+          onPressed: _busy
+              ? null
+              : () {
+                  final api = ref.read(rpiApiServiceProvider);
+                  if (api != null) unawaited(_bindKit(api));
+                },
+          child: const Text('세트 다시 연결'),
+        ),
+      ],
       const SizedBox(height: AppSpace.md),
       if (pass == null)
         FilledButton.icon(
           key: const Key('wizard-start-pass'),
-          onPressed: _busy ? null : _startPass,
+          onPressed: _busy || _bindError != null ? null : _startPass,
           icon: const Icon(Icons.route),
           label: const Text('자리 확인 시작'),
         )
@@ -1339,7 +1463,8 @@ class _AddApplianceWizardScreenState
       if (pass == null)
         Padding(
           padding: const EdgeInsets.only(top: AppSpace.sm),
-          child: Text('자리 확인 없이 끝내면 처음 누를 때 자리가 맞는지 꼭 지켜봐 주세요.',
+          child: Text(kPassSkipNote,
+              key: const Key('wizard-pass-skip-note'),
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         ),
     ];
@@ -1374,21 +1499,21 @@ class _Stepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        label: '5개 중 ${step + 1}번째',
+        label: '6개 중 ${step + 2}번째',
         excludeSemantics: true,
         child: Row(
           children: [
-            for (var i = 0; i < 5; i++) ...[
+            for (var i = 0; i < 6; i++) ...[
               Expanded(
                 child: Container(
                   height: 6,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(3),
-                    color: i <= step ? context.appPrimary : context.appBorderSubtle,
+                    color: i <= step + 1 ? context.appPrimary : context.appBorderSubtle,
                   ),
                 ),
               ),
-              if (i < 4) const SizedBox(width: AppSpace.sm),
+              if (i < 5) const SizedBox(width: AppSpace.sm),
             ],
           ],
         ),

@@ -111,6 +111,7 @@ from ..models.act_messages import (
     ExecuteMsg,
     ExecuteRefusedMsg,
     HeartbeatMsg,
+    KitQueryMsg,
     HelloMsg,
     InboundActMsg,
     InjectFailureMsg,
@@ -319,6 +320,8 @@ class ActExecutor:
         self._ack_task: asyncio.Task[None] | None = None
         #: RPi5에 알리는 구성(``act_info``): 끝 관찰 가전·리허설 가능 여부 등. act_main이 채운다.
         self.act_info: dict = {}
+        #: 세트 정체·상태 보고(``kit_identity.kit_reporter``). 없으면 세트 필드를 싣지 않는다.
+        self._kit_report: "Callable[[], dict] | None" = None
         #: 리허설 주입 부품(가짜 콘센트·모의 모션일 때만 act_main이 꽂는다). None이면 rehearsal을 거절한다.
         self._rehearsal: object | None = None
         #: 개발자 조작 서비스와 진행 중 조작(한 번에 하나).
@@ -523,6 +526,8 @@ class ActExecutor:
         elif isinstance(msg, HelloMsg):
             self._stop_run_on_reconnect()
             self._announce()
+        elif isinstance(msg, KitQueryMsg):
+            await self._send({"type": "kit_status", "request_id": msg.request_id, **self._kit_fields()})
         elif isinstance(msg, ClockProbeMsg):
             # 사건 신선도 기준점(3차 평가 M1) — 읽은 즉시 이 프로세스의 단조 시각으로 답한다.
             self._write_now({"type": "clock_ref", "probe": msg.probe, "clock_id": CLOCK_ID,
@@ -588,6 +593,8 @@ class ActExecutor:
         binding: TargetBinding | None = None
         if self._target_binder is not None:
             try:
+                if msg.press_appliance is not None:
+                    self._target_binder.set_press_target(msg.press_appliance)
                 binding = self._target_binder.bind(msg.appliance_id)
             except TargetRefused as exc:
                 log.warning("execute %r refused — %s: %s", msg.sequence_id, exc.reason, exc.detail)
@@ -1163,9 +1170,23 @@ class ActExecutor:
         """리허설 주입 부품을 꽂는다(act_main: 가짜 콘센트·모의 모션일 때만). None이면 rehearsal을 거절한다."""
         self._rehearsal = hooks
 
+    def set_kit_report(self, report: "Callable[[], dict] | None") -> None:
+        """세트 보고 함수를 꽂는다. 값은 캐시만 읽어야 한다 — 수신 루프에서 불린다."""
+        self._kit_report = report
+
+    def _kit_fields(self) -> dict:
+        if self._kit_report is None:
+            return {}
+        try:
+            return dict(self._kit_report())
+        except Exception:  # noqa: BLE001 - 상태 보고 고장이 정지 수신 루프를 죽이지 않는다
+            log.exception("kit report failed")
+            return {}
+
     def _announce(self) -> None:
         """``act_info``와 ``estop_state``를 보낸다 — RPi5가 (다시) 연결했거나 RPi4가 막 켜졌을 때."""
         info = {"type": "act_info", "done_watch": [], "execute_protocol": EXECUTE_PROTOCOL, **self.act_info,
+                **self._kit_fields(),
                 "rehearsal": self._rehearsal is not None, "stop_report_protocol": STOP_REPORT_PROTOCOL,
                 # 사건 신선도 기준점 규약(3차 평가 M1): clock_probe에 clock_ref로 답한다.
                 "clock_protocol": CLOCK_PROTOCOL}

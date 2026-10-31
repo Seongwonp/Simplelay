@@ -575,6 +575,7 @@ const kTilePanelSetup = '버튼 자리를 아직 맞추지 않았어요. 휴대�
 const kTileSetupLeft = '아직 설정이 끝나지 않았어요. 휴대폰 앱에서 마저 설정해 주세요';
 const kTilePowerUnknown = '켜져 있는지 아직 확인하지 못했어요';
 const kTileReadyUnknown = '쓸 수 있는지 아직 확인하지 못했어요';
+const kTileKitAbsent = '세트 없음. 휴대폰 앱에서 세트를 연결해 주세요';
 
 /// 가전 타일의 문제 표시(사용자 결정 10/19). 평소(누름 장치 가전 준비됨·읽은 켜짐/꺼짐·작동 중)는 null — 표시 없음.
 ///
@@ -600,6 +601,7 @@ KioskTileIssue? kioskTileIssue(
   }
   if (on) return null;
   if (off && a.isThinq) return null;
+  if (a.kitAbsent) return const KioskTileIssue(KioskTileMark.unusable, kTileKitAbsent);
   if (a.needsPanelMapping) return const KioskTileIssue(KioskTileMark.setup, kTilePanelSetup);
   return switch (a.readiness) {
     'disconnected' => const KioskTileIssue(KioskTileMark.unusable, kTileUnusableLink),

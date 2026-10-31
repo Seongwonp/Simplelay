@@ -41,6 +41,8 @@ RPi4 side of this same link.
                                        act_info를 받을 때마다 한 번. rpi/services/event_clock.py)
                                       (2026-10-06 평가 C1·B3: RPi5가 다시 켜져도 걸림 상태를 다시 안다. 받기 전
                                        ``estop_latched``는 None = '확인 중'이고 실행을 거절한다)
+  kit_query {request_id}          ←  kit_status {request_id, kit_id, motion, motion_present, motion_homed, outlet,
+                                      outlet_present, estop_button}(act_info.kit_protocol을 알린 RPi4에만 보낸다)
   rehearsal {action, request_id}  ←  rehearsal_result {request_id, ok, ...}(가짜 콘센트·모의 모션 RPi4만)
   dev_motion {request_id, op, …}  ←  dev_motion_result {request_id, op, ok, reason?, detail?, moved?, homed?, x_mm?, y_mm?}
                                       (개발자 조작 규약 1, 2026-10-10 — act_info.dev_motion_protocol을 알린 RPi4에만 보낸다.
@@ -393,6 +395,7 @@ class ActClient:
         #: 비상정지가 새로 걸린 횟수(평가 B5) — 루틴이 '실행 중 한 번이라도 걸렸나'를 본다.
         self.estop_trips = 0
         self._rehearsal_waiters: dict[str, asyncio.Future[dict]] = {}
+        self._kit_waiters: dict[str, asyncio.Future[dict]] = {}
         #: 개발자 조작 답을 기다리는 요청(request_id → future). 2026-10-10.
         self._dev_waiters: dict[str, asyncio.Future[dict]] = {}
         #: 정지 보고를 기다리는 abort(stop_id → future). 2026-10-13.
@@ -545,6 +548,9 @@ class ActClient:
         try:
             message: dict = {"type": "execute", "sequence_id": seq_id, "buttons": list(buttons),
                              "appliance_id": appliance_id}
+            if isinstance(self.act_info.get("kit_protocol"), int):
+                # 이 링크로 가는 실행의 대상은 곧 세트에 연결된 가전이다(허브가 그 밖은 거절한다) — RPi4가 CT를 이 가전 것으로 읽는다.
+                message["press_appliance"] = appliance_id
             if button_behaviors is not None:
                 message["button_behaviors"] = dict(button_behaviors)
             if targets:
@@ -765,6 +771,19 @@ class ActClient:
         finally:
             self._rehearsal_waiters.pop(request_id, None)
 
+    async def kit_query(self, timeout_s: float = 1.0) -> dict:
+        """세트의 지금 상태를 묻는다. ``act_info``는 연결 때 한 번뿐이라 원점·콘센트 응답은 낡을 수 있다."""
+        request_id = "k" + uuid.uuid4().hex[:11]
+        future: asyncio.Future[dict] = asyncio.get_running_loop().create_future()
+        self._kit_waiters[request_id] = future
+        try:
+            await self._send({"type": "kit_query", "request_id": request_id})
+            return await asyncio.wait_for(future, timeout_s)
+        except asyncio.TimeoutError as exc:
+            raise ActLinkTimeoutError(f"no kit_status within {timeout_s}s") from exc
+        finally:
+            self._kit_waiters.pop(request_id, None)
+
     async def dev_motion(self, op: str, timeout_s: float, **fields: object) -> dict:
         """개발자 조작 한 번을 보내고 ``dev_motion_result``를 기다린다(2026-10-10, 개발자 조작 규약 1).
 
@@ -893,7 +912,8 @@ class ActClient:
             # 짧은 단선이었다면 RPi4가 늦게 결과를 보낼 수 있다 — 다음 요청의 결과로 오인하지 않게.
             self._stale_sequence_ids.append(pending[0])
             pending[1].set_exception(error)
-        for waiter in [*self._estop_waiters, *self._rehearsal_waiters.values(), *self._dev_waiters.values(),
+        for waiter in [*self._estop_waiters, *self._rehearsal_waiters.values(), *self._kit_waiters.values(),
+                       *self._dev_waiters.values(),
                        *self._stop_waiters.values()]:
             if not waiter.done():
                 waiter.set_exception(error)
@@ -984,6 +1004,11 @@ class ActClient:
                     self._on_act_info(dict(self.act_info))
                 except Exception:  # noqa: BLE001 - 듣는 쪽 고장이 읽기 루프를 죽이지 않는다
                     log.exception("ActClient: on_act_info callback failed")
+            return
+        if msg_type == "kit_status":
+            waiter = self._kit_waiters.get(doc.get("request_id"))
+            if waiter is not None and not waiter.done():
+                waiter.set_result(doc)
             return
         if msg_type == "rehearsal_result":
             waiter = self._rehearsal_waiters.get(doc.get("request_id"))

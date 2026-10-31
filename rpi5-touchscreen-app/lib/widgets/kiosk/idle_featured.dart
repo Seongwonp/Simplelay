@@ -69,6 +69,8 @@ class KioskFeaturedAction extends StatelessWidget {
           ...appliances.where((x) => x.id == id).take(1),
       ];
       if (present.isEmpty) continue;
+      // 세트가 없는 가전의 동작은 내걸지 않는다 — 지금 할 수 없고, 여기서 풀 수도 없다(휴대폰에서 세트를 옮겨야 한다).
+      if (present.any((a) => a.kitAbsent)) continue;
       String? why;
       ApplianceMap? blockedBy;
       for (final a in present) {

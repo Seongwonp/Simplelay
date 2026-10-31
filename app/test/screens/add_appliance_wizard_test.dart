@@ -99,6 +99,18 @@ class _Server {
   /// 본체에 닿지 않는다(연결 오류).
   bool unreachable = false;
 
+  /// `GET /kit` 응답. 기본은 찾았고 맡은 가전 없음.
+  Map<String, dynamic> kit = {
+    'found': true, 'kit_id': 'kit-a', 'motion': 'serial', 'motion_present': true, 'outlet': 'real',
+    'outlet_present': true, 'homed': true, 'bound_appliance': null, 'name': null, 'verified': false,
+  };
+
+  /// 받은 `POST /kit/bind` 본문.
+  final bindBodies = <Map<String, dynamic>>[];
+
+  /// 있으면 세트 연결을 이 문장으로 거절한다.
+  String? bindReject;
+
   /// 등록·자리 저장을 본체가 해 놓고 답만 잃는다(검토 10/19). [mappingLostSaved]가 false면 자리 저장은 하지 않고 답을 잃는다.
   bool registerAnswerLost = false;
   bool mappingAnswerLost = false;
@@ -120,6 +132,12 @@ class _Server {
           requests.add('${req.method} $path');
           if (unreachable) throw const SocketException('본체에 닿지 않음');
           if (path.startsWith('/execute')) fail('가전 추가가 누르기를 보냈어요');
+          if (path == '/kit') return _json(kit);
+          if (path == '/kit/bind') {
+            bindBodies.add(jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>);
+            if (bindReject != null) return _json({'detail': bindReject}, 409);
+            return _json({...kit, 'bound_appliance': bindBodies.last['appliance_id'], 'verified': false});
+          }
           if (path == '/mapping/frame') {
             return _json({
               'frame_w_mm': frameKnown ? 300.0 : null,
@@ -265,6 +283,14 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+/// ① 누름 장치 찾기를 지난다(세트를 찾은 본체일 때).
+Future<void> _passKit(WidgetTester tester) async {
+  final next = find.byKey(const Key('wizard-next'));
+  if (next.evaluate().isEmpty || tester.widget<FilledButton>(next).onPressed == null) return;
+  await tester.tap(next);
+  await _settle(tester);
+}
+
 /// 사진 패널 위 (fx, fy) 비율 자리를 짚는다.
 Future<void> _tapPhoto(WidgetTester tester, double fx, double fy) async {
   final box = tester.getRect(find.byKey(const Key('wizard-photo')));
@@ -324,10 +350,123 @@ Offset _tagAt(WidgetTester tester, String key) {
   return Offset((c.dx - box.left) / box.width, (c.dy - box.top) / box.height);
 }
 
-const _areaTitle = '2. 누름 장치 칸 맞추기';
+const _areaTitle = '3. 누름 장치 칸 맞추기';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  // 세트: 찾기 → 자리 저장 뒤 연결 → 자리 확인 전까지 준비됐다고 말하지 않는다.
+  group('누름 장치 찾기', () {
+    Future<void> open(WidgetTester tester, _Server server) async {
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await tester.pump();
+      GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
+      await _settle(tester);
+    }
+
+    FilledButton next(WidgetTester tester) => tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
+
+    testWidgets('찾으면 모션·콘센트를 보여 주고 다음으로 간다', (tester) async {
+      await open(tester, _Server());
+      expect(_title(tester), '1. 누름 장치 찾기');
+      expect(find.byKey(const Key('wizard-kit-found')), findsOneWidget);
+      expect(find.text('누름 장치: 연결됨'), findsOneWidget);
+      expect(find.text('전기 플러그(전력 확인): 연결됨'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('wizard-next')));
+      await _settle(tester);
+      expect(_title(tester), '2. 버튼판 사진');
+    });
+
+    testWidgets('못 찾으면 안내와 다시 찾기만 있고 다음으로 가지 못한다', (tester) async {
+      final server = _Server()..kit = {'found': false, 'reason': '세트를 찾지 못했어요. 전원을 확인해 주세요.'};
+      await open(tester, server);
+      expect(find.text('세트를 찾지 못했어요. 전원을 확인해 주세요.'), findsOneWidget);
+      expect(next(tester).onPressed, isNull);
+      expect(find.byKey(const Key('wizard-next-why')), findsOneWidget);
+      server.kit = {'found': true, 'kit_id': 'kit-a', 'motion_present': true};
+      await tester.tap(find.byKey(const Key('wizard-kit-retry')));
+      await _settle(tester);
+      expect(next(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('본체에 닿지 않아도 못 찾음으로 막는다', (tester) async {
+      await open(tester, _Server()..unreachable = true);
+      expect(find.byKey(const Key('wizard-kit-missing')), findsOneWidget);
+      expect(next(tester).onPressed, isNull);
+    });
+
+    testWidgets('다른 가전이 쓰면 확인 창을 거쳐야 하고 저장 뒤에 연결한다', (tester) async {
+      final server = _Server()
+        ..kit = {'found': true, 'kit_id': 'kit-a', 'motion_present': true, 'bound_appliance': 'microwave', 'name': '전자레인지'};
+      await open(tester, server);
+      expect(find.text('이 세트는 전자레인지에 연결돼 있어요'), findsOneWidget);
+      expect(next(tester).onPressed, isNull);
+      await tester.tap(find.text('전자레인지 연결 해제 후 새 가전에 연결'));
+      await _settle(tester);
+      expect(find.textContaining('버튼 자리는 그대로 남지만, 다시 연결할 때까지 쓸 수 없어요'), findsOneWidget);
+      await tester.tap(find.text('취소'));
+      await _settle(tester);
+      expect(_title(tester), '1. 누름 장치 찾기', reason: '취소하면 넘어가지 않는다');
+      await tester.tap(find.text('전자레인지 연결 해제 후 새 가전에 연결'));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('kit-release-confirm')));
+      await _settle(tester);
+      expect(_title(tester), '2. 버튼판 사진');
+      expect(server.bindBodies, isEmpty, reason: '자리를 저장하기 전에는 지금 가전을 건드리지 않는다');
+
+      await _walkToStopStep(tester);
+      await tester.tap(find.byKey(const Key('wizard-next')));
+      await _settle(tester);
+      expect(_title(tester), '6. 자리 확인');
+      expect(server.bindBodies.single['confirm_release'], isTrue);
+      expect(server.bindBodies.single['appliance_id'], startsWith('custom_'));
+      expect(server.requests.indexOf('POST /kit/bind'),
+          greaterThan(server.requests.indexWhere((r) => r.endsWith('/mapping'))));
+    });
+
+    testWidgets('연결이 거절되면 이유를 보이고 자리 확인을 막으며 다시 할 수 있다', (tester) async {
+      final server = _Server()..bindReject = '누름 장치가 일하는 중이에요. 끝난 뒤 다시 해 주세요.';
+      await open(tester, server);
+      await tester.tap(find.byKey(const Key('wizard-next')));
+      await _settle(tester);
+      await _walkToStopStep(tester);
+      await tester.tap(find.byKey(const Key('wizard-next')));
+      await _settle(tester);
+      expect(find.textContaining('누름 장치가 일하는 중이에요'), findsOneWidget);
+      expect(tester.widget<FilledButton>(find.byKey(const Key('wizard-start-pass'))).onPressed, isNull);
+      server.bindReject = null;
+      await tester.tap(find.byKey(const Key('wizard-bind-retry')));
+      await _settle(tester);
+      expect(find.byKey(const Key('wizard-bind-error')), findsNothing);
+      expect(tester.widget<FilledButton>(find.byKey(const Key('wizard-start-pass'))).onPressed, isNotNull);
+    });
+
+    testWidgets('자리 확인 없이 끝내면 자리 확인 전으로 남는다고 말한다', (tester) async {
+      await open(tester, _Server());
+      await tester.tap(find.byKey(const Key('wizard-next')));
+      await _settle(tester);
+      await _walkToStopStep(tester);
+      await tester.tap(find.byKey(const Key('wizard-next')));
+      await _settle(tester);
+      expect(find.text(kPassSkipNote), findsOneWidget);
+      expect(find.textContaining('지켜봐'), findsNothing, reason: '확인 없이 눌러도 된다는 뜻으로 읽히면 안 된다');
+    });
+
+    testWidgets('자리를 다시 맞출 때는 세트를 찾지 않는다', (tester) async {
+      final server = _Server();
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await tester.pump();
+      GoRouter.of(tester.element(find.text('홈'))).push('/appliance/setup', extra: const ApplianceMap(
+        id: 'custom_1', name: '선풍기', category: ApplianceCategory.other, rows: 1, cols: 1, isCustom: true,
+        buttons: [ApplianceButton(id: 'b1', label: '전원', x: 0, y: 0)],
+      ));
+      await _settle(tester);
+      expect(server.requests.where((r) => r.contains('/kit')), isEmpty);
+      expect(_title(tester), '2. 버튼판 사진');
+    });
+  });
 
   // 10/25: 미리 찍어 둔 버튼판 사진을 쓴다(카메라 없는 기기·다시 맞추기) — 사진첩에서 골라도 같은 단계로 간다.
   testWidgets('사진첩에서 고른 사진으로도 시작한다', (tester) async {
@@ -338,6 +477,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-pick-photo')));
     await _settle(tester);
     expect(photo.fromGallery, isTrue);
@@ -353,9 +493,10 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
 
     // ① 사진 — 사진과 이름이 있어야 다음으로 간다.
-    expect(_title(tester), '1. 버튼판 사진');
+    expect(_title(tester), '2. 버튼판 사진');
     expect(find.byKey(const Key('wizard-back')), findsOneWidget);
     FilledButton next() =>
         tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
@@ -382,7 +523,7 @@ void main() {
     // 이전으로 돌아가도 칸은 남는다.
     await tester.tap(find.byKey(const Key('wizard-back')));
     await tester.pump();
-    expect(_title(tester), '1. 버튼판 사진');
+    expect(_title(tester), '2. 버튼판 사진');
     await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pump();
     expect(_title(tester), _areaTitle);
@@ -392,7 +533,7 @@ void main() {
     await tester.pump();
 
     // ③ 버튼 — 짚고 이름을 붙인다.
-    expect(_title(tester), '3. 버튼 고르고 이름 붙이기');
+    expect(_title(tester), '4. 버튼 고르고 이름 붙이기');
     expect(next().onPressed, isNull);
     await _tapPhoto(tester, 0.3, 0.4);
     await _settle(tester);
@@ -410,7 +551,7 @@ void main() {
     await tester.pump();
 
     // ④ 정지 버튼과 쉬는 자리.
-    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+    expect(_title(tester), '5. 정지 버튼과 기다리는 자리');
     expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '취소')).selected, isTrue);
     await tester.pump();
     await tester.tap(find.text('2번'));
@@ -447,7 +588,7 @@ void main() {
     expect(saved.panelMapping!.buttons.length, 2);
 
     // ⑤ 확인 주행 — 모의면 모의라고 말한다.
-    expect(_title(tester), '5. 자리 확인');
+    expect(_title(tester), '6. 자리 확인');
     expect(find.textContaining('소프트 리밋이 없어'), findsOneWidget);
     await tester.tap(find.byKey(const Key('wizard-start-pass')));
     await _settle(tester);
@@ -470,6 +611,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
 
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
@@ -515,8 +657,9 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
-    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+    expect(_title(tester), '5. 정지 버튼과 기다리는 자리');
     // 기다리는 자리는 누름 장치 칸 안쪽이어야 한다 — 칸을 그려 둔다(끌 수는 없다).
     final area = _areaOf(tester);
     expect(area.corners, hasLength(4));
@@ -538,7 +681,7 @@ void main() {
     final error = tester.getRect(find.byKey(const Key('wizard-error')));
     final next = tester.getRect(find.byKey(const Key('wizard-next')));
     expect(error.bottom, lessThanOrEqualTo(next.top));
-    expect(_title(tester), '4. 정지 버튼과 기다리는 자리', reason: '거절되면 다음 단계로 가지 않는다');
+    expect(_title(tester), '5. 정지 버튼과 기다리는 자리', reason: '거절되면 다음 단계로 가지 않는다');
   });
 
   testWidgets('사진은 찍자마자 이 폰 문서 폴더로 옮기고 그 경로로 등록한다 — 저장까지 캐시에 두지 않는다(실화면 10/19)',
@@ -551,6 +694,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
 
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
@@ -566,7 +710,7 @@ void main() {
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
     await _saveWithoutStop(tester);
-    expect(_title(tester), '5. 자리 확인');
+    expect(_title(tester), '6. 자리 확인');
     final saved = container.read(customAppliancesProvider).single;
     expect(saved.photoPath, '/photos/${photo.persisted.last}.jpg');
     expect(photo.persisted, hasLength(2), reason: '저장할 때 또 옮기지 않는다');
@@ -580,6 +724,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     expect(find.textContaining('사진을 이 폰에 남기지 못했어요'), findsOneWidget);
@@ -601,6 +746,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     FilledButton next() => tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
@@ -633,6 +779,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     expect(tester.widget<TextField>(find.byKey(const Key('wizard-name'))).controller!.text, isEmpty);
     expect(find.textContaining('같은 이름의 가전이 이미 있어요'), findsNothing);
     // 손대지 않고 닫으면 묻지 않는다.
@@ -670,7 +817,7 @@ void main() {
     expect(_title(tester), _areaTitle);
     await tester.tap(find.byKey(const Key('wizard-back')));
     await tester.pump();
-    expect(_title(tester), '1. 버튼판 사진');
+    expect(_title(tester), '2. 버튼판 사진');
     expect(find.byKey(const Key('wizard-name')), findsNothing, reason: '여기서 바꿔도 저장되지 않는 칸은 두지 않는다');
     expect(find.text('사진 없이 버튼판으로 등록하기'), findsNothing);
     expect(find.text('가전: 세탁기'), findsOneWidget);
@@ -688,6 +835,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
@@ -696,7 +844,7 @@ void main() {
 
     await tester.binding.handlePopRoute();
     await _settle(tester);
-    expect(_title(tester), '1. 버튼판 사진');
+    expect(_title(tester), '2. 버튼판 사진');
     expect(find.text('저장하지 않고 나가기'), findsNothing);
 
     // 1단계에서 뒤로 가기는 닫기 — 찍은 사진이 있으니 묻는다.
@@ -729,10 +877,11 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
-    expect(_title(tester), '5. 자리 확인');
+    expect(_title(tester), '6. 자리 확인');
     await tester.tap(find.byKey(const Key('wizard-start-pass')));
     for (var i = 0; i < 60; i++) {
       await tester.pump(const Duration(milliseconds: 100));
@@ -756,10 +905,11 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
-    expect(_title(tester), '5. 자리 확인');
+    expect(_title(tester), '6. 자리 확인');
     await tester.tap(find.byKey(const Key('wizard-start-pass')));
     await _settle(tester);
     // 누를 장치가 없다는 거절은 자리 확인만이 아니라 누르기도 안 된다고 말한다(검토 10/19).
@@ -791,6 +941,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     String why() => tester.widget<Text>(find.byKey(const Key('wizard-next-why'))).data!;
     expect(tester.widget<FilledButton>(find.byKey(const Key('wizard-next'))).onPressed, isNull);
     expect(why(), contains('사진'));
@@ -818,6 +969,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
@@ -833,6 +985,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
@@ -879,6 +1032,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
@@ -943,6 +1097,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
@@ -971,6 +1126,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     // 가전 그림 통일(10/24): 종류는 ChoiceChip 대신 그림 카드('kind-<value>')로 고른다.
     await tester.tap(find.byKey(Key('kind-${ApplianceCategory.other.value}')));
     await tester.pump();
@@ -1006,12 +1162,27 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    FilledButton next() => tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
+    // 세트 찾기부터 막힌다 — 연결하고 돌아오면 다시 찾는다.
+    expect(find.byKey(const Key('wizard-kit-offline')), findsOneWidget);
+    expect(next().onPressed, isNull);
+    await tester.tap(find.text('본체 연결하기'));
+    await _settle(tester);
+    hub.set(RpiConnectionState.connected);
+    GoRouter.of(tester.element(find.text('본체 연결 화면'))).pop();
+    await _settle(tester);
+    expect(find.byKey(const Key('wizard-kit-offline')), findsNothing);
+    await tester.tap(find.byKey(const Key('wizard-next')));
+    await _settle(tester);
+
+    // 고르는 중에 끊겨도 같다.
+    hub.set(RpiConnectionState.unreachable);
+    await _settle(tester);
     expect(find.byKey(const Key('wizard-offline')), findsOneWidget);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     await tester.enterText(find.byKey(const Key('wizard-name')), '전자레인지');
     await tester.pump();
-    FilledButton next() => tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
     expect(next().onPressed, isNull, reason: '연결 없이 끝까지 고르고 저장에서 막히지 않게');
 
     await tester.tap(find.text('본체 연결하기'));
@@ -1032,6 +1203,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     expect(find.byKey(const Key('wizard-offline')), findsNothing);
     await _walkToStopStep(tester);
     server.unreachable = true;
@@ -1052,13 +1224,14 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
     expect(server.requests, contains('GET /appliances'));
     expect(server.mappingBody?['expected_revision'], 4, reason: '본체 목록에서 본 판을 싣는다');
     expect(server.deletes, isEmpty);
-    expect(_title(tester), '5. 자리 확인');
+    expect(_title(tester), '6. 자리 확인');
   });
 
   testWidgets('자리 저장의 답을 잃어도 본체에 저장돼 있으면 그 정의를 받아 끝낸다', (tester) async {
@@ -1069,12 +1242,13 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
     expect(server.deletes, isEmpty, reason: '저장된 가전을 지우지 않는다');
     expect(find.textContaining(kSaveOfflineMessage), findsNothing);
-    expect(_title(tester), '5. 자리 확인');
+    expect(_title(tester), '6. 자리 확인');
     final saved = container!.read(customAppliancesProvider).single;
     expect(saved.revision, 2);
     expect(saved.panelMapping, isNotNull);
@@ -1090,6 +1264,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
@@ -1110,10 +1285,11 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
-    expect(_title(tester), '5. 자리 확인');
+    expect(_title(tester), '6. 자리 확인');
     expect(server.mappingBody!['expected_revision'], 5);
   });
 
@@ -1154,7 +1330,7 @@ void main() {
     expect(server.mappingBody!['expected_revision'], 7);
     expect(find.text(kSaveConflictMessage), findsOneWidget);
     expect(find.textContaining('다른 기기'), findsNothing, reason: '다른 기기가 없을 때도 나오는 말이다');
-    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+    expect(_title(tester), '5. 정지 버튼과 기다리는 자리');
   });
 
   // 검토 10/19(core6 6): 다시 맞추기의 답을 잃었을 때 판이 오르고 자리가 있기만 하면 다른 폰이 그사이 저장한 자리를 이 폰의
@@ -1212,7 +1388,7 @@ void main() {
     }
     await _saveWithoutStop(tester);
     expect(server.requests, contains('GET /appliances'));
-    expect(_title(tester), '4. 정지 버튼과 기다리는 자리', reason: '남의 저장을 내 저장으로 알리지 않는다');
+    expect(_title(tester), '5. 정지 버튼과 기다리는 자리', reason: '남의 저장을 내 저장으로 알리지 않는다');
     expect(find.text(kSaveOfflineMessage), findsOneWidget);
     final local = container!.read(customAppliancesProvider).where((a) => a.id == 'custom_washer');
     expect(local.every((a) => a.revision == 7), isTrue, reason: '남의 정의를 이 폰에 받아 두지 않는다');
@@ -1228,6 +1404,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
@@ -1249,6 +1426,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await _settle(tester);
@@ -1298,8 +1476,9 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester, stop: false);
-    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+    expect(_title(tester), '5. 정지 버튼과 기다리는 자리');
     expect(find.textContaining('나중에 정해도'), findsNothing);
     expect(find.textContaining('중간에 안전하게 멈추려면'), findsOneWidget);
 
@@ -1310,7 +1489,7 @@ void main() {
     await tester.tap(find.text('돌아가서 정하기'));
     await _settle(tester);
     expect(server.mappingBody, isNull, reason: '돌아가면 저장하지 않는다');
-    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+    expect(_title(tester), '5. 정지 버튼과 기다리는 자리');
 
     // 정지 버튼만 고르고 기다리는 자리가 없어도 묻는다(둘 다 있어야 기다린다).
     await tester.tap(find.byKey(const Key('wizard-stop-B01')));
@@ -1320,7 +1499,7 @@ void main() {
     expect(find.text('정지 버튼 없이 저장할까요?'), findsOneWidget);
     await _saveWithoutStop(tester);
     expect(server.mappingBody, isNotNull, reason: '그래도 저장할 수는 있다 — 켜고 끄는 버튼 하나뿐인 가전');
-    expect(_title(tester), '5. 자리 확인');
+    expect(_title(tester), '6. 자리 확인');
   });
 
   testWidgets('정지 버튼과 기다리는 자리를 다 정했으면 묻지 않고 저장한다', (tester) async {
@@ -1330,6 +1509,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester);
     expect(find.byKey(const Key('wizard-stop-missing')), findsNothing);
     await tester.tap(find.byKey(const Key('wizard-next')));
@@ -1347,8 +1527,9 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester, stop: false);
-    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
+    expect(_title(tester), '5. 정지 버튼과 기다리는 자리');
     expect(find.byKey(const Key('wizard-stop-photo-hint')), findsOneWidget);
 
     await _tapPhoto(tester, 0.03, 0.5);
@@ -1384,6 +1565,7 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await _walkToStopStep(tester, stop: false);
     await tester.tap(find.byKey(const Key('mark-B01')));
     await tester.pump();
@@ -1398,25 +1580,26 @@ void main() {
     await tester.pump();
     GoRouter.of(tester.element(find.text('홈'))).push('/appliance/add');
     await _settle(tester);
+    await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
     final seen = <String>[];
-    for (var i = 1; i <= 4; i++) {
+    for (var i = 2; i <= 5; i++) {
       expect(_title(tester), startsWith('$i. '));
-      expect(find.bySemanticsLabel('5개 중 $i번째'), findsOneWidget);
+      expect(find.bySemanticsLabel('6개 중 $i번째'), findsOneWidget);
       seen.add(_title(tester));
-      if (i == 3) {
+      if (i == 4) {
         await _tapPhoto(tester, 0.5, 0.5);
         await _settle(tester);
         await tester.tap(find.text('확인'));
         await _settle(tester);
       }
-      if (i < 4) {
+      if (i < 5) {
         await tester.tap(find.byKey(const Key('wizard-next')));
         await _settle(tester);
       }
     }
-    expect(seen, ['1. 버튼판 사진', _areaTitle, '3. 버튼 고르고 이름 붙이기', '4. 정지 버튼과 기다리는 자리']);
+    expect(seen, ['2. 버튼판 사진', _areaTitle, '4. 버튼 고르고 이름 붙이기', '5. 정지 버튼과 기다리는 자리']);
     handle.dispose();
   });
 

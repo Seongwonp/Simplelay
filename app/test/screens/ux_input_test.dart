@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/hub.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/add_appliance_wizard_screen.dart';
 import 'package:simplelay/screens/appliance_editor_screen.dart';
+import 'package:simplelay/services/rpi_api_service.dart';
 import 'package:simplelay/widgets/appliance_setup_card.dart';
 import '../helpers/test_helpers.dart';
 
@@ -19,8 +23,15 @@ void main() {
       GoRoute(path: '/add', builder: (_, __) => const AddApplianceWizardScreen()),
       GoRoute(path: '/appliance/new', builder: (_, s) => ApplianceEditorScreen(draft: s.extra as ApplianceDraft)),
     ]);
-    await tester.pumpWidget(buildWithProviderState(child: MaterialApp.router(routerConfig: router)));
+    final api = RpiApiService('http://rpi5.local:8000',
+        client: MockClient((_) async => http.Response('{"found": true, "kit_id": "kit-a"}', 200)));
+    await tester.pumpWidget(buildWithProviderState(
+      overrides: [...connectedOverrides(), rpiServerOverride(RpiConnectionState.connected), rpiApiServiceProvider.overrideWithValue(api)],
+      child: MaterialApp.router(routerConfig: router),
+    ));
     router.push('/add');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pumpAndSettle();
     // 가전 그림 통일(10/24): 종류는 ChoiceChip 대신 그림 카드('kind-<value>')로 고른다.
     final washer = ApplianceCategory.washingMachine.value;

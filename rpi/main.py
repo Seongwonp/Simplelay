@@ -239,6 +239,8 @@ app.include_router(twin_router, dependencies=[Depends(require_api_key)])
 # 가전 추가 5단계 — 사진 매핑·확인 주행(2026-09-30). 다른 가전 API와 같은 인증.
 from rpi.api.mapping_router import router as mapping_router
 app.include_router(mapping_router, dependencies=[Depends(require_api_key)])
+from rpi.api.kit_router import router as kit_router
+app.include_router(kit_router, dependencies=[Depends(require_api_key)])
 # 키오스크 평소 화면(/ambient 인사말·날씨, /connections 연결 상태) -- 다른 읽기 경로와 같은 인증.
 from rpi.api.ambient_router import router as ambient_router
 app.include_router(ambient_router, dependencies=[Depends(require_api_key)])

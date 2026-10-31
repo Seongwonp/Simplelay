@@ -53,9 +53,9 @@ def actuator_link_check(service) -> tuple[bool, str]:
 
 def motion_homed_check(service, actuator) -> tuple[bool, str]:
     controller = getattr(service, "_controller", None)
-    client = getattr(controller, "_client", None)
-    info = getattr(client, "act_info", {}) if client is not None else {}
-    cached = info.get("motion_homed") if isinstance(info, dict) else None
+    status = getattr(controller, "kit_status", None)
+    report = status() if callable(status) else None
+    cached = report.get("motion_homed") if isinstance(report, dict) else None
     if isinstance(cached, bool):
         return cached, "모션 보드가 원점에 있어요" if cached else "모션 보드 원점 복귀가 필요해요"
     # 로컬 GPIO 구성은 홈 스위치의 읽기 결과가 곧 허브가 아는 마지막 준비 상태다.
@@ -63,6 +63,18 @@ def motion_homed_check(service, actuator) -> tuple[bool, str]:
         homed = bool(actuator.is_ready())
         return homed, "홈 스위치가 원점을 확인했어요" if homed else "홈 스위치가 원점을 확인하지 못했어요"
     return False, "모션 보드의 마지막 원점 상태를 아직 받지 못했어요"
+
+
+def estop_button_check(service) -> tuple[bool, str]:
+    """쓰지 않는 물리 비상 버튼을 '문제없음'으로 보이지 않게 따로 말한다."""
+    from .kit_router import ESTOP_NOT_USED_NOTE  # noqa: PLC0415
+
+    state = (service.kit_status() or {}).get("estop_button")
+    if state == "not_used":
+        return False, ESTOP_NOT_USED_NOTE
+    if state == "in_use":
+        return True, "물리 비상 버튼을 쓰고 있어요"
+    return True, "콘센트 모듈이 없어 물리 비상 버튼이 없어요" if state == "none" else "비상 버튼 구성을 아직 받지 못했어요"
 
 
 def camera_check(now: float | None = None) -> tuple[bool, str]:

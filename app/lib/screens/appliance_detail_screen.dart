@@ -7,7 +7,7 @@ import '../models/appliance.dart';
 import '../models/command_result.dart';
 import '../models/execution_status.dart';
 import '../models/display_status.dart'
-    show applianceDisplayLine, isPracticeAppliance, objectParticle, pressDeviceHosts, pressUnavailableNotice, purposeActionName;
+    show applianceDisplayLine, isPracticeAppliance, kGantryAbsentReason, objectParticle, pressDeviceHosts, pressUnavailableNotice, purposeActionName;
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/appliance_sync_provider.dart';
@@ -19,6 +19,7 @@ import '../providers/server_appliance_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/kit_widgets.dart';
 import '../widgets/panel_photo_view.dart' show applianceImageOverride;
 import '../theme/app_text.dart';
 import '../widgets/appliance_panel.dart';
@@ -102,6 +103,10 @@ class ApplianceDetailScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxxl),
         children: [
           _ReadinessLine(appliance: source, notice: pressNotice),
+          if (source.readinessReasons.any((r) => r.trim().startsWith(kGantryAbsentReason)) && !a.isThinq) ...[
+            const SizedBox(height: AppSpace.sm),
+            KitReconnectButton(appliance: a),
+          ],
           const SizedBox(height: AppSpace.md),
           if (a.isThinq) ...[
             Text(

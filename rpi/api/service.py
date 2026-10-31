@@ -141,9 +141,15 @@ ESTOP_UNKNOWN_REASON = "비상 버튼 상태를 확인하는 중이에요. 잠�
 # 끊긴 뒤 얼마나 지났는지 본체가 모른다 — '다시 연결하는 중이에요'는 오래 꺼 둔 장치도 저절로 고쳐질 것처럼 읽혀
 # 확인할 것을 말한다(2026-10-24 사용자 평가).
 ACT_LINK_DOWN_REASON = "누름 장치와 연결되지 않았어요. 누름 장치 전원과 연결을 확인해 주세요."
-#: 누름 장치(로컬 갠트리)가 올라가 있지 않은 기본 가전(2026-10-18). 갠트리는 1대이고 ``SIMPLELAY_GANTRY_APPLIANCES``에
-#: 든 기본 가전 위에만 있다 — 나머지 기본 가전은 '설정이 필요해요'로 보이고 실행을 거절한다.
-GANTRY_ABSENT_REASON = "누름 장치가 이 가전에 달려 있지 않아요"
+#: 세트가 이 가전을 맡고 있지 않다 — 기본 가전, 또는 버튼 자리를 맞춘 사용자 등록 가전. 세트는 한 번에 가전 하나만 맡으므로
+#: 나머지는 버튼 자리를 간직한 채 실행을 거절한다. 폰 ``kGantryAbsentReason``·키오스크 같은 이름 상수와 같은 문장.
+GANTRY_ABSENT_REASON = "세트 없음. 누름 장치가 이 가전에 달려 있지 않아요"
+#: 세트를 새로 이었지만 자리 확인 전이다. 첫 문장은 폰 타일에 그대로 보인다.
+KIT_UNVERIFIED_REASON = "자리 확인 전이에요. 휴대폰 앱에서 자리 확인을 마쳐 주세요."
+#: 끝난 정지 대기 상태(RPi4 ``stop_hold._TERMINAL``과 같다). 이 밖의 상태는 세트가 아직 가전 위에서 일하는 중이다.
+_HOLD_FINISHED_STATES = frozenset({"parked", "fault", "released"})
+#: 세트 없는 구성의 실행 대상 ID(로컬 모의 — 개발 PC·시뮬레이터). 링크 세트와 같은 흐름을 탄다.
+LOCAL_KIT_ID = "local-mock"
 
 
 def _check_approved(buttons, approved_buttons) -> None:
@@ -282,6 +288,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         readiness_registry=None,
         local_appliance_ids: frozenset[str] | None = None,
         gantry_appliance_ids: frozenset[str] | None = None,
+        kit_binding=None,
         history_store: JobHistoryStore | None = None,
         care_events=None,
         control_arbiter=None,
@@ -347,6 +354,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         # 누름 장치(로컬 갠트리)가 실제로 올라가 있는 **기본 가전**(2026-10-18). None이면 기본 가전 전부(종전 동작 —
         # 가전 개념만 쓰는 단위 시험). 허브 조립(deps)은 ``SIMPLELAY_GANTRY_APPLIANCES``(기본 microwave)를 준다.
         self._gantry_ids = _BUILTIN_IDS if gantry_appliance_ids is None else frozenset(gantry_appliance_ids)
+        # 세트 연결(KitBindingStore). None이면 env 목록만 본다(가전 개념만 쓰는 단위 시험). 허브 조립은 늘 준다.
+        self._kit_binding = kit_binding
         # 실행 이력(무엇을·언제·재시도·결과) — None이면 기록하지 않는다
         self._history_store = history_store
         # 보호자 알림(실패·긴급정지) — None이면 기록하지 않는다
@@ -829,6 +838,12 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             # (RuntimeError)로 올라가 라우터에서 409가 된다.
             if self._control_arbiter is not None:
                 self._control_arbiter.acquire(self._control_arbiter.EXECUTION)
+            # 준비 판정은 게이트 밖에서 끝났다 — 그 사이 세트 연결이 바뀌었으면 옛 가전 좌표로 누르게 된다. 제어권을 잡은 뒤 다시 본다
+            # (세트 연결도 같은 제어권을 잡고 바꾼다). 저장소 읽기는 잠금이 없어 정지를 묶지 않는다.
+            if controller is self._controller and self._kit_lost(appliance_id):
+                if self._control_arbiter is not None:
+                    self._control_arbiter.release(self._control_arbiter.EXECUTION)
+                raise ApplianceNotReadyError(appliance_id or "", (GANTRY_ABSENT_REASON,))
             self._running = True
             self._stop_requested_this_run = False
             self._stop_requested_at = None
@@ -1293,10 +1308,13 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         # 대상을 안 밝힌 실행은 RPi4에 내장 갠트리 가전을 대상으로 싣는다(_run_buttons) -- 그 가전으로 풀어 같은 판정을
         # 거친다(검토 2026-10-19 #1: 예전에는 늘 참이라 누름 장치 대상 목록을 건너뛰고 전자레인지 좌표로 눌렀다).
         appliance_id = _resolved_gantry_target(appliance_id)
-        if appliance_id in self._local_appliance_ids:
-            return True
         if self._appliance_registry is None:
             return True  # 가전 개념이 없는 구성 -- 종전 동작 유지
+        bound = self._kit_bound_explicit()
+        if bound is not None:
+            return bound.appliance_id == appliance_id
+        if appliance_id in self._local_appliance_ids:
+            return True
         appliance = self._appliance_registry.get(appliance_id)
         # 내장 가전만. 서버 구성 가전(ThinQ·모의 선풍기)은 is_custom이 아니지만
         # 로컬 갠트리의 대상이 아니다.
@@ -1304,18 +1322,120 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 and appliance_id in _BUILTIN_IDS and appliance_id in self._gantry_ids)
 
     def gantry_absent(self, appliance_id: str | None) -> bool:
-        """누름 장치가 올라가 있지 않은 **기본 가전**인가(2026-10-18). 사용자 등록·서버 구성 가전은 늘 False(판정 그대로).
+        """세트가 맡지 않은 가전 중 세트를 달면 쓸 수 있는 가전인가 — 기본 가전과 버튼 자리를 맞춘 사용자 등록 가전.
 
+        자리를 맞춘 적 없는 사용자 등록 가전은 세트 문제가 아니라 설정이 덜 끝난 것이고, 서버 구성 가전은 세트와 무관하다(둘 다 False).
         대상 없는 실행은 내장 갠트리 가전으로 풀어 본다(``runs_locally``와 같은 이유)."""
         appliance_id = _resolved_gantry_target(appliance_id)
-        if appliance_id in self._local_appliance_ids:
-            return False
-        if appliance_id not in _BUILTIN_IDS or appliance_id in self._gantry_ids:
-            return False
-        if self._appliance_registry is None:
+        if self._appliance_registry is None or self.runs_locally(appliance_id):
             return False
         appliance = self._appliance_registry.get(appliance_id)
-        return appliance is not None and not appliance.is_custom
+        if appliance is None or appliance.control_path is not ControlRoute.PHYSICAL:
+            return False
+        if appliance.is_custom:
+            return appliance.panel_mapping is not None or any(b.calibrated for b in appliance.buttons)
+        return appliance_id in _BUILTIN_IDS
+
+    def kit_block_reason(self, appliance_id: str | None) -> str | None:
+        """세트 때문에 이 가전을 못 쓰는 이유(쓸 수 있거나 세트와 무관하면 None) — 루틴 제안처럼 실행 전에 미리 말할 곳이 쓴다."""
+        if self._node_registry is not None and appliance_id and self._node_registry.get(appliance_id) is not None:
+            return None
+        if self.gantry_absent(appliance_id):
+            return GANTRY_ABSENT_REASON
+        return KIT_UNVERIFIED_REASON if self.kit_unverified(appliance_id) else None
+
+    def kit_unverified(self, appliance_id: str | None) -> bool:
+        """세트를 새로 이은 가전이 아직 자리 확인을 마치지 못했나."""
+        bound = self._kit_bound_explicit()
+        return (bound is not None and not bound.verified
+                and bound.appliance_id == _resolved_gantry_target(appliance_id))
+
+    def kit_id(self) -> str | None:
+        """지금 링크의 세트 ID(연결 때 받은 값). 옛 RPi4·링크 끊김이면 None. 세트 없는 로컬 실행은 고정 ID."""
+        read = getattr(self._controller, "kit_id", None)
+        if callable(read):
+            return read()
+        return LOCAL_KIT_ID
+
+    def kit_status(self) -> dict | None:
+        """세트의 지금 상태. 링크 세트는 RPi4에 묻고, 로컬 모의는 늘 있는 모의 세트로 답한다."""
+        read = getattr(self._controller, "kit_status", None)
+        if callable(read):
+            return read()
+        return {"kit_id": LOCAL_KIT_ID, "motion": "mock", "motion_present": True, "motion_homed": True,
+                "outlet": "none", "outlet_present": False, "estop_button": "none"}
+
+    def kit_old_executor(self) -> bool:
+        """링크는 살아 있는데 세트 보고를 모르는 옛 RPi4인가."""
+        info = getattr(self._controller, "rehearsal_status", None)
+        return callable(info) and self.actuator_link_up() is True and bool(info()) and "kit_protocol" not in info()
+
+    def kit_bound(self, kit_id: str | None):
+        from rpi.services.kit_binding import KitBound  # noqa: PLC0415
+
+        if self._kit_binding is None:
+            return KitBound(None, True, False)
+        return self._kit_binding.bound(kit_id)
+
+    def _kit_bound_explicit(self):
+        """사람이 연결한 저장값(없으면 None — env 목록 판정)."""
+        if self._kit_binding is None:
+            return None
+        bound = self._kit_binding.bound(self.kit_id())
+        return bound if bound.explicit else None
+
+    def _kit_lost(self, appliance_id: str | None) -> bool:
+        bound = self._kit_bound_explicit()
+        return bound is not None and bound.appliance_id != _resolved_gantry_target(appliance_id)
+
+    def bind_kit(self, kit_id: str, appliance_id: str) -> None:
+        """세트를 가전에 잇는다. 일하는 중이면 RuntimeError(제어권 충돌·정지 미확인·정지 대기·루틴)이고 아무것도 바꾸지 않는다.
+
+        실행·자리 확인·개발자 세션과 같은 제어권을 잡고 바꾼다 — 확인 뒤 실행이 끼어들 틈이 없다. 저장(DB)은 서비스 잠금
+        밖에서 한다(정지가 그 잠금을 쓴다)."""
+        arbiter = self._control_arbiter
+        if arbiter is not None:
+            arbiter.acquire(arbiter.KIT_BIND)
+        try:
+            with self._lock:
+                busy = self._running
+            hold_state = (self.hold_status() or {}).get("hold_state")
+            holding = hold_state is not None and hold_state not in _HOLD_FINISHED_STATES
+            if busy or holding or self._kit_routine_active():
+                raise RuntimeError("kit is busy")
+            current = self.kit_bound(kit_id)
+            if current.appliance_id == appliance_id and (not current.explicit or current.verified):
+                # 이미 맡고 있는 가전 — env로 쓰던 전자레인지까지 자리 확인을 다시 요구하지 않는다.
+                self._kit_binding.bind(kit_id, appliance_id, verified=True)
+            else:
+                self._kit_binding.bind(kit_id, appliance_id)
+        finally:
+            if arbiter is not None:
+                arbiter.release(arbiter.KIT_BIND)
+
+    def kit_mark_verified(self, appliance_id: str) -> None:
+        if self._kit_binding is not None:
+            self._kit_binding.mark_verified(appliance_id)
+
+    def kit_mark_unverified(self, appliance_id: str) -> None:
+        if self._kit_binding is not None:
+            self._kit_binding.mark_unverified(appliance_id)
+
+    def kit_forget_appliance(self, appliance_id: str) -> None:
+        if self._kit_binding is not None:
+            self._kit_binding.forget_appliance(appliance_id)
+
+    @staticmethod
+    def _kit_routine_active() -> bool:
+        """구간 사이에는 제어권이 비어 있다 — 도는 루틴이 있으면 세트를 옮기지 않는다."""
+        try:
+            from rpi.routines import wiring  # noqa: PLC0415
+
+            runner = getattr(wiring._engine, "runner", None)
+            return runner is not None and bool(runner.active_runs())
+        except Exception:  # noqa: BLE001 - 루틴을 모르면 '돈다'고 본다
+            log.exception("routine state unavailable for kit bind")
+            return True
 
     def _require_ready(
         self, appliance_id: str | None, controller: ButtonSequenceController
@@ -1344,9 +1464,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             return
         if controller is self._controller:
             if self.runs_locally(appliance_id):
+                if self.kit_unverified(appliance_id):
+                    raise ApplianceNotReadyError(_resolved_gantry_target(appliance_id), (KIT_UNVERIFIED_REASON,))
                 return
             if self.gantry_absent(appliance_id):
-                # 기본 가전이지만 누름 장치가 그 위에 없다(갠트리 1대 — 2026-10-18).
+                # 세트가 이 가전을 맡고 있지 않다(세트 1대에 가전 하나).
                 raise ApplianceNotReadyError(_resolved_gantry_target(appliance_id), (GANTRY_ABSENT_REASON,))
             # 노드도 없고 로컬 대상도 아니다 = 누를 액추에이터가 없다.
             raise ApplianceNotReadyError(

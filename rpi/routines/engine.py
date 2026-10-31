@@ -669,6 +669,11 @@ class RoutineEngine:
                 readiness = self._service.thinq_readiness(command.target_id)
                 if not readiness.can_execute:
                     problems.extend(readiness.reasons or ("ThinQ 가전이 준비되지 않았어요",))
+            else:
+                # 세트를 내준 가전은 승인해도 거절된다 — 카드를 내기 전에 이유를 말한다.
+                block = getattr(self._service, "kit_block_reason", lambda _t: None)(command.target_id)
+                if block is not None:
+                    problems.append(block)
         if problems:
             raise RoutineUnavailableError(" · ".join(problems))
         summaries = tuple(self._service.summary_of(c) for c in commands)

@@ -41,6 +41,8 @@ Environment variables:
                                   배경에서 1→2→4…30 s 간격으로 연결을 다시 시도한다. 연결 확인 전의
                                   execute는 ``{"type":"error","reason":"motion_not_ready","detail":…}``로
                                   바로 거절한다(누름을 시도하지 않는다).
+  SIMPLELAY_KIT_ID                누름 장치 세트 ID를 직접 정한다(없으면 데이터 폴더의 kit_id를 쓰고, 없으면 한 번 만든다).
+  SIMPLELAY_ACT_DATA_DIR          세트 ID를 둘 데이터 폴더(기본 /data — 재시작·이미지 교체에도 남는 곳).
   SIMPLELAY_MOTION_HEARTBEAT_MS   "off"면 시작 때 경고 — 2 s 넘는 동작은 MCU 워치독에 끊긴다
                                   (serial 모드면 RPi5 개발자 조작(dev_motion 프레임, 2026-10-10)도 같은 어댑터로 받고
                                   act_info.dev_motion_protocol로 알린다 — RPi5가 SIMPLELAY_DEV_REAL_MOTION=1일 때만 보낸다.
@@ -545,6 +547,10 @@ def _outlet_press_appliance() -> str:
     return target
 
 
+def _outlet_estop_ignored() -> bool:
+    return os.getenv("SIMPLELAY_OUTLET_IGNORE_ESTOP", "").strip() in ("1", "true", "yes")
+
+
 def _outlet_channel_map():
     from rpi.verifier.outlet import outlet_channels_from_env
 
@@ -876,6 +882,8 @@ def _build_executor(
     )
     if outlet is not None:
         _wire_outlet_estop(outlet, executor)
+    # 세트 보고가 원점·연결 캐시를 읽는 대상(읽기만 — 실행 경로는 위 인자들을 쓴다).
+    executor.motion_client = raw_grbl
     return executor
 
 
@@ -897,7 +905,7 @@ def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
 
     # 물리 비상정지 버튼을 쓰지 않는 구성(SIMPLELAY_OUTLET_IGNORE_ESTOP=1)이면
     # 모듈의 estop 알림/걸림을 실행기로 넘기지 않는다 (RPi5 팝업 방지).
-    ignore_estop = os.getenv("SIMPLELAY_OUTLET_IGNORE_ESTOP", "").strip() in ("1", "true", "yes")
+    ignore_estop = _outlet_estop_ignored()
     if ignore_estop:
         log.warning("outlet module physical E-STOP ignored by configuration (SIMPLELAY_OUTLET_IGNORE_ESTOP=1)")
 
@@ -959,7 +967,7 @@ class _RehearsalHooks:
         self._held = False
 
 
-def _describe_act(executor: ActExecutor, *, outlet_kind: str, motion_kind: str) -> None:
+def _describe_act(executor: ActExecutor, *, outlet_kind: str, motion_kind: str, outlet=None) -> None:
     """RPi5에 알릴 구성(``act_info``)을 채우고 리허설 주입을 열지 정한다(2026-10-06 평가 C1·B3, UART 리허설).
 
     ``done_watch``: SIMPLELAY_DONE_WATCH의 가전 ID — RPi5가 SIMPLELAY_ROUTINE_DONE_SENSORS·가전 목록과 대조한다.
@@ -975,6 +983,12 @@ def _describe_act(executor: ActExecutor, *, outlet_kind: str, motion_kind: str) 
         executor.act_info["motion_protocol"] = getattr(motion_client, "motion_protocol", "unknown")
     allowed = motion_kind == "mock" and outlet_kind in ("fake", "none")
     executor.set_rehearsal(_RehearsalHooks() if allowed else None)
+    from .services.kit_identity import kit_reporter, load_kit_id
+
+    executor.set_kit_report(kit_reporter(
+        load_kit_id(), motion_kind=motion_kind, outlet_kind=outlet_kind,
+        motion=getattr(executor, "motion_client", None), outlet=outlet,
+        estop_ignored=_outlet_estop_ignored()))
     log.info("act_info: done_watch=%s outlet=%s motion=%s rehearsal=%s",
              executor.act_info["done_watch"], outlet_kind, motion_kind, "ON" if allowed else "off")
 
@@ -1119,7 +1133,7 @@ async def _run() -> None:
         recorder.start()
     motion_kind = (os.getenv("SIMPLELAY_MOTION_MODE", "mock") or "mock").strip().lower() or "mock"
     outlet_kind = "none" if outlet is None else ("fake" if getattr(outlet, "mock", False) else "real")
-    _describe_act(executor, outlet_kind=outlet_kind, motion_kind=motion_kind)
+    _describe_act(executor, outlet_kind=outlet_kind, motion_kind=motion_kind, outlet=outlet)
     try:
         done = _build_done_watch(outlet, executor)
     except BaseException:

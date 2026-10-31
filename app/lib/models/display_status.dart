@@ -129,7 +129,7 @@ const kSetupNeededText = '설정이 필요해요';
 const kThinqUncheckedText = '확인 전이에요';
 
 /// 본체가 누름 장치 위치 때문에 거절한 이유(서버 `GANTRY_ABSENT_REASON`과 같은 문장).
-const kGantryAbsentReason = '누름 장치가 이 가전에 달려 있지 않아요';
+const kGantryAbsentReason = '세트 없음. 누름 장치가 이 가전에 달려 있지 않아요';
 
 /// 누름 장치를 올릴 수 있는 기본 가전(서버 `BUILTIN_APPLIANCES`와 같은 id).
 const kPressDeviceBuiltinIds = {'microwave', 'induction'};
@@ -167,20 +167,19 @@ bool pressDeviceDisconnected(List<ApplianceMap>? hosts) =>
 /// 누름 장치가 끊겼을 때 위치 대신 쓰는 말([pressDeviceDisconnected]).
 const kPressDeviceDisconnectedText = '누름 장치가 연결되지 않았어요';
 
+/// 세트가 이 가전을 맡고 있지 않을 때의 짧은 말(키오스크와 같다).
+const kKitAbsentShort = '세트 없음';
+
 /// 가전 타일에 적을 **짧은** 원인 한 줄(휴리스틱 평가 10/18: '누름 장치가 이 가전 위에 없어서 누를 수 없…'처럼 말줄임에
 /// 원인이 잘렸다). 아는 서버 문장은 짧은 말로, 모르는 문장은 첫 문장만(지어내지 않는다). 자세한 건 가전 상세에서.
 ///
-/// 누름 장치 위치는 [pressHosts]([pressDeviceHosts])로 아는 만큼만 — 대상 목록이 비었는데 '다른 가전 위에 있어요'라고
-/// 하던 것(검토 10/19).
+/// 세트가 어느 가전에 있는지는 말하지 않는다 — 사용자 등록 가전이 맡고 있으면 기본 가전 판정만으로는 틀리게 말한다.
+/// 끊긴 것만 먼저 말한다([pressDeviceDisconnected]).
 String tileReasonText(String reason, {List<ApplianceMap>? pressHosts}) {
   final t = reason.trim();
   if (t.startsWith(kGantryAbsentReason)) {
     if (pressDeviceDisconnected(pressHosts)) return kPressDeviceDisconnectedText;
-    return switch (pressHosts) {
-      null => '누름 장치가 이 가전에 달려 있지 않아요',
-      [] => '누름 장치가 어느 가전 위에도 없어요',
-      _ => '누름 장치가 다른 가전 위에 있어요',
-    };
+    return kKitAbsentShort;
   }
   final m = RegExp(r'^(.+?)[.。](?:\s|$)').firstMatch(t);
   return m == null ? t : m.group(1)!.trim();
@@ -204,15 +203,9 @@ String? pressUnavailableNotice(ApplianceMap a, ApplianceMap? source, {List<Appli
   if (gantry && pressDeviceDisconnected(hosts)) {
     return '지금은 누를 수 없어요. $kPressDeviceDisconnectedText. 누름 장치 연결을 확인해 주세요.';
   }
-  final where = switch (hosts) {
-    null => '',
-    [] => ' 누름 장치는 지금 어느 가전 위에도 없어요.',
-    [final h, ...] => ' 누름 장치는 지금 ${applianceDisplayLine(h)} 위에 있어요.',
-  };
   return gantry
-      ? '누름 장치가 이 가전에 달려 있지 않아 지금은 누를 수 없어요.$where '
-          '이 가전을 누르게 하려면 설치하는 분께 누름 장치를 옮기고 본체 설정을 바꿔 달라고 부탁해 주세요.'
-      : '이 가전에는 아직 누름 장치가 연결되지 않아 지금은 누를 수 없어요.$where '
+      ? '세트 없음. 지금은 누를 수 없어요. 버튼 자리는 그대로 남아 있어요. 세트를 이 가전으로 옮긴 뒤 아래 \'세트 다시 연결\'을 눌러 주세요.'
+      : '이 가전에는 아직 누름 장치가 연결되지 않아 지금은 누를 수 없어요. '
           '설치하는 분께 이 가전의 누름 장치 연결을 부탁해 주세요.';
 }
 

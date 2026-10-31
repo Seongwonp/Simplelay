@@ -220,7 +220,8 @@ def mapping_preview(appliance_id: str, body: MappingRequest, registry=Depends(ge
 
 
 @router.put("/appliances/{appliance_id}/mapping")
-def mapping_save(appliance_id: str, body: MappingRequest, registry=Depends(get_appliance_registry)) -> dict:
+def mapping_save(appliance_id: str, body: MappingRequest, registry=Depends(get_appliance_registry),
+                 service=Depends(get_service)) -> dict:
     from .router import _to_appliance_response  # noqa: PLC0415 - 같은 응답 모양
 
     _, candidate, result, check = _prepare(appliance_id, body, registry)
@@ -238,6 +239,8 @@ def mapping_save(appliance_id: str, body: MappingRequest, registry=Depends(get_a
                             headers={"X-Current-Revision": str(exc.current_revision)}) from exc
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="appliance not found") from exc
+    # 좌표가 바뀌었으니 세트가 맡은 가전의 지난 자리 확인은 무효다.
+    service.kit_mark_unverified(appliance_id)
     return _response(saved, result, check, saved=True,
                      appliance_response=_to_appliance_response(saved).model_dump())
 
@@ -263,7 +266,8 @@ async def verify_pass_start(appliance_id: str, body: VerifyPassRequest | None = 
     try:
         # 실행기 최초 생성도 스레드 안에서(인자로 부르면 루프에서 만든다 — 지금은 메모리뿐이지만 같은 모양을 남기지 않는다)
         return await asyncio.to_thread(
-            lambda: get_verify_runner().start(appliance_id, targets, service._controller, arbiter=arbiter))
+            lambda: get_verify_runner().start(appliance_id, targets, service._controller, arbiter=arbiter,
+                                              on_success=lambda: service.kit_mark_verified(appliance_id)))
     except VerifyPassUnavailable as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RuntimeError as exc:

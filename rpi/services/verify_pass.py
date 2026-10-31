@@ -45,10 +45,10 @@ class VerifyPassRunner:
             return None if doc is None else _copy(doc)
 
     def start(self, appliance_id: str, targets: list[dict], controller: Any,
-              *, wait: bool = False, arbiter: Any = None) -> dict:
+              *, wait: bool = False, arbiter: Any = None, on_success: Any = None) -> dict:
         """``arbiter``(일반 실행과 같은 ControlArbiter)를 주면 주행 내내 기계 제어권을 잡는다 —
         잡지 못하면(일반 실행·개발자 세션·정지 미확인) ControlConflictError/ControlFaultedError
-        (RuntimeError)로 거절하고 움직이지 않는다(10/19 검토 #8)."""
+        (RuntimeError)로 거절하고 움직이지 않는다(10/19 검토 #8). ``on_success``는 모든 자리에 도착했을 때 한 번 부른다."""
         mode = getattr(controller, "execution_mode", ExecutionMode.UNKNOWN)
         remote = callable(getattr(controller, "verify_pass", None))
         if not remote and mode is not ExecutionMode.MOCK:
@@ -70,7 +70,7 @@ class VerifyPassRunner:
                 "note": "누르지 않고 Z를 올린 채 지나갑니다. 버튼 위인지는 눈으로 확인해 주세요.",
             }
             self._passes[appliance_id] = doc
-        thread = threading.Thread(target=self._run, args=(doc, targets, controller, remote, arbiter),
+        thread = threading.Thread(target=self._run, args=(doc, targets, controller, remote, arbiter, on_success),
                                   daemon=True, name="verify-pass")
         try:
             thread.start()
@@ -98,7 +98,7 @@ class VerifyPassRunner:
                 doc["execution_mode"] = mode
 
     def _run(self, doc: dict, targets: list[dict], controller: Any, remote: bool,
-             arbiter: Any = None) -> None:
+             arbiter: Any = None, on_success: Any = None) -> None:
         try:
             wire = [{"button": t["button"], "x_mm": t["x_mm"], "y_mm": t["y_mm"], "kind": t["kind"]}
                     for t in targets]
@@ -120,6 +120,8 @@ class VerifyPassRunner:
                 doc["state"] = "done" if ok else "failed"
                 doc["detail"] = ("모든 위치에 도착했다고 응답했어요 — 버튼 위였는지 확인해 주세요" if ok
                                  else "멈춘 위치가 있어요 — 조그로 고치거나 매핑을 다시 해 주세요")
+            if ok and on_success is not None:
+                on_success()
         except Exception as exc:  # noqa: BLE001 - 결과로 보고한다
             log.exception("verify pass failed")
             with self._lock:

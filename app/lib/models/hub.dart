@@ -103,6 +103,61 @@ class HubLocation {
       );
 }
 
+/// `GET /kit` — 누름 장치 세트(RPi4·모션 보드·콘센트 보드 한 묶음)의 지금 상태.
+class KitStatus {
+  const KitStatus({
+    required this.found,
+    this.kitId,
+    this.motion,
+    this.motionPresent = false,
+    this.outlet,
+    this.outletPresent = false,
+    this.homed,
+    this.boundAppliance,
+    this.boundName,
+    this.verified = false,
+    this.estopNote,
+    this.reason,
+  });
+
+  /// 설정된 링크의 세트가 `kit_id`로 답했나.
+  final bool found;
+  final String? kitId;
+
+  /// `serial`(실물) 또는 `mock`.
+  final String? motion;
+  final bool motionPresent;
+  final String? outlet;
+  final bool outletPresent;
+  final bool? homed;
+
+  /// 세트가 맡은 가전.
+  final String? boundAppliance;
+  final String? boundName;
+  final bool verified;
+
+  /// 물리 비상 버튼을 쓰지 않는 구성의 안내.
+  final String? estopNote;
+
+  /// 못 찾은 이유(본체 문장).
+  final String? reason;
+
+  factory KitStatus.fromJson(Map<String, dynamic> json) => KitStatus(
+        found: json['found'] == true,
+        kitId: json['kit_id'] as String?,
+        motion: json['motion'] as String?,
+        motionPresent: json['motion_present'] == true,
+        outlet: json['outlet'] as String?,
+        outletPresent: json['outlet_present'] == true,
+        homed: json['homed'] as bool?,
+        boundAppliance: json['bound_appliance'] as String?,
+        boundName: json['name'] as String?,
+        verified: json['verified'] == true,
+        estopNote: json['estop_note'] as String?,
+        reason: json['reason'] as String?,
+      );
+}
+
 /// `/mapping/frame` — 누름 장치가 닿는 범위(작업 영역, mm)와 원점 방향(2026-10-26).
 ///
 /// 사용자는 mm를 적지 않는다 — 가전 추가 화면이 이 비율의 칸을 사진 위에 겹치고 사용자가 장치 자리에 끌어 맞춘다.

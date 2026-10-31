@@ -42,6 +42,7 @@ from rpi.services import (
 from rpi.services.demo_failure import DemoFailureState
 from rpi.services.history import InMemoryJobHistory, JobHistoryStore
 from rpi.services.link_heartbeat import LinkStopNotices
+from rpi.services.kit_binding import KitBindingStore
 from rpi.services.persistence import (
     SimpleLayDb,
     SqliteJobHistory,
@@ -554,6 +555,13 @@ def _gantry_appliance_ids() -> frozenset[str]:
     return frozenset(part.strip() for part in raw.split(",") if part.strip())
 
 
+def _kit_env_order() -> tuple[str, ...]:
+    """저장값이 없을 때 세트가 맡은 가전 — 쉼표 순서대로 누름 장치 목록이 먼저. 맨 앞이 '맡은 가전'으로 보인다."""
+    gantry = os.environ.get("SIMPLELAY_GANTRY_APPLIANCES")
+    raw = ("microwave" if gantry is None else gantry) + "," + os.environ.get("SIMPLELAY_LOCAL_APPLIANCES", "")
+    return tuple(dict.fromkeys(part.strip() for part in raw.split(",") if part.strip()))
+
+
 def get_clock():
     """서버 시계 — 준비 상태 보고에 확인 시각을 찍을 때 쓴다."""
     return _clock
@@ -741,6 +749,7 @@ def get_service() -> SimpleLayService:
         readiness_registry=get_readiness_registry(),
         local_appliance_ids=_local_appliance_ids(),
         gantry_appliance_ids=_gantry_appliance_ids(),
+        kit_binding=KitBindingStore(db, _kit_env_order()),
         history_store=get_job_history(),
         care_events=get_care_events(),
         control_arbiter=get_control_arbiter(),

@@ -145,7 +145,7 @@ def test_phone_and_kiosk_match_the_server_gantry_sentence():
     import re
 
     root = pathlib.Path(__file__).resolve().parents[2]
-    assert GANTRY_ABSENT_REASON == "누름 장치가 이 가전에 달려 있지 않아요"
+    assert GANTRY_ABSENT_REASON == "세트 없음. 누름 장치가 이 가전에 달려 있지 않아요"
     for rel in ("app/lib/models/display_status.dart", "rpi5-touchscreen-app/lib/models/appliance.dart"):
         text = (root / rel).read_text(encoding="utf-8")
         m = re.search(r"const kGantryAbsentReason = '([^']*)';", text)

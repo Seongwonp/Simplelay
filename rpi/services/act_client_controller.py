@@ -274,6 +274,24 @@ class ActClientController:
         """RPi4가 ``act_info``로 알린 구성(리허설 가능 여부 ``rehearsal``·``outlet``·``motion``)."""
         return dict(getattr(self._client, "act_info", {}) or {})
 
+    def kit_id(self) -> str | None:
+        """연결 때 알린 세트 ID. 옛 RPi4·링크 끊김이면 None. 네트워크를 타지 않는다 — 실행 판정에서 부른다."""
+        value = (getattr(self._client, "act_info", None) or {}).get("kit_id")
+        return value if isinstance(value, str) and value else None
+
+    def kit_status(self, timeout_s: float = 1.0) -> dict | None:
+        """세트의 지금 상태. 링크가 없거나 세트 보고를 모르는 RPi4면 None, 답이 늦으면 연결 때 받은 값(``stale: True``)."""
+        info = dict(getattr(self._client, "act_info", None) or {})
+        if not bool(getattr(self._client, "link_up", True)) or not isinstance(info.get("kit_protocol"), int):
+            return None
+        future = asyncio.run_coroutine_threadsafe(self._client.kit_query(timeout_s), self._loop)
+        try:
+            return dict(future.result(timeout=timeout_s + self.CALL_MARGIN_SECONDS))
+        except Exception as exc:  # noqa: BLE001 - 조회 실패는 '낡은 값'으로 알린다(시간 초과·끊김)
+            future.cancel()
+            log.warning("kit status query failed: %s", exc)
+            return {**info, "stale": True}
+
     def _rehearse(self, action: str, **fields) -> dict:
         future = asyncio.run_coroutine_threadsafe(self._client.rehearsal(action, **fields), self._loop)
         try:

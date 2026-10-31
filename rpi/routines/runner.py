@@ -436,6 +436,11 @@ class RoutineRunner:
             kwargs["usage_source"] = usage_source
         return kwargs
 
+    def active_runs(self) -> tuple[RoutineRun, ...]:
+        """아직 끝나지 않은 루틴."""
+        with self._lock:
+            return tuple(r for r in self._runs if r.status is RunStatus.RUNNING)
+
     def _start(self, routine: Routine, scenario_id: str, job_id: str) -> RoutineRun:
         run = RoutineRun(run_id=job_id, routine_id=routine.routine_id, routine_name=routine.name,
                          scenario_id=scenario_id, started_at=self._clock.now(), job_ids=[job_id],

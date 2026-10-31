@@ -22,7 +22,7 @@ def test_readiness_returns_all_isolated_checks(api, monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert [item["key"] for item in body] == [
-        "internet", "thinq", "actuator_link", "motion_homed", "room_camera",
+        "internet", "thinq", "actuator_link", "motion_homed", "estop_button", "room_camera",
         "clock", "daily_ask_cap", "auto_rules", "quiet_hours",
     ]
     assert all(set(item) == {"key", "ok", "label", "detail"} and item["ok"] for item in body)
@@ -33,5 +33,5 @@ def test_one_readiness_failure_does_not_hide_other_items(api, monkeypatch):
     monkeypatch.setattr(readiness_checks, "internet_probe", lambda: (False, "연결 안 됨", None))
     monkeypatch.setattr(readiness_checks, "thinq_check", lambda: (_ for _ in ()).throw(RuntimeError("broken")))
     body = api.get("/readiness").json()
-    assert len(body) == 9
+    assert len(body) == 10
     assert body[0]["ok"] is False and body[1]["ok"] is False and body[2]["ok"] is True

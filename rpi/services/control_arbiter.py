@@ -19,6 +19,8 @@ class ControlConflictError(RuntimeError):
         elif holder == ControlArbiter.VERIFY_PASS:
             # 확인 주행 점유는 일반 실행과 구분해 알린다.
             message = "자리 확인이 진행 중입니다 — 끝난 뒤에 시작할 수 있습니다"
+        elif holder == ControlArbiter.KIT_BIND:
+            message = "누름 장치 세트 연결을 바꾸는 중입니다 — 잠시 뒤 다시 시도해 주세요"
         else:
             message = "일반 실행이 진행 중입니다 — 끝난 뒤에 시작할 수 있습니다"
         super().__init__(message)
@@ -46,6 +48,8 @@ class ControlArbiter:
     DEVELOPER = "developer"
     #: 확인 주행(자리 확인) — 일반 실행처럼 기계를 움직인다. 일반 실행의 반납과 섞이지 않게 이름을 따로 둔다(10/19).
     VERIFY_PASS = "verify_pass"
+    #: 세트 연결을 바꾸는 짧은 순간 — 판정(어느 가전을 맡았나)이 바뀌는 동안 실행이 시작되지 않게 잡는다.
+    KIT_BIND = "kit_bind"
 
     def __init__(self) -> None:
         self._lock = threading.Lock()

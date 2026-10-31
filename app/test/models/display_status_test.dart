@@ -438,7 +438,7 @@ void main() {
     test('전자레인지 위에 있으면 그 가전이 자리다', () {
       final hosts = pressDeviceHosts([builtin('microwave'), builtin('induction', reasons: [absent])]);
       expect(hosts!.map((a) => a.id), ['microwave']);
-      expect(tileReasonText(absent, pressHosts: hosts), '누름 장치가 다른 가전 위에 있어요');
+      expect(tileReasonText(absent, pressHosts: hosts), kKitAbsentShort);
     });
 
     // 첫 사용 평가 2차(10/24): 누름 장치가 끊겼는데 인덕션 타일이 '누름 장치가 다른 가전 위에 있어요'라고 했다 — 끊긴 것을 먼저.
@@ -487,7 +487,7 @@ void main() {
         'readiness': 'needs_setup',
         'readiness_reasons': ['누름 장치와 연결되지 않았어요. 다시 연결하는 중이에요.'],
       });
-      final ind = builtin('induction', reasons: ['누름 장치가 이 가전에 달려 있지 않아요']);
+      final ind = builtin('induction', reasons: [absent]);
       final hosts = pressDeviceHosts([mw, ind]);
       expect(hosts!.map((a) => a.id), ['microwave']);
       expect(pressDeviceDisconnected(hosts), isTrue);
@@ -511,11 +511,11 @@ void main() {
       final hosts = pressDeviceHosts(
           [builtin('microwave', reasons: [absent]), builtin('induction', reasons: [absent])]);
       expect(hosts, isEmpty);
-      expect(tileReasonText(absent, pressHosts: hosts), '누름 장치가 어느 가전 위에도 없어요');
+      expect(tileReasonText(absent, pressHosts: hosts), kKitAbsentShort);
       final s = _tile(source: builtin('induction', reasons: [absent]));
       expect(s.text, '설정이 필요해요');
       // 타일 함수에 넘기지 않으면 모르는 것 — 다른 가전 위라고 짐작하지 않는다.
-      expect(s.detail, '누름 장치가 이 가전에 달려 있지 않아요');
+      expect(s.detail, kKitAbsentShort);
       final t = applianceTileStatus(
         appliance: _plain,
         readinessSource: builtin('induction', reasons: [absent]),
@@ -524,17 +524,16 @@ void main() {
         execution: const ExecutionStatus(),
         pressHosts: hosts,
       );
-      expect(t.issue!.text, '지금은 쓸 수 없어요. 누름 장치가 어느 가전 위에도 없어요');
+      expect(t.issue!.text, '지금은 쓸 수 없어요. 세트 없음');
     });
 
     test('누를 장치가 없는 기본 가전의 상세 안내 — 어디 있는지와 할 일', () {
       final ind = builtin('induction', reasons: [absent]);
-      expect(
-          pressUnavailableNotice(ind, ind,
-              pressHosts: pressDeviceHosts([builtin('microwave', name: '전자레인지'), ind])),
-          startsWith('누름 장치가 이 가전에 달려 있지 않아 지금은 누를 수 없어요. 누름 장치는 지금 전자레인지 위에 있어요.'));
-      expect(pressUnavailableNotice(ind, ind, pressHosts: const []),
-          contains('누름 장치는 지금 어느 가전 위에도 없어요.'));
+      final notice = pressUnavailableNotice(ind, ind,
+          pressHosts: pressDeviceHosts([builtin('microwave', name: '전자레인지'), ind]))!;
+      expect(notice, startsWith('세트 없음'));
+      expect(notice, contains('버튼 자리는 그대로'));
+      expect(notice, contains('세트 다시 연결'));
       // 실행할 수 있거나 판정이 없으면 말하지 않는다.
       expect(pressUnavailableNotice(builtin('microwave'), builtin('microwave')), isNull);
       expect(pressUnavailableNotice(ind, null), isNull);
@@ -542,7 +541,7 @@ void main() {
 
     test('판정을 받은 기본 가전이 없으면 모른다 — 다른 가전 위라고 하지 않는다', () {
       expect(pressDeviceHosts(const []), isNull);
-      expect(tileReasonText(absent), '누름 장치가 이 가전에 달려 있지 않아요');
+      expect(tileReasonText(absent), kKitAbsentShort);
     });
   });
 }

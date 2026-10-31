@@ -2430,6 +2430,26 @@ class RpiApiService {
 
   // 가전 추가: 사진 매핑·확인 주행 (2026-09-30)
 
+  /// GET /kit — 누름 장치 세트를 찾았나, 어느 가전을 맡았나.
+  Future<KitStatus> kitStatus() async {
+    final res = await _client.get(_base.replace(path: '/kit'), headers: _headers).timeout(_timeout);
+    _checkStatus(res);
+    return KitStatus.fromJson(_decodeMap(res));
+  }
+
+  /// POST /kit/bind — 세트를 이 가전에 잇는다. 다른 가전을 맡고 있으면 [confirmRelease]가 있어야 한다.
+  Future<KitStatus> bindKit(String applianceId, {bool confirmRelease = false}) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/kit/bind'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'appliance_id': applianceId, 'confirm_release': confirmRelease}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return KitStatus.fromJson(_decodeMap(res));
+  }
+
   Future<MappingFrame> mappingFrame() async {
     final res = await _client
         .get(_base.replace(path: '/mapping/frame'), headers: _headers)

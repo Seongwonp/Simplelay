@@ -39,7 +39,7 @@ import 'package:simplelay/theme/app_colors.dart';
 
 import '../helpers/test_helpers.dart';
 
-const _gantryAbsent = '누름 장치가 이 가전에 달려 있지 않아요';
+const _gantryAbsent = kGantryAbsentReason;
 
 Map<String, dynamic> _custom(String id, String name, String category,
         {String readiness = 'operable', bool canExecute = true, List<String> reasons = const []}) =>
@@ -618,9 +618,9 @@ void main() {
   group('5. 타일 원인은 짧게, 말줄임 없이', () {
     // 사용자 결정(10/19): 원인은 타일 글자가 아니라 '!' 표시 문장의 둘째 마디(짧게).
     // 검토 10/19: 이 시험의 가전은 기본 가전 판정이 아니라 누름 장치가 어디 있는지 모른다 — 짐작하지 않는다.
-    testWidgets("인덕션 — '!' 표시 '지금은 쓸 수 없어요. 누름 장치가 이 가전에 달려 있지 않아요'", (tester) async {
+    testWidgets("인덕션 — '!' 표시 '지금은 쓸 수 없어요. 세트 없음'", (tester) async {
       await _pump(tester, const HomeScreen(), size: const Size(360, 3000));
-      expect(tileMarkText(tester, 'ind'), '지금은 쓸 수 없어요. 누름 장치가 이 가전에 달려 있지 않아요');
+      expect(tileMarkText(tester, 'ind'), '지금은 쓸 수 없어요. 세트 없음');
       expect(tileMarkIcon(tester, 'ind'), Icons.priority_high_rounded);
       final card = find.byKey(const Key('appliance-card-ind'));
       expect(_in(card, findPlainText(_gantryAbsent, contains: true)), findsNothing);
@@ -635,7 +635,7 @@ void main() {
         execution: const ExecutionStatus(),
       );
       expect(s.text, '설정이 필요해요');
-      expect(tileReasonText(_gantryAbsent), '누름 장치가 이 가전에 달려 있지 않아요');
+      expect(tileReasonText(_gantryAbsent), kKitAbsentShort);
     });
   });
 

@@ -7,6 +7,8 @@
 대상의 CT 채널:
 - ``SIMPLELAY_OUTLET_CHANNELS``가 있으면 거기 적힌 채널만. 없는 대상은 채널 없음.
 - 대응이 비면(CT 하나 시절) 채널 0은 **누르는 가전(전자레인지) 것**이다. 다른 대상은 채널 없음.
+- 허브가 execute의 ``press_appliance``로 세트에 연결된 가전을 알리면, 그 가전이 대응에 없어도 누르는 가전 자리의 CT를 쓴다
+  (세트의 콘센트는 하나이고 그 가전이 꽂혀 있다). 옛 허브는 알리지 않으므로 env 값 그대로다.
 
 대상별 정책:
 - L3 ``off`` → 판정 없음(``operation_confirmed`` null). ``mock`` → 합성 전력(``mock`` 표시, 대상 무관).
@@ -101,6 +103,13 @@ class TargetBinder:
         self._mock_operation = mock_operation
         self._none = l3_none_targets or frozenset()
         self._cache: dict[str, TargetBinding] = {}
+        self._press_target: str | None = None
+
+    def set_press_target(self, appliance_id: str) -> None:
+        """세트에 연결된 가전(허브가 execute로 알린 값). 채널이 바뀌므로 그 대상의 결속을 다시 만든다."""
+        if appliance_id != self._press_target:
+            self._press_target = appliance_id
+            self._cache.pop(appliance_id, None)
 
     # 채널
 
@@ -109,9 +118,11 @@ class TargetBinder:
         if appliance_id is None:
             return None
         by_appliance: Mapping[str, int] = getattr(self._channels, "by_appliance", {}) or {}
+        is_press_target = appliance_id == self._press_target
         if by_appliance:
-            return by_appliance.get(appliance_id)
-        return 0 if appliance_id == self._press_appliance else None
+            channel = by_appliance.get(appliance_id)
+            return by_appliance.get(self._press_appliance) if channel is None and is_press_target else channel
+        return 0 if appliance_id == self._press_appliance or is_press_target else None
 
     def view_for(self, appliance_id: str | None) -> Any:
         """대상 CT 채널의 전력 보기(콘센트가 없거나 채널이 없으면 None)."""

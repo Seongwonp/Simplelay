@@ -107,6 +107,19 @@ RPi5는 답을 받기 전 걸림 상태를 **모름**(`estop_latched=null`)으�
 "비상정지 상태를 확인하는 중이에요 — RPi4 응답을 기다려요"이고, 상태를 볼 때마다 2초 간격으로 `hello`를 다시 보낸다.
 `announce:true`인 `estop_state`는 `estop_ack`의 답으로 치지 않는다.
 
+`kit_query {request_id}`(세트 보고 규약 1, 2026-10-31): `act_info`에 `"kit_protocol": 1`(이상)을 알린 RPi4에만 보낸다.
+RPi4는 `kit_status {request_id, kit_id, kit_protocol, motion, motion_present, motion_homed, outlet, outlet_present,
+estop_button}`로 답한다. 같은 필드가 `act_info`에도 실린다. `act_info`는 연결 때 한 번뿐이라 원점·콘센트 응답은 낡을 수 있어 화면·점검은
+`kit_query`로 묻고, 답이 없으면 `act_info` 값을 `stale`로 쓴다. 값은 RPi4 캐시만 읽는다(시리얼을 건드리면 뒤따르는 abort가 늦어진다).
+
+- `kit_id`: 세트(RPi4·모션 ESP32·콘센트 ESP32 한 묶음)의 고정 ID. `SIMPLELAY_KIT_ID` 또는 데이터 폴더의 `kit_id` 파일.
+- `motion`: 구성 `serial`|`mock`. `motion_present`: 지금 말이 통하나(모의는 true). `motion_homed`: 원점 확인(`bool`, 모르면 `null`).
+- `outlet`: 구성 `real`|`fake`|`none`. `outlet_present`: 지금 응답하나.
+- `estop_button`: `in_use` | `not_used`(`SIMPLELAY_OUTLET_IGNORE_ESTOP`) | `none`(콘센트 모듈 없음).
+
+옛 RPi4(`kit_protocol` 없음)에는 `kit_query`도 `press_appliance`도 보내지 않는다. 허브는 세트를 '찾지 못함'으로 보고 연결을 거절하며, 기존
+연결·env 판정으로 계속 실행한다.
+
 `clock_probe {probe}`(사건 신선도 기준점 규약 1, 3차 평가 M1 2026-10-14): `act_info`에 `"clock_protocol": 1`(이상)을 알린
 RPi4에만, `act_info`를 받을 때마다 한 번 보낸다. RPi4는 곧바로 `clock_ref {probe, clock_id, t_monotonic_ns}`(그 순간
 **RPi4 프로세스의** 단조 시각과 그 시계 식별자)로 답한다. RPi5는 탐침을 보내기 직전 자기 단조 시각 `L0`을 적어 두고,
@@ -130,6 +143,10 @@ RPi4에만, `act_info`를 받을 때마다 한 번 보낸다. RPi4는 곧바로 
 `estop_ack`(2026-10-05): 콘센트 모듈 비상정지로 RPi4가 **걸린**(`estop_latched`) 뒤, 사람이 버튼을 풀고 해제를
 확인했다는 뜻(RPi5 `POST /stop/ack`). RPi4는 모듈 `status`로 버튼을 확인해 풀렸을 때만 모듈에 `estop_reset`을 보내고
 자기 걸림을 푼다. 답은 `estop_state` 하나(아래 "콘센트 모듈 링크" 절).
+
+`execute`의 선택 필드 `press_appliance`(2026-10-31): `kit_protocol`을 알린 RPi4에만, `appliance_id`와 같은 값으로 싣는다. 이 링크의
+실행 대상은 곧 세트가 맡은 가전이라는 표시다. RPi4는 이 가전이 `SIMPLELAY_OUTLET_CHANNELS`에 없어도 누르는 가전 자리의 CT(대응이 비면
+채널 0)를 쓴다. `appliance_id`와 다르면 없는 것으로 친다. 없으면(옛 허브) `SIMPLELAY_OUTLET_PRESS_APPLIANCE`를 따른다.
 
 `execute`의 `appliance_id`는 **필수**다(2026-10-07, 평가 H3 — execute 규약 2, `act_info.execute_protocol: 2`).
 RPi4는 이 대상의 CT 채널(`SIMPLELAY_OUTLET_CHANNELS`, 대응이 비면 채널 0은 전자레인지만)로 L3 판정기·잔여 전류
@@ -792,6 +809,30 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 경로는 완료 이벤트(`status: unconfirmed`)도 보내고 남은 단계는 보내지 않는다. 어느 경로도 자동으로 다시 누르지 않는다.
 예전에는 승인 경로가 결과 없이 끝나 `last_job_id`에 직전 실행의 결과가 붙었고, 직접 경로는 '완료하지 못했어요'·재시도 소진으로
 적었다.
+
+## RPi5 HTTP 세트 연결 — `GET /kit`·`POST /kit/bind` (2026-10-31)
+
+세트는 한 번에 가전 하나만 맡는다. 연결은 허브 SQLite(`settings.kit_binding`)에 `kit_id → appliance_id`로 저장한다. 저장값이 없으면
+`SIMPLELAY_GANTRY_APPLIANCES`·`SIMPLELAY_LOCAL_APPLIANCES`가 정한 가전을 그대로 쓴다. 처음 연결한 뒤로는 저장값만 본다. '찾기'는 설정된 링크의
+세트가 `kit_id`로 답했다는 뜻이다(네트워크를 뒤지지 않는다).
+
+`GET /kit` 응답: `found`, `kit_id`, `motion`, `motion_present`, `outlet`, `outlet_present`, `homed`, `estop_button`,
+`estop_note`(버튼을 쓰지 않는 구성의 안내), `stale`, `bound_appliance`, `name`, `verified`, `reason`(못 찾은 이유).
+
+`POST /kit/bind {appliance_id, confirm_release}` 응답은 `GET /kit`과 같다. 인증은 다른 가전 변경 경로와 같다(API 키).
+
+| 응답 | 조건 |
+|------|------|
+| 404 | 없는 가전 |
+| 422 | LG 가전(세트를 쓰지 않는다) |
+| 409 | 세트를 못 찾음·옛 RPi4 |
+| 409 | 실행·자리 확인·개발자 세션·정지 대기·도는 루틴·정지 미확인 |
+| 409 | 다른 가전을 맡고 있는데 `confirm_release`가 없음(문장에 그 가전 이름) |
+
+연결이 바뀌면 새 가전은 `verified=false`다. 준비 판정 `needs_setup`, 사유 `자리 확인 전이에요…`, 실행 412. 모든 자리에 도착한 확인 주행이
+`verified=true`로 바꾼다. 버튼 자리를 다시 저장하면 다시 false다. 연결이 풀린 가전은 버튼 자리를 간직하고 `needs_setup`, 사유
+`세트 없음. 누름 장치가 이 가전에 달려 있지 않아요`, 실행 412다. 승인 뒤 시작 게이트에서도 다시 본다. 세트가 맡은 가전을 지우면 세트는 '비어 있음'이
+되고 env로 돌아가지 않는다. `GET /readiness`에 `estop_button` 칸이 늘었다(`not_used`면 `ok=false`).
 
 ## RPi5 HTTP `POST /execute`의 정지어 — `status: "stopped"` (2026-10-16, 안전 보고 G7)
 

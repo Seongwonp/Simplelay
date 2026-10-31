@@ -197,7 +197,7 @@ void main() {
       'control_path': 'physical',
       'can_execute': false,
       'readiness': 'needs_setup',
-      'readiness_reasons': ['누름 장치가 이 가전에 달려 있지 않아요'],
+      'readiness_reasons': [kGantryAbsentReason],
     });
     final practiceWasher = applianceFromServerJson({
       'id': 'washer',

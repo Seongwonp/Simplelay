@@ -500,6 +500,8 @@ class _NotReadyNotice extends StatelessWidget {
 /// 서버 문장이 조금 바뀌어도 맞도록 핵심 낱말로 고른다(옛 '좌표'·새 '자리' 모두).
 String? readinessTodo(ApplianceMap appliance) {
   final reasons = appliance.readinessReasons.join(' ');
+  if (appliance.kitAbsent) return '세트를 이 가전으로 옮긴 뒤 휴대폰 앱에서 연결해 주세요';
+  if (reasons.contains('자리 확인 전')) return '휴대폰 앱에서 자리 확인을 마쳐 주세요';
   if (appliance.readiness == 'disconnected' || reasons.contains('연결되지 않았')) {
     return '처음 화면 위쪽 연결 표시를 눌러 봐 주세요';
   }

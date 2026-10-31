@@ -27,7 +27,7 @@ class ApplianceButton {
 }
 
 /// 본체가 누름 장치 위치 때문에 거절한 이유(서버 `GANTRY_ABSENT_REASON`과 같은 문장, 폰 `kGantryAbsentReason`과 같다).
-const kGantryAbsentReason = '누름 장치가 이 가전에 달려 있지 않아요';
+const kGantryAbsentReason = '세트 없음. 누름 장치가 이 가전에 달려 있지 않아요';
 
 class ApplianceMap {
   const ApplianceMap({
@@ -73,6 +73,9 @@ class ApplianceMap {
   /// 누름 장치가 끊겼을 때 '쓸 수 없어요' 표시와 그 수는 이 가전만.
   bool get usesPressDevice =>
       !isThinq && !isPractice && !readinessReasons.contains(kGantryAbsentReason);
+
+  /// 세트가 이 가전을 맡고 있지 않다고 본체가 말했나 — 조작판을 열어도 누를 수 없다.
+  bool get kitAbsent => readinessReasons.contains(kGantryAbsentReason);
 
   /// 서버가 이름에 '(연습)'을 붙인 연습 가전인가(예: 실제 모드 안의 'LG 세탁기(연습)' — 2026-10-18 연습 세탁기).
   /// 서버 구성 가전의 이름 표기가 근거다. 모의 모드 이름의 '(모의)'는 종전 그대로 둔다(타일 배지 'LG 가전').
