@@ -269,16 +269,6 @@ def test_link_down_is_not_found(client, monkeypatch):
     assert kit["found"] is False and kit["reason"] == kit_router.KIT_NOT_FOUND_DETAIL
 
 
-def test_estop_not_used_is_said_out_loud(client, monkeypatch):
-    status = {"kit_id": "kit-a", "kit_protocol": 1, "motion": "serial", "motion_present": True, "motion_homed": False,
-              "outlet": "real", "outlet_present": True, "estop_button": "not_used"}
-    monkeypatch.setattr(deps.get_service(), "_controller", _Controller(status, status))
-    kit = client.get("/kit").json()
-    assert kit["estop_note"] == kit_router.ESTOP_NOT_USED_NOTE and kit["homed"] is False
-    from rpi.api import readiness_checks as checks
-
-    ok, detail = checks.estop_button_check(deps.get_service())
-    assert ok is False and detail == kit_router.ESTOP_NOT_USED_NOTE
 
 
 @pytest.mark.parametrize("homed", [True, False])

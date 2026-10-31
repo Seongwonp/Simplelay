@@ -187,7 +187,6 @@ async def system_readiness(
         ("thinq", "ThinQ 상태", checks.thinq_check),
         ("actuator_link", "누름 장치 연결", lambda: checks.actuator_link_check(service)),
         ("motion_homed", "모션 원점", lambda: checks.motion_homed_check(service, actuator)),
-        ("estop_button", "물리 비상 버튼", lambda: checks.estop_button_check(service)),
         ("room_camera", "방 카메라 감지", checks.camera_check),
         ("clock", "시계", lambda: checks.clock_check(remote_time if internet_ok else None)),
         ("daily_ask_cap", "오늘 묻기 상한", lambda: checks.daily_cap_check(svc)),

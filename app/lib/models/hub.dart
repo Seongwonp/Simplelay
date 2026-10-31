@@ -116,7 +116,6 @@ class KitStatus {
     this.boundAppliance,
     this.boundName,
     this.verified = false,
-    this.estopNote,
     this.reason,
   });
 
@@ -137,7 +136,6 @@ class KitStatus {
   final bool verified;
 
   /// 물리 비상 버튼을 쓰지 않는 구성의 안내.
-  final String? estopNote;
 
   /// 못 찾은 이유(본체 문장).
   final String? reason;
@@ -153,7 +151,6 @@ class KitStatus {
         boundAppliance: json['bound_appliance'] as String?,
         boundName: json['name'] as String?,
         verified: json['verified'] == true,
-        estopNote: json['estop_note'] as String?,
         reason: json['reason'] as String?,
       );
 }

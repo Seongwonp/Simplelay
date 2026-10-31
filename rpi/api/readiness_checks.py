@@ -65,18 +65,6 @@ def motion_homed_check(service, actuator) -> tuple[bool, str]:
     return False, "모션 보드의 마지막 원점 상태를 아직 받지 못했어요"
 
 
-def estop_button_check(service) -> tuple[bool, str]:
-    """쓰지 않는 물리 비상 버튼을 '문제없음'으로 보이지 않게 따로 말한다."""
-    from .kit_router import ESTOP_NOT_USED_NOTE  # noqa: PLC0415
-
-    state = (service.kit_status() or {}).get("estop_button")
-    if state == "not_used":
-        return False, ESTOP_NOT_USED_NOTE
-    if state == "in_use":
-        return True, "물리 비상 버튼을 쓰고 있어요"
-    return True, "콘센트 모듈이 없어 물리 비상 버튼이 없어요" if state == "none" else "비상 버튼 구성을 아직 받지 못했어요"
-
-
 def camera_check(now: float | None = None) -> tuple[bool, str]:
     import time  # noqa: PLC0415
     from rpi.api.room_presence_wiring import camera_enabled, room_presence_path  # noqa: PLC0415

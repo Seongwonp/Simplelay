@@ -66,7 +66,6 @@ class KitFacts extends StatelessWidget {
             warn: !mock && !kit.motionPresent),
         line(kit.outletPresent ? '전기 플러그(전력 확인): 연결됨' : '전기 플러그(전력 확인): 없음', warn: !kit.outletPresent),
         if (!mock && kit.motionPresent && kit.homed == false) line('원점을 아직 잡지 않았어요', warn: true),
-        if (kit.estopNote != null) line(kit.estopNote!, warn: true),
       ],
     );
   }

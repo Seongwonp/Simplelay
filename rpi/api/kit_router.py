@@ -22,7 +22,6 @@ router = APIRouter()
 KIT_NOT_FOUND_DETAIL = "누름 장치 세트를 찾지 못했어요. 세트 전원과 연결을 확인해 주세요."
 KIT_OLD_DETAIL = "누름 장치 세트의 프로그램이 예전 버전이에요. 본체와 같은 버전으로 올려 주세요."
 KIT_BUSY_DETAIL = "누름 장치가 일하는 중이에요. 끝난 뒤 다시 해 주세요."
-ESTOP_NOT_USED_NOTE = "물리 비상 버튼을 쓰지 않는 구성이에요. 멈출 때는 화면의 정지를 눌러 주세요."
 
 
 class KitBindRequest(BaseModel):
@@ -57,7 +56,6 @@ def kit_view(service, registry) -> dict:
         "outlet": report["outlet"] if found else None,
         "outlet_present": report["outlet_present"] is True if found else False,
         "estop_button": report["estop_button"] if found else None,
-        "estop_note": ESTOP_NOT_USED_NOTE if found and report["estop_button"] == "not_used" else None,
         "homed": report["homed"] if found else None,
         "stale": report["stale"] if found else False,
         "bound_appliance": bound.appliance_id if appliance is not None else None,

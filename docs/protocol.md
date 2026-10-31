@@ -817,7 +817,7 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 세트가 `kit_id`로 답했다는 뜻이다(네트워크를 뒤지지 않는다).
 
 `GET /kit` 응답: `found`, `kit_id`, `motion`, `motion_present`, `outlet`, `outlet_present`, `homed`, `estop_button`,
-`estop_note`(버튼을 쓰지 않는 구성의 안내), `stale`, `bound_appliance`, `name`, `verified`, `reason`(못 찾은 이유).
+`stale`, `bound_appliance`, `name`, `verified`, `reason`(못 찾은 이유).
 
 `POST /kit/bind {appliance_id, confirm_release}` 응답은 `GET /kit`과 같다. 인증은 다른 가전 변경 경로와 같다(API 키).
 
@@ -832,7 +832,7 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 연결이 바뀌면 새 가전은 `verified=false`다. 준비 판정 `needs_setup`, 사유 `자리 확인 전이에요…`, 실행 412. 모든 자리에 도착한 확인 주행이
 `verified=true`로 바꾼다. 버튼 자리를 다시 저장하면 다시 false다. 연결이 풀린 가전은 버튼 자리를 간직하고 `needs_setup`, 사유
 `세트 없음. 누름 장치가 이 가전에 달려 있지 않아요`, 실행 412다. 승인 뒤 시작 게이트에서도 다시 본다. 세트가 맡은 가전을 지우면 세트는 '비어 있음'이
-되고 env로 돌아가지 않는다. `GET /readiness`에 `estop_button` 칸이 늘었다(`not_used`면 `ok=false`).
+되고 env로 돌아가지 않는다.
 
 ## RPi5 HTTP `POST /execute`의 정지어 — `status: "stopped"` (2026-10-16, 안전 보고 G7)
 
