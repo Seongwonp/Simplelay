@@ -38,7 +38,7 @@ class ObservedUse {
   final String purpose;
   final String? applianceId;
 
-  /// 서버가 만든 말 — '평일 오후 7시쯤, 1분쯤 사용'.
+  /// 서버가 만든 말 — '평일 오후 7시쯤, 1분쯤 직접 사용하셨어요'.
   final String text;
   final int occurrences;
   final int distinctDays;

@@ -1373,7 +1373,7 @@ class ObservedUseResponse(BaseModel):
 
     purpose: str
     appliance_id: str | None
-    text: str  # '평일 오후 7시쯤, 1분쯤 사용'
+    text: str  # '평일 오후 7시쯤, 1분쯤 직접 사용하셨어요'
     when_text: str
     average_duration_s: float | None = None
     occurrences: int

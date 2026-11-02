@@ -105,7 +105,7 @@ class PatternDetector:
             kind = day_kind(candidate.recent_days)
             when = when_text(candidate.usual_time, candidate.confident, candidate.time_band, kind)
             average = candidate.average_duration_s
-            text = f'{when}, {duration_text(average)} 사용' if average is not None else f'{when} 사용'
+            text = f'{when}, {duration_text(average)} 직접 사용하셨어요' if average is not None else f'{when} 직접 사용하셨어요'
             observed.append(dict(purpose=candidate.purpose, appliance_id=candidate.appliance_id, text=text,
                                  when_text=when, average_duration_s=average, occurrences=candidate.occurrences,
                                  distinct_days=candidate.distinct_days, recent_days=list(candidate.recent_days[-5:])))

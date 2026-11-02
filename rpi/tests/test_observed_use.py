@@ -247,7 +247,7 @@ def test_observed_habit_uses_the_same_three_days_three_times_rule():
     assert _detector([_observed(3, minute=m) for m in (0, 5, 10, 15)]).observed_uses() == []
     [habit] = _detector([_observed(d, seconds=s) for d, s in zip(_WEEKDAYS, (58.0, 62.0, 66.0))]).observed_uses()
     assert habit["average_duration_s"] == pytest.approx(62.0)
-    assert habit["text"] == "평일 오후 7시쯤, 1분쯤 사용"
+    assert habit["text"] == "평일 오후 7시쯤, 1분쯤 직접 사용하셨어요"
     assert habit["appliance_id"] == "microwave"
 
 
@@ -352,7 +352,7 @@ def test_learning_api_carries_observed_list(api):
     body = api.get("/learning").json()
     assert body["routines"] == []
     [habit] = body["observed"]
-    assert habit["text"].endswith("오후 7시쯤, 1분쯤 사용") and habit["appliance_id"] == "microwave"
+    assert habit["text"].endswith("오후 7시쯤, 1분쯤 직접 사용하셨어요") and habit["appliance_id"] == "microwave"
 
 
 def test_observed_failure_does_not_stop_the_routine_path(monkeypatch, api):

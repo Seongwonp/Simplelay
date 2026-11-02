@@ -148,7 +148,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
     );
   }
 
-  /// 전력으로 본 사용 — 메뉴를 모른다는 것과 먼저 묻지 않는다는 것을 함께 말한다.
+  /// 전력으로 본 사용 — 시간대와 가동 시간만 보인다.
   Widget _observed(LearningStatus status) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -162,8 +162,6 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                 style: _body),
             const SizedBox(height: 8),
           ],
-          const Text('전력으로 본 사용이라 어떤 버튼을 눌렀는지는 몰라요. 알아 두기만 하고 먼저 묻거나 알아서 켜지 않아요.',
-              style: _body),
           const SizedBox(height: 16),
         ],
       );

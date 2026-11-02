@@ -33,7 +33,7 @@ LearningStatus observed() => LearningStatus.fromJson({
         {
           'purpose': '전자레인지 사용',
           'appliance_id': 'mw',
-          'text': '평일 오후 7시쯤, 1분쯤 사용',
+          'text': '평일 오후 7시쯤, 1분쯤 직접 사용하셨어요',
           'occurrences': 4,
           'distinct_days': 3,
         }
@@ -265,8 +265,8 @@ void main() {
       onHide: (_) async {},
     ))));
     await tester.pumpAndSettle();
-    expect(find.textContaining('평일 오후 7시쯤, 1분쯤 사용'), findsOneWidget);
-    expect(find.textContaining('어떤 버튼'), findsOneWidget);
+    expect(find.textContaining('평일 오후 7시쯤, 1분쯤 직접 사용하셨어요'), findsOneWidget);
+    expect(find.textContaining('어떤 버튼'), findsNothing);
     expect(find.textContaining('아직'), findsNothing);
     expect(find.text('숨기기'), findsNothing);
     expect(find.text('물어보는 중'), findsNothing);
