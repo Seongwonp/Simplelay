@@ -24,6 +24,7 @@ import '../models/appliance.dart';
 import '../widgets/appliance_artwork.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/no_appliance_notice.dart';
+import '../widgets/voice_text_input_bar.dart';
 import '../theme/app_tokens.dart';
 
 class VoiceScreen extends ConsumerStatefulWidget {
@@ -65,6 +66,9 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   late final VoiceService _voiceService;
   late final StateController<bool> _listeningState;
   late final StateController<String> _textState;
+
+  final TextEditingController _typed = TextEditingController();
+  final FocusNode _typedFocus = FocusNode();
 
   @override
   void initState() {
@@ -122,12 +126,36 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   }
 
   /// 후보·할 수 있는 일을 고르면 그 문장을 확인 대기에 올린다 — **바로 실행하지 않는다**('이대로 실행할까요?'를 다시 묻는다).
-  void _pickPurpose(String purpose) {
-    setState(() {
-      _notUnderstood = null;
-      _recognitionError = null;
-    });
-    ref.read(voiceTextProvider.notifier).state = purpose;
+  void _pickPurpose(String purpose) => _holdForConfirmation(purpose);
+
+  /// 말·글자·후보 선택이 모이는 곳. 문장을 확인 대기에 올릴 뿐 보내지 않는다 — 실행은 '이대로 하기'를 눌러야 [_send]로 간다.
+  void _holdForConfirmation(String sentence) {
+    if (_recognitionError != null || _notUnderstood != null) {
+      setState(() {
+        _recognitionError = null;
+        _notUnderstood = null;
+      });
+    }
+    ref.read(voiceTextProvider.notifier).state = sentence;
+  }
+
+  /// 적어서 보낸 말. 음성의 최종 문장과 같이 [_holdForConfirmation]으로 간다 — 적은 말도 본체가 규칙으로 바로 실행할 수
+  /// 있어서 전송을 실행 동의로 치지 않는다. 정지어만 멈추는 쪽이라 확인을 거치지 않고 바로 [_send]의 정지 분기로 보낸다.
+  Future<void> _submitTyped(String raw) async {
+    final sentence = raw.trim();
+    if (sentence.isEmpty || _sending) return;
+    _typed.clear();
+    _typedFocus.unfocus();
+    if (ref.read(voiceListeningProvider)) {
+      await _voiceService.stop();
+      if (!mounted) return;
+      ref.read(voiceListeningProvider.notifier).state = false;
+    }
+    if (isStopPhrase(sentence)) {
+      await _send(sentence);
+    } else {
+      _holdForConfirmation(sentence);
+    }
   }
 
   Future<void> _cancelSession() async {
@@ -190,7 +218,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           // 기기에서는 되돌릴 수 없는 동작이 된다. 여기서는 멈추기만 하고
           // 실행 여부는 사용자가 인식 문장을 확인하고 고른다.
           ref.read(voiceListeningProvider.notifier).state = false;
-          ref.read(voiceTextProvider.notifier).state = text;
+          _holdForConfirmation(text);
         },
         onSoundLevel: (level) {
           if (!mounted) return;
@@ -561,6 +589,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       } catch (_) {/* 앱 전체가 닫히는 중이면 비울 것도 없다. */}
     });
     _soundLevel.dispose();
+    _typed.dispose();
+    _typedFocus.dispose();
     super.dispose();
   }
 
@@ -595,19 +625,6 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           title: '사용할 가전을 먼저 추가해 주세요',
           body: '가전을 추가하면 여기서 말로 시킬 수 있어요.',
           onAdd: () => context.go('/'),
-        ),
-      );
-    }
-
-    // 음성 인식을 쓸 수 없는 기기. 마이크를 그려 두고 눌러도 안 되게 하지
-    // 않는다 -- 무엇이 안 되는지와 대신 갈 길을 말한다.
-    if (_voiceUnavailable) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('말로 하기')),
-        body: _VoiceUnavailableNotice(
-          appliance: appliance,
-          onManual: () => context.go('/manual-control'),
-          onRetry: _toggle,
         ),
       );
     }
@@ -673,175 +690,228 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       );
     }
 
+    // 음성 인식을 쓸 수 없는 기기. 마이크를 그려 두고 눌러도 안 되게 하지
+    // 않는다 -- 무엇이 안 되는지와 대신 갈 길을 말한다. 글자로 보낸 말의
+    // 확인·실패 안내가 있으면 그것을 먼저 보인다.
+    final micUsable = !_voiceUnavailable;
+    final failed = _recognitionError != null || _notUnderstood != null;
+    if (!micUsable && text.trim().isEmpty && !failed) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('말로 하기')),
+        body: Column(
+          children: [
+            Expanded(
+              child: _VoiceUnavailableNotice(
+                appliance: appliance,
+                onManual: () => context.go('/manual-control'),
+                onRetry: _toggle,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpace.xxxl, 0, AppSpace.xxxl, AppSpace.md),
+              child: _inputBar(),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 확인 후 실행
+    // 듣기 종료와 실행 동의를 분리한다. 인식이 틀렸을 때 고치거나
+    // 그만둘 자리가 없으면, 잘못 알아들은 문장이 그대로 물리 조작이 된다.
+    final actions = <Widget>[
+      if (listening)
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: _sending ? null : _finishListening,
+            child: const Text('말 끝났어요'),
+          ),
+        )
+      else if (text.trim().isEmpty && failed)
+        // 실패한 자리에 두 경로를 함께 둔다. 안내만 남기면 사용자는
+        // 같은 시도를 되풀이하게 된다 -- 홈에서 이미 같은 규칙을 쓴다.
+        _ActionPair(
+          stacked: stacked,
+          primary: micUsable
+              ? FilledButton.icon(
+                  onPressed: _sending ? null : _restartListening,
+                  icon: const Icon(Icons.mic, size: 20),
+                  label: const Text('다시 말하기'),
+                )
+              : null,
+          secondary: OutlinedButton.icon(
+            onPressed: _sending ? null : () => context.go('/manual-control'),
+            icon: const Icon(Icons.grid_view_rounded, size: 20),
+            label: const Text('버튼으로 하기'),
+          ),
+        )
+      else if (text.trim().isNotEmpty) ...[
+        _ActionPair(
+          stacked: stacked,
+          primary: FilledButton(
+            onPressed: _sending ? null : () => _send(text),
+            child: Text(_sending ? '보내는 중…' : '이대로 하기'),
+          ),
+          secondary: micUsable
+              ? OutlinedButton(
+                  onPressed: _sending ? null : _restartListening,
+                  child: const Text('다시 말하기'),
+                )
+              : OutlinedButton(
+                  onPressed: _sending ? null : _cancelPending,
+                  child: const Text('취소'),
+                ),
+        ),
+        if (micUsable)
+          TextButton(
+            onPressed: _sending ? null : _cancelPending,
+            child: const Text('취소'),
+          ),
+      ],
+    ];
+
     return Scaffold(
       appBar: AppBar(title: const Text('말로 하기')),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl),
-        child: Column(
-          children: [
-            // 인식 문장이 길거나 글씨를 키우면 내용이 화면을 넘긴다.
-            // 본문은 스크롤하고, 실행/취소는 아래에 고정해 항상 닿게 한다.
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    const SizedBox(height: AppSpace.md),
+        // 키보드가 올라오거나 글씨가 커 자리가 모자라면 단추를 고정하지 않고 본문과 함께 스크롤한다.
+        child: LayoutBuilder(builder: (context, constraints) {
+          final inlineActions = constraints.maxHeight < (stacked ? 640 : 420);
+          return Column(
+            children: [
+              // 인식 문장이 길거나 글씨를 키우면 내용이 화면을 넘긴다.
+              // 본문은 스크롤하고, 실행/취소는 아래에 고정해 항상 닿게 한다.
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: AppSpace.md),
 
-                    // 어느 가전에게 말하는가
-                    // 여러 가전을 다루므로 말이 어디로 가는지 먼저 보여야
-                    // 한다. 엉뚱한 가전에 대고 말한 뒤에 알면 늦다.
-                    if (widget.targetSelectedAppliance)
-                      _TargetLine(appliance: appliance)
-                    else
+                      // 어느 가전에게 말하는가
+                      // 여러 가전을 다루므로 말이 어디로 가는지 먼저 보여야
+                      // 한다. 엉뚱한 가전에 대고 말한 뒤에 알면 늦다.
+                      if (widget.targetSelectedAppliance)
+                        _TargetLine(appliance: appliance)
+                      else
+                        Text(
+                          '무엇을 할까요?',
+                          key: const Key('voice-neutral-target'),
+                          style: TextStyle(
+                              fontSize: AppFont.caption, color: context.appMuted),
+                          textAlign: TextAlign.center,
+                        ),
+                      const SizedBox(height: AppSpace.xl),
+
+                      if (micUsable) ...[
+                        // 웨이브 비주얼라이저
+                        _WaveVisualizer(active: listening, level: _soundLevel),
+                        const SizedBox(height: AppSpace.xxxl),
+
+                        // 마이크 버튼
+                        _MicButton(
+                          listening: listening,
+                          onTap: _sending ? null : _toggle,
+                        ),
+                        const SizedBox(height: AppSpace.xxxl),
+                      ],
+
+                      // 상태 텍스트
                       Text(
-                        '무엇을 할까요?',
-                        key: const Key('voice-neutral-target'),
-                        style: TextStyle(
-                            fontSize: AppFont.caption, color: context.appMuted),
+                        listening
+                            ? '듣고 있어요…'
+                            : text.trim().isEmpty
+                                ? (micUsable ? '마이크를 눌러 말해보세요' : '아래에 적어 주세요')
+                                : '이대로 할까요?',
+                        style: AppText.title,
                         textAlign: TextAlign.center,
                       ),
-                    const SizedBox(height: AppSpace.xl),
+                      const SizedBox(height: AppSpace.md),
 
-                    // 웨이브 비주얼라이저
-                    _WaveVisualizer(active: listening, level: _soundLevel),
-                    const SizedBox(height: AppSpace.xxxl),
-
-                    // 마이크 버튼
-                    _MicButton(
-                      listening: listening,
-                      onTap: _sending ? null : _toggle,
-                    ),
-                    const SizedBox(height: AppSpace.xxxl),
-
-                    // 상태 텍스트
-                    Text(
-                      listening
-                          ? '듣고 있어요…'
-                          : text.trim().isEmpty
-                              ? '마이크를 눌러 말해보세요'
-                              : '이대로 할까요?',
-                      style: AppText.title,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpace.md),
-
-                    // 인식된 텍스트 라이브 표시
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: text.isEmpty
-                          ? (_notUnderstood != null
-                              ? _NotUnderstoodPanel(
-                                  key: const ValueKey('not-understood'),
-                                  help: _notUnderstood!,
-                                  applianceName: widget.targetSelectedAppliance
-                                      ? appliance.displayName
-                                      : null,
-                                  onPick: _sending ? null : _pickPurpose,
-                                )
-                              : _recognitionError == null
-                                  ? Text(
-                                      hintExample,
-                                      key: const ValueKey('hint'),
-                                      style: TextStyle(color: context.appMuted),
-                                      textAlign: TextAlign.center,
-                                    )
-                                  : _FailureNote(
-                                      key: const ValueKey('failure'),
-                                      message: _recognitionError!,
-                                    ))
-                          : Container(
-                              key: const ValueKey('live'),
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpace.lg,
-                                  vertical: AppSpace.md),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .surfaceContainerHigh,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: context.appOutline,
+                      // 인식된 텍스트 라이브 표시
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: text.isEmpty
+                            ? (_notUnderstood != null
+                                ? _NotUnderstoodPanel(
+                                    key: const ValueKey('not-understood'),
+                                    help: _notUnderstood!,
+                                    applianceName: widget.targetSelectedAppliance
+                                        ? appliance.displayName
+                                        : null,
+                                    onPick: _sending ? null : _pickPurpose,
+                                  )
+                                : _recognitionError == null
+                                    ? Text(
+                                        hintExample,
+                                        key: const ValueKey('hint'),
+                                        style: TextStyle(color: context.appMuted),
+                                        textAlign: TextAlign.center,
+                                      )
+                                    : _FailureNote(
+                                        key: const ValueKey('failure'),
+                                        message: _recognitionError!,
+                                      ))
+                            : Container(
+                                key: const ValueKey('live'),
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpace.lg,
+                                    vertical: AppSpace.md),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHigh,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: context.appOutline,
+                                  ),
+                                ),
+                                child: Text(
+                                  text,
+                                  style: AppText.title
+                                      .copyWith(color: context.appInk),
+                                  textAlign: TextAlign.center,
                                 ),
                               ),
-                              child: Text(
-                                text,
-                                style: AppText.title
-                                    .copyWith(color: context.appInk),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                    ),
-                    const SizedBox(height: AppSpace.sm),
-                    // 언제 듣기가 끝나는지 미리 말한다. 생각하다 멈춘 사이에
-                    // 조용히 끝나 버리면, 사용자는 마이크가 고장 났다고 여긴다.
-                    Text(
-                      listening
-                          ? '${VoiceService.silenceTimeout.inSeconds}초 동안 조용하면 듣기를 멈추고 물어봐요.'
-                          : '말이 끝나면 한 번 물어본 뒤 해요.',
-                      style: TextStyle(
-                          color: context.appMuted, fontSize: AppFont.caption),
-                      textAlign: TextAlign.center,
-                    ),
+                      ),
+                      const SizedBox(height: AppSpace.sm),
+                      // 언제 듣기가 끝나는지 미리 말한다. 생각하다 멈춘 사이에
+                      // 조용히 끝나 버리면, 사용자는 마이크가 고장 났다고 여긴다.
+                      Text(
+                        listening
+                            ? '${VoiceService.silenceTimeout.inSeconds}초 동안 조용하면 듣기를 멈추고 물어봐요.'
+                            : '말이 끝나면 한 번 물어본 뒤 해요.',
+                        style: TextStyle(
+                            color: context.appMuted, fontSize: AppFont.caption),
+                        textAlign: TextAlign.center,
+                      ),
 
-                    const SizedBox(height: AppSpace.xxl),
-                  ],
+                      const SizedBox(height: AppSpace.xxl),
+                      if (inlineActions) ...actions,
+                    ],
+                  ),
                 ),
               ),
-            ),
 
-            // 확인 후 실행
-            // 듣기 종료와 실행 동의를 분리한다. 인식이 틀렸을 때 고치거나
-            // 그만둘 자리가 없으면, 잘못 알아들은 문장이 그대로 물리 조작이 된다.
-            if (listening)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _sending ? null : _finishListening,
-                  child: const Text('말 끝났어요'),
-                ),
-              )
-            else if (text.trim().isEmpty &&
-                (_recognitionError != null || _notUnderstood != null)) ...[
-              // 실패한 자리에 두 경로를 함께 둔다. 안내만 남기면 사용자는
-              // 같은 시도를 되풀이하게 된다 -- 홈에서 이미 같은 규칙을 쓴다.
-              _ActionPair(
-                stacked: stacked,
-                primary: FilledButton.icon(
-                  onPressed: _sending ? null : _restartListening,
-                  icon: const Icon(Icons.mic, size: 20),
-                  label: const Text('다시 말하기'),
-                ),
-                secondary: OutlinedButton.icon(
-                  onPressed:
-                      _sending ? null : () => context.go('/manual-control'),
-                  icon: const Icon(Icons.grid_view_rounded, size: 20),
-                  label: const Text('버튼으로 하기'),
-                ),
-              ),
-            ] else if (text.trim().isNotEmpty) ...[
-              _ActionPair(
-                stacked: stacked,
-                primary: FilledButton(
-                  onPressed: _sending ? null : () => _send(text),
-                  child: Text(_sending ? '보내는 중…' : '이대로 하기'),
-                ),
-                secondary: OutlinedButton(
-                  onPressed: _sending ? null : _restartListening,
-                  child: const Text('다시 말하기'),
-                ),
-              ),
-              TextButton(
-                onPressed: _sending ? null : _cancelPending,
-                child: const Text('취소'),
-              ),
+              if (!inlineActions) ...actions,
+              const SizedBox(height: AppSpace.md),
+              _inputBar(),
+              const SizedBox(height: AppSpace.md),
             ],
-            const SizedBox(height: AppSpace.xxxl),
-          ],
-        ),
+          );
+        }),
       ),
     );
   }
+
+  Widget _inputBar() => VoiceTextInputBar(
+        controller: _typed,
+        focusNode: _typedFocus,
+        sending: _sending,
+        onSubmit: _submitTyped,
+      );
 }
 
 // 알아들은 일 확인
@@ -945,7 +1015,7 @@ class _ProposalConfirmDialogState extends State<_ProposalConfirmDialog> {
 
 // 주/부 행동 한 쌍
 
-/// 보통은 나란히(부 3 : 주 4), 큰 글씨에서는 주 행동을 위에 두고 세로로.
+/// 보통은 나란히(부 3 : 주 4), 큰 글씨에서는 주 행동을 위에 두고 세로로. [primary]가 없으면 부 행동만 한 줄로.
 class _ActionPair extends StatelessWidget {
   const _ActionPair({
     required this.stacked,
@@ -954,22 +1024,26 @@ class _ActionPair extends StatelessWidget {
   });
 
   final bool stacked;
-  final Widget primary;
+  final Widget? primary;
   final Widget secondary;
 
   @override
-  Widget build(BuildContext context) => stacked
-      ? Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [primary, const SizedBox(height: AppSpace.sm), secondary],
-        )
-      : Row(
-          children: [
-            Expanded(flex: 3, child: secondary),
-            const SizedBox(width: AppSpace.md),
-            Expanded(flex: 4, child: primary),
-          ],
-        );
+  Widget build(BuildContext context) {
+    final main = primary;
+    if (main == null) return SizedBox(width: double.infinity, child: secondary);
+    return stacked
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [main, const SizedBox(height: AppSpace.sm), secondary],
+          )
+        : Row(
+            children: [
+              Expanded(flex: 3, child: secondary),
+              const SizedBox(width: AppSpace.md),
+              Expanded(flex: 4, child: main),
+            ],
+          );
+  }
 }
 
 // 어느 가전에게
@@ -1002,8 +1076,8 @@ class _TargetLine extends StatelessWidget {
 
 // 음성 인식을 쓸 수 없는 기기
 
-/// 권한이 꺼져 있거나 엔진이 없다. '다시 말하기'는 답이 아니다 -- 버튼
-/// 조작이라는 다른 길을 먼저 내밀고, 권한을 고친 뒤 돌아올 길을 둔다.
+/// 권한이 꺼져 있거나 엔진이 없다. '다시 말하기'는 답이 아니다 -- 글자와
+/// 버튼이라는 다른 길을 내밀고, 권한을 고친 뒤 돌아올 길을 둔다.
 class _VoiceUnavailableNotice extends StatelessWidget {
   const _VoiceUnavailableNotice({
     required this.appliance,
@@ -1017,7 +1091,7 @@ class _VoiceUnavailableNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(
               horizontal: AppSpace.xxxl, vertical: AppSpace.xxl),
           child: Column(
@@ -1027,7 +1101,7 @@ class _VoiceUnavailableNotice extends StatelessWidget {
               Icon(Icons.mic_off_outlined, size: 52, color: context.appMuted),
               const SizedBox(height: AppSpace.xl),
               Text(
-                '이 폰에서는 말로 하기를 쓸 수 없어요. 버튼으로 해 주세요',
+                '이 폰에서는 마이크를 쓸 수 없어요. 글자나 버튼으로 해 주세요',
                 textAlign: TextAlign.center,
                 style: AppText.title,
               ),
