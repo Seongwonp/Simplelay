@@ -80,10 +80,18 @@ class FakeKioskApi implements KioskApiService {
   // 폰 연결 창은 이 파일의 관심사가 아니다 — 허브 없음으로 흉내 낸다.
   @override
   Future<Map<String, dynamic>> pairingSession({bool create = false}) async => throw StateError('pairing unavailable');
+  // 연결된 휴대폰 수. 기본은 모름(환영 화면 없음).
+  int? phonesResult;
+  @override
+  Future<int?> pairedPhones() async => phonesResult;
   @override
   Future<void> approvePairing(String requestId, bool approved) async => throw StateError('pairing unavailable');
   @override
-  Future<void> closePairing() async {}
+  Future<void> closePairing() async {
+    closePairingCalls++;
+  }
+
+  int closePairingCalls = 0;
   @override
   Future<LearningStatus> learningStatus() async => throw StateError('offline');
   @override

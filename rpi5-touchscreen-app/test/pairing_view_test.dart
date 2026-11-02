@@ -7,12 +7,20 @@ class _PairApi extends KioskApiService {
   String state = 'open';
   int expiresIn = 300;
   int sessionCalls = 0;
+  int createCalls = 0;
+  bool gone = false;
   int approvals = 0;
   int closed = 0;
   bool withQr = false;
   @override
   Future<Map<String, dynamic>> pairingSession({bool create = false}) async {
     sessionCalls++;
+    if (create) {
+      createCalls++;
+      gone = false;
+    } else if (gone) {
+      throw KioskApiException(410, '연결 시간이 지났어요.');
+    }
     return {
       'state': state,
       'code': '012345',
@@ -52,6 +60,66 @@ void main() {
     final step = find.textContaining('같은 와이파이');
     expect(step, findsOneWidget);
     expect(tester.getRect(step).right, lessThanOrEqualTo(800));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('환영 화면 카드는 시간이 지나면 새 코드를 스스로 받아요', (tester) async {
+    final api = _PairApi()..expiresIn = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: KioskPairingView(api: api, embedded: true, onClose: () {}))));
+    await tester.pump();
+    await tester.pump();
+    final before = api.createCalls;
+    api.expiresIn = 300;
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump();
+    expect(api.createCalls, before + 1);
+    expect(find.textContaining('연결할 수 있는 시간이 지났어요'), findsNothing);
+    expect(find.text('012345'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('환영 화면 카드는 창이 사라져도(410) 새 코드를 받아요', (tester) async {
+    final api = _PairApi();
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: KioskPairingView(api: api, embedded: true, onClose: () {}))));
+    await tester.pump();
+    await tester.pump();
+    api.gone = true;
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump();
+    expect(api.createCalls, 2);
+    expect(find.text('012345'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('키를 보내면 한 번 알리고 더 묻지 않아요', (tester) async {
+    final api = _PairApi();
+    var connected = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: KioskPairingView(api: api, embedded: true, onClose: () {}, onConnected: () => connected++))));
+    await tester.pump();
+    await tester.pump();
+    api.state = 'consumed';
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    expect(connected, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('평소 연결 창은 시간이 지나면 새 코드를 스스로 받지 않아요(기존 동작)', (tester) async {
+    final api = _PairApi()..expiresIn = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: KioskPairingView(api: api, onClose: () {}))));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(api.createCalls, 1);
+    expect(find.textContaining('연결할 수 있는 시간이 지났어요'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

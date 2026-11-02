@@ -11,7 +11,7 @@ class _RpiConnectionTile extends ConsumerWidget {
     final (Color color, String label, IconData icon) = switch (connState) {
       RpiConnectionState.unconfigured => (
           context.appMuted,
-          '아직 주소가 없어요. 아래 설치하는 분용에서 넣어요',
+          "아직 주소가 없어요. 아래 '연결이 안 될 때만'에서 넣어요",
           Icons.wifi_off
         ),
       RpiConnectionState.checking => (
@@ -99,7 +99,7 @@ class _SavedDeviceSection extends ConsumerWidget {
               Icon(Icons.bluetooth_disabled, color: context.appMuted, size: 22),
           // 서버가 안 될 때 쓰는 두 번째 길. 이름부터 그렇게 부른다.
           title: const Text('블루투스 연결'),
-          subtitle: Text('저장된 기기가 없어요. 아래 설치하는 분용에서 찾아요',
+          subtitle: Text("저장된 기기가 없어요. 아래 '연결이 안 될 때만'에서 찾아요",
               style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
         ),
       );

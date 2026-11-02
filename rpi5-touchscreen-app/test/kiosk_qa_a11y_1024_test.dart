@@ -84,12 +84,36 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets("설정의 콘센트 주소 칸은 '설치용'을 펼쳐야 보인다(기능은 그대로)", (tester) async {
+  // 지금 구성은 Wi-Fi 콘센트 주소를 쓰지 않는다 — 사용자 화면에는 칸 자체가 없다. 코드는 켜면 그대로 쓴다.
+  testWidgets("설정에 '설치용' 칸과 콘센트 주소 입력이 보이지 않는다", (tester) async {
     await _pump(tester);
     await _tap(tester, 'idle-menu');
     await _tap(tester, 'settings-entry');
-    expect(find.byType(TextField), findsNothing, reason: '주소 입력 칸이 처음부터 보인다');
-    expect(find.textContaining('192.168'), findsNothing);
+    expect(find.byKey(const ValueKey('settings-installer')), findsNothing);
+    expect(find.text('설치용'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('settings-close')));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets("켜 두면 '설치용'을 펼쳐 콘센트 주소를 넣을 수 있다", (tester) async {
+    tester.view.physicalSize = const Size(800, 480);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: KioskSettingsOverlay(
+      currentAppliance: kMicrowaveAppliance,
+      appliances: const [kMicrowaveAppliance],
+      api: FakeKioskApi(),
+      ttsEnabled: true,
+      onTtsChanged: (_) {},
+      onDismiss: () {},
+      showInstallerSection: true,
+    ))));
+    await tester.pump();
+    await tester.pump();
     final installer = find.byKey(const ValueKey('settings-installer'));
     await tester.scrollUntilVisible(installer, 100,
         scrollable: find.descendant(of: find.byType(KioskSettingsOverlay), matching: find.byType(Scrollable)).first);
@@ -97,9 +121,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const ValueKey('settings-installer-note')), findsOneWidget);
-    expect(find.byType(TextField), findsOneWidget, reason: '펼치면 그대로 쓸 수 있다');
-    await tester.tap(find.byKey(const ValueKey('settings-close')));
-    await tester.pump();
+    expect(find.byType(TextField), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

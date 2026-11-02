@@ -65,6 +65,20 @@ DEFAULT_KIOSK_ORIGINS = ("http://localhost:8000", "http://127.0.0.1:8000", "http
 _TRUSTED_FETCH_SITES = {"same-origin", "none"}
 
 
+#: 네트워크 쪽(루프백이 아닌) 요청이 허브 키로 통과한 적이 있나 — 연결 기록 없이도 폰이 붙어 있다는 근거(pairing.py ``PhoneLedger``).
+#: 키오스크는 루프백이라 키 없이 지나가므로 여기에 잡히지 않는다.
+_lan_key_used = False
+
+
+def lan_key_used() -> bool:
+    return _lan_key_used
+
+
+def _note_lan_key_used() -> None:
+    global _lan_key_used
+    _lan_key_used = True
+
+
 def _configured_key() -> str:
     return os.environ.get(API_KEY_ENV, "").strip()
 
@@ -148,6 +162,7 @@ async def require_api_key(request: Request) -> None:
         raise HTTPException(status_code=401, detail=NO_KEY_CONFIGURED_DETAIL)
     provided = request.headers.get("x-api-key", "")
     if provided and hmac.compare_digest(provided, expected):
+        _note_lan_key_used()
         return
     raise HTTPException(status_code=401, detail=INVALID_KEY_DETAIL)
 

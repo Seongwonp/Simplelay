@@ -12,6 +12,8 @@
 - ``POST /pair/ack`` ``{token}``(선택) → ``{"state": "consumed"}``. 폰이 키를 저장한 뒤 보내면 그 토큰으로는 더 받을 수 없다
   (결과 조회는 404). 다시 보내도 같은 답, 허락 전이면 409, 모르는 토큰 404.
 - 창이 끝나면(5분·닫기·새 창·허브 키 변경) 결과·알림 모두 410 — 받았음 알림을 보내지 않은 옛 폰도 키 재조회는 창 안에서만.
+- ``GET /pair/phones``(허브 화면) → ``{"phones": n}``. 첫 환영 화면의 판단 근거. 0은 '연결된 폰이 없다고 확인했다'는 뜻이고,
+  모르면(저장소 없음·읽기 실패) ``null``이다 — 0과 섞으면 쓰던 본체가 초기 화면으로 돌아간다.
 """
 
 import base64
@@ -22,6 +24,7 @@ import math
 import os
 import secrets
 import socket
+import sqlite3
 import threading
 import time
 from urllib.parse import urlencode, urlsplit
@@ -30,7 +33,7 @@ import qrcode
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from rpi.api.auth import is_loopback_host, loopback_origin_problem
+from rpi.api.auth import is_loopback_host, lan_key_used, loopback_origin_problem
 
 
 def _local_screen(request: Request) -> None:
@@ -150,7 +153,63 @@ class PairingWindow:
             self.session = None
 
 
+PHONES_SETTING = "paired_phones"
+
+
+def _used_before(db) -> bool:
+    """이 기록이 생기기 전부터 쓰던 본체인가 — 가전·루틴은 폰에서만 만들고, 실행 기록은 처음 켠 본체에 없다."""
+    return bool(db.appliances() or db.routine_documents() or db.recent_job_history(1))
+
+
+class PhoneLedger:
+    """연결을 마친 휴대폰 수. 폰은 허브 키 하나를 함께 쓰고 따로 등록되지 않아, 키를 건넨 횟수로 센다(연결 끊기가 없어 줄지 않는다).
+
+    재시작 뒤에도 답해야 하므로 저장소가 없으면 ``None``이다. 저장 실패는 키 받기를 막지 않는다 — 건넨 수를 메모리에 두고
+    다음 조회 때 다시 쓴다. 저장된 값이 있으면 그 값이 답이다: 옛 흔적은 값이 없을 때 한 번만 읽는다.
+    """
+
+    def __init__(self, db):
+        self._db = db
+        self._lock = threading.Lock()
+        self._pending = 0
+        self._last_token = None
+
+    def add(self, token):
+        with self._lock:
+            # 응답을 잃은 폰은 같은 토큰으로 다시 묻는다 — 한 대를 두 번 세지 않는다.
+            if hmac.compare_digest(self._last_token or "", token):
+                return
+            self._last_token = token
+            self._pending += 1
+        self.count()
+
+    def count(self):
+        with self._lock:
+            try:
+                db = self._db()
+                if db is None:
+                    return None
+                raw = db.load_setting(PHONES_SETTING)
+                stored = int(raw) if raw is not None else int(_used_before(db))
+                phones = stored + self._pending
+                if phones == 0 and lan_key_used():
+                    phones = 1
+                if raw is None or phones != stored:
+                    db.save_setting(PHONES_SETTING, str(phones))
+                self._pending = 0
+                return phones
+            except (sqlite3.Error, ValueError):
+                return None
+
+
+def _hub_db():
+    from rpi.api.deps import get_db
+
+    return get_db()
+
+
 pairing_window = PairingWindow()
+phone_ledger = PhoneLedger(_hub_db)
 pairing_router = APIRouter(prefix="/pair", dependencies=[Depends(_no_cache)])
 
 
@@ -188,6 +247,11 @@ def cancel_session():
     return {"state": "closed"}
 
 
+@pairing_router.get("/phones", dependencies=[Depends(_local_screen)])
+def phones():
+    return {"phones": phone_ledger.count()}
+
+
 @pairing_router.post("")
 def claim(body: Claim):
     return pairing_window.claim(body.code, body.phone)
@@ -200,7 +264,10 @@ def approve(body: Decision):
 
 @pairing_router.post("/result")
 def result(body: Receipt):
-    return pairing_window.result(body.token)
+    answer = pairing_window.result(body.token)
+    if answer["state"] == "approved":
+        phone_ledger.add(body.token)
+    return answer
 
 
 @pairing_router.post("/ack")

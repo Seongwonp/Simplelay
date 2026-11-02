@@ -851,6 +851,20 @@ class KioskApiService {
     return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
   }
 
+  /// 연결된 휴대폰 수(본체 GET /pair/phones). 모르면(끊김·옛 본체·본체가 모른다고 답함) null — 0으로 바꾸지 않는다.
+  /// 첫 환영 화면은 0을 확인했을 때만 뜬다.
+  Future<int?> pairedPhones() async {
+    try {
+      final res = await _client.get(_base.replace(path: '/pair/phones')).timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      final phones = body is Map<String, dynamic> ? body['phones'] : null;
+      return phones is int ? phones : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> approvePairing(String requestId, bool approved) async {
     final res = await _client.post(_base.replace(path: '/pair/approve'),
       headers: _jsonHeaders,

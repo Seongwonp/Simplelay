@@ -128,8 +128,8 @@ void main() {
     });
   });
 
-  // 2026-10-18: 주소·연결 비밀번호·블루투스는 '설치하는 분용'으로 접는다 — 연결돼 있으면 접혀 있다.
-  testWidgets('본체 화면: 연결돼 있으면 설치하는 분용(주소·비밀번호·블루투스)이 접혀 있다', (tester) async {
+  // 주소·연결 비밀번호·블루투스는 '연결이 안 될 때만'으로 접는다 — 연결돼 있으면 접혀 있다.
+  testWidgets("본체 화면: 연결돼 있으면 '연결이 안 될 때만'(주소·비밀번호·블루투스)이 접혀 있다", (tester) async {
     _useTallViewport(tester);
     await tester.pumpWidget(buildScreen(
       const HubSettingsScreen(),
@@ -138,10 +138,10 @@ void main() {
     await tester.pump();
     final fold = find.byKey(const Key('hub-installer-fold'));
     expect(fold, findsOneWidget);
-    expect(find.descendant(of: fold, matching: findPlainText('설치하는 분용')), findsOneWidget);
+    expect(find.descendant(of: fold, matching: findPlainText('연결이 안 될 때만')), findsOneWidget);
     expect(find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == 'http://simplelay.local:8000'),
         findsNothing);
-    await tester.tap(findPlainText('설치하는 분용'));
+    await tester.tap(findPlainText('연결이 안 될 때만'));
     await tester.pumpAndSettle();
     expect(find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == 'http://simplelay.local:8000'),
         findsOneWidget);

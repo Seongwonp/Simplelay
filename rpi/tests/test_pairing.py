@@ -1,11 +1,12 @@
 import base64
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from rpi.api import pairing
+from rpi.api import auth, pairing
 from rpi.main import app
 
 
@@ -63,6 +64,7 @@ def test_approval_then_one_time_key(window):
 @pytest.mark.parametrize("method,path,body", [
     ("post", "/pair/session", None), ("get", "/pair/session", None),
     ("delete", "/pair/session", None),
+    ("get", "/pair/phones", None),
     ("post", "/pair/approve", {"request_id": "a" * 32, "approved": True}),
 ])
 def test_only_local_screen_can_create_read_cancel_approve(window, method, path, body):
@@ -169,3 +171,141 @@ def test_ack_before_approval_is_refused(window):
     _, pending = begin()
     assert phone().post("/pair/ack", json={"token": pending["token"]}).status_code == 409
     assert phone().post("/pair/result", json={"token": pending["token"]}).json() == {"state": "pending"}
+
+
+# ── 첫 환영 화면의 판단 근거: 연결된 휴대폰 수. 키오스크는 루프백이라 키 없이 통과하므로 '키오스크 인증'과 섞이면 안 된다 ──
+
+
+class _Db:
+    """설정 칸과 옛 사용 흔적만 흉내 낸다."""
+
+    def __init__(self, appliances=(), routines=(), history=(), broken=False):
+        self.settings = {}
+        self._appliances, self._routines, self._history = appliances, routines, history
+        self.broken = broken
+
+    def load_setting(self, key):
+        if self.broken:
+            raise sqlite3.OperationalError("database is locked")
+        return self.settings.get(key)
+
+    def save_setting(self, key, value):
+        if self.broken:
+            raise sqlite3.OperationalError("database is locked")
+        self.settings[key] = value
+
+    def appliances(self):
+        return self._appliances
+
+    def routine_documents(self):
+        return self._routines
+
+    def recent_job_history(self, limit=50):
+        return self._history
+
+
+@pytest.fixture
+def ledger(window, monkeypatch):
+    db = _Db()
+    monkeypatch.setattr(pairing, "phone_ledger", pairing.PhoneLedger(lambda: db))
+    monkeypatch.setattr(auth, "_lan_key_used", False)
+    return db
+
+
+def phones():
+    response = local().get("/pair/phones")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    return response.json()["phones"]
+
+
+def test_fresh_hub_has_no_phone_and_the_answer_is_kept(ledger):
+    assert phones() == 0
+    assert ledger.settings[pairing.PHONES_SETTING] == "0"
+
+
+def test_kiosk_itself_is_not_a_phone(ledger):
+    # 키오스크는 키 없이 통과한다 — 그 요청이 '연결된 폰'이 되면 환영 화면이 영영 안 뜬다.
+    assert local().get("/status").status_code == 200
+    assert phones() == 0
+
+
+def test_phone_counts_only_after_the_key_was_handed_over(ledger):
+    _, pending = begin()
+    assert phones() == 0, "코드만 넣은 폰은 아직 연결된 폰이 아니다"
+    local().post("/pair/approve", json={"request_id": pending["request_id"], "approved": True})
+    assert phones() == 0, "허락만 하고 키를 안 가져갔다"
+    for _ in range(3):  # 응답을 잃은 폰이 다시 물어도 한 대다
+        assert phone().post("/pair/result", json={"token": pending["token"]}).status_code == 200
+    assert phones() == 1
+    assert phones() == 1
+
+
+def test_denied_phone_does_not_count(ledger):
+    _, pending = begin()
+    local().post("/pair/approve", json={"request_id": pending["request_id"], "approved": False})
+    phone().post("/pair/result", json={"token": pending["token"]})
+    assert phones() == 0
+
+
+def test_count_survives_a_hub_restart(ledger, monkeypatch):
+    _, pending = begin()
+    local().post("/pair/approve", json={"request_id": pending["request_id"], "approved": True})
+    phone().post("/pair/result", json={"token": pending["token"]})
+    monkeypatch.setattr(pairing, "phone_ledger", pairing.PhoneLedger(lambda: ledger))
+    assert phones() == 1
+
+
+def test_phone_using_the_key_on_the_network_counts(ledger):
+    # 코드 연결 전부터 쓰던 폰, '연결 비밀번호'를 직접 넣은 폰 — 연결 기록은 없어도 이미 연결된 본체다.
+    assert phones() == 0
+    assert phone().get("/status", headers={"X-API-Key": "test-pair-key"}).status_code == 200
+    assert phones() == 1
+
+
+def test_wrong_key_on_the_network_does_not_count(ledger):
+    assert phone().get("/status", headers={"X-API-Key": "wrong-key"}).status_code == 401
+    assert phones() == 0
+
+
+@pytest.mark.parametrize("trace", [
+    {"appliances": ("에어컨",)}, {"routines": (("r1", "{}"),)}, {"history": ("job",)},
+])
+def test_hub_used_before_this_record_existed_is_not_treated_as_new(window, monkeypatch, trace):
+    # 이 기록이 생기기 전에 연결해 쓰던 본체가 배포 직후 '0대'로 보이면 첫 환영 화면이 뜬다.
+    db = _Db(**trace)
+    monkeypatch.setattr(pairing, "phone_ledger", pairing.PhoneLedger(lambda: db))
+    monkeypatch.setattr(auth, "_lan_key_used", False)
+    assert phones() == 1
+
+
+def test_traces_are_read_once_so_a_recorded_answer_stands(ledger):
+    assert phones() == 0
+    ledger._appliances = ("에어컨",)
+    assert phones() == 0, "기록이 있으면 그 값이 답이다 — 첫 값을 0으로 되돌리면 환영 화면을 다시 볼 수 있다"
+
+
+@pytest.mark.parametrize("make", [
+    lambda: None,  # 저장소가 없는 구성 — 재시작하면 잊으니 0이라고 말하지 않는다
+    lambda: _Db(broken=True),
+])
+def test_unknown_is_not_zero(window, monkeypatch, make):
+    db = make()
+    monkeypatch.setattr(pairing, "phone_ledger", pairing.PhoneLedger(lambda: db))
+    monkeypatch.setattr(auth, "_lan_key_used", False)
+    assert phones() is None
+
+
+def test_unreadable_record_is_not_zero(ledger):
+    ledger.settings[pairing.PHONES_SETTING] = "망가진 값"
+    assert phones() is None
+
+
+def test_phone_delivered_while_store_failed_is_saved_when_it_recovers(ledger):
+    _, pending = begin()
+    local().post("/pair/approve", json={"request_id": pending["request_id"], "approved": True})
+    ledger.broken = True
+    assert phone().post("/pair/result", json={"token": pending["token"]}).status_code == 200, "저장 실패가 키 받기를 막으면 안 된다"
+    assert phones() is None
+    ledger.broken = False
+    assert phones() == 1

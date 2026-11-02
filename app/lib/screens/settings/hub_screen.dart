@@ -74,7 +74,7 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
             const SizedBox(height: AppSpace.sm),
             const _HubLocationSection(),
             const SizedBox(height: AppSpace.xxxl),
-            // 주소·연결 비밀번호·블루투스는 '설치하는 분용'으로 접는다(2026-10-18). 연결이 안 됐으면
+            // 주소·연결 비밀번호·블루투스는 '연결이 안 될 때만'으로 접는다. 연결이 안 됐으면
             // 펼친 채로 연다 — 고칠 사람이 가장 먼저 찾는 자리라서.
             Theme(
               data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -84,7 +84,7 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
                 childrenPadding: EdgeInsets.zero,
                 initiallyExpanded: ref.read(rpiConnectionProvider) != RpiConnectionState.connected,
                 expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-                title: Text('설치하는 분용', style: AppText.title),
+                title: Text('연결이 안 될 때만', style: AppText.title),
                 subtitle: Text('주소·연결 비밀번호·블루투스', style: context.appCaption),
                 children: [
                   _SectionHeader(title: '연결 주소'),

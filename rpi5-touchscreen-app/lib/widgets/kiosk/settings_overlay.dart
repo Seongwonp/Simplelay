@@ -33,7 +33,12 @@ class KioskSettingsOverlay extends StatefulWidget {
     this.countdownSeconds = KioskTimings.countdownSeconds,
     this.onCountdownChanged,
     this.quietSchedule,
+    this.showInstallerSection = false,
   });
+
+  /// '설치용' 칸(콘센트 연결 가전·주소)을 보일까. 지금 구성은 Wi-Fi 콘센트 주소를 쓰지 않아 사용자 화면에서는 끈다 —
+  /// 등록 기능은 서버에 남아 있어, 그 구성으로 돌아가면 켜기만 하면 된다.
+  final bool showInstallerSection;
 
   final ApplianceMap currentAppliance;
 
@@ -250,17 +255,19 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                           _buildQuietSection(),
                           const SizedBox(height: 16),
                           _buildTtsSection(),
-                          const SizedBox(height: 16),
-                          Divider(color: KioskColors.border, height: 1),
-                          const SizedBox(height: 8),
-                          _buildInstallerToggle(),
-                          if (_showInstaller) ...[
-                            const SizedBox(height: 8),
-                            _buildApplianceSection(),
-                            const SizedBox(height: 20),
+                          if (widget.showInstallerSection) ...[
+                            const SizedBox(height: 16),
                             Divider(color: KioskColors.border, height: 1),
-                            const SizedBox(height: 20),
-                            _buildNodeSection(),
+                            const SizedBox(height: 8),
+                            _buildInstallerToggle(),
+                            if (_showInstaller) ...[
+                              const SizedBox(height: 8),
+                              _buildApplianceSection(),
+                              const SizedBox(height: 20),
+                              Divider(color: KioskColors.border, height: 1),
+                              const SizedBox(height: 20),
+                              _buildNodeSection(),
+                            ],
                           ],
                         ],
                       ),

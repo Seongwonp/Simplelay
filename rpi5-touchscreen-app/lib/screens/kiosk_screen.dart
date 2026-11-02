@@ -47,6 +47,8 @@ import '../widgets/kiosk/voice_listen_overlay.dart';
 import '../widgets/kiosk/settings_overlay.dart';
 import '../widgets/kiosk/top_progress_bar.dart';
 import '../widgets/kiosk/room_sleep.dart';
+import '../widgets/kiosk/welcome_gate.dart';
+import '../widgets/kiosk/welcome_view.dart';
 
 /// 잠시 쉬기 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 폰과 같은 문장.
 const kSettingNotSavedNotice = '저장하지 못해 지금만 바뀌어요. 본체를 다시 켜면 예전 설정으로 돌아가요.';
@@ -88,6 +90,12 @@ String _askNow(String name) =>
     name.endsWith('기') ? '${withObject(name)} 지금 할까요?' : '$name, 지금 할까요?';
 
 const _pollInterval = Duration(milliseconds: 2000);
+
+/// 연결된 휴대폰 수를 묻는 주기 — 본체가 켜지는 중이어도, 코드 없이 연결해도 곧 알아채게.
+const _phonesInterval = Duration(seconds: 3);
+
+/// '휴대폰이 연결되었습니다'를 읽을 시간.
+const _welcomeConnectedHold = Duration(seconds: 4);
 const _healthInterval = Duration(seconds: 10);
 
 /// 안내 한 줄(/ambient) 조회가 이만큼 연속으로 실패하면 마지막 안내를 접는다(Copilot#4). 그전에는 유지한다.
@@ -467,6 +475,12 @@ class _KioskScreenState extends State<KioskScreen> {
   Timer? _alertTimer;
   Timer? _powerTimer;
 
+  // 첫 환영 화면 — 띄울지는 게이트가, 음성 1회와 전환은 이 화면이 맡는다. 재부팅하면 다시 1회다.
+  final KioskWelcomeGate _welcome = KioskWelcomeGate();
+  bool _welcomeSpoken = false;
+  Timer? _phonesTimer;
+  Timer? _welcomeTimer;
+
   // 토글·가전 변경 시 현재 상태를 파일로 저장 (settings 미주입이면 no-op)
   void _persistSettings() {
     widget.settings?.save(KioskSettings(
@@ -519,6 +533,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _fetchAlert();
     _poll();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
+    _fetchPhones();
+    _phonesTimer = Timer.periodic(_phonesInterval, (_) => _fetchPhones());
     _fetchRoom();
     _roomTimer = Timer.periodic(_pollInterval, (_) => _fetchRoom());
     _healthTimer = Timer.periodic(_healthInterval, (_) {
@@ -576,6 +592,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _countdownTimer?.cancel();
     _pollTimer?.cancel();
     _roomTimer?.cancel();
+    _phonesTimer?.cancel();
+    _welcomeTimer?.cancel();
     _greetTimer?.cancel();
     _healthTimer?.cancel();
     _clockTimer?.cancel();
@@ -589,7 +607,55 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Future<void> _checkHealth() async {
     final health = await _api.checkHealth();
-    if (mounted) setState(() => _health = health);
+    if (!mounted) return;
+    setState(() => _health = health);
+    _speakWelcomeOnce();
+  }
+
+  Future<void> _fetchPhones() async {
+    final phones = await _api.pairedPhones();
+    if (!mounted || _welcome.closed) return;
+    final justConnected = _welcome.readPhones(phones);
+    if (_welcome.closed) _phonesTimer?.cancel();
+    setState(() {});
+    if (justConnected) {
+      _welcomeConnected();
+    } else {
+      _speakWelcomeOnce();
+    }
+  }
+
+  /// 환영 화면은 처음 화면 자리에만 뜬다 — 실행·제안·정지 대기는 그대로 앞서고, 비상 띠·위험 경보는 이 화면 위에 놓인다.
+  bool get _welcomeShowing =>
+      _welcome.showing &&
+      _phase == KioskPhase.idle &&
+      _voiceProposal == null;
+
+  /// 조용한 시간을 아직 모르면 기다린다. 조용한 시간이면 소리 없이 넘어간다(뒤늦게 말하지 않는다).
+  void _speakWelcomeOnce() {
+    if (_welcomeSpoken || !_welcomeShowing || !_health.quietKnown) return;
+    _welcomeSpoken = true;
+    if (_health.speakGeneral) _tts.speak(kWelcomeSpeech);
+  }
+
+  void _onWelcomePhoneConnected() {
+    if (_welcome.markConnected()) _welcomeConnected();
+  }
+
+  void _welcomeConnected() {
+    _phonesTimer?.cancel();
+    setState(() {});
+    if (_health.speakGeneral) _tts.speak(kWelcomeConnectedSpeech);
+    _welcomeTimer = Timer(_welcomeConnectedHold, () {
+      if (mounted) setState(_welcome.close);
+    });
+  }
+
+  /// 폰 없이 쓰는 길. 열어 둔 연결 창도 닫는다.
+  void _skipWelcome() {
+    _phonesTimer?.cancel();
+    setState(_welcome.close);
+    _api.closePairing().catchError((Object _) {/* 창은 5분 뒤 만료된다. */});
   }
 
   Future<void> _fetchSensors() async {
@@ -640,6 +706,7 @@ class _KioskScreenState extends State<KioskScreen> {
     if (room == null || !room.sleepScreen) return false;
     if (_phase != KioskPhase.idle ||
         _overlayOpen ||
+        _welcome.showing ||
         _showEstop ||
         _alert.active ||
         _voiceProposal != null) {
@@ -997,6 +1064,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _openConnectionId == null &&
       _voiceProposal == null &&
       !_voiceModalOpen &&
+      !_welcomeShowing &&
       ((_phase == KioskPhase.idle && !_quietDim) ||
           _phase == KioskPhase.manual);
 
@@ -3504,6 +3572,15 @@ class _KioskScreenState extends State<KioskScreen> {
             heardText: _voiceHeardText,
             onReject: () => _onVoiceAnswer(false),
             onApprove: _voiceCanRun(p) ? () => _onVoiceAnswer(true) : null,
+          );
+        }
+        if (_welcomeShowing) {
+          return KioskWelcomeView(
+            key: const ValueKey('welcome'),
+            api: _api,
+            connected: _welcome.connected,
+            onConnected: _onWelcomePhoneConnected,
+            onSkip: _skipWelcome,
           );
         }
         // '자동 실행'·'기록' 탭(시안 B 10/24) — 읽기만 하는 화면. 조용한 시간으로 어두우면 처음 화면(큰 시계)이 앞선다.

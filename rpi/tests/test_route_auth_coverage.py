@@ -35,6 +35,7 @@ INTENTIONALLY_PUBLIC: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/pair/session"): ("연결 창 상태", "_local_screen"),
     ("DELETE", "/pair/session"): ("연결 창 닫기", "_local_screen"),
     ("POST", "/pair/approve"): ("허브 화면의 연결 승인", "_local_screen"),
+    ("GET", "/pair/phones"): ("첫 환영 화면이 볼 연결된 휴대폰 수", "_local_screen"),
     ("POST", "/pair"): ("폰이 6자리 코드로 연결 요청 — 5분 창·허브 화면 승인이 따로 막는다 (pairing.py)", None),
     ("POST", "/pair/result"): ("폰이 받은 일회용 토큰으로 결과 조회 (pairing.py)", None),
     ("POST", "/pair/ack"): ("폰이 같은 토큰으로 키를 받았다고 알림 — 토큰을 끝낼 뿐 키를 주지 않는다 (pairing.py)", None),

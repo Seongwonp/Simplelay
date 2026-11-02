@@ -7,9 +7,16 @@ import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 
 class KioskPairingView extends StatefulWidget {
-  const KioskPairingView({super.key, required this.api, required this.onClose});
+  const KioskPairingView({super.key, required this.api, required this.onClose, this.embedded = false, this.onConnected});
   final KioskApiService api;
   final VoidCallback onClose;
+
+  /// 다른 화면(첫 환영 화면) 안의 카드로 쓴다 — 제목·닫기·할 일 글을 빼고 QR과 숫자만, 시간이 지나면 새 코드를 스스로 받는다.
+  /// 받기·허락·거절·만료 규칙은 같다.
+  final bool embedded;
+
+  /// 허브가 폰에 키를 보냈다(`consumed`).
+  final VoidCallback? onConnected;
   @override
   State<KioskPairingView> createState() => _KioskPairingViewState();
 }
@@ -67,6 +74,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
     if (_polling || _busy || !mounted) return;
     if (_deadline != null && !DateTime.now().isBefore(_deadline!)) {
       _timer?.cancel();
+      if (widget.embedded) return _open();
       setState(() {
         _session = null;
         _error = "연결할 수 있는 시간이 지났어요. '새 코드 받기'를 눌러 주세요.";
@@ -82,12 +90,17 @@ class _KioskPairingViewState extends State<KioskPairingView> {
         setState(() => _session = {...?_session, ...session});
         // 허브가 키를 폰에 보냈다(consumed, 검토 10/19) — 이 화면의 일은 끝났다. 더 묻고 초를 세면 창이 끝날 때 '연결 시간이
         // 지났어요'로 바뀌어 이미 연결된 폰을 다시 연결하라는 말이 됐다. 폰은 창이 열린 동안 같은 키를 다시 받을 수 있다.
-        if (session['state'] == 'consumed') _timer?.cancel();
+        if (session['state'] == 'consumed') {
+          _timer?.cancel();
+          widget.onConnected?.call();
+        }
       }
     } on KioskApiException catch (e) {
       if (e.statusCode == 410 && revision == _revision) {
         _timer?.cancel();
-        if (mounted) {
+        if (widget.embedded) {
+          if (mounted) await _open();
+        } else if (mounted) {
           setState(() {
             _session = null;
             _error = e.detail;
@@ -144,6 +157,18 @@ class _KioskPairingViewState extends State<KioskPairingView> {
   Widget build(BuildContext context) {
     final session = _session;
     final state = session?['state'];
+    if (widget.embedded) {
+      return LayoutBuilder(
+          builder: (context, box) => Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: box.maxWidth),
+                    child: _body(session, state, box.maxHeight),
+                  ),
+                ),
+              ));
+    }
     return ColoredBox(
         color: KioskColors.bg,
         child: Padding(
@@ -175,7 +200,9 @@ class _KioskPairingViewState extends State<KioskPairingView> {
   }
 
   Widget _body(Map<String, dynamic>? session, Object? state, double height) {
-    if (session != null && state == 'open') return _openBody(session, height);
+    if (session != null && state == 'open') {
+      return widget.embedded ? _embeddedOpenBody(session, height) : _openBody(session, height);
+    }
     if (state == 'pending') return _pendingBody(session!);
     final (icon, color, line) = switch (state) {
       'approved' => (Icons.check_circle_outline, KioskColors.success, '허락했어요. 휴대폰에서 연결됐는지 봐 주세요.'),
@@ -202,6 +229,33 @@ class _KioskPairingViewState extends State<KioskPairingView> {
     ]);
   }
 
+  Widget _qrImage(String png, double size) => Container(
+        padding: const EdgeInsets.all(KioskSpace.sm),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(KioskSizes.buttonRadius),
+          border: Border.all(color: KioskColors.border, width: 2),
+        ),
+        child: Image.memory(base64Decode(png),
+            width: size, height: size, gaplessPlayback: true, semanticLabel: '휴대폰 연결 QR 코드'),
+      );
+
+  Widget _codeText(Map<String, dynamic> session) => Text('${session['code']}',
+      key: const Key('pair-code'),
+      style: _t(KioskType.key + 16, weight: FontWeight.w800).copyWith(letterSpacing: 6));
+
+  // 환영 화면 카드 — QR과 숫자만. 초 세기·새 코드 단추는 없다(시간이 지나면 스스로 새 코드를 받는다).
+  Widget _embeddedOpenBody(Map<String, dynamic> session, double height) {
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (session['qr_png'] case final String png) ...[
+        _qrImage(png, (height * 0.62).clamp(160.0, 300.0)),
+        const SizedBox(height: KioskSpace.sm),
+      ],
+      _codeText(session),
+      ..._errorLine(),
+    ]);
+  }
+
   // QR 왼쪽 · 할 일 세 줄과 숫자·주소 오른쪽.
   Widget _openBody(Map<String, dynamic> session, double height) {
     final qr = (height * 0.82).clamp(160.0, 340.0);
@@ -221,16 +275,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
         );
     return Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
       if (session['qr_png'] case final String png) ...[
-        Container(
-          padding: const EdgeInsets.all(KioskSpace.sm),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(KioskSizes.buttonRadius),
-            border: Border.all(color: KioskColors.border, width: 2),
-          ),
-          child: Image.memory(base64Decode(png),
-              width: qr, height: qr, gaplessPlayback: true, semanticLabel: '휴대폰 연결 QR 코드'),
-        ),
+        _qrImage(png, qr),
         const SizedBox(width: KioskSpace.xl),
       ],
       // Flexible — QR 옆 남은 폭 안에서 줄을 바꾼다(10/26 실패널 점검: 할 일 글이 화면 오른쪽 끝에서 잘렸다).
@@ -242,9 +287,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
           step('2', "SimpleLay 앱에서 '본체 연결하기'를 눌러 주세요."),
           step('3', 'QR 코드를 비추거나, 아래 숫자와 주소를 넣어 주세요.'),
           const SizedBox(height: KioskSpace.sm),
-          Text('${session['code']}',
-              key: const Key('pair-code'),
-              style: _t(KioskType.key + 16, weight: FontWeight.w800).copyWith(letterSpacing: 6)),
+          _codeText(session),
           Text('주소 ${session['host']}', style: _t(KioskType.body, color: KioskColors.muted)),
           const SizedBox(height: KioskSpace.xs),
           Text('$_left초 남았어요', style: _t(KioskType.body, color: KioskColors.muted)),
@@ -260,7 +303,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
   Widget _pendingBody(Map<String, dynamic> session) {
     final mark = (session['request_id'] as String).substring(0, 6);
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      Text('이 휴대폰을 연결할까요?', style: _t(KioskType.status, weight: FontWeight.w800)),
+      Text('이 휴대폰을 연결할까요?', textAlign: TextAlign.center, style: _t(KioskType.status, weight: FontWeight.w800)),
       const SizedBox(height: KioskSpace.xs),
       Text('${session['phone']}', style: _t(KioskType.body, color: KioskColors.muted)),
       const SizedBox(height: KioskSpace.md),
@@ -272,7 +315,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
           border: Border.all(color: KioskColors.border, width: 2),
         ),
         child: Column(children: [
-          Text('휴대폰 화면에도 이 글자가 보이는지 봐 주세요', style: _t(KioskType.body)),
+          Text('휴대폰 화면에도 이 글자가 보이는지 봐 주세요', textAlign: TextAlign.center, style: _t(KioskType.body)),
           const SizedBox(height: KioskSpace.xs),
           Text(mark,
               key: const Key('pair-mark'),
@@ -284,18 +327,24 @@ class _KioskPairingViewState extends State<KioskPairingView> {
       Text('$_left초 남았어요', style: _t(KioskType.body, color: KioskColors.muted)),
       ..._errorLine(),
       const SizedBox(height: KioskSpace.md),
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        OutlinedButton(
-            onPressed: _busy ? null : () => _decide(false),
-            style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border),
-            child: Text('연결하지 않기', style: _t(KioskType.body, weight: FontWeight.w700))),
-        const SizedBox(width: KioskSpace.md),
-        ElevatedButton(
-            onPressed: _busy ? null : () => _decide(true),
-            style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent),
-            child: Text('이 휴대폰 연결하기',
-                style: _t(KioskType.body, weight: FontWeight.w800, color: KioskColors.onAccent))),
-      ]),
+      // 카드 안에서는 두 단추가 한 줄에 들어가지 않는다.
+      Flex(
+        direction: widget.embedded ? Axis.vertical : Axis.horizontal,
+        mainAxisSize: MainAxisSize.min,
+        verticalDirection: widget.embedded ? VerticalDirection.up : VerticalDirection.down,
+        children: [
+          OutlinedButton(
+              onPressed: _busy ? null : () => _decide(false),
+              style: KioskButtons.secondary(foreground: KioskColors.ink, border: KioskColors.border),
+              child: Text('연결하지 않기', style: _t(KioskType.body, weight: FontWeight.w700))),
+          const SizedBox(width: KioskSpace.md, height: KioskSpace.sm),
+          ElevatedButton(
+              onPressed: _busy ? null : () => _decide(true),
+              style: KioskButtons.primary(background: KioskColors.primary, foreground: KioskColors.onAccent),
+              child: Text('이 휴대폰 연결하기',
+                  style: _t(KioskType.body, weight: FontWeight.w800, color: KioskColors.onAccent))),
+        ],
+      ),
     ]);
   }
 
