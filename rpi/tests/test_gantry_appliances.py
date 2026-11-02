@@ -37,7 +37,7 @@ def _client(monkeypatch, gantry: str | None, local: str | None = None):
         monkeypatch.delenv("SIMPLELAY_LOCAL_APPLIANCES", raising=False)
     else:
         monkeypatch.setenv("SIMPLELAY_LOCAL_APPLIANCES", local)
-    monkeypatch.setenv("SIMPLELAY_DEV_MODE", "1")  # 내장 가전을 목록에 보인다
+    monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)  # 내장 가전을 목록에 보인다
     if gantry is None:
         monkeypatch.delenv("SIMPLELAY_GANTRY_APPLIANCES", raising=False)
     else:

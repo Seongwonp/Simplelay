@@ -627,12 +627,10 @@ def dev_real_motion_enabled() -> bool:
 def builtin_appliances_visible() -> bool:
     """코드에 미리 넣은 내장 가전을 '내 가전' 목록에 보일지(UI 확정 §1-6).
 
-    개발자 모드이거나 리허설 런처(``rpi.simulator_main``이 ACT_MODE를
-    ``simulator``로 고정)일 때만 보인다. 목록에서만 숨길 뿐 등록부의
-    ``get()``·실행 경로는 그대로라, 시연·테스트의 실행은 바뀌지 않는다.
+    리허설 런처(``rpi.simulator_main``이 ACT_MODE를 ``simulator``로 고정)일 때만
+    보인다. 개발자 모드는 실물 조그에도 켜 두므로 사용자 목록의 근거로 삼지 않는다.
+    목록에서만 숨길 뿐 등록부의 ``get()``·실행 경로는 그대로다.
     """
-    if developer_mode_enabled():
-        return True
     return os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower() == "simulator"
 
 

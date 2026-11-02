@@ -9,6 +9,8 @@ lgpio 엣지 시각 방식은 체크섬까지 맞게 읽혔다(실측 26.5 °C·
 
 DHT22는 읽기 실패가 잦다 — 몇 번 다시 읽고, 마지막 정상 값을 짧게(10 s) 재사용한다.
 같은 센서를 2 s보다 자주 읽으면 오래된 값이 나오므로 그 안의 요청은 캐시로 답한다.
+읽는 쪽은 스레드풀에서 불린다 — 선이 빠져 읽기마다 몇 초 걸릴 때 호출이 줄을 서면 다른 API가 함께 멈춘다.
+그래서 읽는 중이면 기다리지 않고, 다 실패하면 한동안 다시 읽지 않는다.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ _lock = threading.Lock()  # DHT22는 동시 읽기 비지원 — 직렬화 필�
 _MIN_INTERVAL_S = 2.0  # 센서 사양: 2 s보다 자주 읽지 않는다
 _CACHE_S = 10.0  # 마지막 정상 값을 이만큼 재사용(읽기 실패가 잦아서)
 _ATTEMPTS = 3
+_FAILED_BACKOFF_S = 30.0  # 세 번 다 실패하면 이만큼 쉰다(미연결이면 읽기마다 4초가 넘게 걸린다)
 
 
 def decode_high_pulses(high_us: list[float]) -> tuple[float, float] | None:
@@ -55,6 +58,7 @@ class Dht22Sensor:
         self._last: tuple[float, float] | None = None
         self._last_at = 0.0
         self._last_try = 0.0
+        self._retry_after = 0.0
 
         if not enabled:
             _log.info("DHT22 꺼짐 (SIMPLELAY_DHT22_ENABLED/SIMPLELAY_GPIO_ENABLED)")
@@ -98,8 +102,12 @@ class Dht22Sensor:
         """(temperature_°C, humidity_%) — 실패·미연결 시 (None, None)."""
         if self._handle is None:
             return None, None
-        with _lock:
+        if not _lock.acquire(blocking=False):
+            return self._cached()
+        try:
             now = time.monotonic()
+            if now < self._retry_after:
+                return self._cached()
             if self._last and now - self._last_try < _MIN_INTERVAL_S:
                 return self._last
             for attempt in range(_ATTEMPTS):
@@ -114,9 +122,15 @@ class Dht22Sensor:
                 if got is not None:
                     self._last, self._last_at = got, time.monotonic()
                     return got
-            if self._last and time.monotonic() - self._last_at < _CACHE_S:
-                return self._last
-            return None, None
+            self._retry_after = time.monotonic() + _FAILED_BACKOFF_S
+            return self._cached()
+        finally:
+            _lock.release()
+
+    def _cached(self) -> tuple[float | None, float | None]:
+        if self._last and time.monotonic() - self._last_at < _CACHE_S:
+            return self._last
+        return None, None
 
     def cleanup(self) -> None:
         if self._handle is not None and self._lgpio is not None:

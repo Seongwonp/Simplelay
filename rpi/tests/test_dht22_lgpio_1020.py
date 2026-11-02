@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib
 
+from rpi.services import dht22 as dht22_module
 from rpi.services.dht22 import Dht22Sensor, decode_high_pulses
 
 
@@ -68,3 +69,28 @@ def test_dht_follows_gpio_enabled_when_not_set(monkeypatch):
     finally:
         monkeypatch.delenv("SIMPLELAY_GPIO_ENABLED")
         importlib.reload(config)
+
+
+def _unplugged(monkeypatch):
+    monkeypatch.setattr(dht22_module.time, "sleep", lambda _s: None)
+    sensor = Dht22Sensor()
+    sensor._handle = object()
+    calls = []
+    sensor._read_once = lambda: calls.append(1)
+    return sensor, calls
+
+
+def test_unplugged_sensor_backs_off_after_failed_read(monkeypatch):
+    # 선이 빠지면 읽기마다 4초가 넘게 걸린다 — 다시 읽기를 쉬어야 스레드풀이 막히지 않는다.
+    sensor, calls = _unplugged(monkeypatch)
+    assert sensor.read() == (None, None)
+    tried = len(calls)
+    assert sensor.read() == (None, None)
+    assert len(calls) == tried
+
+
+def test_read_in_progress_does_not_wait(monkeypatch):
+    sensor, calls = _unplugged(monkeypatch)
+    with dht22_module._lock:
+        assert sensor.read() == (None, None)
+    assert calls == []

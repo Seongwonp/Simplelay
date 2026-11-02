@@ -39,7 +39,7 @@ def client(monkeypatch, tmp_path):
     monkeypatch.delenv("SIMPLELAY_GANTRY_APPLIANCES", raising=False)
     monkeypatch.setenv("SIMPLELAY_ALLOW_UNAUTHENTICATED", "1")
     monkeypatch.setenv("SIMPLELAY_DB_PATH", str(tmp_path / "kit.db"))
-    monkeypatch.setenv("SIMPLELAY_DEV_MODE", "1")
+    monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)
     monkeypatch.setenv("SIMPLELAY_WORKSPACE_W_MM", "200")
     monkeypatch.setenv("SIMPLELAY_WORKSPACE_H_MM", "200")
     for dep in _DEPS:

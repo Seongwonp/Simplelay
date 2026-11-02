@@ -55,9 +55,9 @@ def test_normal_mode_keeps_builtin_lookup_for_execution(client):
 
 
 @pytest.mark.parametrize("value", ["1", "true", "TRUE"])
-def test_developer_mode_lists_builtins(client, monkeypatch, value):
+def test_developer_mode_hides_builtins(client, monkeypatch, value):
     monkeypatch.setenv("SIMPLELAY_DEV_MODE", value)
-    assert _ids(client) == ["microwave", "induction"]
+    assert _ids(client) == []
 
 
 def test_simulator_launcher_lists_builtins(client, monkeypatch):
