@@ -125,6 +125,8 @@ class SimpleLayDb:
             for column in ("execution_mode", "source"):
                 if column not in columns:
                     self._conn.execute(f"ALTER TABLE usage_log ADD COLUMN {column} TEXT")
+            if "duration_s" not in columns:
+                self._conn.execute("ALTER TABLE usage_log ADD COLUMN duration_s REAL")
             self._conn.commit()
 
             job_columns = {
@@ -239,8 +241,8 @@ class SimpleLayDb:
         with self._lock:
             self._conn.execute(
                 "INSERT INTO usage_log"
-                " (occurred_at, purpose, outcome, appliance_id, execution_mode, source)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                " (occurred_at, purpose, outcome, appliance_id, execution_mode, source, duration_s)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.occurred_at.isoformat(),
                     record.purpose,
@@ -248,6 +250,7 @@ class SimpleLayDb:
                     record.appliance_id,
                     record.execution_mode.value,
                     record.source.value,
+                    record.duration_s,
                 ),
             )
             self._conn.commit()
@@ -255,7 +258,7 @@ class SimpleLayDb:
     def usage_records(self) -> tuple[UsageRecord, ...]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT occurred_at, purpose, outcome, appliance_id, execution_mode, source"
+                "SELECT occurred_at, purpose, outcome, appliance_id, execution_mode, source, duration_s"
                 " FROM usage_log ORDER BY id"
             ).fetchall()
         return tuple(
@@ -266,8 +269,9 @@ class SimpleLayDb:
                 appliance_id=appliance_id,
                 execution_mode=ExecutionMode(execution_mode or "unknown"),
                 source=UsageSource(source or "unknown"),
+                duration_s=duration_s,
             )
-            for occurred_at, purpose, outcome, appliance_id, execution_mode, source in rows
+            for occurred_at, purpose, outcome, appliance_id, execution_mode, source, duration_s in rows
         )
 
     # 노드 등록 (appliance_id → ESP32 base_url)

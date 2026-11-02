@@ -26,13 +26,15 @@ from datetime import date, datetime, timedelta
 
 from typing import Protocol
 
-from rpi.intent.models import PatternConfig, UsageOutcome
+from rpi.intent.models import PatternConfig, UsageOutcome, UsageSource
 from rpi.intent.ports import Clock, UsageLog
 
 KIND_EXECUTION_FAILED = "execution_failed"
 KIND_EMERGENCY_STOP = "emergency_stop"
 KIND_DANGER_SOUND = "danger_sound"
 KIND_QUIET_ROUTINE = "quiet_routine"
+#: CT로 본 가열 끝 — 알림함·키오스크 안내 한 줄에만(rpi/services/observed_use.py).
+KIND_HEAT_DONE = "heat_done"
 
 
 # "평소"의 기준 창 — 이 기간 안에서 3일 이상 쓴 것만 루틴이다. 창이 없으면
@@ -259,6 +261,8 @@ class RoutineQuietChecker:
         localized = [
             (record, record.occurred_at.astimezone(now.tzinfo))
             for record in self._usage_log.records()
+            # 전력 관찰은 아는 것까지만 — 안부 알림의 근거로도 쓰지 않는다.
+            if record.source is not UsageSource.OBSERVED_POWER
         ]
 
         for band in self._config.time_bands:

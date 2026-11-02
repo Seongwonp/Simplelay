@@ -250,8 +250,8 @@ class ConnectionsResponse(BaseModel):
 # /ambient
 
 
-#: 키오스크 안내 한 줄에 올리는 루틴 안내 종류(시연 v3 갭 S5) — 루틴의 ``announce``와 '알림만' 기록.
-ROUTINE_TIP_KINDS = ("routine_announce", "routine_notice")
+#: 키오스크 안내 한 줄에 올리는 종류(시연 v3 갭 S5) — 루틴의 ``announce``와 '알림만' 기록, CT로 본 가열 끝.
+ROUTINE_TIP_KINDS = ("routine_announce", "routine_notice", "heat_done")
 #: 루틴 안내를 안내 한 줄에 남겨 두는 시간. 시연 장면 하나(1~2분)를 넉넉히 덮는 값 -- 실측 아님.
 ROUTINE_TIP_MINUTES = 10
 

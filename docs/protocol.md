@@ -751,6 +751,9 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   "t_monotonic_ns": 0, "clock_id": "f445ea42be9e405f" }
 ```
 
+  - `evidence.power`는 `started_at_s`·`running_at_s`·`standby_from_s`·`done_at_s`(표본 시각, RPi4 단조 시계)와 `run_s`(가동 시간)를 싣는다.
+    선택 필드 `gaps`(운전 중 전력 끊김 횟수, 2026-11-02): 0이 아니면 시작·길이를 다 보지 못한 사이클이라 RPi5가 사용 기록·알림을 남기지 않는다.
+    옛 RPi4에는 없고 없으면 0으로 본다. 끝 사건의 사용 기록은 `rpi/services/observed_use.py`.
   - `at_s`·`t_monotonic_ns`는 **RPi4 프로세스의** 단조 시각이고 `clock_id`가 그 시계를 가리킨다(3차 평가 M1, 2026-10-14).
     RPi5는 받는 순간 `clock_ref` 기준점(위 `clock_probe`)으로 `at_s`를 자기 단조 시계로 옮겨 `event_end_mono_s`로 둔다 — 같은
     `clock_id`의 기준점이 없으면(옛 RPi4·RPi4 재시작·링크 끊김) None이고 자동 실행 허용 규칙은 **보류**한다. 다른 장치의 단조 값을

@@ -72,6 +72,13 @@ def when_text(usual_time: str | None, confident: bool, time_band: str, kind: str
     return f'{prefix}{korean_clock(usual_time)}쯤'
 
 
+def duration_text(seconds: float) -> str:
+    """가동 시간을 어림으로 — 65초 → '1분쯤', 30초 → '30초쯤', 200초 → '3분쯤'. CT로 잰 값이라 초까지 말하지 않는다."""
+    if seconds < 45:
+        return f'{max(10, round(seconds / 10) * 10)}초쯤'
+    return f'{max(1, round(seconds / 60))}분쯤'
+
+
 def has_final_consonant(word: str) -> bool:
     """마지막 글자에 받침이 있나(한글이 아니면 받침 없음으로 본다)."""
     last = word.strip()[-1:] if word.strip() else ''

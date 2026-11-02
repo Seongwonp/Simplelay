@@ -165,3 +165,66 @@ def test_gap_after_running_confirmed_keeps_cycle():
     samples.append(PowerSample(t_s=80.0, watts=400.0))  # 확정 뒤 끊김 — 운전은 유지
     samples += _series([(40, 3)], t0=81.0)
     assert len(detect_cycle_ends(samples, CFG)) == 1
+
+
+# 전자레인지 실측 판정값(100 ms 창): 대기 0 W, 가열 약 1,000 W, 문 여닫을 때 약 1초의 튐.
+MW = CycleEndConfig.for_appliance("microwave", {})
+
+
+def _trace(*spans, dt=0.1):
+    """(길이 초, 전력 W) 구간들을 이어 붙인 표본."""
+    out, t = [], 100.0
+    for seconds, watts in spans:
+        for _ in range(round(seconds / dt)):
+            out.append(PowerSample(t, watts))
+            t += dt
+    return out
+
+
+def test_microwave_one_minute_heat_ends_three_seconds_after_standby():
+    events = detect_cycle_ends(_trace((10, 0.0), (0.2, 3550.0), (60, 1000.0), (6, 0.0)), MW)
+    assert len(events) == 1
+    assert events[0].run_s == pytest.approx(60.2, abs=0.2)
+    assert events[0].done_at_s - events[0].standby_from_s == pytest.approx(3.0, abs=0.15)
+
+
+def test_microwave_door_blips_are_not_use():
+    one = _trace((5, 0.0), (1, 1950.0), (20, 0.0))
+    assert detect_cycle_ends(one, MW) == []
+    # 3초가 안 되는 간격으로 튐이 이어져도 5초 '유지'가 아니다.
+    many = _trace((5, 0.0), (1, 1950.0), (2, 0.0), (1, 1950.0), (2, 0.0), (1, 1950.0), (20, 0.0))
+    assert detect_cycle_ends(many, MW) == []
+
+
+def test_microwave_needs_five_seconds_held():
+    assert detect_cycle_ends(_trace((1, 0.0), (4.5, 1000.0), (6, 0.0)), MW) == []
+    assert len(detect_cycle_ends(_trace((1, 0.0), (5.5, 1000.0), (6, 0.0)), MW)) == 1
+
+
+def test_microwave_unseen_seconds_do_not_finish_standby():
+    # 표본이 2초 비면 대기로 치지 않는다 — settle_s(3초)보다 짧은 끊김도 끊김이다.
+    head = _trace((1, 0.0), (10, 1000.0))
+    t = head[-1].t_s
+    tail = [PowerSample(t + 0.1, 0.0), PowerSample(t + 2.1, 0.0), PowerSample(t + 4.1, 0.0)]
+    assert detect_cycle_ends(head + tail, MW) == []
+
+
+def test_gap_during_run_is_reported_with_the_cycle():
+    tracker = CycleEndTracker(MW)
+    events = []
+    for sample in _trace((1, 0.0), (10, 1000.0)):
+        tracker.feed(sample)
+    tracker.note_gap()
+    for sample in _trace((5, 0.0)):
+        shifted = PowerSample(sample.t_s + 30.0, sample.watts)
+        event = tracker.feed(shifted)
+        if event is not None:
+            events.append(event)
+    assert len(events) == 1 and events[0].gaps >= 1
+    assert events[0].as_dict()["gaps"] >= 1
+
+
+def test_washer_defaults_do_not_change():
+    cfg = CycleEndConfig.for_appliance("washer", {})
+    assert (cfg.run_min_w, cfg.min_run_s, cfg.standby_max_w, cfg.settle_s, cfg.max_gap_s, cfg.hold_run) == (
+        100.0, 300.0, 15.0, 180.0, 5.0, False)

@@ -266,6 +266,7 @@ void main() {
       expect(careAttentionText([_ev(2, 'execution_failed'), _ev(1, 'appliance_done_undelivered')]),
           '못 한 일 2번, 안 본 알림 2건');
       expect(careAttentionText([_ev(1, 'something_new')]), '안 본 알림 1건');
+      expect(careAttentionText([_ev(1, 'heat_done')]), '안 본 알림 1건'); // 끝 알림은 경고가 아니다
     });
   });
 }

@@ -27,6 +27,23 @@ LearningStatus status({bool empty = false}) => LearningStatus.fromJson({
             ],
     });
 
+LearningStatus observed() => LearningStatus.fromJson({
+      'window_days': 28,
+      'minimum_days': 3,
+      'minimum_occurrences': 3,
+      'paused': false,
+      'routines': [],
+      'observed': [
+        {
+          'purpose': '전자레인지 사용',
+          'appliance_id': 'mw',
+          'text': '평일 오후 7시쯤, 1분쯤 사용',
+          'occurrences': 4,
+          'distinct_days': 3,
+        }
+      ],
+    });
+
 const summaryText = '평일 오후 10시쯤 즉석밥을 자주 데우셨어요. 최근 28일 중 5일이에요.';
 
 LearningStatus learned(
@@ -289,5 +306,21 @@ void main() {
     )));
     expect(find.textContaining('연결하면'), findsOneWidget);
     expect(find.textContaining('아직 학습할'), findsNothing);
+  });
+
+  testWidgets('observed use shows time and duration, never a hide or ask control', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: LearningStatusDialog(
+      load: () async => observed(),
+      applianceNames: const {'mw': '전자레인지'},
+      onHide: (_) async {},
+    ))));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('평일 오후 7시쯤, 1분쯤 사용'), findsOneWidget);
+    expect(find.textContaining('어떤 버튼'), findsOneWidget);
+    expect(find.textContaining('아직'), findsNothing);
+    expect(find.text('숨기기'), findsNothing);
+    expect(find.text('물어보는 중'), findsNothing);
   });
 }

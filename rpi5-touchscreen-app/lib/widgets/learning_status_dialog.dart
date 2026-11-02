@@ -148,6 +148,26 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
     );
   }
 
+  /// 전력으로 본 사용 — 메뉴를 모른다는 것과 먼저 묻지 않는다는 것을 함께 말한다.
+  Widget _observed(LearningStatus status) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final use in status.observed) ...[
+            Text(use.purpose,
+                style: const TextStyle(
+                    fontSize: KioskType.body, fontWeight: FontWeight.w700)),
+            Text(use.text, style: _body),
+            Text('최근 ${status.windowDays}일 중 ${use.distinctDays}일, 모두 ${use.occurrences}번',
+                style: _body),
+            const SizedBox(height: 8),
+          ],
+          const Text('전력으로 본 사용이라 어떤 버튼을 눌렀는지는 몰라요. 알아 두기만 하고 먼저 묻거나 알아서 켜지 않아요.',
+              style: _body),
+          const SizedBox(height: 16),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) => AlertDialog(
         title: const Text('알게 된 것'),
@@ -195,10 +215,11 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                           ),
                         Text('최근 ${status.windowDays}일 사용 기록'),
                         const Divider(height: 28),
-                        if (status.routines.isEmpty)
+                        if (status.routines.isEmpty && status.observed.isEmpty)
                           const Text('아직 습관으로 기억할 사용 기록이 없어요. 평소처럼 사용해 주세요.'),
                         for (final routine in status.routines)
                           _habit(status, routine),
+                        if (status.observed.isNotEmpty) _observed(status),
                         if (status.paused)
                           const KioskText('방해 금지가 켜져 있어 새 제안을 묻지 않아요.',
                               style: TextStyle(fontSize: KioskType.body)),

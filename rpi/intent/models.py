@@ -11,6 +11,8 @@ class UsageSource(str, Enum):
     DIRECT = "direct"
     SUGGESTION = "suggestion"
     DEMO = "demo"
+    #: 앱·키오스크를 거치지 않은 사용을 CT 전력으로 본 것. 습관 카드·루틴의 근거가 아니다 — 아는 것까지만.
+    OBSERVED_POWER = "observed_power"
     UNKNOWN = "unknown"
 
 
@@ -30,6 +32,8 @@ class UsageRecord:
     appliance_id: str | None = None
     execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
     source: UsageSource = UsageSource.UNKNOWN
+    #: 가동 시간(초). 전력으로 본 사용만 안다. 나머지는 None.
+    duration_s: float | None = None
 
     def __post_init__(self) -> None:
         if not self.purpose.strip():
@@ -102,6 +106,8 @@ class PatternCandidate:
     ask_shift_minutes: int = 0
     ask_time: str | None = None
     recent_days: tuple[str, ...] = ()
+    #: 이 습관의 평균 가동 시간(초). 가동 시간을 아는 기록이 없으면 None.
+    average_duration_s: float | None = None
     available_until: datetime | None = None
     available_from: datetime | None = None
 

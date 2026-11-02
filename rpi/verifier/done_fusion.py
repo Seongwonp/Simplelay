@@ -10,8 +10,8 @@
   ``now_s``  융합이 그 입력을 받은 시각. 전력 끝은 대기에 ``settle_s`` 머문 뒤에야 오므로, 먼저 온 입력은
              ``wait_s``만큼 짝을 기다린 뒤 단일 입력으로 낸다(``poll``).
 한 번 낸 뒤 ``cooldown_s`` 안에 든 입력은 같은 끝의 늦은 증거라 다시 알리지 않고 ``ignored``에만 남긴다.
-쿨다운은 **가전마다** 다르다(2026-10-06 평가 B2): 전자레인지는 몇 분 간격으로 다시 돌릴 수 있어 짧게(설계 초기값
-60 s), 세탁기는 길게(900 s). `DoneFusionConfig.for_appliance` — ``SIMPLELAY_DONE_<가전>_COOLDOWN_S`` →
+쿨다운은 **가전마다** 다르다(2026-10-06 평가 B2): 전자레인지는 곧바로 다시 돌릴 수 있어 짧게(설계 초기값
+6 s), 세탁기는 길게(900 s). `DoneFusionConfig.for_appliance` — ``SIMPLELAY_DONE_<가전>_COOLDOWN_S`` →
 ``SIMPLELAY_DONE_COOLDOWN_S`` → 가전별 기본 → 900 s. 전부 측정 필요.
 
 출처(``source``): 입력 중 하나라도 모의(mock)면 mock, 리허설 주입이면 injected — **실물(real)로 보이지 않게**.
@@ -113,8 +113,8 @@ class DoneFusionConfig:
 
 
 #: 가전별 융합 설계 초기값(2026-10-06 평가 B2) — **전부 측정 필요**. 전자레인지는 두 번째 가열 끝을 버리지 않게
-#: 쿨다운을 한 사이클(최소 가동 10 s + 대기 확인 10 s)보다 조금 길게만 둔다.
-APPLIANCE_FUSION_DEFAULTS: dict[str, dict[str, float]] = {"microwave": {"cooldown_s": 60.0}}
+#: 쿨다운을 가장 짧은 사이클(최소 가동 5 s + 대기 확인 3 s)보다 짧게 둔다. 끝 시각 간격이 곧 사이클 길이다.
+APPLIANCE_FUSION_DEFAULTS: dict[str, dict[str, float]] = {"microwave": {"cooldown_s": 6.0}}
 
 
 def _appliance_fusion_env(appliance_id: str, field_name: str) -> str:

@@ -146,7 +146,7 @@ def test_cycle_config_per_appliance_precedence():
     env = {"SIMPLELAY_CYCLE_SETTLE_S": "180", "SIMPLELAY_CYCLE_MICROWAVE_SETTLE_S": "8"}
     assert CycleEndConfig.for_appliance("microwave", env).settle_s == 8.0  # 가전 이름이 붙은 값이 이긴다
     assert CycleEndConfig.for_appliance("washer", env).settle_s == 180.0
-    assert CycleEndConfig.for_appliance("microwave", {}).min_run_s == 10.0  # 전자레인지 설계 초기값(측정 필요)
+    assert CycleEndConfig.for_appliance("microwave", {}).min_run_s == 5.0  # 전자레인지 실측 1대 기준
     assert CycleEndConfig.for_appliance("washer", {}) == CycleEndConfig()
     with pytest.raises(RuntimeError):
         CycleEndConfig.for_appliance("microwave", {"SIMPLELAY_CYCLE_MICROWAVE_RUN_MIN_W": "x"})

@@ -7,6 +7,11 @@ class LearningStatus {
         routines = (json['routines'] as List)
             .map((r) => LearningRoutine.fromJson(r as Map<String, dynamic>))
             .toList(),
+        // 전력으로 본 사용 — 옛 서버에는 없다.
+        observed = [
+          for (final o in (json['observed'] as List<dynamic>? ?? const []))
+            ObservedUse.fromJson(o as Map<String, dynamic>),
+        ],
         // 밤 정리 문장(2026-10-26) — 옛 서버에는 없다.
         summary = json['summary'] is Map<String, dynamic>
             ? LifestyleSummary.fromJson(json['summary'] as Map<String, dynamic>)
@@ -17,7 +22,26 @@ class LearningStatus {
   final int minimumOccurrences;
   final bool paused;
   final List<LearningRoutine> routines;
+  final List<ObservedUse> observed;
   final LifestyleSummary? summary;
+}
+
+/// 앱·키오스크 없이 쓴 것을 전력으로 본 습관. 보여 주기만 한다 — 묻기·맡기기·숨기기 대상이 아니다.
+class ObservedUse {
+  ObservedUse.fromJson(Map<String, dynamic> json)
+      : purpose = json['purpose'] as String,
+        applianceId = json['appliance_id'] as String?,
+        text = json['text'] as String,
+        occurrences = json['occurrences'] as int,
+        distinctDays = json['distinct_days'] as int;
+
+  final String purpose;
+  final String? applianceId;
+
+  /// 서버가 만든 말 — '평일 오후 7시쯤, 1분쯤 사용'.
+  final String text;
+  final int occurrences;
+  final int distinctDays;
 }
 
 /// 밤마다 만든 생활 습관 정리 두 문장. 자동으로 소리 내 읽지 않는다.

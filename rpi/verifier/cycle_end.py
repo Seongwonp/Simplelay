@@ -1,6 +1,7 @@
 """가전 사이클 끝 판정 — 콘센트 모듈 CT 전력이 '운전'을 지나 '대기'로 돌아와 머물면 끝(2026-10-06, 결정 D2).
 
-**판정 기준은 전부 측정 필요**(세탁기 실측 전 설계 초기값). 합성 곡선으로만 시험했다.
+**세탁기 기준은 측정 필요**(실측 전 설계 초기값). 전자레인지 기준은 실제 전자레인지 1대의 가동 기록에서 정했다
+(`APPLIANCE_CYCLE_DEFAULTS`). 합성 곡선으로만 시험했다.
 
 세탁기는 운전 중에도 전력이 크게 오르내린다(급수·담금·헹굼·탈수 사이 정지). 그래서 '전력이 한 번
 내려감'을 끝으로 보지 않는다:
@@ -8,6 +9,8 @@
   운전 후보   전력 ≥ ``run_min_w`` 샘플이 처음 나온 시각(started_at_s)부터.
   운전 확정   후보가 살아 있는 채 ``min_run_s``가 지나고 다시 ≥ ``run_min_w`` 샘플이 오면(running_at_s).
               그 전에 대기가 ``settle_s`` 이어지면 후보를 버린다(문 잠금·표시창 같은 짧은 튐).
+              ``hold_run``이면 후보 동안 한 표본이라도 ``run_min_w`` 아래로 내려가면 바로 버린다 — 3초 안쪽 간격으로
+              이어지는 튐이 쌓여 운전이 되지 않게, 끝까지 유지된 전력만 운전으로 센다.
   대기 띠     전력 ≤ ``standby_max_w``. 그 사이 값(대기 상한 초과·운전 하한 미만)은 대기도 운전도 아니며
               대기 연속을 끊는다.
   끝          운전 확정 뒤 대기 띠 샘플이 ``settle_s`` 동안 끊김 없이 이어지면 끝. ``settle_s``가 곧
@@ -16,6 +19,7 @@
   끊김        샘플 간격이 ``max_gap_s``를 넘거나 `note_gap()`(센서 끊김)이면 대기 연속을 처음부터 다시 센다.
               보지 못한 시간을 대기로 세지 않는다. 확정 전 운전 후보도 버린다 — 보지 못한 시간을
               운전으로 세지 않는다(끊김 뒤 ≥ ``run_min_w`` 샘플이면 그 시각부터 후보를 새로 센다).
+              운전 확정 뒤의 끊김은 ``gaps``로 세어 끝 사건에 싣는다 — 그 사건의 시작·길이는 다 보지 못한 값이다.
 
 시각은 샘플의 ``t_s``(호스트 단조 시각에 맞춘 값)만 쓴다. 시스템 시계를 읽지 않는다. 끝을 낸 뒤에는
 처음 상태로 돌아가 다음 사이클을 본다. 이 모듈은 **릴레이를 건드리지 않는다**(세탁기는 CT 계측만).
@@ -58,6 +62,8 @@ class CycleEndConfig:
     settle_s: float = 180.0
     #: 샘플 간격이 이보다 크면 끊김(초). 콘센트 모듈 보고 주기(10 Hz)의 여유. 측정 필요.
     max_gap_s: float = 5.0
+    #: 운전 확정까지 ``run_min_w`` 이상이 끊기지 않고 이어져야 하나. 세탁기는 급수·담금으로 오르내려 끈다.
+    hold_run: bool = False
 
     def __post_init__(self) -> None:
         for name in ("run_min_w", "min_run_s", "standby_max_w", "settle_s", "max_gap_s"):
@@ -92,7 +98,7 @@ class CycleEndConfig:
         → 가전별 설계 초기값(`APPLIANCE_CYCLE_DEFAULTS`) → 기본값(세탁기 기준). 전부 측정 필요."""
         src = os.environ if env is None else env
         prefix = _appliance_env_prefix(appliance_id)
-        values: dict[str, float] = dict(APPLIANCE_CYCLE_DEFAULTS.get(appliance_id, {}))
+        values: dict[str, float | bool] = dict(APPLIANCE_CYCLE_DEFAULTS.get(appliance_id, {}))
         for field_name, env_name in CYCLE_ENV_NAMES.items():
             for name in (prefix + env_name.removeprefix("SIMPLELAY_CYCLE_"), env_name):
                 raw = (src.get(name) or "").strip()
@@ -109,13 +115,17 @@ class CycleEndConfig:
             raise RuntimeError(f"'{appliance_id}' 사이클 끝 판정 설정이 잘못됐습니다: {exc}") from exc
 
 
-#: 가전별 설계 초기값(2026-10-06, CT 두 채널) — **전부 측정 필요**. 전자레인지는 가열이 몇 분이고 끝나면 표시창
-#: 대기로 바로 돌아온다. 출력 조절(마그네트론 켜짐/꺼짐) 중에도 팬·조명·회전판 전력이 대기 상한보다 높다는 가정이다.
+#: 가전별 초기값. 전자레인지는 실제 1대의 100 ms 기록에서 정했다 — 대기 0 W, 가열 약 1,000 W, 끝난 뒤 약 5초 안에 0 W,
+#: 문을 여닫을 때 약 1초의 튐(지속되지 않음). 전력은 220 V 가정 추정치고 다른 모델은 **측정 필요**.
+#: ``min_run_s`` 5초 유지가 문 튐을 거르고, ``settle_s`` 3초로 끝을 빨리 알린다. ``max_gap_s``는 ``settle_s``보다 짧아야
+#: 보지 못한 시간이 대기로 세어지지 않는다(전력 끊김 판정 ``stale_s`` 1초와 맞춘다).
+#: 출력 조절(마그네트론 켜짐/꺼짐) 중에도 팬·조명·회전판 전력이 대기 상한보다 높다는 가정은 **측정 필요**.
 #: 전자레인지 값은 가열 종료(``heat_complete`` — 취소·문 열림 종료도 같은 모양이라 조리 완료가 아닐 수 있다) →
 #: 공기청정기 자동 실행의 조건이다(v4, 2026-10-13). 실측은
 #: docs/실측-기록표.md §6(CT 조리 판정 — 정상·가열 중 전력 감소·중간 취소·종료 후 팬)에 적고 그 결과로만 고친다.
-APPLIANCE_CYCLE_DEFAULTS: dict[str, dict[str, float]] = {
-    "microwave": {"run_min_w": 100.0, "min_run_s": 10.0, "standby_max_w": 15.0, "settle_s": 10.0, "max_gap_s": 5.0},
+APPLIANCE_CYCLE_DEFAULTS: dict[str, dict[str, float | bool]] = {
+    "microwave": {"run_min_w": 100.0, "min_run_s": 5.0, "standby_max_w": 15.0, "settle_s": 3.0, "max_gap_s": 1.0,
+                  "hold_run": True},
 }
 
 
@@ -137,6 +147,8 @@ class CycleEndEvent:
     standby_w: float
     dips: int
     samples: int
+    #: 운전 중 끊김 횟수. 0이 아니면 시작·길이를 믿지 않는다(옛 RPi4 프레임에는 없다).
+    gaps: int = 0
 
     def as_dict(self) -> dict:
         doc = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in asdict(self).items()}
@@ -166,6 +178,7 @@ class CycleEndTracker:
         self._sum = 0.0
         self._count = 0
         self._dips = 0
+        self._gaps = 0
         self._standby_since: float | None = None
         self._standby: list[float] = []
 
@@ -195,6 +208,9 @@ class CycleEndTracker:
                 self._started = t
                 self._add_run(w)
             return None
+        if cfg.hold_run and self.phase == "candidate" and w < cfg.run_min_w:
+            self._reset_cycle()
+            return None
         if w <= cfg.standby_max_w:
             if self._standby_since is None:
                 self._standby_since = t
@@ -218,6 +234,8 @@ class CycleEndTracker:
         if self.phase == "candidate":
             self._reset_cycle()
             return
+        if self.phase == "running":
+            self._gaps += 1
         self._drop_standby_run(count_dip=False)
 
     def _add_run(self, w: float) -> None:
@@ -249,6 +267,7 @@ class CycleEndTracker:
             standby_w=float(statistics.median(self._standby)),
             dips=self._dips,
             samples=self._count + len(self._standby),
+            gaps=self._gaps,
         )
         self._reset_cycle()
         return event

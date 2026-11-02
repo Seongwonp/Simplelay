@@ -1039,7 +1039,7 @@ class CareEventResponse(BaseModel):
     갈라지지 않게)."""
 
     id: int
-    kind: str  # execution_failed | emergency_stop | danger_sound | quiet_routine
+    kind: str  # execution_failed | emergency_stop | danger_sound | quiet_routine | heat_done …
     message: str
     purpose: str | None = None
     occurred_at: datetime
@@ -1368,12 +1368,26 @@ class LifestyleSummaryResponse(BaseModel):
     source: str
 
 
+class ObservedUseResponse(BaseModel):
+    """전력으로 본 습관(``source=observed_power``) — 보여 주기만 한다. 승인·루틴·자동 실행으로 이어지지 않는다."""
+
+    purpose: str
+    appliance_id: str | None
+    text: str  # '평일 오후 7시쯤, 1분쯤 사용'
+    when_text: str
+    average_duration_s: float | None = None
+    occurrences: int
+    distinct_days: int
+    recent_days: list[str] = []
+
+
 class LearningStatusResponse(BaseModel):
     window_days: int
     minimum_days: int
     minimum_occurrences: int
     paused: bool
     routines: list[LearningRoutineResponse]
+    observed: list[ObservedUseResponse] = []
     summary: LifestyleSummaryResponse | None = None
 
 

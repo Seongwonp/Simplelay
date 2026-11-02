@@ -238,6 +238,15 @@ def get_appliance_done_log():
     return ApplianceDoneLog(_clock)
 
 
+@lru_cache(maxsize=1)
+def get_observed_uses():
+    """CT로 본 가열 → 사용 기록·알림(실행하지 않는다)."""
+    from rpi.services.observed_use import ObservedUses  # noqa: PLC0415
+
+    return ObservedUses(usage_log=get_usage_log, care_events=get_care_events, clock=_clock,
+                        service=get_service, registry=get_appliance_registry, jobs=get_job_history)
+
+
 def receive_appliance_done(record: dict) -> None:
     """``appliance_done`` 기록(검증한 것) → 기록 + 루틴 엔진(``wash_complete`` 이벤트·``after_done``).
 
@@ -257,6 +266,10 @@ def receive_appliance_done(record: dict) -> None:
     checked["event_end_mono_s"] = clock.end_local_s(checked)
     checked["received_mono_s"] = clock.monotonic()
     get_appliance_done_log().append(checked)  # 기록이 먼저 — 루틴 쪽이 고장 나도 증거는 남는다
+    try:
+        get_observed_uses().on_done(checked)
+    except Exception:  # noqa: BLE001 - 관찰 기록 고장이 루틴·읽기 루프로 번지지 않게
+        log.exception("observed use failed (appliance=%s event=%s)", checked.get("appliance_id"), checked.get("event"))
     try:
         from rpi.routines.wiring import get_routine_engine  # noqa: PLC0415
 

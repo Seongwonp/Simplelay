@@ -4,7 +4,7 @@ from dataclasses import asdict, replace
 from datetime import datetime, time, timedelta
 from statistics import median
 
-from .habit_words import day_kind, when_text
+from .habit_words import day_kind, duration_text, when_text
 from .habit_timing import adaptation, clock_text, clusters, day_matches, distance, minute, parse_time
 from .models import ExecutionMode, PatternCandidate, PatternConfig, UsageOutcome, UsageSource
 from .ports import Clock, UsageLog
@@ -82,6 +82,7 @@ class PatternDetector:
             entry = asdict(candidate)
             entry.pop('available_until')
             entry.pop('available_from')
+            entry.pop('average_duration_s')
             entry['recent_days'] = list(candidate.recent_days[-5:])
             entry['paused_until'] = candidate.paused_until.isoformat() if candidate.paused_until else None
             entry['established'] = self._is_established(candidate)
@@ -91,20 +92,38 @@ class PatternDetector:
                                            candidate.time_band, entry['day_kind'])
             routines.append(entry)
         return dict(window_days=self._config.window_days, minimum_days=self._config.minimum_days,
-                    minimum_occurrences=self._config.minimum_occurrences, routines=routines)
+                    minimum_occurrences=self._config.minimum_occurrences, routines=routines,
+                    observed=self.observed_uses())
+
+    def observed_uses(self) -> list[dict]:
+        """전력으로 본 습관(같은 3일·3번 규칙). **아는 것까지만** — ``candidates``·``established``와 갈라 둔 것이 안전 조건이다.
+        이 목록은 카드·루틴 초안·자동 실행 어디에도 들어가지 않고 화면에 보이기만 한다."""
+        observed = []
+        for candidate in self._evidence(self._clock.now(), UsageSource.OBSERVED_POWER):
+            if not self._is_established(candidate):
+                continue
+            kind = day_kind(candidate.recent_days)
+            when = when_text(candidate.usual_time, candidate.confident, candidate.time_band, kind)
+            average = candidate.average_duration_s
+            text = f'{when}, {duration_text(average)} 사용' if average is not None else f'{when} 사용'
+            observed.append(dict(purpose=candidate.purpose, appliance_id=candidate.appliance_id, text=text,
+                                 when_text=when, average_duration_s=average, occurrences=candidate.occurrences,
+                                 distinct_days=candidate.distinct_days, recent_days=list(candidate.recent_days[-5:])))
+        return observed
 
     def established(self) -> tuple[tuple[PatternCandidate, str], ...]:
         # Routine drafts retain their existing five-minute rounding convention.
         return tuple((c, clock_text(parse_time(c.usual_time) // 5 * 5))
                      for c in self._evidence(self._clock.now()) if self._is_established(c))
 
-    def _evidence(self, now: datetime) -> tuple[PatternCandidate, ...]:
+    def _evidence(self, now: datetime,
+                  source: UsageSource = UsageSource.DIRECT) -> tuple[PatternCandidate, ...]:
         cutoff = now - timedelta(days=self._config.window_days)
         grouped = {}
         for record in self._usage_log.records():
             if (record.outcome is not UsageOutcome.SUCCEEDED
                     or record.execution_mode is not ExecutionMode.REAL
-                    or record.source is not UsageSource.DIRECT
+                    or record.source is not source
                     or not cutoff <= record.occurred_at <= now):
                 continue
             local = replace(record, occurred_at=record.occurred_at.astimezone(now.tzinfo))
@@ -128,13 +147,15 @@ class PatternDetector:
                 days = sorted({(r.occurred_at.date() - timedelta(days=v // 1440))
                                for v, r in group})
                 confident = spread <= 30
+                durations = [r.duration_s for _, r in group if r.duration_s is not None]
                 ask = centre - (self._config.ask_lead_minutes or 0) if confident else values[0]
                 peers.append(PatternCandidate(
                     purpose, bands[0].name, len(group), appliance, len(days), self._config.window_days,
                     usual_time=clock_text(centre), spread_minutes=spread,
                     window_start=clock_text(values[0]), window_end=clock_text(values[-1]),
                     confident=confident, ask_time=clock_text(ask),
-                    recent_days=tuple(d.isoformat() for d in days)))
+                    recent_days=tuple(d.isoformat() for d in days),
+                    average_duration_s=sum(durations) / len(durations) if durations else None))
             for candidate in peers:
                 pause, shift, pause_reason = adaptation(candidate, peers, events, cluster_records[candidate.usual_time],
                                           now, self._config.ask_lead_minutes or 0)

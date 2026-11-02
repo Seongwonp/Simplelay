@@ -130,6 +130,22 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
     );
   }
 
+  /// 전력으로 본 사용 — 메뉴를 모른다는 것과 먼저 묻지 않는다는 것을 함께 말한다.
+  Widget _observed(BuildContext context, LearningStatus status) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final use in status.observed) ...[
+            Text(use.purpose, style: Theme.of(context).textTheme.titleMedium),
+            Text(use.text),
+            Text('최근 ${status.windowDays}일 중 ${use.distinctDays}일, 모두 ${use.occurrences}번'),
+            const SizedBox(height: AppSpace.sm),
+          ],
+          const Text('전력으로 본 사용이라 어떤 버튼을 눌렀는지는 몰라요. 알아 두기만 하고 먼저 묻거나 알아서 켜지 않아요.'),
+          const SizedBox(height: AppSpace.lg),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) => AlertDialog(
         title: const Text('알게 된 것'),
@@ -169,10 +185,11 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                           ),
                         Text('최근 ${status.windowDays}일의 사용 기록'),
                         const Divider(height: 28),
-                        if (status.routines.isEmpty)
+                        if (status.routines.isEmpty && status.observed.isEmpty)
                           const Text('아직 알아 둘 사용 기록이 없어요. 평소처럼 사용해 주세요.'),
                         for (final routine in status.routines)
                           _habit(context, status, routine),
+                        if (status.observed.isNotEmpty) _observed(context, status),
                         if (status.paused) const Text('방해 금지가 켜져 있어 묻지 않아요.'),
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
