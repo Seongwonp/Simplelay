@@ -28,6 +28,7 @@ def _all_items():
         network_item("up", "failed"),
     ]
     items += [press_item(m, link) for m in ("", "simulator", "uart") for link in ("ok", "no_reply", "error", "never")]
+    items += [press_item("uart", link, "mock") for link in ("ok", "never")]
     items += [plug_item(mode) for mode in ("off", "mock", "real", "")]
     items += [plug_item("off", "weak"), plug_item("off", "lost")]
     return items
@@ -85,6 +86,25 @@ def test_press_is_practice_unit_outside_uart(mode):
 )
 def test_press_uart_states(link, state):
     assert press_item("uart", link).state == state
+
+
+@pytest.mark.parametrize("link", ["ok", "never"])
+def test_press_uart_with_mock_motion_warns_practice(link):
+    item = press_item("uart", link, "mock")
+    assert (item.state, item.title, item.source) == ("warn", "누름 장치가 연습 모드예요", "mock")
+
+
+@pytest.mark.parametrize(
+    "link, state", [("down", "error"), ("no_reply", "error"), ("error", "warn")],
+)
+def test_press_uart_link_problems_win_over_mock_motion(link, state):
+    item = press_item("uart", link, "mock")
+    assert (item.state, item.source) == (state, "real")
+
+
+@pytest.mark.parametrize("motion", [None, "serial", ""])
+def test_press_uart_real_or_unknown_motion_unchanged(motion):
+    assert press_item("uart", "ok", motion).title == "누름 장치가 연결돼 있어요"
 
 
 def test_network_states():

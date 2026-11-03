@@ -205,6 +205,51 @@ def test_connections_press_uart_reads_frame_tap(client, monkeypatch):
     assert (press["state"], press["title"]) == ("error", "누름 장치가 답하지 않아요")
 
 
+def _uart_press(client, monkeypatch, act_info: dict, frames: list) -> dict:
+    class Tap:
+        def frames(self):
+            return frames
+
+    class Controller:
+        frame_tap = Tap()
+
+        def link_status(self):
+            return {"link_up": True}
+
+        def rehearsal_status(self):
+            return dict(act_info)
+
+    class FakeService:
+        _controller = Controller()
+
+    monkeypatch.setenv("SIMPLELAY_ACT_MODE", "uart")
+    app.dependency_overrides[deps.get_service] = lambda: FakeService()
+    return client.get("/connections").json()["items"][1]
+
+
+_REPLIED = [{"kind": "frame", "direction": "act_to_hub", "type": "act_info", "t_monotonic_ns": 1}]
+
+
+def test_connections_press_uart_mock_motion_is_not_shown_as_connected(client, monkeypatch):
+    """실행기가 모의 모션이면 링크가 살아 있어도 '연결돼 있어요'(ok)가 아니다 — 실제 버튼은 눌리지 않는다."""
+    press = _uart_press(client, monkeypatch, {"motion": "mock", "outlet": "none"}, _REPLIED)
+    assert (press["state"], press["title"], press["source"]) == ("warn", "누름 장치가 연습 모드예요", "mock")
+    assert press["message"] == "실제 버튼은 누르지 않아요. 누름 장치를 연결하면 바뀌어요."
+    assert press["fixes"]
+
+
+def test_connections_press_uart_serial_motion_stays_connected(client, monkeypatch):
+    press = _uart_press(client, monkeypatch, {"motion": "serial"}, _REPLIED)
+    assert (press["state"], press["title"], press["source"]) == ("ok", "누름 장치가 연결돼 있어요", "real")
+
+
+def test_connections_press_uart_mock_motion_link_problem_wins(client, monkeypatch):
+    """모의 모션이어도 무응답은 그대로 먼저 알린다."""
+    stuck = [{"kind": "frame", "direction": "hub_to_act", "type": "execute", "t_monotonic_ns": 0}]
+    press = _uart_press(client, monkeypatch, {"motion": "mock"}, stuck)
+    assert (press["state"], press["title"]) == ("error", "누름 장치가 답하지 않아요")
+
+
 def test_routes_require_key_on_lan(client, monkeypatch):
     monkeypatch.delenv("SIMPLELAY_ALLOW_UNAUTHENTICATED", raising=False)
     monkeypatch.setenv("SIMPLELAY_API_KEY", "secret-key")

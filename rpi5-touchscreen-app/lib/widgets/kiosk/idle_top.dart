@@ -102,7 +102,7 @@ String connectionProblemText(ConnectionItem p) {
   final name = connectionShortName(p.id);
   return p.state == 'error'
       ? '$name 연결이 끊겼어요'
-      : '$name${p.id == 'press' ? '을' : '를'} 봐 주세요';
+      : '$name를 봐 주세요';
 }
 
 /// 원인이 하나일 때 칩 첫 줄 — 원인과 영향(평가 15차 10/18: 가전 4대를 쓸 수 없는데 칩은 '확인 필요 1'뿐이었다).

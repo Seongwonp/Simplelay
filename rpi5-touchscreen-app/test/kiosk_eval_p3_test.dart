@@ -268,6 +268,18 @@ void main() {
       expect(connectionSummary(_pressDown).$1, '연결 1곳에 문제가 있어요');
       expect(connectionProblemText(_pressDown.firstWhere((c) => c.id == 'press')), '누름 장치 연결이 끊겼어요');
     });
+
+    test('누름 장치가 연습 모드(warn)면 정상으로 숨기지 않고 확인 필요로 센다 — 한 줄 제목은 바른 조사', () {
+      const practice = ConnectionItem(
+          id: 'press',
+          state: 'warn',
+          title: '누름 장치가 연습 모드예요',
+          message: '실제 버튼은 누르지 않아요. 누름 장치를 연결하면 바뀌어요.');
+      expect(practice.needsAttention, isTrue);
+      final (text, problem, single) = connectionSummary(const [practice]);
+      expect((text, problem, single?.id), ('연결 1곳에 문제가 있어요', true, 'press'));
+      expect(connectionProblemText(practice), '누름 장치를 봐 주세요');
+    });
   });
 
   group('3. 대기 화면 정렬·다음 루틴 카드', () {

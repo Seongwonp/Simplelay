@@ -156,8 +156,13 @@ _PRESS_FIXES = (
 )
 
 
-def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
-    """``act_mode``: SIMPLELAY_ACT_MODE. uart만 실제 누름 장치고 나머지는 연습용이다."""
+def press_item(act_mode: str, link: str = "ok", motion: str | None = None) -> ConnectionItem:
+    """``act_mode``: SIMPLELAY_ACT_MODE. uart만 실제 누름 장치고 나머지는 연습용이다.
+
+    ``motion``: 연결된 실행기가 ``act_info.motion``으로 알린 모션 종류(serial | mock, 모르면 None).
+    uart로 실행기와 이어져 있어도 실행기가 모의 모션이면 실제 버튼은 눌리지 않는다 — '연결돼 있어요'(ok)로
+    두면 실물이 붙은 줄 안다. 끊김·무응답·오류는 그대로 먼저 알리고, 그 밖(ok·never)에서만 연습 경고로 바꾼다.
+    """
     mode = (act_mode or "").strip().lower()
     if mode != "uart":
         return ConnectionItem(
@@ -196,6 +201,15 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
             "마지막 누르기를 끝내지 못했어요. 다음 누르기가 실패할 수 있어요.",
             _PRESS_FIXES,
             "real",
+        )
+    if (motion or "").strip().lower() == "mock":
+        return ConnectionItem(
+            "press",
+            "warn",
+            "누름 장치가 연습 모드예요",
+            "실제 버튼은 누르지 않아요. 누름 장치를 연결하면 바뀌어요.",
+            ("실제로 누르려면 누름 장치를 연결해 주세요.",),
+            "mock",
         )
     if link == "never":
         return ConnectionItem(

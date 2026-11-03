@@ -383,6 +383,18 @@ def _press_link(service) -> str:
         return "never"
 
 
+def _press_motion(service) -> str | None:
+    """연결된 실행기가 ``act_info.motion``으로 알린 모션 종류(serial | mock). 모르면 None(옛 실행기·구성 받기 전)."""
+    try:
+        controller = getattr(service, "_controller", None)
+        status = getattr(controller, "rehearsal_status", None)
+        value = (status() if callable(status) else {}).get("motion")
+        return value if isinstance(value, str) else None
+    except Exception:  # noqa: BLE001
+        log.exception("press motion kind unavailable")
+        return None
+
+
 @router.get("/connections", response_model=ConnectionsResponse)
 async def connections(
     service=Depends(get_service),
@@ -395,9 +407,10 @@ async def connections(
     else:
         internet = "unknown"
     link = _press_link(service) if act_mode == "uart" else "ok"
+    motion = _press_motion(service) if act_mode == "uart" else None
     items = [
         network_item(interface, internet),
-        press_item(act_mode, link),
+        press_item(act_mode, link, motion),
         plug_item(os.environ.get("SIMPLELAY_L3_MODE", "off")),
     ]
     return {
