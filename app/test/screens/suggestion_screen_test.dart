@@ -194,7 +194,7 @@ void main() {
 
       expect(find.text('전자레인지'), findsWidgets); // 실행 대상
       expect(find.text('즉석밥'), findsOneWidget); // 누를 버튼(순서 목록)
-      expect(find.text('누를 순서'), findsOneWidget);
+      expect(find.text('누르는 순서'), findsOneWidget);
       expect(find.text('연습'), findsOneWidget); // 모의(표본) 가전
       expect(find.text('연습용 카드예요'), findsOneWidget);
       // 버튼 배치(지도)는 접혀 있다 — 제목만 보이고 지도는 없다.

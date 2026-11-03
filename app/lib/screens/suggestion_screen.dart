@@ -48,6 +48,12 @@ String suggestionTitle(Suggestion suggestion) {
   return name;
 }
 
+/// 질문 앞 이름 — 할 일 이름을 만들 수 있으면 그것, 아니면 사용자가 했던 말 그대로.
+String suggestionAskName(Suggestion suggestion) {
+  final title = suggestionTitle(suggestion);
+  return title == kSuggestionFallbackTitle ? suggestion.label : title;
+}
+
 class SuggestionScreen extends ConsumerWidget {
   const SuggestionScreen({required this.sequenceId, super.key});
 
@@ -423,12 +429,12 @@ class SuggestionScreen extends ConsumerWidget {
           const SizedBox(height: AppSpace.xl),
 
           // 무엇을
-          // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
+          // 할 일 이름('즉석밥 데우기')으로 묻는다. 이름을 못 만들면 사용자가 했던 말(label) 그대로.
           // 잘라내지 않는다. 긴 말은 줄바꿈해서 다 보여준다.
           if (suggestion.isDemo) const Text('연습용 카드예요', style: AppText.body),
           // 낱말 중간에서 꺾이지 않게('할까|요' 방지, 평가 5차 10/18). 읽을 때는 원문.
-          Text(keepWordsTogether('${suggestion.label}, 지금 할까요?'),
-              semanticsLabel: '${suggestion.label}, 지금 할까요?', style: AppText.heading),
+          Text(keepWordsTogether('${suggestionAskName(suggestion)}, 지금 할까요?'),
+              semanticsLabel: '${suggestionAskName(suggestion)}, 지금 할까요?', style: AppText.heading),
           // 왜 지금 이게 떴는지. 환경 제안은 서버가 준 근거, 패턴 제안은
           // 시간대·횟수로 만든 한 문장이다(데모는 비어 있다).
           if (suggestion.whyNow.isNotEmpty) ...[
@@ -449,7 +455,7 @@ class SuggestionScreen extends ConsumerWidget {
           // 어떤 버튼을, 어떤 순서로
           // 단계를 카드 하나하나로 감싸지 않는다. 라벨과 번호가 가장
           // 선명해야 하는데, 카드 테두리·아이콘이 그보다 먼저 보였다.
-          Text('누를 순서', style: AppText.title),
+          Text('누르는 순서', style: AppText.title),
           const SizedBox(height: AppSpace.sm),
           _StepList(appliance: appliance, steps: suggestion.steps),
 

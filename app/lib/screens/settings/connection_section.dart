@@ -98,8 +98,8 @@ class _SavedDeviceSection extends ConsumerWidget {
           leading:
               Icon(Icons.bluetooth_disabled, color: context.appMuted, size: 22),
           // 서버가 안 될 때 쓰는 두 번째 길. 이름부터 그렇게 부른다.
-          title: const Text('블루투스 연결'),
-          subtitle: Text(keepWordsTogether("저장된 기기가 없어요. 아래 '주변 블루투스 기기'에서 찾아요"),
+          title: const Text('저장된 기기'),
+          subtitle: Text(keepWordsTogether("저장된 기기가 없어요. 아래 '주변 블루투스 기기'에서 찾아 주세요"),
               style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
         ),
       );
@@ -204,13 +204,13 @@ class _AdvancedSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '본체 주소 (설치하는 분용)',
+            '본체 주소',
             style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
           const SizedBox(height: AppSpace.xs),
           Text(
             '기본값: http://simplelay.local:8000\n'
-            '휴대폰과 본체를 같은 와이파이에 연결해 주세요. 저장한 주소로 연결을 확인해요.',
+            '휴대폰과 본체를 같은 네트워크에 연결해 주세요. 저장한 주소로 연결을 확인해요.',
             style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
           const SizedBox(height: AppSpace.md),
@@ -246,7 +246,7 @@ class _AdvancedSection extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpace.md),
           Text(
-            '연결 비밀번호 (설치하는 분용)',
+            '연결 비밀번호',
             style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
           const SizedBox(height: AppSpace.xs),
