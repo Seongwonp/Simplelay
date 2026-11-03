@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SimpleLay 결선 발표</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<div id="viewport">
+<div id="stage">
+<div id="live"><i></i><span>본체 미연결 · 미리보기</span></div>
+
+<!-- 표지 -->
+<section class="slide" data-k="cover">
+  <div class="act">제24회 임베디드SW경진대회 · 팀 자비스</div>
+  <h1>SimpleLay<br>집이 나를 알아보는 순간</h1>
+  <p class="lead" style="margin-top:56px">새 가전을 사지 않아도, 지금 우리 집이 나를 챙기게.</p>
+</section>
+
+<!-- 1막 -->
+<section class="slide" data-k="daily">
+  <div class="act">1막 · 이런 사람이 있어요</div>
+  <h2>민지 씨는 매일 퇴근하면</h2>
+  <div class="row">
+    <div class="card big" style="flex:1"><span class="pill">저녁</span><br><br>전자레인지로 밥을 데우고</div>
+    <div class="card big" style="flex:1"><span class="pill">밤 10시쯤</span><br><br>공기청정기를 켭니다</div>
+    <div class="card big" style="flex:1"><span class="pill">매일</span><br><br>똑같이, 직접, 하나씩</div>
+  </div>
+</section>
+
+<section class="slide" data-k="problem">
+  <div class="act">1막 · 그런데</div>
+  <h2>집은 민지 씨를 모릅니다</h2>
+  <div class="split">
+    <div class="card">버튼만 있는 <b>옛 가전</b><br><span style="color:var(--sub)">스마트홈에 들어올 방법이 없어요</span></div>
+    <div class="card">앱이 따로인 <b>스마트 가전</b><br><span style="color:var(--sub)">켤 때마다 앱을 찾아야 해요</span></div>
+  </div>
+  <p class="lead" style="margin-top:72px">새 가전을 다 사지 않아도, 집이 먼저 알아챌 수는 없을까요?</p>
+</section>
+
+<!-- 2막 -->
+<section class="slide" data-k="presence">
+  <div class="scene">
+    <div><div class="moment">2막 · 집에 왔을 때</div>
+      <div class="say">집이 알아봅니다.<small>사람이 있는지만 봅니다.<br>사진은 남기지도, 보내지도 않습니다.<br>판단은 집 안에서만 합니다.</small></div></div>
+    <div class="card" style="text-align:center">
+      <div class="cap">본체 카메라</div>
+      <div class="pres" id="pres">아무도 없음</div>
+      <div class="cap" id="presSub">화면이 쉬는 중</div>
+      <div class="src" id="presSrc">미리보기</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="records">
+  <div class="moment">2막 · 모은 기록</div>
+  <div class="rec-head"><div class="say" style="font-size:46px">집에 실제로 쌓인 기록입니다.</div>
+    <div class="legend"><span><i class="lg on"></i>켜기</span><span><i class="lg off"></i>끄기</span><span><i class="lg wind"></i>바람 바꾸기</span><span><i class="lg micro"></i>전자레인지(전기 사용량)</span><span><i class="lg mock"></i>모의</span></div></div>
+  <div class="card rec-card">
+    <svg id="recSvg" viewBox="0 0 1600 600" aria-label="날짜별 사용 시각 점 그림"></svg>
+    <div class="rec-foot"><span class="src" id="recSrc">11월 3일 기준 실제 기록</span><span class="note" id="recNote" style="margin:0"></span></div>
+  </div>
+</section>
+
+<section class="slide" data-k="method">
+  <div class="moment">2막 · 알아채는 방법</div>
+  <div class="say" style="font-size:46px;margin-bottom:40px">기록을 세서 알아챕니다.</div>
+  <div class="method">
+    <div class="flow">
+      <div class="fstep"><b>1</b><span>같은 시간대(앞뒤 45분 안)에 서로 다른 날<br>3일, 3번 이상 직접 쓰면 습관으로 봅니다</span></div>
+      <div class="fstep"><b>2</b><span>평소 시각 10분 전,<br>사람이 있을 때 묻습니다</span></div>
+      <div class="fstep"><b>3</b><span>두 번 거절하면 7일 쉽니다</span></div>
+      <div class="fstep"><b>4</b><span>맡겨 주셔야만 알아서 합니다</span></div>
+      <div class="note" style="font-size:24px">이 계산은 모두 집 안의 본체에서만 합니다.</div>
+    </div>
+    <div>
+      <div class="cap" style="margin-bottom:16px">실제로 잡힌 습관</div>
+      <div id="habitList" class="hlist"></div>
+      <div class="src" id="methodSrc">11월 3일 기준 실제 기록</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="habit">
+  <div class="scene">
+    <div><div class="moment">2막 · 늘 하던 일</div>
+      <div class="say">평소 시각 10분 전,<br>먼저 묻습니다.<small>민지 씨가 직접 켠 기록만 셉니다.<br>묻기만 하고, 마음대로 켜지 않습니다.</small></div></div>
+    <div class="card">
+      <div class="shot" id="habitShot">11/5 실제 캡처 들어갈 자리</div>
+      <div class="cap" id="habitHead">이렇게 쓰셨어요 · 낮 12시 59분쯤</div>
+      <div class="days" id="habitDays"></div>
+      <div class="ask" id="habitAsk">공기청정기, 지금 켤까요?</div>
+      <div class="src" id="habitSrc">11월 3일 기준 실제 기록</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="steps">
+  <div class="scene">
+    <div><div class="moment">2막 · '네'를 누르면</div>
+      <div class="say">정말 켜졌는지<br>확인하고 알려 드립니다.<small>확인 못 하면, 확인 못 했다고 말합니다.</small></div></div>
+    <div class="card">
+      <div class="steps" id="steps">
+        <div class="step"><span class="dot">1</span><span class="lbl">LG 공기청정기에 보냄</span></div>
+        <div class="step"><span class="dot">2</span><span class="lbl">상태를 다시 읽음</span></div>
+        <div class="step"><span class="dot">3</span><span class="lbl">켜진 것을 확인했어요</span></div>
+      </div>
+      <div class="detail" id="stepsDetail" style="margin-top:22px"></div>
+      <div class="src" id="stepsSrc">미리보기</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="entrust">
+  <div class="scene">
+    <div><div class="moment">2막 · 귀찮아질 때</div>
+      <div class="say">맡긴 것만,<br>알아서 합니다.<small>자주 '네'를 눌러도 저절로 맡기지 않습니다.<br>민지 씨가 직접 '맡기기'를 눌러야 합니다.</small></div></div>
+    <div class="card">
+      <div class="cap" style="margin-bottom:20px">맡기기 전에 확인해 주세요</div>
+      <div class="tg sm"><span>언제</span><b>낮 12시 59분쯤</b></div>
+      <div class="tg sm"><span>무엇을</span><b>공기청정기 켜기</b></div>
+      <div class="tg sm"><span>하지 않을 때</span><b>조용한 시간 · 정지 중</b></div>
+      <div class="tg sm" style="border:0"><span>끄는 곳</span><b>앱 루틴 탭</b></div>
+      <div class="btn main" style="margin-top:30px">맡기기</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="chat">
+  <div class="scene">
+    <div><div class="moment">2막 · 한마디로</div>
+      <div class="say">앱을 찾지 않고,<br>말하면 됩니다.<small>집 안에서 알아듣고,<br>실행 전에는 늘 한 번 묻습니다.</small></div></div>
+    <div class="card" style="min-height:560px">
+      <div class="bubble me">바람 좀 세게 해줘</div>
+      <div class="bubble hub">공기청정기 바람을 세게 할까요?<br><b style="color:var(--teal-d)">이대로 하기</b></div>
+      <div class="bubble hub">바람을 세게 바꿨어요. 바뀐 것을 확인했어요.</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="night">
+  <div class="scene">
+    <div><div class="moment">2막 · 실제로 있었던 일 ①</div>
+      <div class="say">불을 끄자,<br>집이 먼저 물었습니다.<small>여러 신호가 맞을 때만, 그래도 먼저 묻습니다.</small></div>
+      <div class="chips"><span>집에 계심</span><span>불을 끄심</span><span>밤</span><span>공기청정기 켜짐</span></div>
+      <div class="note" style="font-size:22px">방 밝기는 본체 카메라의 아주 작은 회색 평균값(16×12)으로만 봅니다. 영상은 저장하지 않습니다.</div>
+    </div>
+    <div class="card">
+      <span class="tag">10월 28일 실제 기록</span>
+      <div class="tline">
+        <div class="tl"><time>00:30:42</time><div><b>제안 카드</b><p>"불을 끄셨네요. 밤이고 공기청정기가 켜져 있어요."<br>공기청정기를 수면 모드로 할까요?</p></div></div>
+        <div class="tl"><time>00:30:59</time><div><b>사람이 '네'</b></div></div>
+        <div class="tl"><time>00:31:01</time><div><b>LG 공기청정기 상태를 다시 읽어 확인</b><p>"운전 모드 수면으로 바꿨어요."</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="asks">
+  <div class="moment">2막 · 실제로 있었던 일 ②</div>
+  <div class="rec-head"><div class="say" style="font-size:46px">'네'보다 '아니요'가 많았습니다.</div><span class="tag" style="margin:0">11월 3일 기준 실제 기록</span></div>
+  <div class="card">
+    <div class="arow head"><span>언제 · 무엇을 물었나</span><span>민지 씨의 대답</span></div>
+    <div class="arow"><span><b>공기질 나쁨</b> → 공기청정기를 켤까요?<small>근거: "공기청정기가 재 보니 종합 공기질이 나빠요."</small></span>
+      <span class="bars"><i class="yes" style="flex:4">네 4</i><i class="no" style="flex:6">아니요 6</i><i class="none" style="flex:3">닫힘 3</i></span></div>
+    <div class="arow"><span><b>켜져 있을 때 공기질 나쁨</b> → 강풍으로 바꿀까요?</span>
+      <span class="bars"><i class="yes" style="flex:1;max-width:23%">네 1</i></span></div>
+    <div class="arow"><span><b>다녀오셨을 때</b> → 공기청정기를 켜 둘까요?<small>근거: "다녀오셨어요. 실내 공기가 보통이에요. 공기청정기가 꺼져 있어요."</small></span>
+      <span class="bars"><i class="yes" style="flex:1;max-width:23%">네 1</i></span></div>
+    <div class="arow" style="border:0"><span><b>밤에 불을 끄셨을 때</b> → 수면 모드로 할까요?</span>
+      <span class="bars"><i class="yes" style="flex:1;max-width:23%">네 1</i></span></div>
+  </div>
+  <div class="callout">공기청정기 켜기에 '네'를 네 번 눌렀어도 저절로 맡지 않았습니다 — <b>자동 실행 0번</b>. 맡기기를 누르실 때까지 묻기만 합니다.</div>
+</section>
+
+<section class="slide" data-k="microwave">
+  <div class="scene">
+    <div><div class="moment">2막 · 저녁</div>
+      <div class="say">버튼만 있는 옛 가전도,<br>다 됐는지 집이 압니다.<small>누름 장치가 버튼을 대신 누르고,<br>전기 사용량으로 가열이 끝난 것을 알아챕니다.<br>불을 쓰는 가전은 매번 '네'를 받습니다.</small></div></div>
+    <div class="card">
+      <div class="ctnum"><div><span>지금 전자레인지 전기 사용량</span><br><b id="w">0 W</b></div><span id="tsec">대기</span></div>
+      <div class="graph" id="graph">
+        <svg viewBox="0 0 600 260" aria-label="전기 사용량 그래프">
+          <line x1="0" y1="240" x2="600" y2="240" stroke="#d5e5e2"/>
+          <path id="area" fill="#e3f5f2" d=""/>
+          <path id="ln" fill="none" stroke="#11a39a" stroke-width="3" d=""/>
+        </svg>
+        <div class="nolink">전기 사용량 값 연결 안 됨<small>본체가 아직 실시간 전기 사용량을 내보내지 않아요</small></div>
+      </div>
+      <div class="toast" id="toast">가열이 끝났어요 · 1분쯤 사용</div>
+      <div class="note" id="ctNote">미리보기 — 11월 2~3일 실측(대기 0W · 가열 약 1,000W · 시작 순간 약 3,550W · 1분 가열 4회 모두 판정, 60.6~60.7초)을 다시 그린 그림입니다.</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="toggles">
+  <div class="scene">
+    <div><div class="moment">2막 · 마음이 바뀌면</div>
+      <div class="say">언제든<br>민지 씨가 끕니다.</div></div>
+    <div class="card">
+      <div class="tg"><span>맡긴 자동 실행</span><span class="sw" id="sw1"></span></div>
+      <div class="tg"><span>사람 감지 카메라</span><span class="sw" id="sw2"></span></div>
+      <div class="tg" style="border:0"><span>전자레인지 맡기기</span><span class="lock">맡길 수 없음 · 늘 확인</span></div>
+      <div class="src" id="camSrc">미리보기</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="house">
+  <div class="scene">
+    <div><div class="moment">2막 · 앞으로</div>
+      <div class="say">기록이 쌓이고 맡기면,<br>이런 집이 됩니다.<small>모형은 맡긴 뒤의 모습을 보여 드리는<br>시나리오 모형입니다.</small></div></div>
+    <div class="card house" style="text-align:center">
+      <span class="tag">시나리오 모형</span>
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <path d="M14 58 L60 18 L106 58" fill="none" stroke="#11a39a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M26 52 V102 H94 V52" fill="#e3f5f2" stroke="#11a39a" stroke-width="6" stroke-linejoin="round"/>
+        <rect x="50" y="70" width="20" height="32" rx="3" fill="#11a39a"/>
+        <rect x="76" y="64" width="12" height="12" rx="2" fill="#f2c45a"/>
+        <rect x="32" y="64" width="12" height="12" rx="2" fill="#f2c45a"/>
+      </svg>
+      <div class="big">들어오면 "수고하셨어요"<br>맡긴 공기청정기 · 조명</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-k="arch">
+  <div class="act">어떻게 동작하나 · 시스템 구성</div>
+  <svg class="arch" viewBox="0 0 1650 760" aria-label="시스템 구성도">
+    <defs>
+      <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0b6f69"/></marker>
+      <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8433f"/></marker>
+    </defs>
+    <g class="bx"><rect x="10" y="80" width="260" height="120" rx="18"/><text x="140" y="132" class="t1">폰 앱</text><text x="140" y="168" class="t2">조작 · 승인 · 맡기기</text></g>
+    <g class="bx"><rect x="10" y="300" width="260" height="120" rx="18"/><text x="140" y="352" class="t1">키오스크</text><text x="140" y="388" class="t2">본체 터치 화면</text></g>
+    <g class="bx hub"><rect x="380" y="40" width="560" height="440" rx="22"/>
+      <text x="660" y="96" class="t1">본체 허브 (RPi5)</text>
+      <text x="660" y="150" class="t2">판단 · 기록 · 습관 세기</text>
+      <text x="660" y="196" class="t2">기기 안 사람 감지 (있음 / 없음만)</text>
+      <text x="660" y="242" class="t2">기기 안 언어 모델 (정해진 동작 목록)</text>
+      <text x="660" y="288" class="t2">실행 확인 · 정지 우선</text>
+      <text x="660" y="420" class="t3">사진 저장·전송 없음</text></g>
+    <g class="bx"><rect x="1060" y="40" width="280" height="120" rx="18"/><text x="1200" y="92" class="t1">LG ThinQ</text><text x="1200" y="128" class="t2">클라우드</text></g>
+    <g class="bx"><rect x="1400" y="40" width="240" height="120" rx="18"/><text x="1520" y="92" class="t1">LG</text><text x="1520" y="128" class="t2">공기청정기</text></g>
+    <g class="bx"><rect x="1060" y="300" width="280" height="120" rx="18"/><text x="1200" y="352" class="t1">실행기 (RPi4)</text><text x="1200" y="388" class="t2">누름 · 전력 연결</text></g>
+    <g class="bx"><rect x="1400" y="230" width="240" height="130" rx="18"/><text x="1520" y="280" class="t1">모션 보드</text><text x="1520" y="314" class="t2">ESP32</text><text x="1520" y="344" class="t3">X·Y 이동 + 누름</text></g>
+    <g class="bx"><rect x="1400" y="390" width="240" height="130" rx="18"/><text x="1520" y="440" class="t1">콘센트 모듈</text><text x="1520" y="474" class="t2">ESP32</text><text x="1520" y="504" class="t3">CT 전류 센서</text></g>
+    <g class="ln">
+      <line x1="270" y1="140" x2="378" y2="180" marker-end="url(#ah)"/>
+      <line x1="270" y1="360" x2="378" y2="320" marker-end="url(#ah)"/>
+      <line x1="940" y1="100" x2="1058" y2="100" marker-end="url(#ah)"/>
+      <line x1="1340" y1="100" x2="1398" y2="100" marker-end="url(#ah)"/>
+      <line x1="940" y1="360" x2="1058" y2="360" marker-end="url(#ah)"/>
+      <line x1="1340" y1="345" x2="1398" y2="300" marker-end="url(#ah)"/>
+      <line x1="1340" y1="380" x2="1398" y2="450" marker-end="url(#ah)"/>
+    </g>
+    <text x="1000" y="86" class="t3">인터넷</text>
+    <text x="1000" y="346" class="t3">Wi-Fi</text>
+    <path class="stop" d="M140 420 V600 H1200 V424" marker-end="url(#ahr)"/>
+    <text x="670" y="588" class="t4">정지 — 전용 경로로 다른 명령보다 먼저</text>
+    <g class="pipe">
+      <rect x="380" y="650" width="260" height="72" rx="36"/><text x="510" y="696">① 보냄</text>
+      <rect x="700" y="650" width="260" height="72" rx="36"/><text x="830" y="696">② 장치 응답</text>
+      <rect x="1020" y="650" width="260" height="72" rx="36"/><text x="1150" y="696">③ 상태 확인</text>
+      <line x1="640" y1="686" x2="698" y2="686" marker-end="url(#ah)"/>
+      <line x1="960" y1="686" x2="1018" y2="686" marker-end="url(#ah)"/>
+      <text x="1310" y="696" class="t3" style="text-anchor:start">셋 다 거쳐야 '됐어요'</text>
+    </g>
+  </svg>
+</section>
+
+<section class="slide" data-k="ct">
+  <div class="act">어떻게 동작하나 · 전기 사용량으로 끝을 알아채기</div>
+  <div class="ctgrid">
+    <div class="flow">
+      <div class="fstep"><b>1</b><span>전원선 활선 1가닥에 비접촉 클램프<small>선을 자르거나 가전을 열지 않습니다</small></span></div>
+      <div class="fstep"><b>2</b><span>센서가 전류(0~20A)를 DC 0.2~2.8V로 바꿈</span></div>
+      <div class="fstep"><b>3</b><span>ESP32 ADC — 100ms 창에 200표본, 10Hz로 보고</span></div>
+      <div class="fstep"><b>4</b><span>I = (V − 0.2) × 20 / 2.6, 전력 ≈ I × 220V<small>220V는 가정값 — 전압은 재지 않습니다</small></span></div>
+      <div class="fstep"><b>5</b><span>100W 이상 5초 = 작동 · 15W 이하 3초 = 가열 종료<small>→ 사용 기록 · 알림</small></span></div>
+    </div>
+    <div class="card">
+      <div class="cap" style="margin-bottom:14px">실제 전자레인지 1대 실측</div>
+      <table class="mt">
+        <tr><th>상태</th><th>센서 출력</th><th>전력(추정)</th></tr>
+        <tr><td>대기</td><td>142 mV</td><td>0 W</td></tr>
+        <tr><td>가열 중</td><td>약 790 mV</td><td>약 1,000 W</td></tr>
+        <tr><td>시작 순간(돌입)</td><td>약 2,300 mV</td><td>약 3,550 W(순간)</td></tr>
+        <tr><td>1분 가열 4회</td><td colspan="2">4회 모두 판정 · 작동 60.6~60.7초(설정 60초)</td></tr>
+      </table>
+      <div class="note">가열 중 센서 출력은 10월 30일, 시작 순간은 11월 2일, 1분 가열 시험은 11월 2~3일 측정.</div>
+      <div class="lim">한계: 전압을 재지 않고 220V로 가정한 추정입니다. '가열 종료'까지만 알고, 조리가 끝났는지는 모릅니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 3막 -->
+<section class="slide" data-k="product">
+  <div class="act">3막 · 이걸 드립니다</div>
+  <h2>허브 하나 + 누름 키트</h2>
+  <div class="split">
+    <div class="card"><b>LG 가전</b><br>바로 연결해 같은 흐름으로</div>
+    <div class="card"><b>옛 가전</b><br>누름 키트를 붙이면 같은 흐름으로</div>
+  </div>
+  <p class="lead" style="margin-top:72px">새 가전을 사지 않아도 지금 집에서 시작합니다.</p>
+</section>
+
+<section class="slide" data-k="compare">
+  <div class="act">3막 · 다른 점 (설계 차이)</div>
+  <div class="cmp">
+    <div class="card"><h3>버튼 누르는 기기</h3><ul><li class="y">옛 가전 누르기</li><li class="n">됐는지 확인</li><li class="n">습관 알아채기</li></ul></div>
+    <div class="card"><h3>스마트홈 허브</h3><ul><li class="n">옛 가전</li><li class="y">연결된 가전 조작</li><li class="n">허락한 것만 자동</li></ul></div>
+    <div class="card ours"><h3>SimpleLay</h3><ul><li class="y">옛 가전까지</li><li class="y">정말 됐는지 확인</li><li class="y">허락한 것만 자동</li></ul></div>
+  </div>
+  <p class="cap" style="margin-top:48px">성능 비교가 아니라 설계가 다른 점입니다.</p>
+</section>
+
+<section class="slide" data-k="next">
+  <div class="act">3막 · 다음</div>
+  <div class="road">
+    <div class="card"><b>실제 가정 시험</b><span>몇 가정에서<br>실제로 써 보기</span></div><div class="arrow">→</div>
+    <div class="card"><b>더 많은 가정</b><span>혼자 사시는 부모님<br>시각장애인 가정</span></div><div class="arrow">→</div>
+    <div class="card"><b>LG ThinQ의 입구</b><span>옛 가전과 고객까지<br>ThinQ로</span></div>
+  </div>
+  <p class="lead" style="margin-top:90px;font-weight:700;color:var(--ink)">기억하지 않아도 되는 집, SimpleLay.</p>
+</section>
+
+<!-- 부록(질의응답용) — 본 발표 뒤, 발표자 창 장 목록에서 바로 이동 -->
+<section class="slide ap" data-k="ap-safety">
+  <div class="act">부록 · 안전 계약</div>
+  <ul class="aplist">
+    <li><b>확인된 것만 '됐어요'</b> — LG 가전은 상태를 다시 읽고, 누름은 장치 응답과 전기 사용량으로 확인합니다.</li>
+    <li><b>확인 못 하면 '확인 못 했어요'</b> — 실패로 적지 않습니다. 실패로 보이면 다시 눌러 두 번 실행될 수 있어서입니다.</li>
+    <li><b>정지가 먼저</b> — 정지는 전용 경로로 다른 명령보다 먼저 가고, 정지 뒤에 같은 명령을 다시 보내지 않습니다.</li>
+    <li><b>열 나는 가전은 맡길 수 없음</b> — 전자레인지·인덕션은 매번 '네'를 받습니다.</li>
+    <li><b>맡긴 것도 쉬는 때</b> — 조용한 시간·비상정지 중에는 알아서 하지 않습니다.</li>
+  </ul>
+</section>
+<section class="slide ap" data-k="ap-ondevice">
+  <div class="act">부록 · 기기 안 판단 범위</div>
+  <ul class="aplist">
+    <li><b>사람 감지</b> — 본체 플랫폼 AI 런타임에서 공개 사전학습 검출 모델로 사람이 있는지 없는지만 봅니다. 사진은 저장·전송하지 않고, 카메라는 끌 수 있습니다.</li>
+    <li><b>쓰는 곳</b> — 화면 쉬기·깨우기·인사, 그리고 '언제 물을지'. 실행·승인의 근거로는 쓰지 않습니다.</li>
+    <li><b>방 밝기</b> — 본체 카메라의 아주 작은 회색 평균값(16×12)만 씁니다. 영상은 저장하지 않습니다.</li>
+    <li><b>언어 모델</b> — 정해진 동작 목록에서 하나를 고르기만 하고, 실행은 늘 사람이 '네'로 확인합니다. 새 모델을 학습시키지 않았습니다.</li>
+    <li><b>평가(10월 26일, 고정 50문장)</b> — 규칙으로 먼저 거른 뒤 맞힘 77% · 잘못 고름 6%.</li>
+  </ul>
+</section>
+<section class="slide ap" data-k="ap-habit">
+  <div class="act">부록 · 습관 판단 규칙</div>
+  <ul class="aplist">
+    <li><b>세는 기간</b> — 최근 28일의 직접 사용 기록.</li>
+    <li><b>묶기</b> — 앞뒤 45분 안에 모인 사용을 한 시간대로 봅니다.</li>
+    <li><b>습관</b> — 서로 다른 날 3일, 3번 이상.</li>
+    <li><b>묻는 때</b> — 평소 시각 10분 전, 사람이 있을 때.</li>
+    <li><b>쉬기</b> — 연달아 두 번 거절하거나 답이 없으면 7일 쉽니다. '이미 했어요'는 거절로 세지 않습니다.</li>
+    <li><b>맡기기</b> — 확인 칸을 보고 사람이 눌러야만. '네'를 여러 번 받아도 저절로 바꾸지 않습니다.</li>
+  </ul>
+</section>
+<section class="slide ap" data-k="ap-presser">
+  <div class="act">부록 · 누름 장치</div>
+  <ul class="aplist">
+    <li><b>구조</b> — 엔코더 모터 2개로 움직이는 CoreXY 2축(X·Y) + 누름 축.</li>
+    <li><b>좌표 매핑</b> — 가전 앞면 사진에서 버튼 위치를 골라 좌표로 저장하고, 그 좌표로 이동해 누릅니다.</li>
+    <li><b>연결</b> — 본체 → 실행기(RPi4, Wi-Fi·페어링 키) → 모션 보드(ESP32). 걸림 알람이 나면 재시도 없이 멈춥니다.</li>
+    <li><b>끝 확인</b> — 콘센트 모듈의 전기 사용량으로 가동·가열 종료를 봅니다.</li>
+  </ul>
+</section>
+<section class="slide ap" data-k="ap-tests">
+  <div class="act">부록 · 자동 시험</div>
+  <div class="row" style="margin-top:20px">
+    <div class="card" style="flex:1;text-align:center"><div class="cap">본체 + 실행기</div><div class="num">3,865</div></div>
+    <div class="card" style="flex:1;text-align:center"><div class="cap">폰 앱</div><div class="num">1,425</div></div>
+    <div class="card" style="flex:1;text-align:center"><div class="cap">키오스크</div><div class="num">1,220</div></div>
+  </div>
+  <p class="lead" style="margin-top:44px">2026년 10월 19일 밤 기준, 화면 비교 시험 제외. 화면 비교 시험은 폰 69 · 키오스크 83.</p>
+</section>
+<section class="slide ap" data-k="ap-limits">
+  <div class="act">부록 · 한계와 다음 단계</div>
+  <div class="split">
+    <div class="card"><b>한계</b><ul class="aplist sm">
+      <li>전력은 220V 가정 추정 — 전압은 재지 않습니다</li>
+      <li>'가열 종료'까지만 — 조리 완료는 모릅니다</li>
+      <li>기록이 쌓인 기간이 아직 짧습니다(10월 중순부터)</li>
+      <li>언어 모델은 잘못 고를 수 있어 늘 확인을 받습니다</li></ul></div>
+    <div class="card"><b>다음 단계</b><ul class="aplist sm">
+      <li>몇 가정에서 실제로 써 보기</li>
+      <li>열 나지 않는 물리 가전(선풍기·가습기·조명) 맡기기 — 전기 사용량 확인 + 사람 있음 + 사용자가 표시한 가전만</li></ul></div>
+  </div>
+</section>
+
+<div id="progress"></div>
+<div id="pageno"></div>
+</div>
+</div>
+<script src="slides.js"></script>
+<script src="records-data.js"></script>
+<script src="stage.js"></script>
+</body>
+</html>
