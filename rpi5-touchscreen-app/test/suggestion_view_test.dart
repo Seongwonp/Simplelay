@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_scroll_area.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/panel_picture.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
@@ -433,5 +434,132 @@ void main() {
         expect(find.byKey(const ValueKey('suggestion-already-done')), findsOneWidget);
       });
     }
+  });
+
+  // 15.8형 실패널(1920x1080): 전자레인지가 멈춘 뒤 공기청정기 카드 — 맡기기 단추('이번에 하고, 다음부터는 묻지 않고 하기')
+  // 줄까지 있는 카드에서 위 칸이 모자라 왼쪽 질문 아래 제한 문장('조리 완료가 아닐 수 있어요')과 오른쪽 '이유' 줄이 칸
+  // 경계에서 위아래가 잘려 보였다. 남은 시간이 '1분 12초'처럼 길어 아래 안내문이 두 줄로 접혀도 같다.
+  // 실패널 글꼴과 같은 계열(Noto Sans KR)로 잰다 — 시험 글꼴은 한글을 한 칸 네모로 그려 줄바꿈이 다르다.
+  group('가열 종료 → 공기청정기 카드(1920x1080)', () {
+    const notoPath = r'C:\Windows\Fonts\NotoSansKR-VF.ttf';
+    final hasNoto = File(notoPath).existsSync();
+
+    setUpAll(() async {
+      if (!hasNoto) return;
+      final bytes = File(notoPath).readAsBytesSync();
+      await (FontLoader('NotoKR')..addFont(Future.value(ByteData.view(bytes.buffer)))).load();
+    });
+
+    KioskSuggestion cookCard({String reason = '전자레인지가 멈춘 것 같아요. 조리 완료가 아닐 수 있어요.'}) => KioskSuggestion(
+          id: 'cook1',
+          purpose: '공기청정기 바람을 세게 할까요?',
+          occurrences: 0,
+          reason: reason,
+          applianceId: 'air_purifier',
+          scenarioId: 'cook_done_air',
+          commands: const [
+            KioskSuggestionCommand(targetId: 'air_purifier', route: 'thinq', summary: '공기청정기 바람 세기 강')
+          ],
+          autoRuleOffer: const KioskAutoRuleOffer(
+              conditionText: '전자레인지가 데우기를 멈추면',
+              actionText: '공기청정기 바람을 세게 해요',
+              caveat: '',
+              fingerprint: 'f1'),
+        );
+
+    Future<void> pumpCook(WidgetTester tester, KioskSuggestion suggestion, int remaining) async {
+      tester.view.physicalSize = const Size(1920, 1080);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(fontFamily: 'NotoKR'),
+        home: KioskCanvas(
+          child: Scaffold(
+            body: KioskSuggestionView(
+              suggestion: suggestion,
+              scenarioName: '전자레인지가 멈추면 공기청정기 세게',
+              cdRemaining: remaining,
+              cdTotal: 120,
+              onApprove: () {},
+              onReject: () {},
+              onExtend: () {},
+              onMuteChanged: (_) {},
+              onAllowAuto: () {},
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+    }
+
+    Rect viewportOf(WidgetTester tester, Finder f) =>
+        tester.getRect(find.ancestor(of: f, matching: find.byType(Scrollable)).last);
+
+    for (final remaining in [40, 72, 100]) {
+      testWidgets('남은 $remaining초 — 질문·제한 문장·할 일·이유가 스크롤 없이 칸 안에 다 보인다', (tester) async {
+        if (!hasNoto) return markTestSkipped('Noto Sans KR 없음');
+        await pumpCook(tester, cookCard(), remaining);
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(const ValueKey('suggestion-allow-auto')), findsOneWidget);
+        for (final f in [
+          find.byKey(const ValueKey('suggestion-question')),
+          find.byKey(const ValueKey('suggestion-caveat')),
+          find.text('공기청정기 바람 세기 강'),
+          find.textContaining('이유:'),
+        ]) {
+          expect(f, findsOneWidget);
+          final rect = tester.getRect(f);
+          final viewport = viewportOf(tester, f);
+          expect(rect.bottom, lessThanOrEqualTo(viewport.bottom + 0.5), reason: '$f — 칸 경계에서 잘리지 않는다');
+          expect(rect.top, greaterThanOrEqualTo(viewport.top - 0.5));
+        }
+        for (final state in tester.stateList(find.byType(KioskScrollArea))) {
+          expect((state as dynamic).moreBelow, isFalse, reason: '넘치지 않으니 흐림도 없다');
+        }
+        // 제한 문장은 왼쪽 줄 한 번만 — 오른쪽 이유에서 되풀이하지 않는다.
+        final why = tester.widget<Text>(find.textContaining('이유:')).textSpan!.toPlainText();
+        expect(why.contains('조리 완료가 아닐 수 있어요'), isFalse);
+        expect(why.replaceAll(RegExp('[\u2060\u00A0]'), ' '), contains('멈춘 것 같아요'));
+        // 시나리오 이름은 위 띠 오른쪽에 있다(본문 줄이 아니다).
+        expect(
+            find.descendant(
+                of: find.byKey(const ValueKey('status-band-detail')),
+                matching: find.byWidgetPredicate((w) =>
+                    w is Text &&
+                    (w.textSpan?.toPlainText() ?? w.data ?? '').replaceAll(RegExp('[\u2060\u00A0]'), ' ') ==
+                        '전자레인지가 멈추면 공기청정기 세게')),
+            findsOneWidget);
+      });
+    }
+
+    testWidgets('이유가 길어 넘치면 그 칸만 스크롤 막대와 아래 끝 흐림으로 보인다', (tester) async {
+      if (!hasNoto) return markTestSkipped('Noto Sans KR 없음');
+      await pumpCook(
+          tester,
+          cookCard(
+              reason: '전자레인지가 멈춘 것 같아요. 조리 완료가 아닐 수 있어요. 연습으로 넣은 신호예요. '
+                  '지금까지 12번 허락받은 제안이에요.'),
+          100);
+      expect(tester.takeException(), isNull);
+      final why = find.textContaining('이유:');
+      final overflowing = tester.getRect(why).bottom > viewportOf(tester, why).bottom;
+      final state = tester.state(find.ancestor(of: why, matching: find.byType(KioskScrollArea)).first);
+      expect((state as dynamic).moreBelow, overflowing);
+      // 왼쪽 칸(질문·제한 문장)은 그대로 다 보인다.
+      final caveat = find.byKey(const ValueKey('suggestion-caveat'));
+      expect(tester.getRect(caveat).bottom, lessThanOrEqualTo(viewportOf(tester, caveat).bottom + 0.5));
+    });
+  });
+
+  test('오른쪽 이유에서 왼쪽에 늘 보이는 제한 문장만 뺀다', () {
+    expect(KioskSuggestionView.reasonWithoutShownCaveats('전자레인지가 멈춘 것 같아요. 조리 완료가 아닐 수 있어요.'),
+        '전자레인지가 멈춘 것 같아요.');
+    expect(
+        KioskSuggestionView.reasonWithoutShownCaveats(
+            '전자레인지가 멈춘 것 같아요. 조리 완료가 아닐 수 있어요. 연습 신호예요.'),
+        '전자레인지가 멈춘 것 같아요. 연습 신호예요.');
+    expect(KioskSuggestionView.reasonWithoutShownCaveats('조리 완료가 아닐 수 있어요.'), '');
+    expect(KioskSuggestionView.reasonWithoutShownCaveats('공기청정기가 재 보니 종합 공기질이 나빠요.'),
+        '공기청정기가 재 보니 종합 공기질이 나빠요.');
   });
 }

@@ -151,11 +151,30 @@ class KioskSuggestionView extends StatelessWidget {
                 : suggestion.isAdvice
                     ? '조언'
                     : (suggestion.isDemo ? '제안 연습' : '제안'),
+            // 시나리오 이름(서버가 정한 이유 머리말 — '공기가 나빠요')은 띠 오른쪽에 둔다. 본문에 따로 한 줄을 두면
+            // 맡기기 단추까지 있는 카드에서 질문·제한·할 일 칸이 모자라 칸 아래에서 줄이 잘렸다(15.8형 실패널).
+            detail: _scenarioName,
           ),
           Expanded(child: _body(context, target, scenario, canExecute)),
         ],
       ),
     );
+  }
+
+  /// 위 띠에 둘 시나리오 이름 — 시나리오 카드에서 이름을 알 때만.
+  String? get _scenarioName {
+    final name = scenarioName;
+    return suggestion.isScenario && name != null && name.isNotEmpty ? name : null;
+  }
+
+  /// 오른쪽 칸 '이유' — 왼쪽에 늘 보이는 줄로 뺀 제한 문장([kAlwaysShownCaveats])은 되풀이하지 않는다(칸이 모자라
+  /// 같은 말이 두 번 나오며 이유가 잘렸다). 남는 말이 없으면 빈 문자열.
+  static String reasonWithoutShownCaveats(String why) {
+    var out = why;
+    for (final caveat in kAlwaysShownCaveats) {
+      out = out.replaceAll(RegExp('${RegExp.escape(caveat)}[.。]?'), '');
+    }
+    return out.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
   }
 
   /// '네' 단추의 접근성 이름 — 무엇이 일어나는지. 누름 장치로 [target]의 버튼만 누르면 '네. 전자레인지 버튼을 눌러요',
@@ -234,9 +253,10 @@ class KioskSuggestionView extends StatelessWidget {
         ],
       ],
     );
+    final scenarioWhyText = reasonWithoutShownCaveats(suggestion.whyNow);
     final scenarioWhy = scenario &&
         !large &&
-        suggestion.whyNow.isNotEmpty &&
+        scenarioWhyText.isNotEmpty &&
         !suggestion.userStarted;
     // 오른쪽 칸 제목 — 버튼 누름만이면 '누를 버튼', ThinQ가 섞이면 '할 일'(폰과 같은 말, 2026-10-14).
     final stepsHeading = scenario
@@ -335,14 +355,7 @@ class KioskSuggestionView extends StatelessWidget {
           ],
           // 시나리오 이름은 서버가 정한 이유 머리말('공기가 나빠요')이고 사용자 루틴이 아니다 — '루틴'을 붙이지 않는다
           // (실물 10/20 — 공기질 카드에 '루틴 공기가 나빠요'). '루틴'은 routine_id가 있는 카드(위 '내 루틴' 줄)에만.
-          if (scenario && scenarioName != null && scenarioName!.isNotEmpty) ...[
-            Text(
-              scenarioName!,
-              style: TextStyle(
-                  fontSize: KioskType.body, color: KioskColors.muted),
-            ),
-            const SizedBox(height: 6),
-          ],
+          // 이름은 위 띠 오른쪽([_scenarioName])에 있다.
           Expanded(
             child: large
                 ? oneColumn
@@ -353,7 +366,9 @@ class KioskSuggestionView extends StatelessWidget {
                       Expanded(
                         flex: 5,
                         // 큰 글씨에서 근거 줄이 아래로 넘치면 스크롤 막대가 보인다(2026-10-15).
+                        // 그래도 넘치면 칸 아래 끝을 흐리게 — 경계에 걸린 줄이 반쯤 잘린 글자로 보이지 않는다.
                         child: KioskScrollArea(
+                            fadeOverflow: true,
                             child: pictureMode
                                 ? Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,6 +405,7 @@ class KioskSuggestionView extends StatelessWidget {
                           flex: 5,
                           // 할 일과 근거를 한 스크롤 칸에 — 넘치면 스크롤 막대가 보인다.
                           child: KioskScrollArea(
+                            fadeOverflow: true,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -406,7 +422,7 @@ class KioskSuggestionView extends StatelessWidget {
                                   stripMockMark: suggestion.isDemo),
                                 if (scenarioWhy) ...[
                                   const SizedBox(height: 16),
-                                  _WhyText('이유: ${suggestion.whyNow}'),
+                                  _WhyText('이유: $scenarioWhyText', spoken: '이유: ${suggestion.whyNow}'),
                                 ],
                               ],
                             ),
@@ -802,8 +818,11 @@ class KioskSignalChips extends StatelessWidget {
 }
 
 class _WhyText extends StatefulWidget {
-  const _WhyText(this.text);
+  const _WhyText(this.text, {this.spoken});
   final String text;
+
+  /// 낭독 문장 — 화면 글과 다를 때만(화면에서 뺀 제한 문장까지 전문을 읽는다). null이면 [text].
+  final String? spoken;
 
   @override
   State<_WhyText> createState() => _WhyTextState();
@@ -831,7 +850,7 @@ class _WhyTextState extends State<_WhyText> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Semantics(
-            label: widget.text,
+            label: widget.spoken ?? widget.text,
             excludeSemantics: true,
             child: KioskText(
               widget.text,
