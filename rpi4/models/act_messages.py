@@ -214,7 +214,7 @@ class RehearsalMsg:
 
 
 #: 개발자 조작 동작(2026-10-10). stop은 언제나 받는다.
-DEV_MOTION_OPS = ("status", "home", "jog", "press", "press_here", "trace", "stop")
+DEV_MOTION_OPS = ("status", "home", "jog", "press", "press_here", "trace", "stop", "raw")
 DEV_MOTION_AXES = ("x", "y", "z")
 
 
@@ -232,6 +232,8 @@ class DevMotionMsg:
     delta_mm: float | None = None
     label: str | None = None
     reason: str | None = None
+    #: ``raw``의 보드 명령 한 줄(허용 목록 `rpi.controller.touchbridge_raw`).
+    text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -442,6 +444,13 @@ def _parse_dev_motion(doc: dict) -> DevMotionMsg | DevMotionRefusedMsg | None:
         reason = doc.get("reason")
         reason = reason if isinstance(reason, str) and _REHEARSAL_EVENT.fullmatch(reason) else None
         return DevMotionMsg(request_id, "stop", reason=reason)
+    if op_name == "raw":
+        from rpi.controller.touchbridge_raw import normalize_raw_command  # noqa: PLC0415
+
+        line = normalize_raw_command(doc.get("text"))
+        if line is None:
+            return bad("허용하지 않는 보드 명령이에요")
+        return DevMotionMsg(request_id, "raw", text=line)
     return DevMotionMsg(request_id, op_name)
 
 

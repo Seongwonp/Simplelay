@@ -213,6 +213,19 @@ class ActDevMotionAdapter:
         return {k: v for k, v in reply.items() if k in ("x_mm", "y_mm") and
                 isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)}
 
+    def raw(self, text: str) -> str:
+        """보드 명령 바로 보내기 — 허용 목록 한 줄을 RPi4가 그대로 보드에 쓰고 텍스트 답을 돌려준다(조정용)."""
+        from rpi.controller.touchbridge_raw import raw_listen_s  # noqa: PLC0415
+
+        link = self._require_ready()
+        protocol = (self._snapshot(link).get("act_info") or {}).get("dev_motion_protocol")
+        if type(protocol) is not int or protocol < 4:
+            raise DevAdapterRefused("dev_protocol_unsupported",
+                                    "보드 명령 바로 보내기는 본체와 실행기를 같은 판으로 배포한 뒤 사용할 수 있어요")
+        reply = self._call(link, "raw", raw_listen_s(text) + STATUS_TIMEOUT_S, text=text)
+        lines = reply.get("lines")
+        return lines if isinstance(lines, str) else ""
+
     def motion_trace(self) -> dict:
         from .motion_diagnostics import motion_trace_rows
 

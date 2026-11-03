@@ -257,6 +257,10 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
   - `trace`: 실행 중에도 메모리에 있는 최근 통신을 읽는다. MCU 상태 조회나 이동을 보내지 않고,
     개발자 모션 작업의 종료를 기다리지 않는다. `trace_supported`와 `motion_trace`(JSON 문자열, 최대 32건)를 답한다.
     RPi5는 개발자 인증을 거친 `GET /dev/motion-trace`에서 허용 필드만 골라 `supported`·`rows`로 반환한다.
+- **규약 4**: `raw`(조정용 보드 명령 바로 보내기)를 추가한다. `text`는 허용 목록(`rpi/controller/touchbridge_raw.py`)의
+  원본 텍스트 명령 한 줄이고, RPi4 env `SIMPLELAY_DEV_RAW_MOTION=1`일 때만 보낸다(아니면 `raw_disabled`,
+  원본 텍스트 명령이 없는 보드면 `raw_unsupported`, 둘 다 `moved:false`). 원점·위치 토큰 관문을 거치지 않으며,
+  답 `lines`에 보드 텍스트 답을 싣는다. 보낸 뒤 위치 토큰은 지워진다. 개발자 API에서는 `raw <명령>`, 응답 `reply`.
     각 행은 순서(`seq`), 연결·재시작·명시적 원점 설정의 기준 세대(`generation`), 같은 모션 객체 내 경과 시간(`elapsed_ms`),
     방향(`direction`), 모션 명령 번호(`commandId`), 종류·상태·보고 좌표·목표 좌표를 담는다.
     `context_id`가 있으면 일반 실행의 `sequence_id` 또는 RPi4 개발자 요청 번호다. 연결과 번호가 다른 행을
@@ -391,7 +395,7 @@ RPi5는 이 결과를 '정지, 0개 눌림'으로 읽는다(수신 `accepted` �
 
 ```json
 { "type": "act_info", "done_watch": ["washer", "microwave"], "outlet": "fake", "motion": "mock", "rehearsal": true }
-{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 3, "stop_report_protocol": 1, "clock_protocol": 1, "heartbeat_protocol": 1, "heartbeat_timeout_s": 3.0 }
+{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 4, "stop_report_protocol": 1, "clock_protocol": 1, "heartbeat_protocol": 1, "heartbeat_timeout_s": 3.0 }
 { "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f6", "op": "home", "ok": true, "homed": true, "x_mm": 0.0, "y_mm": 0.0 }
 { "type": "rehearsal_result", "request_id": "a1b2c3", "ok": true, "action": "appliance_done", "source": "injected", "frame": { "…": "…" } }
 { "type": "ack", "sequence_id": "seq_001", "step": "BT-08", "status": "done" }

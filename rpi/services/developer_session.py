@@ -46,6 +46,8 @@ class DevCommandKind(str, Enum):
     PRESS = "press"
     PRESS_HERE = "press_here"
     STOP = "stop"
+    #: 보드 명령 바로 보내기(개발자 모드 조정용, RPi4 env로 켤 때만). 허용 목록은 rpi/controller/touchbridge_raw.py.
+    RAW = "raw"
 
 
 # 한 번의 jog 요청 상한(mm). 실측 전 보수적인 임시값이다.
@@ -67,6 +69,7 @@ class DevCommand:
     direction: int = 0  # +1 / -1
     amount_mm: float = 0.0
     button_id: str | None = None
+    raw_text: str | None = None
 
     def normalized(self) -> str:
         """실행 전에 사용자에게 보여줄 정규화 결과."""
@@ -75,6 +78,8 @@ class DevCommand:
             return f"jog {self.axis.value} {sign} {self.amount_mm:g}"
         if self.kind is DevCommandKind.PRESS:
             return f"press {self.button_id}"
+        if self.kind is DevCommandKind.RAW:
+            return f"raw {self.raw_text}"
         return self.kind.value
 
 
@@ -100,6 +105,13 @@ def parse_dev_command(text: str) -> DevCommand:
         return DevCommand(DevCommandKind.SENSOR_READ)
     if head == "jog":
         return _parse_jog(tokens)
+    if head == "raw":
+        from rpi.controller.touchbridge_raw import normalize_raw_command  # noqa: PLC0415
+
+        line = normalize_raw_command(text.strip()[3:])
+        if line is None:
+            raise DevCommandRejected("허용하지 않는 보드 명령입니다(T·Z·H·S·!·P·?·$$·STOP·G x y·GT x y·M a b ms)")
+        return DevCommand(DevCommandKind.RAW, raw_text=line)
     if head == "press":
         # 버튼 id는 대소문자를 보존해야 한다(BT-05) -- 원문에서 다시 꺼낸다.
         raw = text.strip().split()
@@ -223,6 +235,10 @@ class MockMotionAdapter:
     def stop(self, reason: str) -> None:
         self.calls.append(("stop", reason))
 
+    def raw(self, text: str) -> str:
+        self.calls.append(("raw", text))
+        return "모의 장치라 보드에 보내지 않았어요"
+
     def read_sensor(self) -> dict[str, float]:
         self.calls.append(("sensor",))
         return {"current_ma": 0.0, "sound_db": 0.0}
@@ -231,7 +247,7 @@ class MockMotionAdapter:
         return [c[1] for c in self.calls if c[0] == "stop"]
 
     def motion_calls(self) -> list[tuple]:
-        return [c for c in self.calls if c[0] in ("jog", "home", "press")]
+        return [c for c in self.calls if c[0] in ("jog", "home", "press", "raw")]
 
 
 # 세션
@@ -299,6 +315,8 @@ class DevResult:
     code: str | None = None
     #: 모션 보드가 보낸 상태 이름(Touch Bridge ``ERROR_LIMIT`` 등, 2026-10-26). 화면이 쉬운 문장으로 바꾼다.
     board_state: str | None = None
+    #: 보드 명령 바로 보내기(``raw``)의 보드 텍스트 답. 다른 명령은 None.
+    reply: str | None = None
 
 
 def _board_state_of(board: object) -> str | None:
@@ -400,6 +418,8 @@ class DeveloperSessionManager:
         # 어댑터 모션 호출 + 그 명령의 안전 정리가 진행 중인가. 정지는
         # 이것을 기다리지 않지만 반납은 기다린다(1.1-#1, 1.2).
         self._inflight = False
+        # 마지막 raw 명령의 보드 답 — _dispatch가 쓰고 같은 submit의 결과가 읽는다(_inflight로 한 번에 하나).
+        self._raw_reply: str | None = None
         # 진행 중인 어댑터 stop 호출 개수. 정지가 "요청됨"과 "확인됨"은
         # 다르다 -- 응답 대기 중인 정지가 있는 동안 반납하면, 그 정지가
         # 늦게 실패했을 때 이미 새 실행이 돌고 있다(1.3).
@@ -848,7 +868,8 @@ class DeveloperSessionManager:
                 self._record(
                     "command_accepted",
                     request_id,
-                    command.normalized(),
+                    command.normalized() if self._raw_reply is None
+                    else f"{command.normalized()} → {self._raw_reply or '(답 없음)'}",
                     appliance_id=appliance_id,
                     command=command.normalized(), board=board,
                 )
@@ -867,6 +888,7 @@ class DeveloperSessionManager:
                 DevResult(
                     True, request_id,
                     normalized=command.normalized(), sensor=sensor,
+                    reply=self._raw_reply,
                 )
             )
 
@@ -1036,6 +1058,7 @@ class DeveloperSessionManager:
         return session
 
     def _dispatch(self, command: DevCommand) -> dict[str, float] | None:
+        self._raw_reply = None
         match command.kind:
             case DevCommandKind.JOG:
                 result = self._adapter.jog(
@@ -1055,6 +1078,11 @@ class DeveloperSessionManager:
                 if not callable(fn):
                     raise DevAdapterRefused("press_here_unsupported", "이 어댑터는 단독 누름을 지원하지 않아요")
                 return fn()
+            case DevCommandKind.RAW:
+                fn = getattr(self._adapter, "raw", None)
+                if not callable(fn):
+                    raise DevAdapterRefused("raw_unsupported", "이 어댑터는 보드 명령 바로 보내기를 지원하지 않아요")
+                self._raw_reply = fn(command.raw_text)
             case DevCommandKind.SENSOR_READ:
                 return self._adapter.read_sensor()
             case DevCommandKind.STATUS | DevCommandKind.STOP:

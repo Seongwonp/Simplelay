@@ -104,6 +104,9 @@ def _manager(
         ("jog Y - 0.5", "jog y - 0.5"),
         ("jog z + 0.2", "jog z + 0.2"),
         ("press BT-05", "press BT-05"),
+        ("raw t", "raw T"),
+        ("raw  G 5   0", "raw G 5 0"),
+        ("RAW z", "raw Z"),
     ],
 )
 def test_allowlisted_commands_are_normalized(text, normalized) -> None:
@@ -132,6 +135,11 @@ def test_allowlisted_commands_are_normalized(text, normalized) -> None:
         "sensor",
         "sensor write",
         "G1 X10",
+        "raw",
+        "raw KEYRESET",
+        "raw K 1 2 3 4",
+        "raw T; T",
+        "raw M 3 0 500",
     ],
 )
 def test_anything_outside_the_allowlist_is_rejected(text) -> None:
@@ -155,6 +163,17 @@ def test_rejected_command_never_reaches_the_adapter() -> None:
 
     assert result.accepted is False
     assert adapter.motion_calls() == []
+
+
+def test_raw_board_command_returns_the_board_reply() -> None:
+    manager, adapter, _, _, _ = _manager()
+    session = manager.start("microwave", "node-1")
+
+    result = manager.submit(session.session_id, "microwave", "raw T")
+
+    assert result.accepted is True and result.normalized == "raw T"
+    assert result.reply == "모의 장치라 보드에 보내지 않았어요"
+    assert adapter.motion_calls() == [("raw", "T")]
 
 
 # ── 제어권 ────────────────────────────────────────────────────────────────

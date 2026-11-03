@@ -22,6 +22,7 @@ import logging
 import json
 from contextlib import nullcontext
 import math
+import os
 import threading
 
 from rpi.controller.kinematics import KinematicsNotConfigured, SoftLimitExceeded, motor_counts_to_xy
@@ -46,7 +47,10 @@ log = logging.getLogger(__name__)
 #: act_info로 알리는 개발자 조작 규약 판. RPi5는 이 값이 없거나 1 미만이면 보내지 않는다.
 #: 2(2026-10-13): ``stop`` 답에 정지 확인 단계 ``stop_level``(sent·mcu_ack·verified)과 ``ack_ms``를 싣는다.
 #: 1인 RPi4의 답에는 없다 — RPi5는 그때 ``sent``(보냄)로만 읽는다.
-DEV_MOTION_PROTOCOL = 3
+#: 4: ``raw``(보드 명령 바로 보내기, ``SIMPLELAY_DEV_RAW_MOTION=1``일 때만) — 답 ``lines``에 보드 텍스트 답.
+DEV_MOTION_PROTOCOL = 4
+#: 보드 명령 바로 보내기를 켜는 env. 위치 확인·원점 확인 관문을 건너뛰는 조정용이라 기본은 꺼져 있고, 결선 전에 끈다.
+DEV_RAW_ENV = "SIMPLELAY_DEV_RAW_MOTION"
 #: 조그 한 번의 절대 상한(mm). RPi5가 더 작은 상한(기본 1 mm)을 따로 둔다 — 이것은 RPi4의 마지막 울타리다.
 DEV_JOG_STEP_CEILING_MM = 10.0
 #: 개발자 누름의 솔레노이드 켜짐 상한(ms) — firmware-motion-corexy SOLENOID_ON_MAX_MS와 같다.
@@ -194,6 +198,8 @@ class DevMotionService:
             return self._jog(msg)
         if msg.op == "press":
             return self._press(msg)
+        if msg.op == "raw":
+            return self._raw(msg)
         if msg.op == "press_here":
             fn = getattr(self._client, "press_here", None)
             if not callable(fn):
@@ -222,6 +228,17 @@ class DevMotionService:
         jog_to = getattr(self._client, "jog_to", None)
         reached = jog_to(x, y) if callable(jog_to) else self._client.move_to(x, y)
         return {**self._position(query=False), "reached": reached is not False}
+
+    def _raw(self, msg: DevMotionMsg) -> dict:
+        if os.environ.get(DEV_RAW_ENV, "").strip() != "1":
+            raise _Refused("raw_disabled",
+                           f"보드 명령 바로 보내기가 꺼져 있어요 — RPi4 env {DEV_RAW_ENV}=1")
+        fn = getattr(self._client, "raw_text", None)
+        if not callable(fn):
+            raise _Refused("raw_unsupported", "이 모션 보드는 보드 명령 바로 보내기를 지원하지 않아요")
+        self._client.reset_stop()
+        lines = fn(msg.text or "")
+        return {**self._position(query=False), "lines": "\n".join(lines)[-1000:]}
 
     def _press(self, msg: DevMotionMsg) -> dict:
         if getattr(self._client, "z_mode", None) == "switchbot":

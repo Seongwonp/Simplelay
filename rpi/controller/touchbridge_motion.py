@@ -171,6 +171,8 @@ class TouchBridgeMotionClient(GrblClient):
         self._trace_start = time.monotonic()
         self._trace: deque[dict] = deque(maxlen=100)
         self._trace_context = ContextVar("motion_context", default=None)
+        #: 보드 명령 바로 보내기(`raw_text`) 동안 텍스트 답을 모으는 곳. 그 밖에는 None.
+        self._raw_capture: queue.Queue[str] | None = None
         self.last_status: MotionStatus | None = None
         self.ready_info: dict = {"protocol": PROTOCOL}
         self._reader = threading.Thread(target=self._read_loop, daemon=True, name="touchbridge-reader")
@@ -392,6 +394,10 @@ class TouchBridgeMotionClient(GrblClient):
                     self._booted(banner.group(1))
                 elif line.startswith("FAULT "):
                     self._fail_pending(MotionAlarm(line, reason="firmware_fault"), motions_only=True)
+                with self._lock:
+                    capture = self._raw_capture
+                if capture is not None:
+                    capture.put(line)
                 self._emit("mcu_text", {"line": line})
                 if self._on_unclaimed is not None:
                     self._callback(self._on_unclaimed, line)
@@ -531,6 +537,51 @@ class TouchBridgeMotionClient(GrblClient):
             if time.monotonic() >= deadline:
                 raise MotionTimeout("Touch Bridge 원점 정하기(Z): 원점이 잡힌 것을 확인하지 못했어요")
             time.sleep(0.05)
+
+    def raw_text(self, text: str) -> list[str]:
+        """개발자 모드: 허용 목록(`touchbridge_raw`)의 원본 텍스트 명령 한 줄을 보내고 보드 텍스트 답을 모은다.
+
+        위치 토큰·원점 확인을 거치지 않는다(조정용). 보낸 뒤에는 이 쪽이 아는 위치·토큰을 믿지 않는다 — 위치 토큰을
+        지우고 보드 상태를 다시 읽는다. ``Z``·``H``가 보드에서 원점을 잡았으면 그 원점을 받아들인다."""
+        from .touchbridge_raw import normalize_raw_command, raw_is_end, raw_listen_s  # noqa: PLC0415
+
+        line = normalize_raw_command(text)
+        if line is None:
+            raise MotionRefused(f"허용하지 않는 보드 명령이에요: {text!r}", code="bad_args")
+        replies: queue.Queue[str] = queue.Queue()
+        lines: list[str] = []
+        with self._op_lock:
+            with self._lock:
+                self._token = None
+                self._raw_capture = replies
+            try:
+                with self._write_lock:
+                    self._trace_event("tx", {"action": "raw", "line": line, "context_id": self._trace_context.get()})
+                    self._transport.write_line(line)
+                deadline = time.monotonic() + raw_listen_s(line, self.config.home_timeout_s)
+                while True:
+                    left = deadline - time.monotonic()
+                    if left <= 0:
+                        break
+                    try:
+                        reply = replies.get(timeout=min(left, 0.1))
+                    except queue.Empty:
+                        continue
+                    lines.append(reply)
+                    if raw_is_end(line, reply):
+                        break
+            finally:
+                with self._lock:
+                    self._raw_capture = None
+            head = line.split()[0]
+            if head in ("Z", "H") and any(r == "OK" or r.startswith("HOMED") for r in lines):
+                with self._lock:
+                    self._origin_unverified = False
+            try:
+                self.status()
+            except (MotionError, OSError):
+                pass  # 답 줄은 그대로 돌려준다 — 상태는 다음 조회가 다시 읽는다
+        return lines
 
     def _physical(self, action: str, timeout: float, **fields) -> dict:
         with self._lock:

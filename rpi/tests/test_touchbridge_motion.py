@@ -11,7 +11,7 @@ import pytest
 
 from rpi.controller.models import PressCommand
 from rpi.controller.serial_motion import (
-    InMemoryLinePipe, MotionPositionMismatch, MotionPressFailed, MotionReset,
+    InMemoryLinePipe, MotionPositionMismatch, MotionPressFailed, MotionRefused, MotionReset,
     MotionStopped, MotionTimeout,
 )
 from rpi.controller.touchbridge_motion import TouchBridgeConfig, TouchBridgeMotionClient
@@ -35,6 +35,7 @@ class ReceivedSketch:
         self.move_reject = None  # state answered instead of RECEIVED (e.g. ERROR_NOT_HOMED)
         self.move = None
         self.token = "0123456789abcdef"
+        self.texts = []  # original text commands (T, Z, G …) — replies follow the received sketch's text lines
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
 
@@ -54,6 +55,10 @@ class ReceivedSketch:
         while not self.closed.is_set():
             line = self.pipe.device.read_line(0.02)
             if line is None:
+                continue
+            if not line.startswith("{"):
+                self.texts.append(line)
+                self._text(line)
                 continue
             command = json.loads(line)
             self.commands.append(command)
@@ -89,6 +94,18 @@ class ReceivedSketch:
                 if self.move is not None:
                     self.send(self.move, "STOPPED")
                 self.send(command, "STOPPED")
+
+    def _text(self, line):
+        head = line.split()[0]
+        if head == "T":
+            self.pipe.device.write_line("OK")
+            self.pipe.device.write_line("PRESSED")
+        elif head == "Z":
+            self.position, self.homed = (0.0, 0.0), True
+            self.pipe.device.write_line("OK")
+        elif head == "G":
+            self.pipe.device.write_line("OK")
+            self.pipe.device.write_line("FAULT SETTLE")
 
     def close(self):
         self.closed.set()
@@ -586,3 +603,38 @@ def test_banner_version_is_recorded_and_a_new_status_reconnects_without_home(rig
     status = client.connect()
     assert not client.needs_reconnect and not status.homed
     assert "home" not in [c["action"] for c in mcu.commands]
+
+
+def test_raw_text_sends_the_original_line_and_returns_board_replies_without_a_position_token(rig):
+    client, mcu, _ = rig
+    client.connect()
+    client.move_to(1, 2)  # leaves a position token behind
+    assert client.raw_text(" t ") == ["OK", "PRESSED"]
+    assert mcu.texts == ["T"]
+    with pytest.raises(MotionRefused):
+        client.press_here()  # the raw line may have moved the board — the old token is gone
+
+
+def test_raw_set_origin_is_accepted_as_the_origin(rig):
+    client, mcu, _ = rig
+    mcu.homed = False
+    client.connect()
+    assert not client.homed
+    assert client.raw_text("Z") == ["OK"]
+    assert client.homed and client.last_position == {"x_mm": 0.0, "y_mm": 0.0}
+
+
+def test_raw_move_reports_the_firmware_fault_line(rig):
+    client, mcu, _ = rig
+    client.connect()
+    assert client.raw_text("G 5 0") == ["OK", "FAULT SETTLE"]
+
+
+@pytest.mark.parametrize("text", ["K 1 2 3 4", "KEYRESET", "SET_GRID 1 1 1 1 1 1", "T\nT", "M 2 0 500", "M 0.5 0.5",
+                                  "T 5000", "G 1", "{\"action\":\"press\"}", "BTN_1"])
+def test_raw_text_refuses_lines_outside_the_allow_list_before_writing(rig, text):
+    client, mcu, _ = rig
+    client.connect()
+    with pytest.raises(MotionRefused):
+        client.raw_text(text)
+    assert mcu.texts == []

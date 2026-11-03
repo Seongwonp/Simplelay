@@ -289,6 +289,8 @@ class DevCommandResponse(BaseModel):
     normalized: str | None
     sensor: dict[str, float] | None
     state: DevStateResponse
+    #: 보드 명령 바로 보내기(``raw ...``)의 보드 텍스트 답. 다른 명령은 None.
+    reply: str | None = None
 
 
 class DevStopResponse(BaseModel):
@@ -333,6 +335,7 @@ _ALLOWED_COMMANDS = [
     "jog <x|y|z> <+|-> <mm>",
     "press <button_id>",
     DevCommandKind.STOP.value,
+    "raw <보드 명령>",
 ]
 
 
@@ -399,6 +402,8 @@ _RESULT_STATUS: dict[str, int] = {
     "busy": 409,
     "bringup_firmware": 409,
     "press_mode_unsupported": 409,
+    "raw_disabled": 409,
+    "raw_unsupported": 409,
     "z_cooldown": 409,
 }
 
@@ -517,6 +522,7 @@ def dev_command(
         normalized=result.normalized,
         sensor=result.sensor,
         state=_state_view(manager),
+        reply=result.reply,
     )
 
 

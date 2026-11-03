@@ -436,7 +436,7 @@ def test_act_info_advertises_the_stop_report_protocol(rig) -> None:
     from rpi4.services.act_executor import STOP_REPORT_PROTOCOL
 
     info = run(_t())
-    assert info["dev_motion_protocol"] == DEV_MOTION_PROTOCOL == 3
+    assert info["dev_motion_protocol"] == DEV_MOTION_PROTOCOL == 4
     assert info["stop_report_protocol"] == STOP_REPORT_PROTOCOL == 1
 
 
@@ -672,3 +672,48 @@ def test_depth_press_is_refused_for_dev_press(rig) -> None:
         assert reply["ok"] is False and reply["reason"] == "press_mode_unsupported"
 
     run(_t())
+
+
+# ── 보드 명령 바로 보내기(raw) ────────────────────────────────────────────────
+
+
+def test_parse_raw_keeps_only_allow_listed_board_lines() -> None:
+    ok = parse_act_message(json.dumps({"type": "dev_motion", "request_id": "w1", "op": "raw", "text": " t "}))
+    assert ok == DevMotionMsg(request_id="w1", op="raw", text="T")
+    bad = parse_act_message(json.dumps({"type": "dev_motion", "request_id": "w2", "op": "raw", "text": "KEYRESET"}))
+    assert isinstance(bad, DevMotionRefusedMsg) and bad.reason == "bad_args"
+
+
+def test_raw_is_refused_before_writing_unless_the_rpi4_env_turns_it_on(rig, monkeypatch) -> None:
+    monkeypatch.delenv("SIMPLELAY_DEV_RAW_MOTION", raising=False)
+    async def _t() -> tuple[dict, dict]:
+        r = rig(homed=True)
+        off = await r.op("raw", "w3", text="T")
+        monkeypatch.setenv("SIMPLELAY_DEV_RAW_MOTION", "1")
+        return off, await r.op("raw", "w4", text="T")
+
+    off, unsupported = run(_t())
+    assert off["ok"] is False and off["reason"] == "raw_disabled" and off["moved"] is False
+    # line-json 보드는 원본 텍스트 명령이 없다 — 켜도 보내지 않고 거절한다.
+    assert unsupported["reason"] == "raw_unsupported" and unsupported["moved"] is False
+
+
+def test_raw_reply_lines_come_back_without_origin_or_token_gates(monkeypatch) -> None:
+    monkeypatch.setenv("SIMPLELAY_DEV_RAW_MOTION", "1")
+
+    class _Board:
+        homed = False
+        last_position = None
+        ready_info: dict = {}
+        sent: list[str] = []
+
+        def reset_stop(self) -> None:
+            pass
+
+        def raw_text(self, text: str) -> list[str]:
+            self.sent.append(text)
+            return ["OK", "PRESSED"]
+
+    board = _Board()
+    out = DevMotionService(board).run(DevMotionMsg(request_id="w5", op="raw", text="T"))
+    assert out["ok"] is True and out["lines"] == "OK\nPRESSED" and board.sent == ["T"]
