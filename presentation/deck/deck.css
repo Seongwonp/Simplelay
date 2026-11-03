@@ -192,7 +192,7 @@ table.mt td{padding:14px 6px;border-bottom:1px solid var(--line);font-variant-nu
 .aplist.sm li{font-size:27px}
 .num{font-size:84px;font-weight:900;color:var(--teal-d);margin-top:10px}
 
-.oneline{margin-top:10px;padding-top:22px;border-top:1px solid var(--line);font-size:25px;line-height:1.5;color:var(--ink)}
+.oneline{margin-top:6px;padding-top:16px;border-top:1px solid var(--line);font-size:21px;line-height:1.55;color:var(--sub)}
 .ctsimple .card b{font-size:42px}
 .ctsimple .card span{font-size:29px}
 .vgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:10px}
@@ -203,3 +203,19 @@ table.mt td{padding:14px 6px;border-bottom:1px solid var(--line);font-variant-nu
 .vc.wide{grid-column:span 2}
 .housenote{display:flex;align-items:center;gap:22px;margin-top:50px;font-size:28px;color:var(--sub)}
 .housenote svg{width:72px;height:72px;flex:none}
+
+/* '네' 단계 — 본체 미연결이면 예시임을 크게 */
+.exband{display:none;margin:-10px -6px 24px;padding:16px 22px;border-radius:14px;background:#fff1d6;color:#8a4b00;
+  font-size:30px;font-weight:900;text-align:center;border:3px solid #f0b54a}
+/* 비교 — 두 칸 */
+.cmp2{display:grid;grid-template-columns:1fr 1.9fr;gap:40px;align-items:stretch}
+.cmp2 .card h3{font-size:37px;margin-bottom:12px}
+.cmp2 ul{list-style:none;margin-top:22px}
+.cmp2 li{font-size:29px;line-height:1.5;margin-bottom:22px;padding-left:44px;position:relative}
+.cmp2 li::before{position:absolute;left:0;font-weight:900;content:"○";color:var(--teal)}
+.cmp2 .ours{border:4px solid var(--teal)}
+.ref{margin-top:20px;font-size:20px;color:var(--mute)}
+/* 예상 질문 */
+.faq{columns:2;column-gap:56px;font-size:23px;line-height:1.5;padding-left:34px;margin-top:6px}
+.faq li{break-inside:avoid;margin-bottom:18px}
+.faq li b{display:block;font-size:24px}

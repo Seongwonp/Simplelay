@@ -8,7 +8,7 @@
   const stage = document.getElementById("stage");
   const chan = "BroadcastChannel" in window ? new BroadcastChannel("simplelay-deck") : null;
 
-  // 실시간 전기 사용량(W)을 주는 본체 GET 경로가 아직 없다 — 생기면 여기에 경로를 넣는다.
+  // 실시간 소비전력(W)을 주는 본체 GET 경로가 아직 없다 — 생기면 여기에 경로를 넣는다.
   const POWER_ENDPOINT = null;
 
   let cur = 0;
@@ -351,11 +351,12 @@
     if (label) el.querySelector(".lbl").textContent = label;
   }
   function previewSteps() {
+    $("stepsBand").style.display = "block";
     setStep(0, "", "LG 공기청정기에 보냄");
     setStep(1, "", "상태를 다시 읽음");
     setStep(2, "", "켜진 것을 확인했어요");
     $("stepsDetail").textContent = "";
-    setSrc($("stepsSrc"), "preview", "미리보기 — 본체 미연결");
+    setSrc($("stepsSrc"), "preview", "예시 — 실제 실행 기록이 아닙니다");
     [0, 1, 2].forEach((j) => later(700 + j * 1100, () => setStep(j, "done")));
   }
   function renderSteps(s) {
@@ -387,6 +388,7 @@
   }
   function runSteps(alive) {
     if (!hub.connected) { previewSteps(); return; }
+    $("stepsBand").style.display = "none";
     [0, 1, 2].forEach((j) => setStep(j, ""));
     $("stepsDetail").textContent = "";
     setSrc($("stepsSrc"), "off", "본체 값 불러오는 중");
@@ -415,13 +417,13 @@
     b.forEach((e, j) => later(500 + j * 1400, () => e.classList.add("show")));
   }
 
-  // ---------- 전자레인지 전기 사용량 ----------
+  // ---------- 전자레인지 소비전력 ----------
   function resetGraph() {
     $("ln").setAttribute("d", ""); $("area").setAttribute("d", "");
     $("toast").classList.remove("show");
     $("w").textContent = "0 W"; $("tsec").textContent = "대기";
   }
-  // 11월 2일 실측 수치(대기 0W, 시작 순간 약 3,550W, 가열 약 1,000W, 1분 가열 판정 60.6~60.7초)로 다시 그린 모양 — 그때 기록 그대로가 아니다.
+  // 여러 날의 실측 수치(대기 0 W, 시작 순간 약 3,550 W, 가열 약 1,000 W, 1분 가열 판정 60.6~60.7초)로 다시 그린 모양 — 그때 기록 그대로가 아니다.
   function playRecorded() {
     const W = $("w"), T = $("tsec"), L = $("ln"), A = $("area"), toast = $("toast");
     resetGraph();
@@ -443,13 +445,13 @@
     const g = $("graph");
     if (emergency) {
       g.classList.remove("disconnected");
-      $("ctNote").textContent = "11월 2~3일 실측 장면 — 지금 값이 아닙니다(대기 0W · 가열 약 1,000W · 시작 순간 약 3,550W · 1분 가열 4회 모두 판정, 60.6~60.7초).";
+      $("ctNote").textContent = "실측 장면 — 지금 값이 아닙니다. 여러 날의 측정값으로 재구성한 그림(대기 0 W · 가열 약 1,000 W · 시작 순간 약 3,550 W, 사람이 손으로 시작한 1분 가열 4회는 11월 2~3일).";
       playRecorded();
       return;
     }
     if (!hub.connected) {
       g.classList.remove("disconnected");
-      $("ctNote").textContent = "미리보기 — 11월 2~3일 실측(대기 0W · 가열 약 1,000W · 시작 순간 약 3,550W · 1분 가열 4회 모두 판정, 60.6~60.7초)을 다시 그린 그림입니다.";
+      $("ctNote").textContent = "미리보기 — 여러 날의 측정값으로 재구성한 그림(대기 0 W · 가열 약 1,000 W · 시작 순간 약 3,550 W, 사람이 손으로 시작한 1분 가열 4회는 11월 2~3일).";
       playRecorded();
       return;
     }
@@ -457,7 +459,7 @@
     if (!POWER_ENDPOINT) {
       g.classList.add("disconnected");
       $("w").textContent = "— W"; $("tsec").textContent = "";
-      $("ctNote").textContent = "본체 연결됨 · 실시간 전기 사용량 값은 아직 연결 안 됨";
+      $("ctNote").textContent = "본체 연결됨 · 실시간 소비전력 값은 아직 연결 안 됨";
     }
   }
 
@@ -484,7 +486,7 @@
   // ---------- 발표자 창 동기화 ----------
   function broadcast() {
     if (!chan) return;
-    chan.postMessage({ t: "state", i: cur, n: slides.length, emergency,
+    chan.postMessage({ t: "state", i: cur, n: slides.length, emergency, mismatch,
       hub: { connected: hub.connected, version: hub.version, checkedAt: hub.checkedAt } });
   }
   if (chan) {
@@ -524,10 +526,12 @@
   });
   document.addEventListener("click", () => show(cur + 1));
 
-  // 장 목록과 HTML 장 수가 어긋나면 발표자 창 대본이 밀린다 — 콘솔에 바로 알린다.
-  if (DATA.length !== slides.length || DATA.some((d, j) => d.id !== slides[j].dataset.k)) {
-    console.error("slides.js 장 목록이 index.html과 다릅니다");
-  }
+  // 장 목록과 HTML 장 수가 어긋나면 발표자 창 대본이 밀린다 — 발표자 창에 빨간 경고로 띄운다(콘솔에도 남긴다).
+  const firstBad = DATA.findIndex((d, j) => !slides[j] || d.id !== slides[j].dataset.k);
+  const mismatch = (DATA.length !== slides.length || firstBad >= 0)
+    ? "무대 " + slides.length + "장 · 대본 " + DATA.length + "장" + (firstBad >= 0 ? " · " + (firstBad + 1) + "번째 장부터 어긋남" : "")
+    : null;
+  if (mismatch) console.error("slides.js 장 목록이 index.html과 다릅니다: " + mismatch);
 
   const start = parseInt((location.hash || "").slice(1), 10);
   show(Number.isFinite(start) ? start - 1 : 0);

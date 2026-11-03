@@ -56,7 +56,7 @@
 <section class="slide" data-k="records">
   <div class="moment">2막 · 모은 기록</div>
   <div class="rec-head"><div class="say" style="font-size:46px">집에 실제로 쌓인 기록입니다.</div>
-    <div class="legend"><span><i class="lg on"></i>켜기</span><span><i class="lg off"></i>끄기</span><span><i class="lg wind"></i>바람 바꾸기</span><span><i class="lg micro"></i>전자레인지(전기 사용량)</span><span><i class="lg mock"></i>모의</span></div></div>
+    <div class="legend"><span><i class="lg on"></i>켜기</span><span><i class="lg off"></i>끄기</span><span><i class="lg wind"></i>바람 바꾸기</span><span><i class="lg micro"></i>전자레인지(소비전력)</span><span><i class="lg mock"></i>모의</span></div></div>
   <div class="card rec-card">
     <svg id="recSvg" viewBox="0 0 1600 600" aria-label="날짜별 사용 시각 점 그림"></svg>
     <div class="rec-foot"><span class="src" id="recSrc">11월 3일 기준 실제 기록</span><span class="note" id="recNote" style="margin:0"></span></div>
@@ -85,7 +85,7 @@
 <section class="slide" data-k="habit">
   <div class="scene">
     <div><div class="moment">2막 · 늘 하던 일</div>
-      <div class="say">평소 시각 10분 전,<br>먼저 묻습니다.<small>민지 씨가 직접 켠 기록만 셉니다.<br>묻기만 하고, 마음대로 켜지 않습니다.</small></div></div>
+      <div class="say">평소 시각 10분 전부터,<br>사람이 있을 때 묻습니다.<small>민지 씨가 직접 켠 기록만 셉니다.<br>묻기만 하고, 마음대로 켜지 않습니다.</small></div></div>
     <div class="card">
       <div class="shot" id="habitShot"><img src="captures/habit-1105.png" alt="11월 5일 실제 습관 카드 화면" onload="this.parentNode.classList.add('has')" onerror="this.remove()"></div>
       <div class="cap" id="habitHead">이렇게 쓰셨어요 · 낮 12시 59분쯤</div>
@@ -101,6 +101,7 @@
     <div><div class="moment">2막 · '네'를 누르면</div>
       <div class="say">정말 켜졌는지<br>확인하고 알려 드립니다.<small>확인 못 하면, 확인 못 했다고 말합니다.</small></div></div>
     <div class="card">
+      <div class="exband" id="stepsBand">예시 화면 — 본체 미연결, 실제 실행이 아닙니다</div>
       <div class="steps" id="steps">
         <div class="step"><span class="dot">1</span><span class="lbl">LG 공기청정기에 보냄</span></div>
         <div class="step"><span class="dot">2</span><span class="lbl">상태를 다시 읽음</span></div>
@@ -130,11 +131,10 @@
 <section class="slide" data-k="chat">
   <div class="scene">
     <div><div class="moment">2막 · 한마디로</div>
-      <div class="say">앱을 찾지 않고,<br>말하면 됩니다.<small>정해진 동작 안에서 집 안에서 알아듣고,<br>실행 전에는 늘 한 번 묻습니다.</small></div></div>
-    <div class="card" style="min-height:560px">
+      <div class="say">말로도 됩니다.<small>정해진 동작 안에서 알아듣고,<br>실행 전에는 늘 한 번 묻습니다.</small></div></div>
+    <div class="card">
       <div class="bubble me">바람 좀 세게 해줘</div>
       <div class="bubble hub">공기청정기 바람을 세게 할까요?<br><b style="color:var(--teal-d)">이대로 하기</b></div>
-      <div class="bubble hub">바람을 세게 바꿨어요. 바뀐 것을 확인했어요.</div>
     </div>
   </div>
 </section>
@@ -153,7 +153,7 @@
         <div class="tl"><time>17초 뒤</time><div><b>사람이 '네'</b></div></div>
         <div class="tl"><time>2초 뒤</time><div><b>LG 공기청정기 상태를 다시 읽어 확인</b><p>"운전 모드 수면으로 바꿨어요."</p></div></div>
       </div>
-      <div class="oneline">같은 기간 공기질 제안에는 '네' 4 · '아니요' 6 · 닫힘 3 — '네'가 쌓여도 저절로 맡지 않았습니다(자동 실행 0번).</div>
+      <div class="oneline">공기질 켜기 제안: '네' 4 · '아니요' 6 · 닫힘 3<br>공기질 제안에서 자동 실행 규칙은 만들어지지 않음</div>
     </div>
   </div>
 </section>
@@ -162,19 +162,19 @@
 <section class="slide" data-k="microwave">
   <div class="scene">
     <div><div class="moment">2막 · 저녁</div>
-      <div class="say">버튼만 있는 옛 가전도,<br>다 됐는지 집이 압니다.<small>누름 장치가 버튼을 대신 누르고,<br>전기 사용량으로 가열이 끝난 것을 알아챕니다.<br>불을 쓰는 가전은 매번 '네'를 받습니다.</small></div></div>
+      <div class="say">버튼만 있는 옛 가전도,<br>끝난 것을 집이 압니다.<small><b>목표</b> — 누름 장치가 버튼을 대신 누릅니다.<br><b>지금 확인</b> — 사람이 손으로 시작한 1분 가열 4번,<br>소비전력으로 4번 모두 끝을 알아챘습니다.<br>열이 나는 가전은 매번 '네'를 받습니다.</small></div></div>
     <div class="card">
-      <div class="ctnum"><div><span>지금 전자레인지 전기 사용량</span><br><b id="w">0 W</b></div><span id="tsec">대기</span></div>
+      <div class="ctnum"><div><span>지금 전자레인지 소비전력</span><br><b id="w">0 W</b></div><span id="tsec">대기</span></div>
       <div class="graph" id="graph">
-        <svg viewBox="0 0 600 260" aria-label="전기 사용량 그래프">
+        <svg viewBox="0 0 600 260" aria-label="소비전력 그래프">
           <line x1="0" y1="240" x2="600" y2="240" stroke="#d5e5e2"/>
           <path id="area" fill="#e3f5f2" d=""/>
           <path id="ln" fill="none" stroke="#11a39a" stroke-width="3" d=""/>
         </svg>
-        <div class="nolink">전기 사용량 값 연결 안 됨<small>본체가 아직 실시간 전기 사용량을 내보내지 않아요</small></div>
+        <div class="nolink">소비전력 값 연결 안 됨<small>본체가 아직 실시간 소비전력을 내보내지 않아요</small></div>
       </div>
       <div class="toast" id="toast">가열이 끝났어요 · 1분쯤 사용</div>
-      <div class="note" id="ctNote">미리보기 — 11월 2~3일 실측(대기 0W · 가열 약 1,000W · 시작 순간 약 3,550W · 1분 가열 4회 모두 판정, 60.6~60.7초)을 다시 그린 그림입니다.</div>
+      <div class="note" id="ctNote">미리보기 — 여러 날의 측정값으로 재구성한 그림(대기 0 W · 가열 약 1,000 W · 시작 순간 약 3,550 W, 사람이 손으로 시작한 1분 가열 4회는 11월 2~3일).</div>
     </div>
   </div>
 </section>
@@ -209,7 +209,7 @@
       <text x="740" y="292" class="t2">판단은 집 안에서만</text></g>
     <g class="bx"><rect x="1180" y="20" width="440" height="150" rx="22"/><text x="1400" y="88" class="t1">LG 가전</text><text x="1400" y="132" class="t2">LG ThinQ로 조작 · 상태 확인</text></g>
     <g class="bx"><rect x="1180" y="190" width="440" height="150" rx="22"/><text x="1400" y="258" class="t1">누름 장치</text><text x="1400" y="302" class="t2">버튼만 있는 가전을 대신 누름</text></g>
-    <g class="bx"><rect x="1180" y="360" width="440" height="150" rx="22"/><text x="1400" y="428" class="t1">전기 센서</text><text x="1400" y="472" class="t2">전기 사용량으로 끝을 알아챔</text></g>
+    <g class="bx"><rect x="1180" y="360" width="440" height="150" rx="22"/><text x="1400" y="428" class="t1">전기 센서</text><text x="1400" y="472" class="t2">소비전력으로 끝을 알아챔</text></g>
     <g class="ln">
       <line x1="320" y1="255" x2="476" y2="255" marker-end="url(#sah)"/>
       <line x1="1000" y1="200" x2="1176" y2="95" marker-end="url(#sah)"/>
@@ -219,25 +219,26 @@
     <path class="stop" d="M170 340 V560 H1400 V514" marker-end="url(#sahr)"/>
     <text x="785" y="548" class="t4">정지는 어떤 명령보다 먼저</text>
     <g class="pipe">
-      <rect x="380" y="610" width="260" height="72" rx="36"/><text x="510" y="656">① 보냄</text>
-      <rect x="700" y="610" width="260" height="72" rx="36"/><text x="830" y="656">② 장치 응답</text>
-      <rect x="1020" y="610" width="260" height="72" rx="36"/><text x="1150" y="656">③ 상태 확인</text>
-      <line x1="640" y1="646" x2="698" y2="646" marker-end="url(#sah)"/>
-      <line x1="960" y1="646" x2="1018" y2="646" marker-end="url(#sah)"/>
-      <text x="1310" y="656" class="t3" style="text-anchor:start">셋 다 거쳐야 '됐어요'</text>
+      <rect x="200" y="610" width="230" height="72" rx="36"/><text x="315" y="656">① 보냄</text>
+      <rect x="490" y="610" width="230" height="72" rx="36"/><text x="605" y="656">② 응답</text>
+      <rect x="780" y="610" width="230" height="72" rx="36"/><text x="895" y="656">③ 상태 확인</text>
+      <line x1="430" y1="646" x2="488" y2="646" marker-end="url(#sah)"/>
+      <line x1="720" y1="646" x2="778" y2="646" marker-end="url(#sah)"/>
+      <text x="1040" y="644" class="t3" style="text-anchor:start">실행하면 이 순서로 결과를 판단합니다</text>
+      <text x="1040" y="676" class="t3" style="text-anchor:start">이미 그 설정이면 보내지 않습니다</text>
     </g>
   </svg>
 </section>
 
 <section class="slide" data-k="ct">
-  <div class="act">어떻게 동작하나 · 전기 사용량으로 끝을 알아채기</div>
+  <div class="act">어떻게 동작하나 · 소비전력으로 끝을 알아채기</div>
   <div class="road ctsimple">
-    <div class="card"><b>전원선에 집게</b><span>선을 자르거나<br>가전을 열지 않음</span></div><div class="arrow">→</div>
-    <div class="card"><b>전기 사용량</b><span>W로 계속 봄</span></div><div class="arrow">→</div>
-    <div class="card"><b>작동 · 끝</b><span>100W 이상 5초 = 작동<br>15W 이하 3초 = 끝</span></div>
+    <div class="card"><b>집게형 센서</b><span>전선 한 가닥에 걸기<br>선을 자르거나 가전을 열지 않음</span></div><div class="arrow">→</div>
+    <div class="card"><b>소비전력</b><span>W로 계속 봄</span></div><div class="arrow">→</div>
+    <div class="card"><b>작동 · 끝</b><span>100 W 이상 5초 = 작동<br>15 W 이하 3초 = 끝</span></div>
   </div>
-  <div class="callout" style="margin-top:56px">전자레인지 1대로 1분 가열을 4번 — <b>4번 모두 끝을 알아챘습니다.</b> 아직 작은 시험입니다.</div>
-  <p class="cap" style="margin-top:26px">전력은 추정값이고, '가열이 끝났다'까지만 압니다(조리 완료가 아님).</p>
+  <div class="callout" style="margin-top:56px">사람이 손으로 시작한 1분 가열 4번 — <b>4번 모두 끝을 알아챘습니다</b>(전자레인지 1대). 아직 작은 시험입니다.</div>
+  <p class="cap" style="margin-top:26px">전력은 220 V로 가정한 추정이고, '가열이 끝났다'까지만 압니다(조리 완료가 아님).</p>
 </section>
 
 <section class="slide" data-k="verified">
@@ -247,8 +248,8 @@
     <div class="vc"><span>사용자</span><b>팀원 2명의 실제 사용</b></div>
     <div class="vc"><span>기기</span><b>LG 공기청정기 1대 · 전자레인지 1대</b></div>
     <div class="vc"><span>잡힌 습관</span><b>3개</b></div>
-    <div class="vc"><span>제안에 대한 대답</span><b>'네' 6 · '아니요' 6 · 닫힘 3</b><small>공기질 켜기 '네' 4 + 강풍 1 + 귀가 1</small></div>
-    <div class="vc"><span>가열 끝 알아채기</span><b>1분 가열 4번 중 4번</b></div>
+    <div class="vc"><span>제안 승인</span><b>6번</b><small>공기질 켜기 4 · 강풍 1 · 귀가 1<br>공기질 켜기는 '아니요' 6 · 닫힘 3</small></div>
+    <div class="vc"><span>가열 끝 알아채기</span><b>1분 가열 4번 중 4번</b><small>4번 모두 사람이 손으로 시작</small></div>
     <div class="vc wide"><span>누름 장치</span><b>좌표 이동 확인 · 실제 누름 정확도는 개선 중</b></div>
   </div>
 </section>
@@ -266,20 +267,23 @@
 
 <section class="slide" data-k="compare">
   <div class="act">3막 · 다른 점 (설계 차이)</div>
-  <div class="cmp">
-    <div class="card"><h3>버튼 누르는 기기</h3><ul><li class="y">초점: 버튼을 대신 누르기</li><li class="n">누른 뒤 결과 확인은 저희가 본 설계에 없음</li></ul></div>
-    <div class="card"><h3>스마트홈 허브</h3><ul><li class="y">초점: 연결된 가전 조작</li><li class="n">버튼만 있는 가전의 결과 확인은 저희가 본 설계에 없음</li></ul></div>
-    <div class="card ours"><h3>SimpleLay</h3><ul><li class="y">버튼만 있는 가전까지</li><li class="y">누른 뒤 전기 사용량으로 확인</li><li class="y">기록을 세서 묻고, 맡긴 것만</li></ul></div>
+  <div class="cmp2">
+    <div class="card"><h3>예약 누름</h3><p class="cap">시판 제품에 이미 있습니다</p><ul><li class="y">정한 시각에 버튼을 눌러 줌</li></ul></div>
+    <div class="card ours"><h3>SimpleLay가 설계에 넣은 것</h3><ul>
+      <li class="y"><b>기록에서 먼저 묻기</b> — 실제 사용 기록에서 반복을 찾아 먼저 묻습니다</li>
+      <li class="y"><b>맡긴 것만</b> — 사용자가 맡긴 일만 자동화합니다</li>
+      <li class="y"><b>결과 확인</b> — LG 공기청정기는 바뀐 상태를 다시 읽고, 버튼식 전자레인지는 사람이 시작한 1분 가열 4번에서 센서로 종료를 확인</li>
+    </ul></div>
   </div>
-  <p class="cap" style="margin-top:48px">제품 성능 비교가 아니라, 저희가 설계에 넣은 것을 기준으로 본 차이입니다.</p>
+  <p class="cap" style="margin-top:40px">제품 성능 비교가 아니라, 저희가 설계에 넣은 것을 기준으로 본 차이입니다.</p>
 </section>
 
 <section class="slide" data-k="next">
   <div class="act">3막 · 다음</div>
   <div class="road">
-    <div class="card"><b>실제 가정 시험</b><span>몇 가정에서<br>실제로 써 보기</span></div><div class="arrow">→</div>
+    <div class="card" style="flex:1.5"><b>실제 가정 시험</b><span>가족이 도움 없이 설치하고, 왜 제안이 떴는지 이해하고, 맡긴 일을 다시 끌 수 있는지 봅니다</span></div><div class="arrow">→</div>
     <div class="card"><b>다음에 시험할 곳</b><span>혼자 사시는 부모님<br>시각장애인 가정</span></div><div class="arrow">→</div>
-    <div class="card"><b>LG ThinQ의 입구</b><span>버튼만 있는 가전과 고객까지<br>ThinQ로</span></div>
+    <div class="card"><b>LG ThinQ의 입구</b><span>버튼만 있는 가전과<br>그 고객까지 ThinQ로</span></div>
   </div>
   <div class="housenote">
     <svg viewBox="0 0 120 120" aria-hidden="true">
@@ -289,14 +293,30 @@
     </svg>
     <span>옆의 모형은 맡긴 뒤의 모습을 보여 드리는 <b>시나리오 모형</b>입니다.</span>
   </div>
+  <p class="ref">가정 시험 관점 참고: Brush 외, "Home Automation in the Wild: Challenges and Opportunities", CHI 2011.</p>
   <p class="lead" style="margin-top:40px;font-weight:700;color:var(--ink)">기억하지 않아도 되는 집, SimpleLay.</p>
 </section>
 
 <!-- 부록(질의응답용) — 본 발표 뒤, 발표자 창 장 목록에서 바로 이동 -->
+<section class="slide ap" data-k="ap-faq">
+  <div class="act">부록 · 예상 질문 10</div>
+  <ol class="faq">
+    <li><b>실제 기록에서 무엇을 발견했나?</b> 공기청정기 점심 켜기 · 평일 밤 켜기 · 밤 끄기 3개. 점심 켜기는 서로 다른 사흘에 네 번.</li>
+    <li><b>계속 거절하면?</b> 연속 두 번 거절·무응답이면 7일 쉽니다. '이미 했어요'는 그날만 안 묻고, 거절로 세지 않습니다.</li>
+    <li><b>'네'를 자주 누르면 자동이 되나?</b> 사람이 직접 맡겨야 합니다. 공기질 켜기를 네 번 승인했지만 자동 규칙은 생기지 않았습니다.</li>
+    <li><b>실제 LG 가전으로 확인했나?</b> 10월 28일 0시 30분 수면 모드 승인 뒤, 상태를 다시 읽어 확인했습니다.</li>
+    <li><b>응답이 끊기면?</b> 확인하지 못했다고 안내하고, 자동으로 다시 보내지 않습니다(중복 실행 방지).</li>
+    <li><b>전자레인지 버튼도 네 번 눌렀나?</b> 네 번 모두 사람이 손으로 시작했습니다. 확인한 것은 CT 가열 종료 판정이고, 누름 정확도는 개선 중입니다.</li>
+    <li><b>문을 열어 멈춰도 끝으로 보나?</b> 정상 종료·취소·문 열림을 구분하지 못합니다. '가열 종료'까지만 말합니다.</li>
+    <li><b>3,550 W는 전력계로 확인했나?</b> 시작 순간 센서 약 2,300 mV에서 220 V를 가정해 추정한 값입니다. 전력계와 대조하지 않았습니다.</li>
+    <li><b>말 알아듣기는 얼마나 맞나?</b> 새 42문장 중 38개, 애매한 말 5개 중 1개 오수락, 응답 중앙값 9.8초. 실행 전에는 늘 사람이 확인합니다.</li>
+    <li><b>누름 기구는 새로 만들었나?</b> 기구·모션 제어 핵심은 같은 팀 HW 담당의 다른 프로젝트와 공유합니다. 이번에는 승인·실행·결과 확인 흐름에 연결했습니다.</li>
+  </ol>
+</section>
 <section class="slide ap" data-k="ap-safety">
   <div class="act">부록 · 안전 계약</div>
   <ul class="aplist">
-    <li><b>확인된 것만 '됐어요'</b> — LG 가전은 상태를 다시 읽고, 누름은 장치 응답과 전기 사용량으로 확인합니다.</li>
+    <li><b>확인된 것만 '됐어요'</b> — LG 가전은 상태를 다시 읽고, 누름은 장치 응답과 소비전력으로 확인합니다.</li>
     <li><b>확인 못 하면 '확인 못 했어요'</b> — 실패로 적지 않습니다. 실패로 보이면 다시 눌러 두 번 실행될 수 있어서입니다.</li>
     <li><b>정지가 먼저</b> — 정지는 전용 경로로 다른 명령보다 먼저 가고, 정지 뒤에 같은 명령을 다시 보내지 않습니다.</li>
     <li><b>열 나는 가전은 맡길 수 없음</b> — 전자레인지·인덕션은 매번 '네'를 받습니다.</li>
@@ -310,7 +330,7 @@
     <li><b>쓰는 곳</b> — 화면 쉬기·깨우기·인사, 그리고 '언제 물을지'. 실행·승인의 근거로는 쓰지 않습니다.</li>
     <li><b>방 밝기</b> — 본체 카메라의 아주 작은 회색 평균값(16×12)만 씁니다. 영상은 저장하지 않습니다.</li>
     <li><b>언어 모델</b> — 정해진 동작 목록에서 하나를 고르기만 하고, 실행은 늘 사람이 '네'로 확인합니다. 새 모델을 학습시키지 않았습니다.</li>
-    <li><b>평가(10월 26일, 고정 50문장)</b> — 규칙으로 먼저 거른 뒤 맞힘 77% · 잘못 고름 6%.</li>
+    <li><b>보드 시험(10월 27일 새 파일)</b> — 새 42문장 중 38개 맞힘 · 목록 밖·부정 문장 오수락 0/17 · 애매한 말 오수락 1/5 · 모델 호출 31건 응답 중앙값 9.8초. 실행 전에는 늘 사람이 확인합니다.</li>
   </ul>
 </section>
 <section class="slide ap" data-k="ap-habit">
@@ -342,7 +362,7 @@
       <text x="660" y="420" class="t3">사진 저장·전송 없음</text></g>
     <g class="bx"><rect x="1060" y="40" width="280" height="120" rx="18"/><text x="1200" y="92" class="t1">LG ThinQ</text><text x="1200" y="128" class="t2">클라우드</text></g>
     <g class="bx"><rect x="1400" y="40" width="240" height="120" rx="18"/><text x="1520" y="92" class="t1">LG</text><text x="1520" y="128" class="t2">공기청정기</text></g>
-    <g class="bx"><rect x="1060" y="300" width="280" height="120" rx="18"/><text x="1200" y="352" class="t1">실행기 (RPi4)</text><text x="1200" y="388" class="t2">누름 · 전력 연결</text></g>
+    <g class="bx"><rect x="1060" y="300" width="280" height="120" rx="18"/><text x="1200" y="352" class="t1">누름 제어 (RPi4)</text><text x="1200" y="388" class="t2">누름 · 전력 연결</text></g>
     <g class="bx"><rect x="1400" y="230" width="240" height="130" rx="18"/><text x="1520" y="280" class="t1">모션 보드</text><text x="1520" y="314" class="t2">ESP32</text><text x="1520" y="344" class="t3">X·Y 이동 + 누름</text></g>
     <g class="bx"><rect x="1400" y="390" width="240" height="130" rx="18"/><text x="1520" y="440" class="t1">콘센트 모듈</text><text x="1520" y="474" class="t2">ESP32</text><text x="1520" y="504" class="t3">CT 전류 센서</text></g>
     <g class="ln">
@@ -373,10 +393,10 @@
   <div class="ctgrid">
     <div class="flow">
       <div class="fstep"><b>1</b><span>전원선 활선 1가닥에 비접촉 클램프<small>선을 자르거나 가전을 열지 않습니다</small></span></div>
-      <div class="fstep"><b>2</b><span>센서가 전류(0~20A)를 DC 0.2~2.8V로 바꿈</span></div>
-      <div class="fstep"><b>3</b><span>ESP32 ADC — 100ms 창에 200표본, 10Hz로 보고</span></div>
-      <div class="fstep"><b>4</b><span>I = (V − 0.2) × 20 / 2.6, 전력 ≈ I × 220V<small>220V는 가정값 — 전압은 재지 않습니다</small></span></div>
-      <div class="fstep"><b>5</b><span>100W 이상 5초 = 작동 · 15W 이하 3초 = 가열 종료<small>→ 사용 기록 · 알림</small></span></div>
+      <div class="fstep"><b>2</b><span>센서가 전류(0~20 A)를 DC 0.2~2.8 V로 바꿈</span></div>
+      <div class="fstep"><b>3</b><span>ESP32 ADC — 100 ms 창에 200표본, 10 Hz로 보고</span></div>
+      <div class="fstep"><b>4</b><span>I = (V − 0.2) × 20 / 2.6, 전력 ≈ I × 220 V<small>220 V는 가정값 — 전압은 재지 않습니다</small></span></div>
+      <div class="fstep"><b>5</b><span>100 W 이상 5초 = 작동 · 15 W 이하 3초 = 가열 종료<small>→ 사용 기록 · 알림</small></span></div>
     </div>
     <div class="card">
       <div class="cap" style="margin-bottom:14px">실제 전자레인지 1대 실측</div>
@@ -385,10 +405,10 @@
         <tr><td>대기</td><td>142 mV</td><td>0 W</td></tr>
         <tr><td>가열 중</td><td>약 790 mV</td><td>약 1,000 W</td></tr>
         <tr><td>시작 순간(돌입)</td><td>약 2,300 mV</td><td>약 3,550 W(순간)</td></tr>
-        <tr><td>1분 가열 4회</td><td colspan="2">4회 모두 판정 · 작동 60.6~60.7초(설정 60초)</td></tr>
+        <tr><td>1분 가열 4회(사람이 손으로 시작)</td><td colspan="2">4회 모두 판정 · 작동 60.6~60.7초(설정 60초)</td></tr>
       </table>
       <div class="note">가열 중 센서 출력은 10월 30일, 시작 순간은 11월 2일, 1분 가열 시험은 11월 2~3일 측정.</div>
-      <div class="lim">한계: 전압을 재지 않고 220V로 가정한 추정입니다. '가열 종료'까지만 알고, 조리가 끝났는지는 모릅니다.</div>
+      <div class="lim">한계: 전압을 재지 않고 220 V로 가정한 추정입니다. '가열 종료'까지만 알고, 조리가 끝났는지는 모릅니다.</div>
     </div>
   </div>
 </section>
@@ -398,8 +418,8 @@
     <li><b>구조</b> — 엔코더 모터 2개로 움직이는 CoreXY 2축(X·Y) + 누름 축.</li>
     <li><b>좌표 매핑</b> — 가전 앞면 사진에서 버튼 위치를 골라 좌표로 저장하고, 그 좌표로 이동해 누릅니다.</li>
     <li><b>지금 상태</b> — 좌표 이동은 확인했고, 실제 누름 정확도는 개선 중입니다.</li>
-    <li><b>연결</b> — 본체 → 실행기(RPi4, Wi-Fi·페어링 키) → 모션 보드(ESP32). 걸림 알람이 나면 재시도 없이 멈춥니다.</li>
-    <li><b>끝 확인</b> — 콘센트 모듈의 전기 사용량으로 가동·가열 종료를 봅니다.</li>
+    <li><b>연결</b> — 본체 → 누름 장치를 움직이는 작은 컴퓨터(RPi4, Wi-Fi·페어링 키) → 모션 보드(ESP32). 걸림 알람이 나면 재시도 없이 멈춥니다.</li>
+    <li><b>끝 확인</b> — 콘센트 모듈의 소비전력으로 가동·가열 종료를 봅니다.</li>
   </ul>
 </section>
 <section class="slide ap" data-k="ap-tests">
@@ -407,7 +427,7 @@
   <p class="lead" style="color:var(--ink)">실행 확인 단계, 정지 우선, 습관 판단, 화면 문구와 흐름을 코드 수준에서 자동으로 확인하는 시험입니다. 실물 시험과는 별개입니다.</p>
   <table class="mt" style="margin-top:40px;max-width:1200px">
     <tr><th>범위</th><th>시험 수(화면 비교 시험 제외)</th><th>화면 비교 시험</th></tr>
-    <tr><td>본체 + 실행기</td><td>3,865</td><td>—</td></tr>
+    <tr><td>본체 + 누름 제어 컴퓨터</td><td>3,865</td><td>—</td></tr>
     <tr><td>폰 앱</td><td>1,425</td><td>69</td></tr>
     <tr><td>키오스크</td><td>1,220</td><td>83</td></tr>
   </table>
@@ -416,13 +436,13 @@
   <div class="act">부록 · 한계와 다음 단계</div>
   <div class="split">
     <div class="card"><b>한계</b><ul class="aplist sm">
-      <li>전력은 220V 가정 추정 — 전압은 재지 않습니다</li>
+      <li>전력은 220 V 가정 추정 — 전압은 재지 않습니다</li>
       <li>'가열 종료'까지만 — 조리 완료는 모릅니다</li>
       <li>기록 기간이 짧고(10월 16일부터), 사용자는 팀원 2명입니다</li>
       <li>언어 모델은 잘못 고를 수 있어 늘 확인을 받습니다</li></ul></div>
     <div class="card"><b>다음 단계</b><ul class="aplist sm">
       <li>몇 가정에서 실제로 써 보기</li>
-      <li>열 나지 않는 물리 가전(선풍기·가습기·조명) 맡기기 — 전기 사용량 확인 + 사람 있음 + 사용자가 표시한 가전만</li></ul></div>
+      <li>열 나지 않는 물리 가전(선풍기·가습기·조명) 맡기기 — 소비전력 확인 + 사람 있음 + 사용자가 표시한 가전만</li></ul></div>
   </div>
 </section>
 

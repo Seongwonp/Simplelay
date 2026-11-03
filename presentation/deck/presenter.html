@@ -34,10 +34,12 @@ ol li.sep{cursor:default;color:var(--amber);font-weight:700;border-top:1px solid
 .bar{display:flex;gap:10px;flex-wrap:wrap}
 button{font:inherit;font-size:17px;background:#21403b;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 18px;cursor:pointer}
 button.main{background:var(--teal);color:#062421;font-weight:700}
+.warn{background:#7a1512;color:#fff;border:2px solid #f06a64;border-radius:12px;padding:12px 18px;font-size:20px;font-weight:700}
 .keys{font-size:13px;color:var(--sub);align-self:center;margin-left:auto}
 </style>
 </head>
 <body>
+<div class="warn" id="mismatch" hidden></div>
 <div class="top">
   <div class="box"><div class="k">전체 경과 / 목표 합계</div><div class="v" id="total">0:00</div></div>
   <div class="box"><div class="k">이 장 경과 / 목표</div><div class="v" id="slideTime">0:00</div></div>
@@ -73,6 +75,7 @@ button.main{background:var(--teal);color:#062421;font-weight:700}
   const chan = new BroadcastChannel("simplelay-deck");
   const planTotal = DATA.filter((s) => !s.appendix).reduce((a, s) => a + s.target, 0);
   let cur = 0, emergency = false, lastState = 0;
+  const captures = {};
   let t0 = null, slideT0 = Date.now(), running = false;
 
   const fmt = (sec) => { const s = Math.max(0, Math.round(Math.abs(sec))); return (sec < 0 ? "-" : "") + Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
@@ -98,13 +101,16 @@ button.main{background:var(--teal);color:#062421;font-weight:700}
     const s = DATA[cur] || DATA[0];
     $("where").textContent = s.act + " · " + (cur + 1) + " / " + DATA.length;
     $("title").textContent = s.title;
-    $("text").textContent = s.script;
+    // needsCapture 장은 그 캡처 파일이 있을 때만 캡처를 말하는 대본을 쓴다.
+    const useCapture = !s.needsCapture || captures[s.needsCapture] === true;
+    $("text").textContent = useCapture ? s.script : (s.scriptNoCapture || s.script);
     $("hint").textContent = s.id === "microwave"
       ? (emergency ? "무대에 11월 2일 실측 장면이 나오는 중 — '지금 값이 아니라 11월 2일 실측'이라고 말한다. E로 끈다."
                    : "실시간 전기 사용량이 안 보이면 E로 '11월 2일 실측' 장면을 띄우고 그렇게 말한다.")
       : s.id === "records" ? (emergency ? "무대에 11월 3일 스냅숏이 나오는 중 — E로 본체 실행 기록으로 돌아간다."
                    : "본체 연결 때는 본체 실행 기록(최근 200건)을 그린다. 11월 3일 실제 기록을 보이려면 E.")
-      : s.id === "habit" ? "11월 5일 캡처는 captures/habit-1105.png 로 넣으면 무대 카드 위에 뜬다(없으면 무대에 자리표시도 안 나옴). 캡처가 없으면 '11월 5일 낮 12시 49분에 실제로 뜬 화면' 문장을 빼고 말한다."
+      : s.id === "habit" ? (captures[s.needsCapture] ? "캡처 있음 — 무대 카드 위에 11월 5일 캡처가 뜬다."
+                   : "캡처 없음(captures/habit-1105.png) — 무대에는 실제 기록 값만 보이고, 위 대본도 캡처 없는 판이다.")
       : s.appendix ? "부록 — 질의응답 때만. 목록에서 바로 고른다."
       : (s.live ? "이 장은 본체가 연결되면 실제 값을 보여 준다. 미연결이면 무대에 '미리보기'·'11월 3일 기준'이 붙는다." : "");
     $("nextTitle").textContent = DATA[cur + 1] ? DATA[cur + 1].title : "(마지막 장)";
@@ -140,6 +146,9 @@ button.main{background:var(--teal);color:#062421;font-weight:700}
       if (!running && !first && m.i > 0) startTimer();
     }
     cur = m.i; emergency = !!m.emergency;
+    const mm = $("mismatch");
+    mm.hidden = !m.mismatch;
+    mm.textContent = m.mismatch ? "장 목록 불일치 — " + m.mismatch + ". 대본이 다른 장을 가리킬 수 있습니다. index.html과 slides.js를 맞춰 주세요." : "";
     const h = m.hub || {};
     $("hub").innerHTML = '<span class="hubdot' + (h.connected ? " on" : "") + '"></span>' +
       (h.connected ? "연결됨" + (h.version ? " · " + String(h.version).replace(/[<>&]/g, "") : "") : "미연결 · 무대는 미리보기");
@@ -160,6 +169,14 @@ button.main{background:var(--teal);color:#062421;font-weight:700}
     else if (k === "e" || k === "E") chan.postMessage({ t: "emergency" });
   });
 
+  // 캡처 파일이 실제로 있는지 확인(없으면 캡처를 말하지 않는 대본).
+
+  DATA.filter((d) => d.needsCapture).forEach((d) => {
+    captures[d.needsCapture] = false;
+    fetch(d.needsCapture, { method: "GET", cache: "no-store" })
+      .then((r) => { captures[d.needsCapture] = r.ok && (r.headers.get("Content-Type") || "").startsWith("image/"); render(); })
+      .catch(() => {});
+  });
   render();
   chan.postMessage({ t: "hello" });
   setInterval(tick, 250);
