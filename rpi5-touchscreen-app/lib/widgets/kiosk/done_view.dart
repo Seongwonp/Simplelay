@@ -399,11 +399,26 @@ class KioskDoneView extends StatelessWidget {
     // 물리 성공도 제목과 아래 한 줄이 확인 수준을 말한다(2026-10-15) — 눌림을 확인하지 못한 경우(none)만 칩으로 남긴다.
     final physicalSuccessSaid =
         success && !thinq && resultConfirmation != 'none';
+    // 실제로 상태를 다시 읽어 확인한 LG 가전 성공(한 단계)은 전용 결과 창과 같은 말 — 제목(가전 이름 + 결과)과 근거 한 줄.
+    // 'LG 가전 · 설정 변경을 확인했어요' 같은 겹치는 줄은 두지 않는다.
+    final thinqSeen = thinq && success && thinqVerified && runSteps.length <= 1
+        ? thinqResultCopy(
+            applianceName: target?.displayName ?? '가전',
+            kind: ResultKind.success,
+            confirmation: resultConfirmation,
+            detail: detail,
+            executionMode: executionMode,
+            action: thinqActionOf(target?.displayName ?? '가전', [thinqActionText, this.label]),
+          )
+        : null;
+    final thinqSeenCopy = thinqSeen?.tone == ThinqResultTone.confirmed ? thinqSeen : null;
     final facts = [
-      if (routeLabel(route) case final path?) path,
-      if (confirmation case final c?
-          when !userStop && motion == null && !physicalSuccessSaid)
-        c,
+      if (thinqSeenCopy == null) ...[
+        if (routeLabel(route) case final path?) path,
+        if (confirmation case final c?
+            when !userStop && motion == null && !physicalSuccessSaid)
+          c,
+      ],
     ];
     final already = thinq && resultConfirmation == 'already_at_target';
     // 실제 실행이면 작은 글자는 서버 문장(그 실행의 설정 이름)으로 확인한 사실만큼. 연습은 연습 문장을 지킨다.
@@ -411,7 +426,9 @@ class KioskDoneView extends StatelessWidget {
         thinq ? thinqOutcomeSentence(resultConfirmation, detail) : null;
     // 성공의 가장 큰 글자(2026-10-15 문구 개선 §2-1) — 확인한 것만큼. 물리 경로가 끝낸 것은 버튼 누르기이고,
     // 실행 환경을 모르면(옛 노드·UART가 보고하지 않음) 누름 장치가 보고한 사실까지만 말한다.
-    final successHeadline = already
+    final successHeadline = thinqSeenCopy != null
+        ? thinqSeenCopy.headline
+        : already
         ? '이미 그 설정이에요'
         : thinq
             // 모의 ThinQ는 모의 상태를 읽은 것이다(10/6 Copilot 리뷰 66990be).
@@ -490,7 +507,9 @@ class KioskDoneView extends StatelessWidget {
     // 이름이 대상 가전 이름과 같으면(이어받은 실행 등) 같은 말을 두 번 쓰지 않는다.
     final showLabel = label.isNotEmpty && label != target?.displayName;
     // LG 가전 성공 아래 한 줄(확인한 사실만큼).
-    final String thinqLine = outcome != null && (!mock || already)
+    final String thinqLine = thinqSeenCopy != null
+        ? thinqSeenCopy.sub
+        : outcome != null && (!mock || already)
         ? outcome
         : mock
             ? '실제 가전은 바꾸지 않았어요'
@@ -559,6 +578,7 @@ class KioskDoneView extends StatelessWidget {
         if (success) ...[
           if (showLabel) label,
           successHeadline,
+          if (thinqSeenCopy != null) thinqSeenCopy.sub,
           if (evidence != null) evidence,
           if (successSub != null) successSub,
         ] else ...[

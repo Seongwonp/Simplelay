@@ -132,7 +132,7 @@ void main() {
     test('상태 확인(바뀜) — 켜졌어요·꺼졌어요·바람 세기', () {
       expect(copy('state_confirmed', '전원 켜기로 바꿨어요.')!.headline, '공기청정기가 켜졌어요');
       expect(copy('state_confirmed', '전원 끄기로 바꿨어요.')!.headline, '공기청정기가 꺼졌어요');
-      expect(copy('state_confirmed', '바람 세기 강으로 바꿨어요.')!.headline, '바람 세기 강으로 바꿨어요');
+      expect(copy('state_confirmed', '바람 세기 강으로 바꿨어요.')!.headline, '바람을 강풍으로 바꿨어요');
       expect(copy('state_confirmed', '전원 켜기로 바꿨어요.')!.tone, ThinqResultTone.confirmed);
     });
 
@@ -140,8 +140,7 @@ void main() {
       final c = copy('state_confirmed_unknown_before', '전원 켜기로 설정된 것을 확인했어요.')!;
       expect(c.headline, '공기청정기가 켜져 있어요');
       expect(c.headline, isNot(contains('켜졌어요')));
-      expect(copy('state_confirmed_unknown_before', '바람 세기 강으로 설정된 것을 확인했어요.')!.headline,
-          '바람 세기 강으로 설정된 것을 확인했어요');
+      expect(copy('state_confirmed_unknown_before', '바람 세기 강으로 설정된 것을 확인했어요.')!.headline, '바람이 강풍이에요');
     });
 
     test('이미 그 설정 — 이미 켜져 있어요, 그대로 두었어요', () {
@@ -217,7 +216,7 @@ void main() {
       expect(find.byType(KioskDoneView), findsOneWidget);
       expect(_result, findsOneWidget);
       expect(find.text('공기청정기가 켜졌어요'), findsOneWidget);
-      expect(find.text('가전 상태를 다시 읽어 확인했어요'), findsOneWidget);
+      expect(find.text('실제로 바뀐 것을 확인했어요'), findsOneWidget);
       // 평가 14차(10/18): 큰 결과 원·상자는 없다 — 초록 체크는 위 띠가 말한다.
       expect(find.byKey(const ValueKey('thinq-result-ring')), findsNothing);
       final icon = tester.widget<Icon>(find.descendant(

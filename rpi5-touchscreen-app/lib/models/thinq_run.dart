@@ -3,10 +3,11 @@
 /// 누름 장치가 누르지 않는 실행에 버튼판·누를 순서·누름 장치 문구를 보이지 않는다 — 보내는 동안은 기다림 표시와
 /// **하려는 일** 한 줄('공기청정기를 켜고 있어요'), 끝나면 결과 창 하나. '명령'은 엔지니어 말이라 화면에 쓰지 않는다
 /// (평가 10차 10/18). 결과는 **서버가 준 확인 수준만큼** 말한다:
-/// - `state_confirmed`(보내기 전 다른 값 → 보낸 뒤 목표값): 바뀐 결과('공기청정기가 켜졌어요') + '가전에서 확인했어요'(이름은 제목에 한 번,
-///   평가 14차 10/18).
+/// - `state_confirmed`(보내기 전 다른 값 → 보낸 뒤 목표값): 가전 이름 + 바뀐 결과('공기청정기가 켜졌어요'·'공기청정기가 꺼졌어요'·
+///   '바람을 강풍으로 바꿨어요') + 근거 한 줄 [kThinqChangedSeen]. 켜기·끄기·바람이 같은 틀이다.
 /// - `state_confirmed_unknown_before`(보낸 뒤 목표값, 전 값 모름): 본 상태('공기청정기가 켜져 있어요') — '바꿨어요'라고 하지 않는다.
 /// - `already_at_target`(이미 목표값, 보내지 않음): '이미 켜져 있어요' + '그대로 두었어요'.
+/// '확인했어요'는 한 화면에 한 번만 쓴다.
 /// - 확인 못 함(`unconfirmed`): 체크 없이 '공기청정기에 켜 달라고 했어요' + '켜졌는지는 아직 확인하지 못했어요'
 ///   (평가 11차 10/18 — 누가 누구에게인지 알게 제목에 가전 이름. 평가 15차 10/18 — '켜기를 보냈어요'는 기계가 한 일이었다.
 ///   무엇을 볼지는 결과 화면의 번호 안내가 한 번만 말한다).
@@ -20,6 +21,9 @@ library;
 import 'action_name.dart';
 import 'command_result.dart';
 import 'josa.dart';
+
+/// 확인한 바뀜(`state_confirmed`)의 근거 한 줄 — 보낸 뒤 상태를 다시 읽어 목표값을 본 경우에만 쓴다.
+const kThinqChangedSeen = '실제로 바뀐 것을 확인했어요';
 
 /// 결과 창의 뜻(색·아이콘). 확인한 결과만 [confirmed](초록 체크).
 enum ThinqResultTone { confirmed, attention, practice }
@@ -54,13 +58,16 @@ enum ThinqActionKind { powerOn, powerOff, wind, other }
 
 /// 하려는 일 하나(평가 10차 10/18) — 보내는 중 위 띠·큰 글씨, 확인 못 함 결과에 같은 말.
 class ThinqAction {
-  const ThinqAction._(this.kind, this.applianceName, {this.windWord});
+  const ThinqAction._(this.kind, this.applianceName, {this.windWord, this.windName});
 
   final ThinqActionKind kind;
   final String applianceName;
 
   /// 바람 세기 값 말('세게'·'약하게'·'중간으로'·'자동으로'). 바람이 아니면 null.
   final String? windWord;
+
+  /// 결과 제목의 바람 세기 이름('강풍'·'약풍'·'중간'·'자동'). 바람이 아니면 null.
+  final String? windName;
 
   String get _obj => '$applianceName${_objectParticle(applianceName)}';
 
@@ -99,6 +106,8 @@ class ThinqAction {
 }
 
 const _windWords = {'강': '세게', '약': '약하게', '중': '중간으로', '자동': '자동으로'};
+// '중풍'은 병 이름으로 읽혀 쓰지 않는다.
+const _windNames = {'강': '강풍', '약': '약풍', '중': '중간', '자동': '자동'};
 
 /// [texts](명령 요약·고른 이름·실행 이름, 앞에 둔 것이 먼저) 중 처음 알아본 것으로 하려는 일을 정한다.
 /// [serverSentence]면(결과 서버 문장) 설정 이름('전원 켜기'·'바람 세기 강')만 본다 — 안내 문장의 '꺼 주세요' 같은
@@ -111,7 +120,8 @@ ThinqAction thinqActionOf(String applianceName, Iterable<String?> texts, {bool s
     if (t.contains('전원 끄기')) return ThinqAction._(ThinqActionKind.powerOff, applianceName);
     final m = RegExp(r'(?:바람 세기|풍량)\s*(강|약|중|자동)').firstMatch(t);
     if (m != null) {
-      return ThinqAction._(ThinqActionKind.wind, applianceName, windWord: _windWords[m.group(1)]);
+      return ThinqAction._(ThinqActionKind.wind, applianceName,
+          windWord: _windWords[m.group(1)], windName: _windNames[m.group(1)]);
     }
     // 사람 말 실행 이름('공기청정기를 켤까요?'·'공기청정기 켜줘')은 행동 이름으로 바꿔 끝 동사만 본다.
     if (serverSentence) continue;
@@ -199,29 +209,41 @@ ThinqResultCopy? thinqResultCopy({
     };
     final d = detail?.trim() ?? '';
     final who = withSubject(applianceName);
+    // 바람 세기 이름은 모두 받침이 있다('강풍'·'약풍'·'중간'·'자동') — '으로'·'이에요'.
+    final wind = seen.kind == ThinqActionKind.wind ? seen.windName : null;
+    // 제목은 가전 이름 + 결과, 아래 줄은 근거 한 줄. '확인했어요'는 한 화면에 한 번만.
     switch (confirmation) {
       case 'already_at_target':
         return ThinqResultCopy(
-          headline: power == null ? '이미 그 설정이에요' : '이미 ${power ? '켜져' : '꺼져'} 있어요',
-          sub: power == null && d.isNotEmpty ? '${_firstSentence(d)}. 그대로 두었어요' : '그대로 두었어요',
+          headline: power != null
+              ? '이미 ${power ? '켜져' : '꺼져'} 있어요'
+              : wind != null
+                  ? '바람이 이미 $wind이에요'
+                  : '이미 그 설정이에요',
+          sub: power == null && wind == null && d.isNotEmpty ? '${_firstSentence(d)}. 그대로 두었어요' : '그대로 두었어요',
           tone: ThinqResultTone.confirmed,
         );
       case 'state_confirmed':
-        // 위 띠 '됐어요'·제목 '켜졌어요'와 같은 뜻을 또 쓰지 않는다 — 아래 줄은 어디서 확인했는지만(평가 10차 10/18).
-        // 가전 이름은 제목에 이미 있다 — 아래 줄은 '가전에서'(평가 14차 10/18).
+        // 보내기 전과 다른 값을 보낸 뒤 상태를 다시 읽어 목표값을 본 경우에만 이 근거 줄을 쓴다.
         return ThinqResultCopy(
-          headline: power == null
-              ? (d.contains('바꿨어요') ? _firstSentence(d) : '$applianceName 설정을 바꿨어요')
-              : '$who ${power ? '켜졌어요' : '꺼졌어요'}',
-          sub: '가전 상태를 다시 읽어 확인했어요',
+          headline: power != null
+              ? '$who ${power ? '켜졌어요' : '꺼졌어요'}'
+              : wind != null
+                  ? '바람을 $wind으로 바꿨어요'
+                  : (d.contains('바꿨어요') ? _firstSentence(d) : '$applianceName 설정을 바꿨어요'),
+          sub: kThinqChangedSeen,
           tone: ThinqResultTone.confirmed,
         );
       default: // state_confirmed_unknown_before — 전 값을 몰라 '바꿨어요'·'켜졌어요'라고 하지 않는다.
+        final known = power != null || wind != null;
         return ThinqResultCopy(
-          headline: power == null
-              ? (d.contains('설정된 것을 확인') ? _firstSentence(d) : '현재 설정을 확인했어요')
-              : '$who ${power ? '켜져' : '꺼져'} 있어요',
-          sub: '지금 가전 상태를 확인했어요',
+          headline: power != null
+              ? '$who ${power ? '켜져' : '꺼져'} 있어요'
+              : wind != null
+                  ? '바람이 $wind이에요'
+                  : (d.contains('설정된 것을 확인') ? _firstSentence(d) : '현재 설정을 확인했어요'),
+          // 제목이 이미 '확인했어요'면 아래 줄은 같은 말을 되풀이하지 않는다.
+          sub: known ? '지금 상태를 확인했어요' : '지금 가전 상태예요',
           tone: ThinqResultTone.confirmed,
         );
     }

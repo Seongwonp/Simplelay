@@ -209,7 +209,7 @@ void main() {
       await _finish(tester, api, _done());
       expect(_result, findsOneWidget);
       expect(find.text('공기청정기가 켜졌어요'), findsOneWidget);
-      expect(find.text('가전 상태를 다시 읽어 확인했어요'), findsOneWidget);
+      expect(find.text('실제로 바뀐 것을 확인했어요'), findsOneWidget);
       expect(find.text('가전에서 바뀐 것을 확인했어요'), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     });

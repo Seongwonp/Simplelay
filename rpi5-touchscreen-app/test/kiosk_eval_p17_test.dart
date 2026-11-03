@@ -140,7 +140,7 @@ void main() {
           '연습이 중간에 멈췄어요'
         ),
         (_thinq(), '공기청정기가 켜졌어요'),
-        (_thinq(detail: '바람 세기 강으로 바꿨어요.'), '바람 세기 강으로 바꿨어요'),
+        (_thinq(detail: '바람 세기 강으로 바꿨어요.'), '바람을 강풍으로 바꿨어요'),
       ];
       final lefts = <double>[];
       for (final (w, title) in cases) {

@@ -105,7 +105,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: view)));
   }
 
-  testWidgets('완료 화면: 이미 그 설정이에요 + 서버 문장, 보낸 뒤 확인했다고 하지 않는다', (tester) async {
+  // 실제 실행의 확인된 결과는 LG 가전 결과 창과 같은 말 — 제목 + '…. 그대로 두었어요'(보내지 않았다는 뜻), 겹치는 칩 줄 없음.
+  testWidgets('완료 화면: 이미 그 설정이에요 + 그대로 두었어요, 보낸 뒤 확인했다고 하지 않는다', (tester) async {
     await pump(
         tester,
         const KioskDoneView(
@@ -118,7 +119,8 @@ void main() {
           detail: _already,
         ));
     expect(find.text('이미 그 설정이에요'), findsOneWidget);
-    expect(find.text(_already), findsOneWidget);
+    expect(find.text('이미 강풍으로 설정돼 있어요. 그대로 두었어요'), findsOneWidget);
+    expect(find.textContaining('LG 가전 ·'), findsNothing);
     expect(find.textContaining('ThinQ로 보낸 뒤'), findsNothing);
     expect(find.text('가전 상태를 확인했어요'), findsNothing);
     expect(find.textContaining('바꿨'), findsNothing);
@@ -143,7 +145,7 @@ void main() {
         (w) => w is Semantics && w.properties.liveRegion == true);
     final label = tester.widget<Semantics>(live.first).properties.label!;
     expect(label, contains('이미 그 설정이에요'));
-    expect(label, contains('이미 그 설정이라 보내지 않았어요'));
+    expect(label, contains('그대로 두었어요'));
     expect(label, isNot(contains('바꿨')));
     expect(label, isNot(contains('상태를 확인했어요')));
     handle.dispose();
@@ -162,7 +164,9 @@ void main() {
           resultConfirmation: 'state_confirmed_unknown_before',
           detail: _seen,
         ));
-    expect(find.text(_seen), findsOneWidget);
+    expect(find.text('강풍으로 설정된 것을 확인했어요'), findsOneWidget);
+    // 제목이 이미 '확인했어요' — 한 화면에 한 번만.
+    expect(find.textContaining('확인했어요'), findsOneWidget);
     expect(find.textContaining('바꿨'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });

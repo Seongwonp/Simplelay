@@ -3,7 +3,7 @@
 //
 // 1. '오늘은 건너뛰기'는 지금 모양 그대로(사용자 결정 10/18 — 평가 14차의 밑줄 권고는 따르지 않는다): 작은 회색 굵은 글자,
 //    밑줄·테두리 없음, 누르는 자리 48 이상. 이 항목은 지금 모양을 지키는 시험이라 옛 코드에서도 통과한다.
-// 2. LG 가전 결과(확인됨)는 상자·큰 체크 원 없이 전자레인지 결과와 같은 틀(왼쪽 정렬), 둘째 줄 '가전 상태를 다시 읽어 확인했어요'(이름 두 번 금지).
+// 2. LG 가전 결과(확인됨)는 상자·큰 체크 원 없이 전자레인지 결과와 같은 틀(왼쪽 정렬), 둘째 줄 '실제로 바뀐 것을 확인했어요'(이름 두 번 금지).
 // 3. 제안 이유 대체문은 '아침에 3번 하셨어요'(높임·낮춤 섞인 '하셔서 여쭤봐요' 금지).
 // 4. LG 가전 보내는 중 정지 안내는 한 줄 — 평가 15차(10/18)에서 '정지를 누르면 더 하지 않아요'로('보내다'는 기계가 한 일).
 // 5. 화면 문구는 '버튼'으로 통일('단추' 금지), 연습을 마친 대기 화면의 정지 안내 문장은 뺀다.
@@ -172,7 +172,7 @@ void main() {
   });
 
   group('2. LG 가전 결과 — 상자 없이 왼쪽 정렬, 이름 한 번', () {
-    test("state_confirmed 둘째 줄은 '가전 상태를 다시 읽어 확인했어요'", () {
+    test("state_confirmed 둘째 줄은 '실제로 바뀐 것을 확인했어요'", () {
       final copy = thinqResultCopy(
           applianceName: '공기청정기',
           kind: ResultKind.success,
@@ -180,7 +180,7 @@ void main() {
           detail: '전원 켜기로 바꿨어요.',
           executionMode: 'real')!;
       expect(copy.headline, '공기청정기가 켜졌어요');
-      expect(copy.sub, '가전 상태를 다시 읽어 확인했어요');
+      expect(copy.sub, '실제로 바뀐 것을 확인했어요');
     });
 
     testWidgets('테두리 상자·큰 체크 원이 없고 제목은 왼쪽에서 시작한다', (tester) async {
@@ -188,7 +188,7 @@ void main() {
       expect(find.byKey(const ValueKey('thinq-result-ring')), findsNothing);
       final texts = _texts(tester);
       expect(texts, contains('공기청정기가 켜졌어요'));
-      expect(texts, contains('가전 상태를 다시 읽어 확인했어요'));
+      expect(texts, contains('실제로 바뀐 것을 확인했어요'));
       // 제목에 한 번, 위 띠 오른쪽에 한 번(평가 17차 10/18 — 모든 결과 띠가 가전 이름을 말한다).
       expect(texts.where((t) => t.contains('공기청정기')).length, 2, reason: '가전 이름은 제목·띠에 한 번씩');
       // 상태 띠 아래 본문에 테두리 상자가 없다.
