@@ -1,7 +1,7 @@
 name: simplelay
 description: SimpleLay appliance control companion app.
 publish_to: none
-version: 1.0.0+1
+version: 1.0.1+9000
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
