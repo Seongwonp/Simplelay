@@ -244,7 +244,8 @@ void main() {
       expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
       await tester.tap(more);
       await tester.pump();
-      expect(seconds(tester), startsWith('100초'));
+      // 1분 이상은 분·초로 — '100초'는 '1분 더'와 맞지 않아 보였다(실패널).
+      expect(seconds(tester), '1분 40초 뒤 닫혀요');
       // 40초가 지나도 닫히지 않는다.
       await tester.pump(const Duration(seconds: 45));
       expect(find.byType(KioskSuggestionView), findsOneWidget);
@@ -257,10 +258,43 @@ void main() {
         await tester.tap(more);
         await tester.pump();
       }
-      expect(seconds(tester), startsWith('300초'));
+      expect(seconds(tester), '5분 뒤 닫혀요');
       expect(more, findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     });
+
+    // 실패널: 30초쯤 남았을 때 '시간 더 주기'를 누르니 '100초'가 됐다 — 손가락이 닿는 순간 만지기가 40초로 되돌리고,
+    // 단추가 그 값에 60초를 더했다. 단추 한 번은 누르기 전 남은 시간에서 정확히 60초.
+    testWidgets("'시간 더 주기'는 누르기 전 남은 시간에서 정확히 60초 더 — 만지기 되돌림과 겹치지 않는다", (tester) async {
+      final handle = tester.ensureSemantics();
+      final api = FakeKioskApi()
+        ..applianceList = [_microwave(startBehavior: 'toggle')]
+        ..suggestionList = const [
+          KioskSuggestion(id: 's1', purpose: '즉석밥 데워줘', occurrences: 3, applianceId: 'microwave'),
+        ];
+      await _pumpKiosk(tester, api);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(KioskSuggestionView), findsOneWidget);
+      await tester.pump(const Duration(seconds: 10));
+      final before = int.parse(seconds(tester).split('초').first);
+      expect(before, lessThan(40));
+      await tester.tap(find.byKey(const ValueKey('suggestion-more-time')));
+      await tester.pump();
+      final after = before + 60;
+      final label = '${after ~/ 60}분 ${after % 60}초 뒤 닫혀요';
+      expect(seconds(tester), label);
+      // 낭독도 같은 말.
+      expect(find.bySemanticsLabel(label), findsOneWidget);
+      handle.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
+  test('남은 시간 — 60초 미만은 초, 그 이상은 분·초', () {
+    expect(countdownLabel(59), '59초');
+    expect(countdownLabel(60), '1분');
+    expect(countdownLabel(100), '1분 40초');
+    expect(countdownLabel(300), '5분');
   });
 
   group('3. 성공 결과 자동 복귀 — 실제 남은 초, 한 단계 큰 글자', () {

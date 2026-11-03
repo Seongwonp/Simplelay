@@ -2412,6 +2412,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _phase = KioskPhase.suggestion;
       _currentSuggestion = suggestion;
       _cdRemaining = _countdownSeconds;
+      _cdBeforeTouch = null;
       _cdTotal = _countdownSeconds;
       _scenarioBlockedWhy = null;
     });
@@ -2419,6 +2420,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
+      _cdBeforeTouch = null;
       setState(() => _cdRemaining--);
       if (_cdRemaining <= 0) {
         timer.cancel();
@@ -2429,18 +2431,26 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 제안 화면을 만졌다(접근성 감사 10/18 — 시간 제한 조절) — 남은 시간을 처음 길이로 되돌린다. 이미 더 남았으면 그대로.
   void _touchSuggestion() {
-    if (_phase != KioskPhase.suggestion || _cdRemaining >= _countdownSeconds) {
-      return;
-    }
+    if (_phase != KioskPhase.suggestion) return;
+    _cdBeforeTouch = _cdRemaining;
+    if (_cdRemaining >= _countdownSeconds) return;
     setState(() => _cdRemaining = _countdownSeconds);
   }
 
-  /// '시간 더 주기' — 60초 더. 이 시간은 화면 타이머다(서버 제안 카드는 따로 만료된다 — 거절·실행을 보내지 않는다).
+  /// 마지막 만지기 직전의 남은 시간 — '시간 더 주기'를 누르면 손가락이 닿는 순간 [_touchSuggestion]이 먼저 40초로
+  /// 되돌리고 뗄 때 단추가 불린다. 되돌린 값에 더하면 30초에서 눌러도 100초가 됐다(실패널). 단추는 이 값에 더한다.
+  /// 1초마다 지운다 — 손가락 없이 불린 단추(낭독 조작)가 지난 만지기의 값을 쓰지 않게.
+  int? _cdBeforeTouch;
+
+  /// '시간 더 주기' — 누르기 전 남은 시간에서 정확히 60초 더. 이 시간은 화면 타이머다(서버 제안 카드는 따로 만료된다 —
+  /// 거절·실행을 보내지 않는다).
   void _extendSuggestion() {
     if (_phase != KioskPhase.suggestion) return;
+    final base = _cdBeforeTouch ?? _cdRemaining;
+    _cdBeforeTouch = null;
     setState(() {
-      _cdRemaining = (_cdRemaining + kSuggestionExtendSeconds)
-          .clamp(0, kSuggestionMaxSeconds);
+      _cdRemaining =
+          (base + kSuggestionExtendSeconds).clamp(0, kSuggestionMaxSeconds);
       if (_cdRemaining > _cdTotal) _cdTotal = _cdRemaining;
     });
   }

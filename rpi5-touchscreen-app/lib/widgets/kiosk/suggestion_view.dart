@@ -226,8 +226,9 @@ class KioskSuggestionView extends StatelessWidget {
           const SizedBox(height: 10),
           _WhyText(suggestion.whyNow),
         ],
-        // '왜 지금' 신호(서버가 준 것만) — 시나리오 카드(작은 글씨)는 오른쪽 칸 근거 아래에 둔다.
-        if ((large || !scenario) && !suggestion.userStarted && suggestion.signals.isNotEmpty) ...[
+        // '왜 지금' 신호(서버가 준 것만) — 시나리오 카드도 질문 아래(왼쪽 칸). 오른쪽 칸은 할 일·근거로 이미 차서
+        // 칩이 그 아래 스크롤 밖으로 밀려 위 테두리만 보였다(15.8형 실패널, 공기질 카드). 왼쪽은 질문 아래가 비어 있다.
+        if (!suggestion.userStarted && suggestion.signals.isNotEmpty) ...[
           const SizedBox(height: 10),
           KioskSignalChips(signals: suggestion.signals),
         ],
@@ -406,10 +407,6 @@ class KioskSuggestionView extends StatelessWidget {
                                 if (scenarioWhy) ...[
                                   const SizedBox(height: 16),
                                   _WhyText('이유: ${suggestion.whyNow}'),
-                                ],
-                                if (!suggestion.userStarted && suggestion.signals.isNotEmpty) ...[
-                                  const SizedBox(height: 10),
-                                  KioskSignalChips(signals: suggestion.signals),
                                 ],
                               ],
                             ),
@@ -602,20 +599,25 @@ class KioskSuggestionView extends StatelessWidget {
               ),
               // 남은 시간은 오른쪽에 따로, 초는 크게 — 문장을 다 읽지 않아도 얼마나 남았는지 보인다.
               // 남은 초는 이 화면에서 닫히는 시간이다 — 거절·실행을 보내지 않는다(2026-10-15).
+              // 1분 이상은 분·초로('1분 40초') — '100초'는 '시간 더 주기(1분 더)'와 맞지 않아 보였다(실패널).
               const SizedBox(width: KioskSpace.sm),
-              Text.rich(
-                key: const ValueKey('suggestion-countdown-seconds'),
-                TextSpan(children: [
-                  TextSpan(
-                    text: '$cdRemaining초',
-                    style: const TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800),
-                  ),
-                  const TextSpan(text: ' 뒤 닫혀요'),
-                ]),
-                maxLines: 1,
-                softWrap: false,
-                style: TextStyle(
-                    fontSize: KioskType.body, height: 1.1, color: KioskColors.ink),
+              Semantics(
+                label: '${countdownLabel(cdRemaining)} 뒤 닫혀요',
+                excludeSemantics: true,
+                child: Text.rich(
+                  key: const ValueKey('suggestion-countdown-seconds'),
+                  TextSpan(children: [
+                    TextSpan(
+                      text: countdownLabel(cdRemaining),
+                      style: const TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800),
+                    ),
+                    const TextSpan(text: ' 뒤 닫혀요'),
+                  ]),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                      fontSize: KioskType.body, height: 1.1, color: KioskColors.ink),
+                ),
               ),
               // 시간이 더 필요하면 60초 더(접근성 감사 10/18 — 시간 제한 늘리기). 작은 보조 단추(테두리), 누르는 자리 48 이상.
               if (onExtend != null) ...[
@@ -653,6 +655,14 @@ class KioskSuggestionView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 제안 카드가 닫히기까지 남은 시간 — 60초 미만은 'N초', 그 이상은 '1분 40초'·'2분'.
+String countdownLabel(int seconds) {
+  if (seconds < 60) return '$seconds초';
+  final m = seconds ~/ 60;
+  final s = seconds % 60;
+  return s == 0 ? '$m분' : '$m분 $s초';
 }
 
 /// 근거 두 줄 제한을 해도 화면에서 빠지면 안 되는 제한 문장 — 근거 밖 줄에 따로 보인다.

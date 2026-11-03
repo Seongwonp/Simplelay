@@ -1,8 +1,12 @@
 // 제안 화면 — 어느 가전을 → 무엇을 → 어떤 순서로 → 할까 말까.
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/panel_picture.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
@@ -72,7 +76,16 @@ const _habit = KioskSuggestion(
   canMarkDone: true,
 );
 
+const _malgunPath = r'C:\Windows\Fonts\malgun.ttf';
+final _hasMalgun = File(_malgunPath).existsSync();
+
 void main() {
+  setUpAll(() async {
+    if (!_hasMalgun) return;
+    final bytes = File(_malgunPath).readAsBytesSync();
+    await (FontLoader('Malgun')..addFont(Future.value(ByteData.view(bytes.buffer)))).load();
+  });
+
   testWidgets('버튼은 시작과 다음에 두 개뿐 — 억제·미루기·바꾸기는 폰에 둔다', (tester) async {
     await _pump(tester, target: kMicrowaveAppliance);
     expect(tester.takeException(), isNull);
@@ -337,7 +350,7 @@ void main() {
       expect(find.byKey(const ValueKey('suggestion-already-done')), findsNothing);
     });
 
-    testWidgets('시나리오 카드도 신호를 오른쪽 칸에 보인다', (tester) async {
+    testWidgets('시나리오 카드는 신호를 질문 아래(왼쪽 칸)에 보인다', (tester) async {
       await _pump(tester,
           suggestion: const KioskSuggestion(
             id: 'c1',
@@ -351,7 +364,66 @@ void main() {
           ));
       expect(tester.takeException(), isNull);
       expect(_chips, findsNWidgets(2));
+      final question = tester.getRect(find.byKey(const ValueKey('suggestion-question')));
+      for (final chip in tester.widgetList(_chips)) {
+        final rect = tester.getRect(find.byWidget(chip));
+        expect(rect.left, lessThan(800 / 2), reason: '왼쪽 칸');
+        expect(rect.top, greaterThanOrEqualTo(question.bottom), reason: '질문 아래');
+      }
     });
+
+    // 15.8형 실패널(1920x1080 — 800x480 캔버스를 통째로 확대): 공기질 카드에서 오른쪽 칸(할 일·이유) 아래의 칩 두 개가
+    // 위 테두리만 보이고 스크롤해야 보였다. 칩은 스크롤 없이 온전히 보이고, 할 일·이유도 스크롤 없이 보인다.
+    // 줄바꿈·칩 줄 수는 글자 폭에 달려 있어 실제 한글 글꼴(맑은 고딕)로 잰다 — 시험 글꼴은 한글을 한 칸 네모로 그려 넓다.
+    // 남은 시간이 '1분 40초'(시간 더 주기 뒤)로 길어져도 같다.
+    for (final remaining in [40, 100]) {
+      testWidgets('공기질 카드(1920x1080, 남은 $remaining초) — 신호 칩·할 일·이유가 스크롤 없이 다 보인다', (tester) async {
+        if (!_hasMalgun) return markTestSkipped('맑은 고딕 없음');
+        tester.view.physicalSize = const Size(1920, 1080);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(MaterialApp(
+          theme: ThemeData(fontFamily: 'Malgun'),
+          home: KioskCanvas(
+            child: Scaffold(
+              body: KioskSuggestionView(
+                suggestion: const KioskSuggestion(
+                  id: 'air1',
+                  purpose: '공기청정기를 켤까요?',
+                  occurrences: 0,
+                  reason: '공기청정기가 재 보니 종합 공기질이 나빠요.',
+                  applianceId: 'air',
+                  scenarioId: 'air_quality_power_on',
+                  commands: [KioskSuggestionCommand(targetId: 'air', route: 'thinq', summary: '공기청정기 전원 켜기')],
+                  signals: [KioskSuggestionSignal(label: '종합 공기질 나쁨'), KioskSuggestionSignal(label: '공기청정기 꺼짐')],
+                ),
+                scenarioName: '공기가 나빠요',
+                cdRemaining: remaining,
+                cdTotal: remaining,
+                onApprove: () {},
+                onReject: () {},
+                onExtend: () {},
+                onMuteChanged: (_) {},
+              ),
+            ),
+          ),
+        ));
+        expect(tester.takeException(), isNull);
+        expect(_chips, findsNWidgets(2));
+        Rect viewportOf(Finder f) =>
+            tester.getRect(find.ancestor(of: f, matching: find.byType(Scrollable)).first);
+        for (final f in [
+          ..._chips.evaluate().map((e) => find.byWidget(e.widget)),
+          find.text('공기청정기 전원 켜기'),
+          find.textContaining('이유:'),
+        ]) {
+          final rect = tester.getRect(f);
+          final viewport = viewportOf(f);
+          expect(rect.bottom, lessThanOrEqualTo(viewport.bottom), reason: '$f — 칸 안에서 스크롤 없이 보인다');
+          expect(rect.top, greaterThanOrEqualTo(viewport.top));
+        }
+      });
+    }
 
     for (final scale in [1.0, 1.5]) {
       testWidgets('800x480·글자 $scale배에서 칩·이미 했어요가 넘치지 않는다', (tester) async {

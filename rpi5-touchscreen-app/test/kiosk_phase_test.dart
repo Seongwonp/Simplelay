@@ -1575,7 +1575,8 @@ void main() {
     final api = FakeKioskApi()..suggestionList = [_sug];
     await _pumpKiosk(tester, api, settings: KioskSettingsStore(path: path));
 
-    expect(find.text('60초 뒤 닫혀요'), findsOneWidget);
+    // 1분 이상은 분·초로 보인다.
+    expect(find.text('1분 뒤 닫혀요'), findsOneWidget);
   });
 
   test('목록에 없는 카운트다운 값은 기본값으로 폴백한다', () {
