@@ -58,10 +58,13 @@ def raw_listen_s(line: str, home_timeout_s: float = 80.0) -> float:
     head = line.split()[0]
     if head == "H":
         return home_timeout_s
-    if head in ("G", "GT"):
+    if head == "GT":
+        return 25.0
+    if head == "G":
         return 15.0
     if head == "T":
-        return 6.0
+        # SwitchBot Bot은 누를 때마다 블루투스로 다시 붙는다 — 실물에서 6초 안에 PRESSED가 오지 않았다.
+        return 15.0
     if head == "M":
         return int(line.split()[3]) / 1000.0 + 1.0
     return 1.0
