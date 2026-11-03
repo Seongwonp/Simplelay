@@ -1,7 +1,8 @@
 # 결선 발표 웹 슬라이드
 
-PPT 대신 브라우저로 띄우는 결선 발표 슬라이드다. 본 발표 20장(목표 합계 9:57) — 1막 민지 씨의 문제 · 2막 시연 장면과 실제 기록 · 기술 2장(시스템 구성, 전기 사용량 측정) · 3막 제품·설계 차이·다음 단계.
-그 뒤에 질의응답용 부록 6장(안전 계약 · 기기 안 판단 범위 · 습관 판단 규칙 · 누름 장치 · 자동 시험 · 한계와 다음 단계)이 붙는다.
+PPT 대신 브라우저로 띄우는 결선 발표 슬라이드다. 본 발표 19장(목표 합계 8:30, 10분 중 남는 시간은 시연 여유) — 1막 민지 씨의 문제 · 2막 시연 장면과 실제 기록 · 기술 2장(간단한 구성, 전기 사용량) · 어디까지 확인했나 · 3막 제품·설계 차이·다음 단계.
+그 뒤에 질의응답용 부록 8장(안전 계약 · 기기 안 판단 범위 · 습관 판단 규칙 · 시스템 구성 상세 · CT 측정 상세 · 누름 장치 · 자동 시험 · 한계와 다음 단계)이 붙는다.
+무대 표기는 날짜 '10월 28일', 시각 '밤 12시 30분'처럼 말로, 단위는 W·초다(와트·ms·Hz는 부록에만).
 대본은 [script.md](script.md)(발표자 창과 같은 문장, 원본 데이터는 [slides.js](slides.js)). 본체 미연결 때 쓰는 실제 기록 스냅숏은 [records-data.js](records-data.js)(2026-11-03 조회).
 
 ## 실행
@@ -37,12 +38,12 @@ PPT 대신 브라우저로 띄우는 결선 발표 슬라이드다. 본 발표 2
 | 집에 왔을 때 | `/presence/room` 의 `enabled`·`camera_enabled`·`state`(present·idle·away·unknown) | '미리보기' 그림 |
 | 모은 기록 | `/history?limit=200` 의 성공 기록 — `finished_at`·`execution_mode`(real만 색, mock·unknown은 회색 '모의')·`purpose`·`detail`·`appliance_name`(켜기·끄기·바람·전자레인지 분류) | 11월 3일 스냅숏(`records-data.js`) |
 | 알아채는 방법 | `/learning` 의 `routines[]` 중 `established` — `when_text`·`recent_days`·`distinct_days`·`occurrences` | 11월 3일 스냅숏의 습관 3개 |
-| 늘 하던 일 | `/learning` 의 `routines[]` — `recent_days`·`usual_time`·`when_text`·`established`·`state`. 왼쪽 위는 '11/5 실제 캡처' 자리 | 11월 3일 스냅숏의 '낮 12시 59분쯤 켜기' |
+| 늘 하던 일 | `/learning` 의 `routines[]` — `recent_days`·`usual_time`·`when_text`·`established`·`state`. `captures/habit-1105.png` 가 있으면 카드 위에 그 캡처를 띄운다(없으면 아무것도 안 보임) | 11월 3일 스냅숏의 '낮 12시 59분쯤 켜기' |
 | '네'를 누르면 | `/status` 의 `running`·`last_route`·`last_receipt`·`last_confirmation`·`last_outcome`·`last_detail`, 실행 중이면 `/jobs/{job_id}` | '미리보기' 그림 |
 | 저녁 전자레인지 | 실시간 전기 사용량(W)을 주는 본체 GET 경로가 아직 없다 → 연결돼 있어도 그래프는 '연결 안 됨' | 11월 2일 실측 수치로 다시 그린 '미리보기' |
 | 마음이 바뀌면 | `/presence/room` 의 `camera_enabled`(카메라 스위치만, 자동 실행 스위치는 그림) | '미리보기' 그림 |
 
-'실제로 있었던 일' 두 장(10월 28일 밤 · 제안과 대답)은 본체 기록에서 옮긴 고정 값이다(11월 3일 기준).
+'실제로 있었던 일'(10월 28일 밤 + 제안과 대답 숫자)과 '어디까지 확인했나'는 본체 기록에서 옮긴 고정 값이다(11월 3일 기준, 근거 [CT 반복·실제 기록 devlog](../../docs/devlog/devlog_2026-11-03-ct-repeat-deck.md)).
 `/history` 는 본체가 실행한 기록(승인·자동 실행·직접 조작)이다. LG 앱에서 직접 쓴 기록만 따로 주는 GET 경로는 없어, 그 기록은 스냅숏에만 있다.
 
 오른쪽 위 표시는 `/health` 로 4초마다 확인한다(본체 연결됨 / 본체 미연결 · 미리보기). 미리보기 값에는 늘 '미리보기'가 붙는다.

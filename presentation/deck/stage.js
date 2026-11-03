@@ -144,6 +144,21 @@
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
     return m ? Number(m[2]) + "/" + Number(m[3]) : iso;
   }
+  // 무대 표기: 날짜는 '10월 18일', 시각은 '낮 12시 59분'처럼 말로.
+  function kd(v) {
+    const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(v || "");
+    if (iso) return Number(iso[2]) + "월 " + Number(iso[3]) + "일";
+    const short = /^(\d{1,2})\/(\d{1,2})$/.exec(v || "");
+    return short ? Number(short[1]) + "월 " + Number(short[2]) + "일" : v;
+  }
+  function spoken(hhmm) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || "");
+    if (!m) return hhmm;
+    const h = Number(m[1]), mi = Number(m[2]);
+    const part = h < 6 ? "새벽" : h < 12 ? "오전" : h < 13 ? "낮" : h < 18 ? "오후" : h < 21 ? "저녁" : "밤";
+    const hh = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return part + " " + hh + "시" + (mi ? " " + mi + "분" : "");
+  }
   function pickHabit(routines) {
     const list = (routines || []).filter((r) => !r.muted && r.state !== "hidden");
     list.sort((a, b) => (b.established - a.established) || (b.distinct_days - a.distinct_days) || (b.occurrences - a.occurrences));
@@ -187,7 +202,7 @@
     for (let i = 0; i <= span; i += step) {
       const d = new Date(first.getTime() + i * 86400000);
       const iso = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-      el("text", { x: xOf(iso), y: Y1 + 40, "text-anchor": "middle", class: "ax" }, (d.getMonth() + 1) + "/" + d.getDate());
+      el("text", { x: xOf(iso), y: Y1 + 40, "text-anchor": "middle", class: "ax" }, (d.getMonth() + 1) + "월 " + d.getDate() + "일");
     }
     recs.forEach((r) => {
       const x = xOf(r.day), y = yOf(r.min);
@@ -246,7 +261,7 @@
     });
   }
   function snapHabits() {
-    renderHabitList(SNAP.habits.map((h) => ({ title: h.what + " · " + h.when, sub: h.days.join(" · ") + " · " + h.count })));
+    renderHabitList(SNAP.habits.map((h) => ({ title: h.what + " · " + h.when, sub: h.days.map(kd).join(" · ") + " · " + h.count })));
     setSrc($("methodSrc"), "live", SNAP.label);
   }
   function runMethod(alive) {
@@ -261,8 +276,8 @@
         renderHabitList([{ title: "아직 잡힌 습관이 없어요", sub: "기록을 세는 중이에요" }]);
       } else {
         renderHabitList(est.slice(0, 4).map((h) => ({
-          title: (h.when_text || h.usual_time || h.time_band) + (h.routine_name ? " · " + h.routine_name : ""),
-          sub: (h.recent_days || []).map(md).join(" · ") + " · " + h.distinct_days + "일 " + h.occurrences + "번",
+          title: (h.when_text || spoken(h.usual_time) || h.time_band) + (h.routine_name ? " · " + h.routine_name : ""),
+          sub: (h.recent_days || []).map(kd).join(" · ") + " · " + h.distinct_days + "일 " + h.occurrences + "번",
         })));
       }
       setSrc($("methodSrc"), "live", "본체 실시간 값");
@@ -288,12 +303,12 @@
     const days = h.days.map((md0) => {
       const times = SNAP.records.filter((r) => r.k === "on" && r.mode !== "mock" && md(r.d) === md0)
         .map((r) => r.t).filter((t) => { const [a, b] = t.split(":").map(Number); const m = a * 60 + b; return Math.abs(m - 779) <= 45; });
-      return [md0, times.join(" · ") + " 직접 켬"];
+      return [kd(md0), times.map(spoken).join(" · ") + " 직접 켬"];
     });
     $("habitHead").textContent = "이렇게 쓰셨어요 · " + h.when;
     renderDays(days);
     $("habitAsk").textContent = "공기청정기, 지금 켤까요?";
-    setSrc($("habitSrc"), "live", SNAP.label + " · 카드 화면은 11/5 캡처로 바뀝니다");
+    setSrc($("habitSrc"), "live", SNAP.label);
   }
   function runHabit(alive) {
     if (!hub.connected) { snapHabitCard(); return; }
@@ -320,7 +335,7 @@
       }
       const need = r.minimum_days || 3;
       $("habitHead").textContent = h.when_text ? "이렇게 쓰셨어요 · " + h.when_text : "이렇게 쓰셨어요";
-      renderDays(days.map((d) => [md(d), (time ? time + " " : "") + "직접 사용"]));
+      renderDays(days.map((d) => [kd(d), (time ? spoken(time) + " " : "") + "직접 사용"]));
       if (h.state === "auto") $("habitAsk").textContent = "맡겨 두셨어요 — 알아서 하고 알려 드려요";
       else if (h.established) $("habitAsk").textContent = "평소처럼, 지금 할까요?";
       else $("habitAsk").textContent = "아직 세는 중이에요 · " + h.distinct_days + "/" + need + "일";

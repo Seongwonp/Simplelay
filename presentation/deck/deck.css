@@ -48,7 +48,7 @@ p.lead{font-size:38px;color:var(--sub);line-height:1.6;max-width:1350px}
 /* 습관 */
 .days{display:flex;gap:26px;margin:36px 0}
 .day{flex:1;text-align:center;padding:36px 0;border-radius:20px;background:var(--mint)}
-.day b{display:block;font-size:44px;color:var(--teal-d)}
+.day b{display:block;font-size:36px;color:var(--teal-d)}
 .day span{font-size:23px;color:var(--sub)}
 .day.empty{background:#eef3f2}.day.empty b{color:var(--mute)}
 .ask{font-size:40px;font-weight:900;margin:16px 0 36px}
@@ -114,9 +114,10 @@ p.lead{font-size:38px;color:var(--sub);line-height:1.6;max-width:1350px}
 .tag{display:inline-block;font-size:24px;font-weight:700;color:#94590a;background:#fff4e2;border-radius:99px;padding:8px 20px;margin-bottom:20px}
 
 /* 습관 장 — 실제 캡처 자리 */
-.shot{height:250px;border:3px dashed var(--line);border-radius:20px;display:flex;align-items:center;justify-content:center;
-  font-size:30px;font-weight:700;color:var(--mute);margin-bottom:26px;background:#fbfdfd}
-.shot.hide{display:none}
+/* 캡처 파일(captures/habit-1105.png)이 있을 때만 보인다 — 없으면 자리표시도 무대에 나오지 않는다. */
+.shot{display:none;margin-bottom:26px}
+.shot.has{display:block}
+.shot img{display:block;width:100%;max-height:420px;object-fit:contain;border-radius:16px;border:1px solid var(--line)}
 
 /* 모은 기록 */
 .rec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:30px;margin-bottom:26px}
@@ -147,9 +148,9 @@ svg .gl{stroke:#e6efed;stroke-width:1.5}
 .chips{display:flex;gap:14px;flex-wrap:wrap;margin:34px 0 22px}
 .chips span{background:var(--mint);color:var(--teal-d);font-weight:700;font-size:26px;border-radius:99px;padding:10px 22px}
 .tline{position:relative;padding-left:10px}
-.tl{display:grid;grid-template-columns:160px 1fr;gap:20px;padding:20px 0 28px;position:relative}
-.tl::before{content:"";position:absolute;left:150px;top:30px;width:18px;height:18px;border-radius:50%;background:var(--teal)}
-.tl:not(:last-child)::after{content:"";position:absolute;left:158px;top:52px;bottom:-4px;width:2px;background:var(--line)}
+.tl{display:grid;grid-template-columns:200px 1fr;gap:20px;padding:20px 0 28px;position:relative}
+.tl::before{content:"";position:absolute;left:190px;top:30px;width:18px;height:18px;border-radius:50%;background:var(--teal)}
+.tl:not(:last-child)::after{content:"";position:absolute;left:198px;top:52px;bottom:-4px;width:2px;background:var(--line)}
 .tl time{font-size:26px;font-weight:700;color:var(--teal-d);font-variant-numeric:tabular-nums}
 .tl b{display:block;font-size:31px;padding-left:28px}
 .tl p{font-size:25px;color:var(--sub);line-height:1.5;margin-top:8px;padding-left:28px}
@@ -190,3 +191,15 @@ table.mt td{padding:14px 6px;border-bottom:1px solid var(--line);font-variant-nu
 .aplist.sm{gap:14px;margin-top:18px}
 .aplist.sm li{font-size:27px}
 .num{font-size:84px;font-weight:900;color:var(--teal-d);margin-top:10px}
+
+.oneline{margin-top:10px;padding-top:22px;border-top:1px solid var(--line);font-size:25px;line-height:1.5;color:var(--ink)}
+.ctsimple .card b{font-size:42px}
+.ctsimple .card span{font-size:29px}
+.vgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:10px}
+.vc{background:#fff;border:1px solid var(--line);border-radius:20px;padding:26px 28px}
+.vc span{display:block;font-size:23px;color:var(--sub);margin-bottom:8px}
+.vc b{font-size:33px;line-height:1.35}
+.vc small{display:block;font-size:21px;color:var(--sub);margin-top:6px}
+.vc.wide{grid-column:span 2}
+.housenote{display:flex;align-items:center;gap:22px;margin-top:50px;font-size:28px;color:var(--sub)}
+.housenote svg{width:72px;height:72px;flex:none}
