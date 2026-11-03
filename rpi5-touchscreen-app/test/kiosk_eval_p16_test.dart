@@ -2,7 +2,7 @@
 //
 // 1. 안전: 누름 장치가 멈췄는지 모르는 정지 결과 — 모든 크기(보통·큰 글씨, 800x480·실패널)·정지 단계·다시 멈추기 결과에서
 //    '다시 멈추기'가 화면 안에 다 보이고 눌린다.
-// 2. '자동 실행' 본 줄은 한 줄('오후 10:00 · 이름') — 넘치면 이름만 말줄임.
+// 2. '자동 실행' 본 줄은 한 줄('오후 10:00 · 이름') — 넘치면 이름만 말줄임(11/3: 시각은 제 줄, 할 일은 그 아래로 바뀜).
 // 3. 정지 미확인 대기: 누름 장치가 제자리로 돌아간 것을 서버가 알려 왔으면(hold_state=parked) '다시 멈추기' 대신 '정지'(같은 자리)와
 //    손으로 누를 안내가 주 안내. 아직 정지 버튼 위면 '다시 멈추기' 유지. '전자레인지의' 번역투 없음.
 // 4. 연습을 마친 대기: '연습이 끝났어요', 버튼판 칸 강조 없음, 정지 단추는 같은 자리·이름 그대로.
@@ -150,22 +150,24 @@ void main() {
     }
   });
 
-  // 시안 B(10/24): 다음 루틴은 오른쪽 좁은 줄 칸 — 첫 줄은 늘 시각 하나('오후 10:00'), 이름은 그 아래(시각 뒤에서만 줄을 바꾼다).
-  // 16차의 뜻(실패널과 골든이 서로 다른 자리에서 꺾이지 않게)은 '줄바꿈 자리가 늘 시각 뒤'로 지킨다.
-  group('2. 자동 실행 줄 — 첫 줄은 시각 하나', () {
+  // 시안 B(10/24): 다음 루틴은 오른쪽 좁은 줄 칸. 11/3부터 시각은 시계 아이콘 옆 제 줄(한 줄), 할 일은 그 아래 —
+  // 16차의 뜻(실패널과 골든이 서로 다른 자리에서 꺾이지 않게)은 '시각은 늘 한 줄, 할 일은 낱말 단위로만 줄바꿈'으로 지킨다.
+  group('2. 자동 실행 줄 — 시각은 한 줄, 할 일은 그 아래', () {
     for (final (panel, scale) in [(true, 1.0), (false, 1.0), (false, 1.22)]) {
       for (final name in ['저녁 공기청정기 켜기', '저녁마다 거실 공기청정기를 강풍으로 켜고 인덕션 확인하기']) {
         testWidgets('panel=$panel scale=$scale $name', (t) async {
           await _pump(t, _idle(_next(name)), panel: panel, textScale: scale);
+          final line = KioskType.body * 1.25 * scale * (panel ? 2.05 : 1.0);
+          final when = find.byKey(const ValueKey('idle-next-run-when'));
+          expect(find.descendant(of: when, matching: find.text('오후 10:00')), findsOneWidget);
+          expect(t.getSize(when).height, lessThan(line * 1.5), reason: '시각은 한 줄');
           final f = find.byKey(const ValueKey('idle-next-run-text'));
           expect(f, findsOneWidget);
           final rt = t.widget<RichText>(find.descendant(of: f, matching: find.byType(RichText)));
-          final plain = rt.text.toPlainText();
-          expect(plain.split('\n').first, '오후 10:00');
-          expect(plain.split('\n'), hasLength(2), reason: '시각 뒤에서 한 번만 줄을 바꾼다');
+          final plain = rt.text.toPlainText().replaceAll('\u2060', '').replaceAll('\u00A0', ' ');
+          expect(plain, name, reason: '자동 실행은 꼬리표 없이 할 일만');
           final h = t.getSize(f).height;
-          final line = KioskType.body * 1.25 * scale * (panel ? 2.05 : 1.0);
-          expect(h, lessThan(line * 3.2), reason: '높이 $h — 시각 한 줄 + 이름 두 줄까지');
+          expect(h, lessThan(line * 3.2), reason: '높이 $h — 할 일 세 줄까지');
         });
       }
     }

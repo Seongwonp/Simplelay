@@ -1,8 +1,8 @@
 // 사용자 요청·평가 13차(2026-10-18) — 키오스크 평소 화면·결과·연습 화면. 옛 코드에도 있는 공개 구성만 써서 옛 코드에서 실패하는 것을 확인한다.
 //
 // 1. '오늘은 건너뛰기'는 작은 글자 단추(테두리·면 없음, 머리말과 같은 작은 글씨), 누르는 자리는 48 이상. 건너뛴 상태도 같은 작은 꼴.
-// 2. '자동으로 해요'는 없앤다 — 다음 루틴 묶음에 작은 머리말 '자동 실행'(서버 auto일 때만, 아니면 '물어볼 루틴' 등 사실대로).
-//    시각은 분까지 '오후 10:00'(폰과 같은 꼴).
+// 2. '자동으로 해요'는 없앤다. 처음 화면 종류 머리말도 없앴다(11/3) — 시각 '오후 10:00'(분까지, 폰과 같은 꼴)과 할 일만,
+//    묻는 회차만 꼬리표 '물어보고'.
 // 3. 날짜 옆 날씨는 빼고 예보 줄 맨 앞 칸 '지금'으로(지금 + 3칸까지). 지금 칸이 없으면 예보 4칸.
 // 4. 강수확률은 그 칸 안 기온 아래(칸 높이 같게), 날씨 안내는 어구 단위 줄바꿈('나갈 때'), 0시는 '밤 12시'.
 // A. 결과 화면 '한 번 더 하기' — 작은 테두리 보조 단추(높이 48 이상, 흰 글자), 안내 문장과 떨어져 있다.
@@ -137,35 +137,38 @@ void main() {
     await (FontLoader('Malgun')..addFont(Future.value(ByteData.view(bytes.buffer)))).load();
   });
 
-  group('1·2. 다음 루틴 — 자동 실행 머리말, 작은 글자 단추', () {
-    testWidgets("'자동으로 해요' 대신 머리말 '자동 실행', 시각은 '오후 10:00'", (tester) async {
+  // 처음 화면은 종류 머리말 없이 시계 아이콘 + 시각, 그 아래 할 일만 — 묻는 회차만 회색 꼬리표 '물어보고'(사용자 결정 11/3).
+  group('1·2. 다음 루틴 — 시각·할 일만, 작은 글자 단추', () {
+    testWidgets("'자동으로 해요'·머리말 없이 '오후 10:00' / 할 일 — 자동 실행은 꼬리표 없음", (tester) async {
       await _pumpView(tester, _idle(next: _next(), onToggle: (_) {}));
       final texts = _texts(tester);
       expect(texts, isNot(contains('자동으로 해요')));
-      expect(texts, contains('자동 실행'));
-      // 시안 B(10/24): 오른쪽 좁은 줄 칸 — '오후 10:00'(굵게) 뒤 이름(작게)을 이어 쓰고 넘치면 줄을 바꾼다. 시각은 분까지.
-      expect(texts.any((t) => t.startsWith('오후 10:00') && t.endsWith('저녁 공기청정기 켜기')), isTrue, reason: '$texts');
+      expect(texts, isNot(contains('자동 실행')));
+      expect(texts, contains('오후 10:00'));
+      expect(texts, contains('저녁 공기청정기 켜기'), reason: '$texts');
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets("카드로 물어보는 루틴은 '자동 실행'이라 쓰지 않는다", (tester) async {
+    testWidgets("카드로 물어보는 루틴은 할 일 뒤 '물어보고' — '자동 실행'·'물어볼 루틴'은 없다", (tester) async {
       await _pumpView(tester, _idle(next: _next(auto: false), onToggle: (_) {}));
       final texts = _texts(tester);
       expect(texts, isNot(contains('자동 실행')));
-      expect(texts, contains('물어볼 루틴'));
+      expect(texts, isNot(contains('물어볼 루틴')));
+      expect(texts, contains('저녁 공기청정기 켜기 물어보고'), reason: '$texts');
       expect(texts, isNot(contains('물어보고 해요')));
     });
 
-    testWidgets('조용한 시간이라 건너뛰는 회차는 다음 루틴(자동으로 하지 않는다)', (tester) async {
+    testWidgets('조용한 시간이라 건너뛰는 회차는 꼬리표 없이 그 사정만(자동으로 하지 않는다)', (tester) async {
       await _pumpView(tester, _idle(next: _next(quiet: true), onToggle: (_) {}));
       final texts = _texts(tester);
-      expect(texts, contains('다음 루틴'));
+      expect(texts, isNot(contains('다음 루틴')));
       expect(texts, isNot(contains('자동 실행')));
+      expect(texts, contains('저녁 공기청정기 켜기'));
       expect(texts, contains('조용한 시간이라 건너뛰어요'));
       expect(_next().whenShort, '오후 10:00');
     });
 
-    testWidgets("'오늘은 건너뛰기' — 테두리 없는 작은 글자, 머리말과 같은 크기, 누르는 자리 48 이상", (tester) async {
+    testWidgets("'오늘은 건너뛰기' — 테두리 없는 작은 글자(시각보다 작게), 누르는 자리 48 이상", (tester) async {
       final taps = <KioskNextRun>[];
       await _pumpView(tester, _idle(next: _next(), onToggle: taps.add));
       final label = find.descendant(of: _skip, matching: find.text('오늘은 건너뛰기'));
@@ -175,7 +178,7 @@ void main() {
           matching: find.byWidgetPredicate((w) =>
               w is Container && w.decoration is BoxDecoration && (w.decoration as BoxDecoration).border != null));
       expect(bordered, findsNothing, reason: '테두리 단추가 아니다');
-      expect(_fontOf(tester, label), _fontOf(tester, find.text('자동 실행')), reason: '머리말과 같은 작은 글씨');
+      expect(_fontOf(tester, label), lessThan(_fontOf(tester, find.text('오후 10:00'))), reason: '작은 글씨');
       expect(_colorOf(tester, label), KioskColors.muted, reason: '회색 계열');
       final r = tester.getRect(_skip);
       expect(r.height, greaterThanOrEqualTo(48));
@@ -184,11 +187,11 @@ void main() {
       expect(taps, hasLength(1));
     });
 
-    // 10/19: '오늘은 건너뛰어요'를 끝 줄에 또 두지 않는다 — 머리말 '자동 실행 · 오늘은 안 해요'가 말하고 끝 줄은 '되돌리기'만.
-    testWidgets("건너뛴 상태 '자동 실행 · 오늘은 안 해요' + '되돌리기' — 같은 작은 글씨", (tester) async {
+    // 10/19: '오늘은 건너뛰어요'를 끝 줄에 또 두지 않는다 — 시각 옆 '오늘은 안 해요'가 말하고 끝 줄은 '되돌리기'만.
+    testWidgets("건너뛴 상태 '오후 10:00 · 오늘은 안 해요' + '되돌리기' — 같은 작은 글씨", (tester) async {
       await _pumpView(tester, _idle(next: _next(skipped: true), onToggle: (_) {}));
-      final head = _fontOf(tester, find.text('자동 실행'));
-      expect(_fontOf(tester, find.text('오늘은 안 해요')), head);
+      final head = _fontOf(tester, find.text('오늘은 안 해요'));
+      expect(head, lessThan(_fontOf(tester, find.text('오후 10:00'))));
       expect(find.text('오늘은 건너뛰어요'), findsNothing);
       final undo = find.descendant(of: _unskip, matching: find.text('되돌리기'));
       expect(_fontOf(tester, undo), head);
@@ -198,7 +201,7 @@ void main() {
 
     for (final (scale, spacing) in [(1.0, 2.1), (1.22, 0.0), (1.22, 2.1)]) {
       for (final skipped in [false, true]) {
-        testWidgets('배율 $scale 글자마다 +$spacing 건너뜀 $skipped — 머리말·단추가 가전 줄 위에서 눌린다', (tester) async {
+        testWidgets('배율 $scale 글자마다 +$spacing 건너뜀 $skipped — 시각·단추가 가전 줄 위에서 눌린다', (tester) async {
           final taps = <KioskNextRun>[];
           await _pumpView(tester, _idle(next: _next(skipped: skipped), onToggle: taps.add),
               scale: scale, letterSpacing: spacing);
@@ -208,7 +211,7 @@ void main() {
           final line = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
           expect(line.left, greaterThanOrEqualTo(tile.right));
           expect(line.bottom, lessThanOrEqualTo(480));
-          expect(_texts(tester), contains('자동 실행'));
+          expect(_texts(tester), contains('오후 10:00'));
           final b = skipped ? _unskip : _skip;
           expect(tester.getRect(b).height, greaterThanOrEqualTo(48));
           await tester.tap(b);

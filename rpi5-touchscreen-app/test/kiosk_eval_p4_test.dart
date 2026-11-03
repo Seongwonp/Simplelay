@@ -429,13 +429,14 @@ void main() {
       expect(all, contains('즉석밥 데우기'));
     });
 
-    // 사용자 결정(10/18): '자동으로 해요' 대신 작은 머리말 '자동 실행'.
-    testWidgets('다음 루틴의 자동 계열 이름은 머리말 자동 실행', (tester) async {
+    // 사용자 결정(10/18): '자동으로 해요'는 없앤다. 11/3: 처음 화면 머리말 '자동 실행'도 없앴다 — 자동은 꼬리표 없이 할 일만.
+    testWidgets('다음 루틴의 자동 계열은 머리말·꼬리표 없이 할 일만', (tester) async {
       await _pump(tester, _idle(next: _next));
       final all = _allTexts(tester).join('\n');
       expect(all, isNot(contains('자동 루틴')));
-      expect(all, contains('자동 실행'));
+      expect(all, isNot(contains('자동 실행')));
       expect(all, isNot(contains('자동으로 해요')));
+      expect(all.replaceAll('⁠', '').replaceAll(' ', ' '), contains('아침 공기청정기 끄기'));
     });
   });
 
@@ -504,7 +505,7 @@ void main() {
       final all = _allTexts(tester);
       expect(all, contains('오전'));
       expect(all, contains('7:08'));
-      expect(all.where((t) => t.startsWith('오전 7:00 · ') || t.startsWith('오전 7:00\n')), hasLength(1));
+      expect(all.where((t) => t == '오전 7:00'), hasLength(1));
       expect(all.join('\n'), isNot(contains('07:00')));
       // 시안 B(10/24): 예보 칸 대신 '바깥 날씨' 줄의 비 소식 — 시각은 오전/오후.
       expect(all.any((t) => t.contains('오후 3시')), isTrue, reason: '$all');

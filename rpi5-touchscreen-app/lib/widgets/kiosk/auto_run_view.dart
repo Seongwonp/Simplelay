@@ -7,7 +7,8 @@ import 'tab_page.dart';
 
 /// '자동 실행' 탭(시안 B 10/24) — 앞으로 정해진 시각에 할 일(`GET /routines/next`)을 읽기만 한다.
 ///
-/// 줄마다 언제·이름·종류(처음 화면 다음 루틴 머리말과 같은 말 — 자동 실행·물어볼 루틴·알림 루틴)와 처음 화면과 **같은**
+/// 줄마다 언제·이름·종류([KioskNextRun.kindLabel] — 자동 실행·물어볼 루틴·알림 루틴. 처음 화면은 머리말 없이 같은 판정의
+/// 짧은 꼬리표 [KioskNextRun.modeTag]만 쓴다)와 처음 화면과 **같은**
 /// '오늘은 건너뛰기'·'되돌리기'(같은 콜백 — kiosk_screen의 건너뛰기 한 곳). 아주 끄는 스위치는 키오스크에 두지 않는다 — 폰에서.
 class KioskAutoRunView extends StatelessWidget {
   const KioskAutoRunView({

@@ -279,25 +279,26 @@ void main() {
       expect((tile - clock).abs(), lessThanOrEqualTo(2));
     });
 
-    // 사용자 결정(10/18): 큰 카드 대신 시계 아래 담담한 줄 — 시각은 시계와 같은 오전/오후, 자동 계열은 머리말 '자동 실행'.
+    // 사용자 결정(10/18): 큰 카드 대신 시계 아래 담담한 줄 — 시각은 시계와 같은 오전/오후.
     testWidgets('다음 루틴은 시계 아래 담담한 줄(큰 카드 없음)', (tester) async {
       await _pump(tester, _idle(next: _next, ambient: _rain));
       expect(tester.takeException(), isNull);
       final line = find.byKey(const ValueKey('idle-next-run'));
       expect(line, findsOneWidget);
       final text = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-text')));
-      // 한 줄에 다 들어가지 않으면 시각 뒤에서만 줄을 바꾼다('오전 7:00' / 이름). 시각은 분까지(평가 13차 10/18 — 폰과 같은 꼴).
+      // 시각은 시계 아이콘 옆 제 줄(분까지 — 평가 13차 10/18, 폰과 같은 꼴), 이 줄은 할 일만(11/3).
+      expect(find.descendant(of: line, matching: find.text('오전 7:00')), findsOneWidget);
       expect(
           text.textSpan!
               .toPlainText(includeSemanticsLabels: false)
               .replaceAll('⁠', '')
               .replaceAll(' ', ' ')
               .replaceAll('\n', ' · '),
-          '오전 7:00 · 아침 공기청정기 끄기');
+          '아침 공기청정기 끄기');
       expect(text.style?.fontSize, lessThan(30), reason: '강조하지 않는다(본문 크기)');
-      // '자동으로 해요'는 없앴다 — 작은 머리말 '자동 실행'(사용자 결정 10/18).
+      // '자동으로 해요'는 없앴다(10/18). 처음 화면 머리말 '자동 실행'도 없앴다 — 자동은 꼬리표 없이(11/3).
       expect(find.text('자동으로 해요'), findsNothing);
-      expect(find.text('자동 실행'), findsOneWidget);
+      expect(find.text('자동 실행'), findsNothing);
       expect(find.text('다음 루틴 · 자동으로 해요'), findsNothing);
       final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       final rect = tester.getRect(line);

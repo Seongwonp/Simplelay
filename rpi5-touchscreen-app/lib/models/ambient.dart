@@ -365,7 +365,7 @@ class KioskNextRun {
   String get whenShort =>
       [if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, clockHhmm(hhmm)].join(' ');
 
-  /// 시계 아래 묶음의 작은 머리말(사용자 결정 10/18) — 무슨 루틴인지 사실대로. 카드 없이 자동으로 하는 회차만 '자동 실행',
+  /// 실행 방식 판정('자동 실행' 탭 줄의 머리말, 처음 화면은 [modeTag]·[modeSpoken]으로). 카드 없이 자동으로 하는 회차만 '자동 실행',
   /// 카드로 물어보는 회차는 '물어볼 루틴', 알림만이면 '알림 루틴'. 조용한 시간이라 건너뛰는 회차·모르는 방식은 '다음 루틴'.
   String get kindLabel {
     if (quietSkip) return '다음 루틴';
@@ -377,6 +377,31 @@ class KioskNextRun {
     };
   }
 
+  /// 처음 화면에 보일 할 일 — 이름이 '귀가 준비 — 공기청정기 강풍'처럼 줄표로 묶였으면 뒤쪽만, 아니면 이름 그대로.
+  /// `/routines/next`는 루틴 단계를 주지 않아 이름에서만 고른다(루틴 이름 전체는 낭독과 '자동 실행' 탭에 남는다).
+  String get task {
+    final i = name.lastIndexOf(' — ');
+    if (i < 0) return name;
+    final t = name.substring(i + 3).trim();
+    return t.isEmpty ? name : t;
+  }
+
+  /// 처음 화면 할 일 뒤 회색 꼬리표 — 자동으로 하는지·묻는지를 가른다. 자동 실행은 꼬리표 없이, 묻는 회차는 '물어보고',
+  /// 알림만이면 '알림'. 조용한 시간 건너뜀·모르는 방식은 없다(그 사정은 [statusWord]가 말한다). 판정은 [kindLabel] 하나.
+  String? get modeTag => switch (kindLabel) {
+        '물어볼 루틴' => '물어보고',
+        '알림 루틴' => '알림',
+        _ => null,
+      };
+
+  /// 낭독용 실행 방식 — 꼬리표를 줄인 만큼 말로는 온전히(같은 [kindLabel] 판정).
+  String? get modeSpoken => switch (kindLabel) {
+        '자동 실행' => '자동으로 해요',
+        '물어볼 루틴' => '하기 전에 물어봐요',
+        '알림 루틴' => '알림만 해요',
+        _ => null,
+      };
+
   /// 건너뛴 회차의 머리말 뒤 말 — '오늘은 안 해요'(2차 독립 평가 B, 10/18: 아래 '오늘은 건너뛰어요 · 되돌리기'만 바뀌고 위
   /// '오후 10:00 · 저녁 공기청정기 켜기'는 그대로라 '그래도 켜지나?'로 읽혔다). 건너뛰지 않았거나 조용한 시간 건너뜀이면 null.
   String? get skippedHead {
@@ -385,7 +410,7 @@ class KioskNextRun {
   }
 
   /// 시계 아래 묶음의 작은 말 — 조용한 시간이면 그 이유, 건너뛰면 서버 말('오늘은 건너뛰어요'). 평소에는 없다
-  /// (실행 방식은 머리말 [kindLabel]이 말한다 — '자동으로 해요'는 없앴다, 사용자 결정 10/18).
+  /// (실행 방식은 [modeTag]·'자동 실행' 탭 머리말 [kindLabel]이 말한다 — '자동으로 해요'는 없앴다, 사용자 결정 10/18).
   String get statusWord {
     if (quietSkip) return '조용한 시간이라 건너뛰어요';
     // 건너뛴 회차는 머리말 [skippedHead]('오늘은 안 해요')가 말한다 — 끝 줄에 '오늘은 건너뛰어요'를 또 두지 않는다(10/19,

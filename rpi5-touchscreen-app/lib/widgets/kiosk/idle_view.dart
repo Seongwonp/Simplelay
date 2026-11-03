@@ -864,8 +864,9 @@ abstract final class _Idle {
 KioskAirReading? airIfBad(KioskAirReading? air) =>
     air != null && (air.grade == 'BAD' || air.grade == 'VERY_BAD') ? air : null;
 
-/// 시계 아래의 다음 루틴 요약. 종류, 시각, 이름과 건너뛰기 상태를 표시한다.
-/// 이름은 단어 중간에서 나누지 않고, 조작의 터치 영역은 최소 48px로 유지한다.
+/// 다음 루틴 요약 — 시계 아이콘 옆 시각, 그 아래 할 일([KioskNextRun.task])과 묻는 회차·알림만 회색 꼬리표, 건너뛰기 상태.
+/// 종류 머리말·루틴 이름은 화면에 두지 않는다(사용자 결정 — 짧게). 낭독에는 루틴 이름과 실행 방식을 온전히 남긴다.
+/// 할 일은 단어 중간에서 나누지 않고, 조작의 터치 영역은 최소 48px로 유지한다.
 /// 큰 글씨에서 공간이 부족하면 조작을 다음 줄로 내리며 [heightFor]도 같은 배치를 계산한다.
 class _NextRunLine extends StatelessWidget {
   const _NextRunLine(
@@ -878,14 +879,14 @@ class _NextRunLine extends StatelessWidget {
 
   final KioskNextRun next;
 
-  /// 처음 화면 오른쪽 줄 칸(시안 B 10/24) — 좁은 칸이라 '오후 10:00'(굵게) 뒤 이름을 작은 글자로 이어 쓰고 줄을 바꾼다
-  /// (말줄임으로 이름 끝을 자르지 않는다). 조용한 시간 화면은 종전 한 줄 꼴.
+  /// 처음 화면 오른쪽 줄 칸(시안 B 10/24) — 좁은 칸이라 할 일이 길면 낱말 단위로 줄을 바꾼다(말줄임으로 끝을 자르지
+  /// 않는다). 조용한 시간 화면은 할 일 한 줄 꼴.
   final bool stacked;
   final bool busy;
   final String? notice;
   final ValueChanged<KioskNextRun>? onToggle;
 
-  static const double _headIcon = KioskType.caption + 2;
+  static const double _headIcon = KioskType.body;
   static const double _iconGap = 6;
   static const double _headGap = 2;
   static const double _lineGap = 2;
@@ -894,6 +895,8 @@ class _NextRunLine extends StatelessWidget {
   static const double _buttonMin = 48;
   static const double _buttonPadH = 6;
   static const _headStyle = TextStyle(fontSize: KioskType.caption, height: 1.2);
+  static const _timeStyle = TextStyle(
+      fontSize: KioskType.body, height: 1.25, fontWeight: FontWeight.w700);
   static const _lineStyle = TextStyle(fontSize: KioskType.body, height: 1.25);
   static const _wordStyle = TextStyle(fontSize: KioskType.caption, height: 1.2);
   // 단추 글자는 머리말과 같은 크기·회색 계열 — 굵기만 조금(누르는 말인 줄 알게). 밑줄·테두리는 두지 않는다(사용자 결정
@@ -904,15 +907,19 @@ class _NextRunLine extends StatelessWidget {
       TextStyle(fontSize: KioskType.caption, height: 1.2);
   static const _sep = '·';
 
-  /// '오후 10:00 · 저녁 공기청정기 켜기' — 늘 한 줄(평가 16차 10/18 — 실패널은 한 줄인데 골든에서는 시각 뒤에서 두 줄로
-  /// 갈렸다). 넘치면 이름 끝만 말줄임 — 시각이 앞이라 잘리지 않는다.
-  static InlineSpan _lineSpan(KioskNextRun n) => TextSpan(children: [
-        TextSpan(
-            text: n.whenShort,
-            style: const TextStyle(fontWeight: FontWeight.w700)),
-        const TextSpan(text: ' · '),
-        TextSpan(text: n.name),
-      ]);
+  /// 할 일 뒤 회색 꼬리표('물어보고'·'알림') — 자동 실행은 없다. 묻는지·자동인지는 안전상 처음 화면에서도 가른다.
+  static List<InlineSpan> _tagSpans(KioskNextRun n) => [
+        if (n.modeTag case final tag?) ...[
+          const TextSpan(text: ' '),
+          TextSpan(
+              text: keepWords(tag),
+              style: _wordStyle.copyWith(color: KioskColors.muted)),
+        ],
+      ];
+
+  /// '저녁 공기청정기 켜기 물어보고' — 늘 한 줄(조용한 시간 화면). 넘치면 끝만 말줄임 — 시각은 머리줄에 따로 있다.
+  static InlineSpan _lineSpan(KioskNextRun n) =>
+      TextSpan(children: [TextSpan(text: n.task), ..._tagSpans(n)]);
 
   /// 단추 말 — 건너뛰었으면 '되돌리기', 아니면 서버 말('오늘은 건너뛰기'). 둘 수 없으면 null.
   static String? _buttonLabel(KioskNextRun n, bool withButton) =>
@@ -941,11 +948,11 @@ class _NextRunLine extends StatelessWidget {
   static double _sepWidth(BuildContext context) =>
       _textWidth(context, _sep, _wordStyle) + 2 * _wordGap;
 
-  /// 건너뛴 회차의 '되돌리기'는 머리말 '○○ 루틴 · 오늘은 안 해요' 끝에 붙인다 — 되돌리는 바로 그 말 옆(평가 10/19
-  /// 실패널: 시각·이름 줄 아래 혼자 떨어져 무엇을 되돌리는지 몰랐다). 시각·이름 줄 끝에 두면 이름이 말줄임으로 잘려
-  /// 그 줄은 비운다. 끝 줄에 다른 말(실패 안내)이 있거나 머리말 옆 폭이 모자라면(넓은 글꼴·큰 글씨) 종전대로 끝 줄.
-  /// 머리말 옆에서는 단추 오른쪽 여백을 두지 않는다(줄 끝이라 필요 없다) — 누르는 높이 48은 그대로. 사이는 [_wordGap].
-  /// 넓은 글꼴로 조금 모자라면 '오늘은 안 해요'만 10% 안에서 줄인다(머리말의 FittedBox) — 그보다 모자라면 끝 줄.
+  /// 건너뛴 회차의 '되돌리기'는 머리줄 '오후 10:00 · 오늘은 안 해요' 끝에 붙인다 — 되돌리는 바로 그 말 옆(평가 10/19
+  /// 실패널: 할 일 줄 아래 혼자 떨어져 무엇을 되돌리는지 몰랐다). 할 일 줄 끝에 두면 할 일이 말줄임으로 잘려
+  /// 그 줄은 비운다. 끝 줄에 다른 말(실패 안내)이 있거나 머리줄 옆 폭이 모자라면(넓은 글꼴·큰 글씨) 종전대로 끝 줄.
+  /// 머리줄 옆에서는 단추 오른쪽 여백을 두지 않는다(줄 끝이라 필요 없다) — 누르는 높이 48은 그대로. 사이는 [_wordGap].
+  /// 넓은 글꼴로 조금('오늘은 안 해요' 폭의 10% 안) 모자라면 머리줄 글을 줄인다(FittedBox) — 그보다 모자라면 끝 줄.
   static bool _undoOnHead(BuildContext context, KioskNextRun n, String? label,
       String word, double width) {
     final h = n.skippedHead;
@@ -954,7 +961,7 @@ class _NextRunLine extends StatelessWidget {
         context, h, _headStyle.copyWith(fontWeight: FontWeight.w700));
     final head = _headIcon +
         _iconGap +
-        _textWidth(context, n.kindLabel, _headStyle) +
+        _textWidth(context, n.whenShort, _timeStyle) +
         _textWidth(context, ' · ', _headStyle) +
         skippedW;
     return head + _wordGap + _headButtonWidth(context, label) - width <=
@@ -967,21 +974,13 @@ class _NextRunLine extends StatelessWidget {
   }
 
   static double _headHeight(BuildContext context) {
-    final t = _textHeight(context, '자동 실행', _headStyle, double.infinity);
+    final t = _textHeight(context, '오후 10:00', _timeStyle, double.infinity);
     return t > _headIcon ? t : _headIcon;
   }
 
-  /// 좁은 칸 꼴([stacked])의 시각·이름 — 첫 줄은 시각(굵게), 둘째 줄부터 이름(작게, 시안 B). 늘 시각 뒤에서만 줄을 바꾼다
-  /// (이름 가운데서 꺾여 '켜기'만 홀로 남지 않게 — 평가 16차 10/18의 뜻). 이름이 아주 길면 이름 안에서 낱말 단위로.
-  static InlineSpan _stackedSpan(KioskNextRun n) => TextSpan(children: [
-        TextSpan(
-            text: n.whenShort,
-            style: const TextStyle(fontWeight: FontWeight.w700)),
-        const TextSpan(text: '\n'),
-        TextSpan(
-            text: keepWords(n.name),
-            style: const TextStyle(fontSize: KioskType.caption)),
-      ]);
+  /// 좁은 칸 꼴([stacked])의 할 일 — 길면 낱말 단위로만 줄을 바꾼다('켜기'만 홀로 남지 않게 — 평가 16차 10/18의 뜻).
+  static InlineSpan _stackedSpan(KioskNextRun n) => TextSpan(
+      children: [TextSpan(text: keepWords(n.task)), ..._tagSpans(n)]);
   static const int _stackedMaxLines = 3;
 
   /// 폭 [width]에서 이 묶음이 차지할 높이.
@@ -1107,10 +1106,11 @@ class _NextRunLine extends StatelessWidget {
         }
         final after = next.afterSkipText;
         final spoken = [
-          next.kindLabel,
-          if (next.skippedHead case final h?) h,
+          // 보이는 차례 그대로(시각 · 건너뜀 / 할 일) — 다만 할 일 대신 루틴 이름 전체와 실행 방식을 온전히.
           next.whenShort,
+          if (next.skippedHead case final h?) h,
           next.name,
+          if (next.modeSpoken case final m?) m,
           if (word.isNotEmpty) word,
           if (after != null) after,
         ].join(', ');
@@ -1126,23 +1126,28 @@ class _NextRunLine extends StatelessWidget {
         final head = SizedBox(
           height: _headHeight(context),
           child: Row(
-              key: const ValueKey('idle-next-run-kind'),
+              key: const ValueKey('idle-next-run-when'),
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.schedule, size: _headIcon, color: KioskColors.muted),
                 const SizedBox(width: _iconGap),
-                Text(next.kindLabel,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: _headStyle.copyWith(color: KioskColors.muted)),
-                // 건너뛴 회차 — 머리말 옆에 말로(2차 독립 평가 B). 시각·이름 줄은 그대로 남기되 흐리게.
-                // 폭이 모자라면(넓은 글꼴·큰 글씨) 이 말만 칸에 맞춰 조금 줄인다 — 잘리지 않게.
-                if (next.skippedHead case final h?)
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                // 폭이 모자라면(좁은 칸의 '내일 오전 7:00'·넓은 글꼴·큰 글씨) 시각과 건너뜀 말을 함께 칸에 맞춰 줄인다 —
+                // 잘리지 않게.
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      // 건너뛴 회차는 흐리게 — 무엇을 건너뛰는지는 그대로 읽힌다.
+                      Text(next.whenShort,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: _timeStyle.copyWith(
+                              color: skipped
+                                  ? KioskColors.muted
+                                  : KioskColors.ink)),
+                      // 건너뛴 회차 — 시각 옆에 말로(2차 독립 평가 B). 할 일 줄은 그대로 남기되 흐리게.
+                      if (next.skippedHead case final h?) ...[
                         Text(' · ',
                             style:
                                 _headStyle.copyWith(color: KioskColors.muted)),
@@ -1153,12 +1158,13 @@ class _NextRunLine extends StatelessWidget {
                             style: _headStyle.copyWith(
                                 color: KioskColors.ink,
                                 fontWeight: FontWeight.w700)),
-                      ]),
-                    ),
+                      ],
+                    ]),
                   ),
+                ),
               ]),
         );
-        // 조금 넘치면(15% 안) 글자를 살짝 줄여 이름 끝('켜기')까지 보이고, 그보다 길면 이름 끝만 말줄임.
+        // 조금 넘치면(15% 안) 글자를 살짝 줄여 할 일 끝('켜기')까지 보이고, 그보다 길면 끝만 말줄임.
         final Widget lineWidget = () {
           if (stacked) {
             return Text.rich(_stackedSpan(next),
@@ -1187,7 +1193,7 @@ class _NextRunLine extends StatelessWidget {
         }();
         final undo = undoButton;
         if (undo != null) {
-          // 머리말 끝에 '되돌리기' — 글은 한 덩이로 읽고, 단추는 그 뒤 따로 누르는 자리로 남긴다.
+          // 머리줄 끝에 '되돌리기' — 글은 한 덩이로 읽고, 단추는 그 뒤 따로 누르는 자리로 남긴다.
           return Semantics(
             container: true,
             label: spoken,
