@@ -91,7 +91,10 @@ class KioskSuggestionView extends StatelessWidget {
     if (startedByUser && name != null && name.isNotEmpty) return '${withObject(name)} 할까요?';
     // 조언 카드는 권하는 말 한 줄이 제목이다('창문을 열어 환기해 보세요') — 묻지 않는다.
     if (suggestion.isAdvice) return suggestion.purpose;
-    if (suggestion.isScenario) return suggestion.purpose;
+    // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다('…켤까요?'). 사람 명령문('공기청정기 켜줘')이면 아래와 같이 묻는다.
+    if (suggestion.isScenario && RegExp(r'[?？]\s*$').hasMatch(suggestion.purpose)) return suggestion.purpose;
+    final ask = askQuestion(suggestion.purpose);
+    if (ask != null) return ask;
     // '즉석밥 데우기,\n지금 할까요?'의 쉼표가 어색했다(10/25 실패널 점검) — '-기'로 끝나면 '…를 지금 할까요?'(음성 안내와 같은 문장).
     final action = actionName(suggestion.purpose);
     return action.endsWith('기') ? '${withObject(action)}\n지금 할까요?' : '$action,\n지금 할까요?';
@@ -156,7 +159,7 @@ class KioskSuggestionView extends StatelessWidget {
                 ? '직접 실행'
                 : suggestion.isAdvice
                     ? '조언'
-                    : (suggestion.isDemo ? '제안 연습' : '제안'),
+                    : '제안',
             // 시나리오 이름(서버가 정한 이유 머리말 — '공기가 나빠요')은 띠 오른쪽에 둔다. 본문에 따로 한 줄을 두면
             // 맡기기 단추까지 있는 카드에서 질문·제한·할 일 칸이 모자라 칸 아래에서 줄이 잘렸다(15.8형 실패널).
             detail: _scenarioName,

@@ -75,8 +75,9 @@ String suggestionSpeech(KioskSuggestion s) {
   if (server != null && server.isNotEmpty) return server;
   final reason = _sentence(s.userStarted ? '' : s.whyNow);
   if (s.isAdvice) return reason.isNotEmpty ? reason : s.purpose;
-  final question =
-      s.question ?? (s.isScenario ? s.purpose : _askNow(actionName(s.purpose)));
+  final scenarioAsks = s.isScenario && RegExp(r'[?？]\s*$').hasMatch(s.purpose);
+  final question = s.question ??
+      (scenarioAsks ? s.purpose : askQuestion(s.purpose) ?? _askNow(actionName(s.purpose)));
   return [reason, question].where((p) => p.isNotEmpty).join(' ');
 }
 

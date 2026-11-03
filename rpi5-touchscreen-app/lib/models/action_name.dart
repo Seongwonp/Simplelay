@@ -22,6 +22,43 @@ const _verbStems = {
   '해': '하기', '할': '하기',
 };
 
+// 끝 동사 줄기 → 묻는 꼴('켤까요?'). 모르는 동사는 묻는 꼴을 만들지 않는다.
+const _askForms = {
+  '켜': '켤까요?', '꺼': '끌까요?', '데워': '데울까요?', '끓여': '끓일까요?', '잠가': '잠글까요?',
+  '바꿔': '바꿀까요?', '눌러': '누를까요?', '돌려': '돌릴까요?', '열어': '열까요?', '틀어': '틀까요?',
+  '멈춰': '멈출까요?', '줄여': '줄일까요?', '올려': '올릴까요?', '낮춰': '낮출까요?', '높여': '높일까요?',
+};
+
+/// 사람 명령문을 되묻는 말로 — '공기청정기 켜줘' → '공기청정기를 켤까요?', '강풍으로 바꿔줘' → '강풍으로 바꿀까요?'.
+/// 끝 동사를 모르면 null(지어내지 않는다).
+String? askQuestion(String text) {
+  var words = text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (words.length > 1 && const {'줘', '주세요', '줄래', '줄래요'}.contains(words.last)) {
+    final aux = words.removeLast();
+    words[words.length - 1] = words.last + aux;
+  }
+  if (words.length < 2) return null;
+  final last = words.last;
+  String? form;
+  for (final end in const ['주세요', '줄래요', '줄래', '줘']) {
+    if (last.length > end.length && last.endsWith(end)) {
+      form = _askForms[last.substring(0, last.length - end.length)];
+      break;
+    }
+  }
+  if (form == null) return null;
+  words = [...words.sublist(0, words.length - 1), form];
+  final i = words.length - 2;
+  final obj = words[i];
+  const particles = ['을', '를', '으로', '로', '에', '에서', '도', '은', '는'];
+  if (!particles.any((p) => obj.length > p.length && obj.endsWith(p))) {
+    final c = obj.codeUnitAt(obj.length - 1);
+    final hasFinal = c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 != 0;
+    words[i] = '$obj${hasFinal ? '을' : '를'}';
+  }
+  return words.join(' ');
+}
+
 /// 명령·질문·해요체 문장을 행동 이름('공기청정기 켜기')으로. 설정표 말('풍량'·'전원 켜기')도 쉬운 말로.
 String actionName(String text) {
   var t = text.trim();

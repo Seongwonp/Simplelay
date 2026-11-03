@@ -133,7 +133,7 @@ void main() {
     await _pump(tester, target: kMicrowaveAppliance);
 
     expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('즉석밥 데우기를\n지금 할까요?'), findsOneWidget);
+    expect(find.text('즉석밥을 데울까요?'), findsOneWidget);
     // 버튼판 안내는 실행 화면과 같이 '화면은 누르지 않아도 돼요'까지(접근성 감사 10/18).
     expect(find.text('누름 장치가 누를 순서예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
     for (final (i, label) in [(1, '즉석밥'), (2, '시작')]) {
@@ -193,7 +193,7 @@ void main() {
 
     testWidgets('질문이 가장 크고, 선택 버튼 글자가 순서·근거보다 크다', (tester) async {
       await _pump(tester, target: kMicrowaveAppliance);
-      final question = sizeOf(tester, find.text('즉석밥 데우기를\n지금 할까요?'));
+      final question = sizeOf(tester, find.text('즉석밥을 데울까요?'));
       final approve = sizeOf(tester,
           find.descendant(of: find.byKey(_approve), matching: find.byType(Text)));
       final later = sizeOf(tester,
@@ -234,6 +234,21 @@ void main() {
       // 할 일(대상·동작)과 경로는 그대로 보인다.
       expect(find.text('공기청정기 풍량 강'), findsOneWidget);
     });
+
+    testWidgets('LG 가전 카드의 질문도 사람 명령문을 그대로 쓰지 않고 되묻는다', (tester) async {
+      await _pump(tester,
+          suggestion: const KioskSuggestion(
+            id: 'sc',
+            purpose: '공기청정기 켜줘',
+            occurrences: 0,
+            scenarioId: 'demo',
+            commands: [
+              KioskSuggestionCommand(targetId: 'air_purifier', route: 'thinq', summary: '공기청정기 전원 켜기'),
+            ],
+          ));
+      final q = tester.widget<Text>(find.byKey(const ValueKey('suggestion-question')));
+      expect(q.textSpan!.toPlainText().replaceAll('⁠', '').replaceAll(' ', ' '), '공기청정기를 켤까요?');
+    });
   });
 
   // 2026-10-14 추가 확인 1: 근거를 두 줄로 잘라도 중요한 제한·모의 여부는 늘 보이는 줄에 있고,
@@ -261,12 +276,11 @@ void main() {
       expect(find.textContaining('(모의)'), findsNothing);
     });
 
-    testWidgets('시연 데이터 여부는 위 띠, 조리 완료 단서는 근거 밖 줄에 늘 보인다', (tester) async {
+    testWidgets('시연 데이터 표식은 질문에 넣지 않고, 조리 완료 단서는 근거 밖 줄에 늘 보인다', (tester) async {
       await _pump(tester, suggestion: longCard);
-      // 외부 평가 10/16 2차: 가장 큰 글자(질문)에 '[시연 데이터]'가 박혀 있었다 — 위 상태 띠로 옮긴다.
       expect(find.text('공기청정기 강풍으로 바꿀까요?'), findsOneWidget);
       expect(find.textContaining('[시연 데이터]'), findsNothing);
-      expect(find.text('제안 연습'), findsOneWidget);
+      expect(find.text('제안'), findsOneWidget);
       final caveat = tester.widget<Text>(find.byKey(const ValueKey('suggestion-caveat')));
       expect(caveat.data, '조리 완료가 아닐 수 있어요');
       expect(caveat.maxLines, isNull);

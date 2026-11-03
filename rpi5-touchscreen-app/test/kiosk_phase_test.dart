@@ -639,7 +639,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
     expect(find.byType(KioskSuggestionView), findsNothing);
-    expect(tts.utterances.where((s) => s.contains('지금 할까요')), hasLength(1));
+    expect(tts.utterances.where((s) => s.endsWith('까요?')), hasLength(1));
     expect(api.rejectedIds, isEmpty); // 무응답을 싫다는 피드백으로 보내지 않음
     api.suggestionList = const [KioskSuggestion(
       id: 's2', purpose: '새 제안', occurrences: 3, applianceId: 'microwave',
@@ -647,7 +647,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(KioskSuggestionView), findsOneWidget);
-    expect(tts.utterances.where((s) => s.contains('지금 할까요')), hasLength(2));
+    expect(tts.utterances.where((s) => s.endsWith('까요?')), hasLength(2));
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -1237,9 +1237,9 @@ void main() {
 
     // 제안 도착 발화 — 목적이 포함된 문장
     // 화면 질문과 같은 할 일 이름(평가 8차 10/18).
-    expect(tts.utterances.single, contains('즉석밥 데우기'));
+    expect(tts.utterances.single, contains('즉석밥을 데울까요'));
     // 사람에게 말하듯 묻기만 한다(2026-10-26) — '하시려면 화면의 네를 눌러 주세요' 안내는 붙이지 않는다.
-    expect(tts.utterances.single, endsWith('지금 할까요?'));
+    expect(tts.utterances.single, endsWith('까요?'));
     expect(tts.utterances.single, isNot(contains('하시려면')));
 
     api.suggestionList = [];

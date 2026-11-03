@@ -342,7 +342,7 @@ void main() {
   });
 
   group('5. 제안 질문 — 할 일 이름으로', () {
-    testWidgets('"즉석밥 데워줘" → "즉석밥 데우기를 지금 할까요?"', (tester) async {
+    testWidgets('"즉석밥 데워줘" → "즉석밥을 데울까요?"', (tester) async {
       await _pump(
           tester,
           KioskSuggestionView(
@@ -361,7 +361,7 @@ void main() {
           ));
       final q = tester.widget<Text>(find.byKey(const ValueKey('suggestion-question')));
       final text = q.textSpan!.toPlainText().replaceAll('⁠', '').replaceAll(' ', ' ');
-      expect(text, '즉석밥 데우기를\n지금 할까요?');
+      expect(text, '즉석밥을 데울까요?');
       expect(_texts(tester).join('\n'), isNot(contains('데워줘,')));
     });
 

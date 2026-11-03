@@ -39,9 +39,9 @@ void main() {
     test('speech가 없으면 근거 문장 + 화면 질문', () {
       const habit = KioskSuggestion(
           id: 'h1', purpose: '즉석밥 데워줘', occurrences: 5, timeBand: '저녁', reason: '최근 28일 중 5일, 오후 7시쯤 하셨어요');
-      expect(suggestionSpeech(habit), '최근 28일 중 5일, 오후 7시쯤 하셨어요. 즉석밥 데우기를 지금 할까요?');
+      expect(suggestionSpeech(habit), '최근 28일 중 5일, 오후 7시쯤 하셨어요. 즉석밥을 데울까요?');
       const old = KioskSuggestion(id: 'h2', purpose: '즉석밥 데워줘', occurrences: 0);
-      expect(suggestionSpeech(old), '즉석밥 데우기를 지금 할까요?');
+      expect(suggestionSpeech(old), '즉석밥을 데울까요?');
     });
 
     test('조언 카드는 조언 문장만', () {
