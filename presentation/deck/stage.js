@@ -296,6 +296,17 @@
       el.append(b, sp); box.append(el);
     });
   }
+  // '10월 18·23·25일'처럼 같은 달은 묶어 쓴다.
+  function joinDays(list) {
+    const groups = [];
+    list.forEach((d) => {
+      const m = /^(\d+)월 (\d+)일$/.exec(kd(d));
+      if (!m) { groups.push({ raw: kd(d) }); return; }
+      const g = groups[groups.length - 1];
+      if (g && g.mon === m[1]) g.days.push(m[2]); else groups.push({ mon: m[1], days: [m[2]] });
+    });
+    return groups.map((g) => g.raw || g.mon + "월 " + g.days.join("·") + "일").join(", ");
+  }
   // 스냅숏의 첫 습관(낮 12시 59분쯤 켜기) — 그 날들의 실제 켠 시각을 그대로 보인다.
   function snapHabitCard() {
     const h = SNAP.habits[0];
@@ -305,7 +316,8 @@
         .map((r) => r.t).filter((t) => { const [a, b] = t.split(":").map(Number); const m = a * 60 + b; return Math.abs(m - 779) <= 45; });
       return [kd(md0), times.map(spoken).join(" · ") + " 직접 켬"];
     });
-    $("habitHead").textContent = "이렇게 쓰셨어요 · " + h.when;
+    // 이유 줄 — 쓴 날을 먼저 말한다.
+    $("habitHead").textContent = joinDays(h.days) + "에도 이 시간쯤 직접 켰어요";
     renderDays(days);
     $("habitAsk").textContent = "공기청정기, 지금 켤까요?";
     setSrc($("habitSrc"), "live", SNAP.label);
@@ -334,7 +346,7 @@
         return;
       }
       const need = r.minimum_days || 3;
-      $("habitHead").textContent = h.when_text ? "이렇게 쓰셨어요 · " + h.when_text : "이렇게 쓰셨어요";
+      $("habitHead").textContent = joinDays(days) + "에도 " + (h.when_text || "이 시간쯤") + " 직접 쓰셨어요";
       renderDays(days.map((d) => [kd(d), (time ? spoken(time) + " " : "") + "직접 사용"]));
       if (h.state === "auto") $("habitAsk").textContent = "맡겨 두셨어요 — 알아서 하고 알려 드려요";
       else if (h.established) $("habitAsk").textContent = "평소처럼, 지금 할까요?";
@@ -396,6 +408,8 @@
       let s = await getJSON("/status");
       if (!alive()) return;
       if (!s) {
+        // 직전에 받은 단계 표시가 '이번 결과'처럼 남지 않게 지운다.
+        setStep(0, "", "보냄"); setStep(1, "", "상태를 다시 읽음"); setStep(2, "", "결과");
         setSrc($("stepsSrc"), "off", "값 못 받음");
         $("stepsDetail").textContent = "본체에서 실행 상태를 받지 못했어요";
         return;
@@ -441,26 +455,17 @@
     }, 50);
     timers.push(iv);
   }
+  // 본체에 실시간 소비전력 경로가 생기기 전까지는 늘 측정값으로 다시 그린 그림을 보인다(무대 표제도 그렇게 적혀 있다).
+  const RECORDED_NOTE = "여러 날의 측정값으로 다시 그렸습니다(가열 중 센서 출력 10월 30일, 시작 순간 11월 2일, 1분 가열 네 번 11월 2~3일).";
   function runPower() {
     const g = $("graph");
-    if (emergency) {
-      g.classList.remove("disconnected");
-      $("ctNote").textContent = "실측 장면 — 지금 값이 아닙니다. 여러 날의 측정값으로 재구성한 그림(대기 0 W · 가열 약 1,000 W · 시작 순간 약 3,550 W, 사람이 손으로 시작한 1분 가열 4회는 11월 2~3일).";
-      playRecorded();
-      return;
-    }
-    if (!hub.connected) {
-      g.classList.remove("disconnected");
-      $("ctNote").textContent = "미리보기 — 여러 날의 측정값으로 재구성한 그림(대기 0 W · 가열 약 1,000 W · 시작 순간 약 3,550 W, 사람이 손으로 시작한 1분 가열 4회는 11월 2~3일).";
+    g.classList.remove("disconnected");
+    if (!POWER_ENDPOINT || emergency || !hub.connected) {
+      $("ctNote").textContent = (emergency ? "지금 값이 아닙니다. " : "") + RECORDED_NOTE;
       playRecorded();
       return;
     }
     resetGraph();
-    if (!POWER_ENDPOINT) {
-      g.classList.add("disconnected");
-      $("w").textContent = "— W"; $("tsec").textContent = "";
-      $("ctNote").textContent = "본체 연결됨 · 실시간 소비전력 값은 아직 연결 안 됨";
-    }
   }
 
   // ---------- 끄기: 카메라 스위치는 GET /presence/room 의 camera_enabled ----------

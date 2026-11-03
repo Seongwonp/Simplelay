@@ -219,3 +219,20 @@ table.mt td{padding:14px 6px;border-bottom:1px solid var(--line);font-variant-nu
 .faq{columns:2;column-gap:56px;font-size:23px;line-height:1.5;padding-left:34px;margin-top:6px}
 .faq li{break-inside:avoid;margin-bottom:18px}
 .faq li b{display:block;font-size:24px}
+/* 실제로 있었던 일 — 세 줄 크게 */
+.tline.big .tl{grid-template-columns:200px 1fr;padding:22px 0 30px}
+.tline.big time{font-size:32px}
+.tline.big b{font-size:38px}
+.tline.big p{font-size:26px}
+.tl.you b{color:var(--teal-d)}
+/* 어디까지 확인했나 */
+.vdev .card{font-size:34px;line-height:1.5}
+.vdev .card p{margin-top:18px}
+.vdev .card small{display:block;margin-top:14px;font-size:24px;color:var(--sub)}
+.vline{margin-top:30px;font-size:29px;color:var(--sub)}
+.vline.warnline{color:var(--warn);font-weight:700;margin-top:40px}
+/* 다음 — 고객 말 */
+.quote{margin-top:34px;font-size:34px;line-height:1.5;color:var(--ink);border-left:8px solid var(--teal);padding-left:26px}
+.faq.sm{font-size:19px;column-gap:44px}
+.faq.sm li{margin-bottom:10px}
+.faq.sm li b{display:inline;font-size:19px}
