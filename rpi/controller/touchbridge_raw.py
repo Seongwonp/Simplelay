@@ -1,8 +1,9 @@
 """개발자 모드 보드 명령 바로 보내기 — Touch Bridge 원본 텍스트 명령의 허용 목록.
 
 조정 중에는 위치 확인·원점 확인 같은 우리 쪽 관문 없이 HW 담당의 원본 명령(``T``·``Z``·``G`` …)을 그대로
-보내 보드 답을 봐야 한다. 그래도 임의의 줄은 보내지 않는다: 아래 모양만 받고, 키 재설정·PID 값·버튼 격자처럼
-보드 설정을 바꾸는 명령은 뺀다. 정지는 이 경로와 상관없이 늘 JSON ``stop``으로 간다.
+보내 보드 답을 봐야 한다. 그래도 임의의 줄은 보내지 않는다: 아래 모양만 받고, 키 재설정·버튼 격자처럼
+보드에 남는 설정은 뺀다. PID 값(``K``)은 다시 켜면 사라지는 값이라 상한 안에서만 받는다.
+정지는 이 경로와 상관없이 늘 JSON ``stop``으로 간다.
 
 RPi5(명령 모양 확인)와 RPi4(보내기 직전 다시 확인)가 같은 함수를 쓴다.
 """
@@ -20,7 +21,11 @@ _PATTERNS = (
     re.compile(r"Z|H|S|!|P|\?|\$\$|STOP"),
     re.compile(rf"GT? {_NUM} {_NUM}(?: {_NUM})?"),
     re.compile(rf"M {_NUM} {_NUM} \d{{1,4}}"),
+    re.compile(r"K(?: \d{1,2}(?:\.\d{1,6})?){4}"),
 )
+#: ``K kp ki kd kff`` 상한 — 보드 메모리에만 들어가고 다시 켜면 펌웨어 기본값(kp 0.02·ki 0.05·kd 0.00005·kff 0.00012)으로 돌아간다.
+#: 조정용이라 기본값의 몇 배까지만 받는다(값이 크면 진동·과전류).
+MAX_K = (0.1, 0.5, 0.001, 0.001)
 #: ``M a b ms``의 출력 비율 상한과 시간 상한(ms). 출력은 -1..1 비율이다(HW 시험 ``M ±0.5 ±0.5 500``).
 MAX_RAW_PWM = 1.0
 MAX_RAW_MS = 2000
@@ -48,6 +53,8 @@ def normalize_raw_command(text: object) -> str | None:
         a, b, ms = float(parts[1]), float(parts[2]), int(parts[3])
         if abs(a) > MAX_RAW_PWM or abs(b) > MAX_RAW_PWM or not 0 < ms <= MAX_RAW_MS:
             return None
+    if parts[0] == "K" and any(float(v) > cap for v, cap in zip(parts[1:], MAX_K)):
+        return None
     if parts[0] == "T" and len(parts) == 2 and not 30 <= int(parts[1]) <= MAX_RAW_MS:
         return None
     return line

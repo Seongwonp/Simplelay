@@ -138,6 +138,7 @@ def test_allowlisted_commands_are_normalized(text, normalized) -> None:
         "raw",
         "raw KEYRESET",
         "raw K 1 2 3 4",
+        "raw K 0.02 0.9 0.00005 0.00012",
         "raw T; T",
         "raw M 3 0 500",
     ],

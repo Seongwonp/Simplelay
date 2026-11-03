@@ -630,7 +630,7 @@ def test_raw_move_reports_the_firmware_fault_line(rig):
     assert client.raw_text("G 5 0") == ["OK", "FAULT SETTLE"]
 
 
-@pytest.mark.parametrize("text", ["K 1 2 3 4", "KEYRESET", "SET_GRID 1 1 1 1 1 1", "T\nT", "M 2 0 500", "M 0.5 0.5",
+@pytest.mark.parametrize("text", ["K 1 2 3 4", "K 0.02 0.9 0.00005 0.00012", "KEYRESET", "SET_GRID 1 1 1 1 1 1", "T\nT", "M 2 0 500", "M 0.5 0.5",
                                   "T 5000", "G 1", "{\"action\":\"press\"}", "BTN_1"])
 def test_raw_text_refuses_lines_outside_the_allow_list_before_writing(rig, text):
     client, mcu, _ = rig
