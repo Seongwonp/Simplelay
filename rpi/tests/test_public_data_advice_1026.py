@@ -208,7 +208,7 @@ def test_ventilation_advice_text_and_chips():
     assert "ventilate:offered" in monitor.check_once()
     title, text, chips = box["advice"][0]
     assert title == VENTILATE_TITLE
-    assert text == ("실내 습도가 74%로 꽤 습해요. 바깥은 18도로 선선하니 잠깐 창문을 열어 환기해 보시는 건 어떨까요?")
+    assert text == ("실내 습도가 74%로 꽤 습해요. 바깥은 18도로 선선하니 잠깐 창문을 열어 환기해 보세요.")
     assert [label for label, _ in chips][0] == "집에 계심"
     assert "바깥 미세먼지 보통" in [label for label, _ in chips]
     assert "ventilate:done" in monitor.check_once()  # 하루 한 번

@@ -476,7 +476,7 @@ class ContextSuggestionMonitor:
             second = f"바깥은 습도가 {s.outdoor_humidity:.0f}%로 덜 습하니"
         else:
             second = f"바깥은 {s.outdoor_temp:.0f}도로 선선하니"
-        text = f"{first} {second} 잠깐 창문을 열어 환기해 보시는 건 어떨까요?"
+        text = f"{first} {second} 잠깐 창문을 열어 환기해 보세요."
         return self._give_advice(ADVICE_VENTILATE, VENTILATE_TITLE, text,
                                  ["집에 계심", *chips, f"바깥 {s.outdoor_temp:.0f}°C", f"바깥 미세먼지 {s.outdoor_air}"], s)
 

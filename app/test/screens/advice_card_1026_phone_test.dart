@@ -20,7 +20,7 @@ const _advice = Suggestion(
   steps: [],
   source: SuggestionSource.http,
   timeBand: '조언',
-  reason: '실내 습도가 74%로 꽤 습해요. 바깥은 18도로 선선하니 잠깐 창문을 열어 환기해 보시는 건 어떨까요?',
+  reason: '실내 습도가 74%로 꽤 습해요. 바깥은 18도로 선선하니 잠깐 창문을 열어 환기해 보세요.',
   signals: [SuggestionSignal(label: '집에 계심')],
   kind: 'advice',
 );

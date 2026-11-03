@@ -45,7 +45,7 @@ DEFAULT_DONE_TIMEOUT_S = 1200.0
 DEFAULT_DONE_TIMEOUTS_S: dict[str, float] = {"microwave": 900.0, "washer": 3 * 3600.0}
 # 10/18 쉬운 말: 결과 한 줄 + 할 일 한 줄('단계' → '할 일'). '—'·괄호로 잇지 않는다. 확인 수준은 그대로 —
 # 시작만 본 것을 끝났다고, 입력 하나뿐인 끝을 확인했다고 말하지 않는다.
-START_ONLY_DETAIL = "시작한 것만 확인했어요. 끝났는지는 확인하지 못했어요."
+START_ONLY_DETAIL = "시작한 것은 확인했지만, 아직 끝났는지는 확인하지 못했어요."
 #: 입력 하나뿐인 끝(``probable``)의 문장 머리. 단계 상태는 이 글자가 아니라 `_wait_cycle_end`가 돌려준 값으로 정한다.
 PROBABLE_DETAIL = "끝난 것 같아요."
 ESTOP_STOP_DETAIL = "비상 버튼이 눌려 남은 할 일을 멈췄어요. 풀어도 이어서 하지 않아요."
@@ -593,7 +593,7 @@ class RoutineRunner:
         '끝난 것 같음'(입력 하나뿐인 끝)은 설명 글자로 가르지 않고 이 값으로 돌려준다."""
         result = next((r for r in reversed(run.results) if r.command.target_id == appliance_id), None)
         if result is None:
-            return False, "기다릴 가전이 한 일을 찾지 못했어요. 가전을 봐 주세요.", "none", False
+            return False, "기다리던 가전의 시작 기록을 찾지 못했어요. 가전이 작동하고 있는지 직접 봐 주세요.", "none", False
         sensored = appliance_id in self._done_sensors and self._done_log is not None
         if (sensored and result.status is CommandStatus.SUCCEEDED
                 and result.execution_mode is not ExecutionMode.MOCK):
