@@ -288,6 +288,53 @@ void main() {
       handle.dispose();
       await tester.pumpWidget(const SizedBox.shrink());
     });
+
+    // 손가락을 누른 채 1초 틱이 지나간 뒤 떼면 — 틱이 '누르기 전 남은 시간'을 지워 만지기가 되돌린 40초에 60초가 더해졌다.
+    testWidgets("'시간 더 주기'를 누른 채 1초가 지나도 — 누르기 전 남은 시간(틱 반영)에 정확히 60초", (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = [_microwave(startBehavior: 'toggle')]
+        ..suggestionList = const [
+          KioskSuggestion(id: 's1', purpose: '즉석밥 데워줘', occurrences: 3, applianceId: 'microwave'),
+        ];
+      await _pumpKiosk(tester, api);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(KioskSuggestionView), findsOneWidget);
+      await tester.pump(const Duration(seconds: 10));
+      final before = int.parse(seconds(tester).split('초').first);
+      expect(before, lessThan(39));
+      final gesture = await tester.startGesture(tester.getCenter(find.byKey(const ValueKey('suggestion-more-time'))));
+      await tester.pump();
+      expect(seconds(tester), startsWith('40초'), reason: '닿는 순간 만지기가 처음으로 되돌린다');
+      await tester.pump(const Duration(seconds: 1));
+      expect(seconds(tester), startsWith('39초'), reason: '누른 채 틱 한 번');
+      await gesture.up();
+      await tester.pump();
+      final after = before - 1 + 60;
+      expect(seconds(tester), '${after ~/ 60}분 ${after % 60}초 뒤 닫혀요');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('손가락 없이 불린 시간 더 주기(낭독 조작)는 지난 만지기의 값을 쓰지 않는다', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = [_microwave(startBehavior: 'toggle')]
+        ..suggestionList = const [
+          KioskSuggestion(id: 's1', purpose: '즉석밥 데워줘', occurrences: 3, applianceId: 'microwave'),
+        ];
+      await _pumpKiosk(tester, api);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 10));
+      // 질문 글자를 만졌다 떼고(30초 안팎 → 40초), 2초가 지났다.
+      await tester.tapAt(tester.getCenter(find.byKey(const ValueKey('suggestion-question'))));
+      await tester.pump();
+      expect(seconds(tester), startsWith('40초'));
+      await tester.pump(const Duration(seconds: 2));
+      expect(seconds(tester), startsWith('38초'));
+      // 낭독 조작 — 포인터 없이 단추 동작만 불린다.
+      tester.widget<KioskSuggestionView>(find.byType(KioskSuggestionView)).onExtend!();
+      await tester.pump();
+      expect(seconds(tester), '1분 38초 뒤 닫혀요', reason: '지금 남은 38초에 60초 — 만지기 전 30초 안팎이 아니다');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
   });
 
   test('남은 시간 — 60초 미만은 초, 그 이상은 분·초', () {

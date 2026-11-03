@@ -2197,7 +2197,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _rememberPastResult();
     _doneReturnTimer?.cancel();
     _doneReturnTimer = null;
-    _countdownTimer?.cancel();
+    _stopSuggestionCountdown();
     setState(() {
       _phase = KioskPhase.manual;
       _manualAppliance = target;
@@ -2231,7 +2231,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _holdReturnTimer = null;
     _doneReturnTimer?.cancel();
     _doneReturnTimer = null;
-    _countdownTimer?.cancel();
+    _stopSuggestionCountdown();
     setState(() {
       _phase = KioskPhase.idle;
       _homeTab = KioskTab.home;
@@ -2374,7 +2374,7 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 화면으로 보낸다. _toManual은 idle에서만 동작하므로 phase를 먼저 되돌린다.
   void _onManualFromFailure() {
     _rememberPastResult();
-    _countdownTimer?.cancel();
+    _stopSuggestionCountdown();
     setState(() {
       _phase = KioskPhase.manual;
       // 직접 고른 가전에서 실패했으면 그 가전(R7) — 예전에는 가전이 여럿이면 선택을 비웠다.
@@ -2413,6 +2413,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _currentSuggestion = suggestion;
       _cdRemaining = _countdownSeconds;
       _cdBeforeTouch = null;
+      _suggestionPointers = 0;
       _cdTotal = _countdownSeconds;
       _scenarioBlockedWhy = null;
     });
@@ -2420,7 +2421,12 @@ class _KioskScreenState extends State<KioskScreen> {
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
-      _cdBeforeTouch = null;
+      // 손가락이 닿아 있는 동안은 '누르기 전 남은 시간'을 지우지 않고 같은 만큼 줄인다 — 지우면 떼는 순간의 '시간 더 주기'가
+      // 만지기로 되돌린 값(40초)에 더해 최대 99초가 늘었다. 손을 뗀 뒤 첫 틱에는 지운다(손가락 없는 낭독 조작이 지난 값을 쓰지 않게).
+      final before = _cdBeforeTouch;
+      _cdBeforeTouch = before != null && _suggestionPointers > 0
+          ? (before - 1).clamp(0, kSuggestionMaxSeconds)
+          : null;
       setState(() => _cdRemaining--);
       if (_cdRemaining <= 0) {
         timer.cancel();
@@ -2437,10 +2443,32 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() => _cdRemaining = _countdownSeconds);
   }
 
+  /// 제안 화면의 카운트다운을 멈추고 만지기 기록을 지운다 — 제안 화면을 떠나는 길은 모두 여기를 지난다.
+  void _stopSuggestionCountdown() {
+    _countdownTimer?.cancel();
+    _cdBeforeTouch = null;
+    _suggestionPointers = 0;
+  }
+
+  /// 제안 화면에 손가락이 닿았다 — 화면 Listener의 누름만(단추 콜백이 부르는 [_touchSuggestion]은 손가락을 세지 않는다).
+  void _pressSuggestion() {
+    if (_phase != KioskPhase.suggestion) return;
+    _suggestionPointers++;
+    _touchSuggestion();
+  }
+
+  /// 제안 화면에 닿은 손가락이 떨어졌다(뗌·취소). 값은 바로 지우지 않는다 — 단추의 누름은 뗄 때 이 알림 **뒤에** 불린다.
+  void _releaseSuggestionTouch() {
+    if (_suggestionPointers > 0) _suggestionPointers--;
+  }
+
   /// 마지막 만지기 직전의 남은 시간 — '시간 더 주기'를 누르면 손가락이 닿는 순간 [_touchSuggestion]이 먼저 40초로
   /// 되돌리고 뗄 때 단추가 불린다. 되돌린 값에 더하면 30초에서 눌러도 100초가 됐다(실패널). 단추는 이 값에 더한다.
-  /// 1초마다 지운다 — 손가락 없이 불린 단추(낭독 조작)가 지난 만지기의 값을 쓰지 않게.
+  /// 손가락이 닿아 있는 동안은 1초마다 남은 시간과 함께 줄고, 손을 뗀 뒤 첫 틱·새 카드·제안 화면을 떠날 때·단추가 쓴 직후 지운다.
   int? _cdBeforeTouch;
+
+  /// 제안 화면에 닿아 있는 손가락 수. 새 카드가 뜨면 0으로.
+  int _suggestionPointers = 0;
 
   /// '시간 더 주기' — 누르기 전 남은 시간에서 정확히 60초 더. 이 시간은 화면 타이머다(서버 제안 카드는 따로 만료된다 —
   /// 거절·실행을 보내지 않는다).
@@ -2692,7 +2720,7 @@ class _KioskScreenState extends State<KioskScreen> {
     } else if (targetId == null || _findIn(_appliances, targetId) == null) {
       return;
     }
-    _countdownTimer?.cancel();
+    _stopSuggestionCountdown();
     setState(() {
       _currentSuggestion = null;
       _allowConfirmId = null;
@@ -2951,7 +2979,7 @@ class _KioskScreenState extends State<KioskScreen> {
     final suggestion = _currentSuggestion;
     if (suggestion == null || _dismissingSuggestion) return;
     _dismissingSuggestion = true;
-    _countdownTimer?.cancel();
+    _stopSuggestionCountdown();
     try {
       await _api.rejectSuggestion(suggestion.id, mute: mute, reason: reason);
       if (mounted &&
@@ -3722,7 +3750,8 @@ class _KioskScreenState extends State<KioskScreen> {
           target: targetId == null ? null : _findIn(_appliances, targetId),
           cdRemaining: _cdRemaining,
           cdTotal: _cdTotal,
-          onTouch: _touchSuggestion,
+          onTouch: _pressSuggestion,
+          onTouchEnd: _releaseSuggestionTouch,
           onExtend:
               _cdRemaining < kSuggestionMaxSeconds ? _extendSuggestion : null,
           scenarioName: _scenarioNames[suggestion.scenarioId],

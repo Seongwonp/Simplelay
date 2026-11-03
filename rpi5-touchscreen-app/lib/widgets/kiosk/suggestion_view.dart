@@ -42,6 +42,7 @@ class KioskSuggestionView extends StatelessWidget {
     this.scenarioName,
     this.blockedWhy,
     this.onTouch,
+    this.onTouchEnd,
     this.onExtend,
     this.startedByUser = false,
     this.muteChecked = false,
@@ -99,6 +100,9 @@ class KioskSuggestionView extends StatelessWidget {
   /// 화면을 만졌다(접근성 감사 10/18 — 시간 제한 조절) — 화면이 남은 시간을 처음으로 되돌린다. 단추 동작은 그대로 지나간다.
   final VoidCallback? onTouch;
 
+  /// [onTouch]로 닿은 손가락이 떨어졌다(뗌·취소). 단추의 누름보다 먼저 불린다.
+  final VoidCallback? onTouchEnd;
+
   /// '시간 더 주기'(+60초). null이면 단추를 두지 않는다.
   final VoidCallback? onExtend;
 
@@ -139,6 +143,8 @@ class KioskSuggestionView extends StatelessWidget {
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => onTouch?.call(),
+      onPointerUp: (_) => onTouchEnd?.call(),
+      onPointerCancel: (_) => onTouchEnd?.call(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
