@@ -97,12 +97,13 @@ String kNeedsCheck(int n) => '연결 $n곳에 문제가 있어요';
 /// 아직 연결을 다 보지 못했을 때 칩 글(정상이라고 하지 않는다).
 const kCheckingConnections = '연결을 확인하고 있어요';
 
-/// 연결 하나의 문제를 쉬운 서술로(평가 3차 10/18 — 명사형 '연결 끊김' 대신). 칩을 읽는 화면 읽기 말에 쓴다.
+/// 연결 하나의 문제를 쉬운 서술로 — 서버가 준 그 항목 제목('누름 장치가 연습 모드예요', '누름 장치와 연결이 끊겼어요')을
+/// 그대로 쓴다. 예전 '누름 장치를 봐 주세요'는 무엇을 볼지 말하지 않았다(UX 문구 기준 R7). 제목이 비었을 때만 이름으로 만든다.
 String connectionProblemText(ConnectionItem p) {
+  final title = p.title.trim();
+  if (title.isNotEmpty) return title;
   final name = connectionShortName(p.id);
-  return p.state == 'error'
-      ? '$name 연결이 끊겼어요'
-      : '$name를 봐 주세요';
+  return p.state == 'error' ? '$name 연결이 끊겼어요' : '$name에 문제가 있어요';
 }
 
 /// 원인이 하나일 때 칩 첫 줄 — 원인과 영향(평가 15차 10/18: 가전 4대를 쓸 수 없는데 칩은 '확인 필요 1'뿐이었다).

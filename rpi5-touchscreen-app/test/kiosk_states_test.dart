@@ -215,7 +215,7 @@ void main() {
       await _pump(tester, api);
 
       // 문제가 있을 때만 앰버 연결 문제 줄(결선 모의 평가 10/18 — 한 줄 제목) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
-      expect(find.text('콘센트를 봐 주세요'), findsOneWidget); // 한 줄 제목(결선 모의 평가 10/18)
+      expect(find.text('콘센트 연결이 약해요'), findsOneWidget); // 한 줄 제목은 서버가 준 그 연결 제목(11/3)
       expect(find.text('와이파이 연결이 끊겼어요'), findsNothing);
       expect(find.text('누름 장치 연결이 끊겼어요'), findsNothing);
 
@@ -223,7 +223,9 @@ void main() {
       await _settle(tester);
 
       expect(find.byType(KioskConnectionModal), findsOneWidget);
-      expect(find.text('콘센트 연결이 약해요'), findsOneWidget);
+      // 뒤 경고 띠도 같은 제목이라 창 안에서 찾는다.
+      expect(find.descendant(of: find.byType(KioskConnectionModal), matching: find.text('콘센트 연결이 약해요')),
+          findsOneWidget);
       expect(find.textContaining('알림이 늦거나 오지 않을 수 있어요'), findsOneWidget);
       expect(find.text('콘센트가 벽에 끝까지 꽂혀 있는지 봐 주세요'), findsOneWidget);
 

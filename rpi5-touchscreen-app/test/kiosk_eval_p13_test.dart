@@ -2,7 +2,7 @@
 //
 // 1. '오늘은 건너뛰기'는 작은 글자 단추(테두리·면 없음, 머리말과 같은 작은 글씨), 누르는 자리는 48 이상. 건너뛴 상태도 같은 작은 꼴.
 // 2. '자동으로 해요'는 없앤다. 처음 화면 종류 머리말도 없앴다(11/3) — 시각 '오후 10:00'(분까지, 폰과 같은 꼴)과 할 일만,
-//    묻는 회차만 꼬리표 '물어보고'.
+//    묻는 회차만 할 일 아래 꼬리표 '먼저 물어봐요'.
 // 3. 날짜 옆 날씨는 빼고 예보 줄 맨 앞 칸 '지금'으로(지금 + 3칸까지). 지금 칸이 없으면 예보 4칸.
 // 4. 강수확률은 그 칸 안 기온 아래(칸 높이 같게), 날씨 안내는 어구 단위 줄바꿈('나갈 때'), 0시는 '밤 12시'.
 // A. 결과 화면 '한 번 더 하기' — 작은 테두리 보조 단추(높이 48 이상, 흰 글자), 안내 문장과 떨어져 있다.
@@ -137,7 +137,7 @@ void main() {
     await (FontLoader('Malgun')..addFont(Future.value(ByteData.view(bytes.buffer)))).load();
   });
 
-  // 처음 화면은 종류 머리말 없이 시계 아이콘 + 시각, 그 아래 할 일만 — 묻는 회차만 회색 꼬리표 '물어보고'(사용자 결정 11/3).
+  // 처음 화면은 종류 머리말 없이 시계 아이콘 + 시각, 그 아래 할 일만 — 묻는 회차만 그 아래 회색 꼬리표 '먼저 물어봐요'(사용자 결정 11/3).
   group('1·2. 다음 루틴 — 시각·할 일만, 작은 글자 단추', () {
     testWidgets("'자동으로 해요'·머리말 없이 '오후 10:00' / 할 일 — 자동 실행은 꼬리표 없음", (tester) async {
       await _pumpView(tester, _idle(next: _next(), onToggle: (_) {}));
@@ -149,12 +149,13 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets("카드로 물어보는 루틴은 할 일 뒤 '물어보고' — '자동 실행'·'물어볼 루틴'은 없다", (tester) async {
+    testWidgets("카드로 물어보는 루틴은 할 일 아래 '먼저 물어봐요' — '자동 실행'·'물어볼 루틴'은 없다", (tester) async {
       await _pumpView(tester, _idle(next: _next(auto: false), onToggle: (_) {}));
       final texts = _texts(tester);
       expect(texts, isNot(contains('자동 실행')));
       expect(texts, isNot(contains('물어볼 루틴')));
-      expect(texts, contains('저녁 공기청정기 켜기 물어보고'), reason: '$texts');
+      expect(texts, contains('저녁 공기청정기 켜기'), reason: '$texts');
+      expect(texts, contains('먼저 물어봐요'), reason: '$texts');
       expect(texts, isNot(contains('물어보고 해요')));
     });
 

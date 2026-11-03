@@ -257,7 +257,7 @@ void main() {
       expect(selected?.id, 'air');
     });
 
-    testWidgets("칩은 '연결 1곳에 문제가 있어요'(사용자 결정 10/18) — 누르면 바로 그 연결 창, 읽기 말은 쉬운 말 '누름 장치 연결이 끊겼어요'", (tester) async {
+    testWidgets("칩은 '연결 1곳에 문제가 있어요'(사용자 결정 10/18) — 누르면 바로 그 연결 창, 읽기 말은 서버 제목 '누름 장치와 연결이 끊겼어요'", (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
@@ -266,10 +266,10 @@ void main() {
       await tester.pump();
       expect(opened?.id, 'press');
       expect(connectionSummary(_pressDown).$1, '연결 1곳에 문제가 있어요');
-      expect(connectionProblemText(_pressDown.firstWhere((c) => c.id == 'press')), '누름 장치 연결이 끊겼어요');
+      expect(connectionProblemText(_pressDown.firstWhere((c) => c.id == 'press')), '누름 장치와 연결이 끊겼어요');
     });
 
-    test('누름 장치가 연습 모드(warn)면 정상으로 숨기지 않고 확인 필요로 센다 — 한 줄 제목은 바른 조사', () {
+    test('누름 장치가 연습 모드(warn)면 정상으로 숨기지 않고 확인 필요로 센다 — 한 줄 제목은 서버가 준 그 연결 제목', () {
       const practice = ConnectionItem(
           id: 'press',
           state: 'warn',
@@ -278,7 +278,7 @@ void main() {
       expect(practice.needsAttention, isTrue);
       final (text, problem, single) = connectionSummary(const [practice]);
       expect((text, problem, single?.id), ('연결 1곳에 문제가 있어요', true, 'press'));
-      expect(connectionProblemText(practice), '누름 장치를 봐 주세요');
+      expect(connectionProblemText(practice), '누름 장치가 연습 모드예요');
     });
   });
 

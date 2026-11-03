@@ -3,7 +3,7 @@
 // 실패널에서 '물어볼 루틴'(머리말) / '오후 6:30' / '귀가 준비 — 공기청정기 강풍'(루틴 이름) / '오늘은 건너뛰기'로 보였다.
 // 1. 머리말('자동 실행'·'물어볼 루틴'·'알림 루틴'·'다음 루틴')은 없다 — 시계 아이콘 옆 시각, 그 아래 할 일만.
 // 2. 이름이 '○○ — 할 일'로 묶였으면 할 일만 보인다(루틴 이름은 처음 화면에서 뺀다).
-// 3. 자동 실행은 꼬리표 없이, 묻는 회차만 회색 꼬리표 '물어보고', 알림만이면 '알림'. 조용한 시간 건너뜀은 그 사정만.
+// 3. 자동 실행은 꼬리표 없이, 묻는 회차는 할 일 아래 회색 꼬리표 '먼저 물어봐요', 알림만이면 '알림만'. 조용한 시간 건너뜀은 그 사정만.
 // 4. 낭독에는 루틴 이름 전체와 '하기 전에 물어봐요'·'자동으로 해요'가 남는다. '오늘은 건너뛰기' 단추는 그대로.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,11 +63,12 @@ List<String> _texts(WidgetTester tester) => [
     ];
 
 void main() {
-  testWidgets("묻는 회차 — '오후 6:30' / '공기청정기 강풍 물어보고', 머리말·루틴 이름 없음, 단추는 그대로", (tester) async {
+  testWidgets("묻는 회차 — '오후 6:30' / '공기청정기 강풍' / '먼저 물어봐요', 머리말·루틴 이름 없음, 단추는 그대로", (tester) async {
     await _pump(tester, _next());
     final texts = _texts(tester);
     expect(texts, contains('오후 6:30'));
-    expect(texts, contains('공기청정기 강풍 물어보고'), reason: '$texts');
+    expect(texts, contains('공기청정기 강풍'), reason: '$texts');
+    expect(texts, contains('먼저 물어봐요'), reason: '$texts');
     for (final gone in ['물어볼 루틴', '다음 루틴', '자동 실행', '알림 루틴']) {
       expect(texts, isNot(contains(gone)), reason: gone);
     }
@@ -86,12 +87,12 @@ void main() {
     await _pump(tester, _next(auto: true));
     final texts = _texts(tester);
     expect(texts, contains('공기청정기 강풍'), reason: '$texts');
-    expect(texts.any((t) => t.contains('물어보고') || t.contains('자동')), isFalse, reason: '$texts');
+    expect(texts.any((t) => t.contains('물어봐요') || t.contains('자동')), isFalse, reason: '$texts');
   });
 
-  testWidgets("알림 루틴 — '공기청정기 강풍 알림'", (tester) async {
+  testWidgets("알림 루틴 — '공기청정기 강풍' / '알림만'", (tester) async {
     await _pump(tester, _next(mode: 'notify'));
-    expect(_texts(tester), contains('공기청정기 강풍 알림'));
+    expect(_texts(tester), containsAll(['공기청정기 강풍', '알림만']));
   });
 
   testWidgets('조용한 시간이라 건너뛰는 회차 — 꼬리표 없이 할 일 + 그 사정', (tester) async {
@@ -104,7 +105,7 @@ void main() {
 
   testWidgets('줄표가 없는 이름은 이름 그대로가 할 일', (tester) async {
     await _pump(tester, _next(name: '저녁 공기청정기 켜기'));
-    expect(_texts(tester), contains('저녁 공기청정기 켜기 물어보고'));
+    expect(_texts(tester), containsAll(['저녁 공기청정기 켜기', '먼저 물어봐요']));
   });
 
   testWidgets('낭독 — 루틴 이름 전체와 실행 방식을 온전히', (tester) async {

@@ -772,8 +772,9 @@ class _AirRow extends StatelessWidget {
                     key: const ValueKey('idle-air-action'),
                     // 등급 말과 같은 글 선(아이콘 24 + 사이 6).
                     padding: const EdgeInsets.only(top: 2, left: 30),
+                    // 어절 단위로만 줄을 바꾸고 끝 '켜 보세요'는 붙여 넘긴다 — 좁은 칸에서 '공기청정기를 켜 / 보세요'로 갈렸다.
                     child: ExcludeSemantics(
-                        child: Text(act,
+                        child: KioskText(act,
                             style: _NextRunLine._buttonStyle
                                 .copyWith(color: KioskColors.muted))),
                   ),
@@ -907,17 +908,17 @@ class _NextRunLine extends StatelessWidget {
       TextStyle(fontSize: KioskType.caption, height: 1.2);
   static const _sep = '·';
 
-  /// 할 일 뒤 회색 꼬리표('물어보고'·'알림') — 자동 실행은 없다. 묻는지·자동인지는 안전상 처음 화면에서도 가른다.
+  /// 회색 꼬리표('먼저 물어봐요'·'알림만')의 글꼴 — 할 일보다 작고 흐리게. 자동 실행은 꼬리표가 없다.
+  /// 묻는지·자동인지는 안전상 처음 화면에서도 가른다.
+  static final _tagStyle = _wordStyle.copyWith(color: KioskColors.muted);
+
+  /// 한 줄 꼴의 꼬리표 — 할 일과 가운뎃점으로 뗀다('저녁 공기청정기 켜기 · 먼저 물어봐요'). 붙여 쓰면 끊긴 문장처럼 읽혔다.
   static List<InlineSpan> _tagSpans(KioskNextRun n) => [
-        if (n.modeTag case final tag?) ...[
-          const TextSpan(text: ' '),
-          TextSpan(
-              text: keepWords(tag),
-              style: _wordStyle.copyWith(color: KioskColors.muted)),
-        ],
+        if (n.modeTag case final tag?)
+          TextSpan(text: ' $_sep ${keepWords(tag)}', style: _tagStyle),
       ];
 
-  /// '저녁 공기청정기 켜기 물어보고' — 늘 한 줄(조용한 시간 화면). 넘치면 끝만 말줄임 — 시각은 머리줄에 따로 있다.
+  /// '저녁 공기청정기 켜기 · 먼저 물어봐요' — 늘 한 줄(조용한 시간 화면). 넘치면 끝만 말줄임 — 시각은 머리줄에 따로 있다.
   static InlineSpan _lineSpan(KioskNextRun n) =>
       TextSpan(children: [TextSpan(text: n.task), ..._tagSpans(n)]);
 
@@ -979,9 +980,16 @@ class _NextRunLine extends StatelessWidget {
   }
 
   /// 좁은 칸 꼴([stacked])의 할 일 — 길면 낱말 단위로만 줄을 바꾼다('켜기'만 홀로 남지 않게 — 평가 16차 10/18의 뜻).
-  static InlineSpan _stackedSpan(KioskNextRun n) => TextSpan(
-      children: [TextSpan(text: keepWords(n.task)), ..._tagSpans(n)]);
+  /// 꼬리표는 여기 붙이지 않고 그 아래 제 줄([_stackedTagHeight])에 둔다 — 좁은 칸에서 가운뎃점으로 이으면 할 일 끝과
+  /// 꼬리표가 한 덩이로 갈렸다.
+  static InlineSpan _stackedSpan(KioskNextRun n) =>
+      TextSpan(text: keepWords(n.task));
   static const int _stackedMaxLines = 3;
+
+  static double _stackedTagHeight(BuildContext context, KioskNextRun n, double width) {
+    final tag = n.modeTag;
+    return tag == null ? 0 : _textHeight(context, keepWords(tag), _tagStyle, width);
+  }
 
   /// 폭 [width]에서 이 묶음이 차지할 높이.
   static double heightFor(BuildContext context, KioskNextRun n, double width,
@@ -989,7 +997,8 @@ class _NextRunLine extends StatelessWidget {
     final headH = _headHeight(context);
     final lineH = stacked
         ? _spanHeight(context, _stackedSpan(n), _lineStyle, width,
-            maxLines: _stackedMaxLines)
+                maxLines: _stackedMaxLines) +
+            _stackedTagHeight(context, n, width)
         : _textHeight(context, '오후 10:00', _lineStyle, double.infinity);
     final word = keepWords(_wordOf(n, notice));
     final label = _buttonLabel(n, withButton);
@@ -1167,12 +1176,23 @@ class _NextRunLine extends StatelessWidget {
         // 조금 넘치면(15% 안) 글자를 살짝 줄여 할 일 끝('켜기')까지 보이고, 그보다 길면 끝만 말줄임.
         final Widget lineWidget = () {
           if (stacked) {
-            return Text.rich(_stackedSpan(next),
+            final task = Text.rich(_stackedSpan(next),
                 key: const ValueKey('idle-next-run-text'),
                 maxLines: _stackedMaxLines,
                 overflow: TextOverflow.ellipsis,
                 style: _lineStyle.copyWith(
                     color: skipped ? KioskColors.muted : KioskColors.ink));
+            final tag = next.modeTag;
+            if (tag == null) return task;
+            return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  task,
+                  KioskText(tag,
+                      textKey: const ValueKey('idle-next-run-tag'),
+                      style: _tagStyle),
+                ]);
           }
           final line = Text.rich(_lineSpan(next),
               key: const ValueKey('idle-next-run-text'),
