@@ -180,7 +180,7 @@ ThinqResultCopy? thinqResultCopy({
       headline: kind == ResultKind.success
           ? '연습을 마쳤어요'
           : receipt == 'unknown'
-              ? '연습 요청이 전달됐는지 확인하지 못했어요'
+              ? '연습하라는 말이 전달됐는지 확인하지 못했어요'
               : '연습 요청을 보냈어요',
       sub: '실제 가전은 바꾸지 않았어요',
       tone: ThinqResultTone.practice,

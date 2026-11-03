@@ -32,9 +32,9 @@ void main() {
       success: false, label: '실행 확인 불가',
       reason: KioskFailureReason.serverLost,
     ));
-    expect(find.text('어떻게 됐는지 확인하지 못했어요'), findsOneWidget);
+    expect(find.text('가전이 바뀌었는지 확인하지 못했어요'), findsOneWidget);
     expect(find.text('실행을 멈췄어요'), findsNothing);
-    expect(find.textContaining('가전을 봐 주세요'), findsOneWidget);
+    expect(find.textContaining('직접 봐 주세요'), findsOneWidget);
   });
 
   // 2026-10-15 문구 개선: 끝낸 것은 버튼 누르기 — 가전이 움직이는지는 사람이 본다(제목 바로 아래 한 줄).
@@ -343,7 +343,7 @@ void main() {
 
   group('L3 판정 출처 × 모션 실행 모드 (평가 M5)', () {
     // 확인한 것은 전력 변화다 — 물리 성공은 제목 바로 아래 한 줄이 말한다(2026-10-15).
-    const realSentence = '원하는 대로 작동하는지 봐 주세요';
+    const realSentence = '가전이 원하는 대로 움직이는지 봐 주세요';
     // 연습(모션 mock)은 판정 줄이 없다(평가 4차 10/18) — 연습 띠 한 줄이 말한다.
     const mockMotion = kPracticeBandText;
     // 모의 L3와 출처 모름은 같은 말(직접 봐 달라) — 모의 출처는 아래 작은 글씨가 밝힌다.

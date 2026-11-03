@@ -251,7 +251,7 @@ void main() {
       // 띠도 같은 수준 — '가전 상태 확인'은 한 단계 강했다(외부 평가 10/16 3차).
       expect(find.text('완료'), findsOneWidget);
       expect(find.text('가전 상태 확인'), findsNothing);
-      expect(find.text('원하는 대로 작동하는지 봐 주세요'),
+      expect(find.text('가전이 원하는 대로 움직이는지 봐 주세요'),
           findsOneWidget);
       expect(find.textContaining('켜진 것'), findsNothing);
       expect(find.textContaining('동작도 확인'), findsNothing);

@@ -48,8 +48,8 @@ void main() {
       expect(stopLevelHeadline(level), isNot(contains('ms')));
     }
     expect(stopLevelNextStep('verified'), '가전이 켜져 있으면 가전 정지 버튼을 손으로 눌러 주세요');
-    expect(stopLevelNextStep('mcu_ack'), '가전을 봐 주세요');
-    expect(stopLevelNextStep('sent'), '가전을 봐 주세요');
+    expect(stopLevelNextStep('mcu_ack'), '가전이 아직 작동하고 있는지 봐 주세요');
+    expect(stopLevelNextStep('sent'), '가전이 아직 작동하고 있는지 봐 주세요');
     // 확인은 엔코더 확인(verified)뿐 — 모션 보드가 받음(mcu_ack)은 확인이 아니다.
     expect(stopLevelConfirmed('sent'), isFalse);
     expect(stopLevelConfirmed('mcu_ack'), isFalse);

@@ -59,7 +59,7 @@ void main() {
     expect(_continue, findsOneWidget);
     // 결과 뒤 단추는 '확인'(쓰던 가전으로)·'홈 화면' 둘(사용자 결정 10/25).
     expect(find.descendant(of: _continue, matching: find.text('확인')), findsOneWidget);
-    expect(find.text('홈 화면'), findsOneWidget);
+    expect(find.text('처음 화면'), findsOneWidget);
     expect(find.byKey(const ValueKey('done-auto-return')), findsNothing);
 
     // 예전 자동 복귀(10초·큰 글씨 20초)를 넘겨도 결과에 머문다.
@@ -79,7 +79,7 @@ void main() {
     final api = await _pumpKiosk(tester);
     await _pressAndSucceed(tester, api);
     expect(find.byKey(const ValueKey('done-pick-other')), findsNothing);
-    await tester.tap(find.text('홈 화면'));
+    await tester.tap(find.text('처음 화면'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(KioskIdleView), findsOneWidget);

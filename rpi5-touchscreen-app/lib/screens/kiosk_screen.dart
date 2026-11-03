@@ -61,11 +61,11 @@ const kDndNotSentNotice = '방해 금지를 바꾸지 못했어요. 잠시 뒤 �
 const kSuggestionRejectFailedNotice = "'아니요'가 본체에 전달되지 않았어요. 다시 눌러 주세요.";
 
 /// '이 제안 앞으로 받지 않기' + '아니요'가 됐을 때·안 됐을 때(2026-10-25 계획 §3). 되돌리기는 폰 앱 '숨긴 제안'.
-const kSuggestionMutedNotice = '이 제안은 다시 띄우지 않아요. 휴대폰 앱에서 다시 켤 수 있어요.';
+const kSuggestionMutedNotice = '이 제안은 다시 묻지 않아요. 휴대폰 앱에서 다시 받을 수 있어요.';
 const kSuggestionMuteFailedNotice = '숨기지 못했어요. 다시 눌러 주세요.';
 
 /// 실행 접수 응답을 받지 못했을 때(검토 10/19) — 본체가 이미 시작했을 수 있다. 정지 단추는 그대로 둔다.
-const kAdmitUnknownMessage = "본체 응답을 받지 못했어요. 시작됐을 수 있어요. 멈추려면 '정지'를 누르세요.";
+const kAdmitUnknownMessage = "본체에서 답이 오지 않았어요. 이미 시작됐을 수 있어요. 멈추려면 '정지'를 눌러 주세요.";
 
 /// 제안 음성 물음 — 행동 이름('공기청정기 켜기')이면 '…를 지금 할까요?', 모르는 문장이면 원문 그대로 묻는다.
 /// 스스로 뜬 카드를 소리로 읽을 말(2026-10-26) — 서버 `speech`가 있으면 그대로, 없으면 "<근거 문장> <묻는 말>".
@@ -1286,7 +1286,7 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() => _voiceProposal = next);
     if (_health.speakGeneral) {
       _tts.announce(_voiceCanRun(next)
-          ? "${next.question} 하시려면 화면의 '네'를 눌러 주세요."
+          ? "${next.question} 하려면 화면의 '네'를 눌러 주세요."
           : next.question);
     }
   }
@@ -1377,8 +1377,8 @@ class _KioskScreenState extends State<KioskScreen> {
       if (yes) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(e.statusCode == 409
-                ? '휴대폰에서 이미 정했어요'
-                : '시간이 지났어요. 휴대폰에서 다시 말해 주세요.')));
+                ? '휴대폰에서 이미 답했어요'
+                : '답할 시간이 지났어요. 다시 말해 주세요.')));
       }
       return;
     } catch (_) {
@@ -1453,7 +1453,7 @@ class _KioskScreenState extends State<KioskScreen> {
           card.scenarioId !=
               'routine:${p.routineId}@${p.fingerprint!.substring(0, 12)}') {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('동작 내용이 바뀌었어요. 휴대폰에서 다시 말해 주세요.')));
+            const SnackBar(content: Text('하려던 일이 바뀌었어요. 다시 말해 주세요.')));
         return;
       }
       _shownSuggestionIds.add(card.id);
@@ -1461,7 +1461,7 @@ class _KioskScreenState extends State<KioskScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('동작을 불러오지 못했어요. 휴대폰에서 다시 말해 주세요.')));
+          const SnackBar(content: Text('하려던 일을 가져오지 못했어요. 다시 말해 주세요.')));
     }
   }
 
@@ -1854,9 +1854,9 @@ class _KioskScreenState extends State<KioskScreen> {
     } on KioskApiException catch (e) {
       message = e.statusCode == 409 && e.detail.isNotEmpty
           ? e.detail
-          : '되돌리지 못했어요. 연결을 봐 주세요.';
+          : '바꾸기 전으로 돌리지 못했어요. 본체 연결을 보고 다시 눌러 주세요.';
     } catch (_) {
-      message = '되돌리지 못했어요. 연결을 봐 주세요.';
+      message = '바꾸기 전으로 돌리지 못했어요. 본체 연결을 보고 다시 눌러 주세요.';
     }
     if (!mounted) return;
     _autoNoticeTimer?.cancel();
@@ -2007,7 +2007,7 @@ class _KioskScreenState extends State<KioskScreen> {
         _holdSpokenKey = key;
         _tts.speak(
             st.holdState == 'fault' || st.holdStopOutcome == 'drive_fault'
-                ? '누름 장치에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
+                ? '누름 장치에 문제가 있어요. 가전 전원을 손으로 꺼 주세요.'
                 : '가전이 멈췄는지 확인하지 못했어요. 지금 가전 정지 버튼을 손으로 눌러 주세요.');
       }
       return;
@@ -2336,12 +2336,12 @@ class _KioskScreenState extends State<KioskScreen> {
     } on KioskApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e.detail.isNotEmpty ? e.detail : '루틴을 열지 못했어요.'),
+        content: Text(e.detail.isNotEmpty ? e.detail : '루틴을 보여 드리지 못했어요. 다시 눌러 주세요.'),
       ));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('루틴을 열지 못했어요. 연결 상태를 봐 주세요.'),
+        content: Text('루틴을 보여 드리지 못했어요. 본체 연결을 보고 다시 눌러 주세요.'),
       ));
     }
   }
@@ -2401,7 +2401,7 @@ class _KioskScreenState extends State<KioskScreen> {
           suggestion.id == _ownCardId ? suggestion.routineName : null;
       // 직접 누른 저장된 동작이면 화면 질문과 같은 말('30초 데우기를 할까요?', 10/24 QA).
       if (ownName != null && ownName.isNotEmpty) {
-        _tts.speak("${withObject(ownName)} 할까요? 하시려면 화면의 '네'를 눌러 주세요.");
+        _tts.speak("${withObject(ownName)} 할까요? 하려면 화면의 '네'를 눌러 주세요.");
       } else {
         // 자동 제안에만 알림음을 먼저 재생한다. 직접 누른 확인에는 알림음이 없다.
         // 사람에게 말하듯 "<근거> <묻는 말>"(2026-10-26 — '하시려면 화면의 네를 눌러 주세요'는 뺐다).
@@ -2494,7 +2494,7 @@ class _KioskScreenState extends State<KioskScreen> {
         final who = c.summary.isNotEmpty ? c.summary : '가전';
         blocked = r.reasons.isNotEmpty
             ? '$who. ${r.reasons.first}'
-            : '$who. 아직 쓸 수 없어요. 휴대폰 앱에서 봐 주세요';
+            : '${withTopic(who)} 아직 할 수 없어요. 휴대폰 앱에서 남은 설정을 봐 주세요';
         break;
       }
     }
@@ -2627,7 +2627,7 @@ class _KioskScreenState extends State<KioskScreen> {
               ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute, confirmation: _doneRawConfirmation, detail: _doneDetail, operationVerified: _doneOperationConfirmed == true && _doneOperationSource == 'real' && _executionMode != 'mock')}'
               : switch (reason) {
                   KioskFailureReason.serverLost =>
-                    '어떻게 됐는지 확인하지 못했어요. 가전을 봐 주세요.',
+                    '가전이 바뀌었는지 확인하지 못했어요. 가전을 직접 봐 주세요.',
                   // 정지 단계만큼(2026-10-15). 단계 보고를 아직 기다리면 화면과 같은 진행 말만 하고, 결과는 보고가 오거나
                   // 기다리기를 그만둘 때 말한다(평가 8차 10/18).
                   KioskFailureReason.stopped =>
@@ -2644,9 +2644,9 @@ class _KioskScreenState extends State<KioskScreen> {
                   KioskFailureReason.receiptUnknown =>
                     '$lead${unconfirmedSentence(receipt: 'unknown')}',
                   KioskFailureReason.notExecuted =>
-                    '$lead가전을 바꾸지 못했어요. 가전 연결을 봐 주세요.',
+                    '$lead가전 설정을 바꾸지 못했어요. 가전 연결을 보고 다시 해 주세요.',
                   KioskFailureReason.execution =>
-                    '$lead눌렸는지 확인하지 못했어요. 가전을 봐 주세요.',
+                    '$lead눌렸는지 확인하지 못했어요. 가전 화면이나 불빛이 바뀌었는지 봐 주세요.',
                 },
     );
     _doneReturnTimer?.cancel();
@@ -2773,8 +2773,8 @@ class _KioskScreenState extends State<KioskScreen> {
             _clearAutoNotice();
             _autoNotice = problem ??
                 (auto
-                    ? '$days 이 시간에 알아서 할게요. 설정의 자동 실행에서 끌 수 있어요.'
-                    : '$days 이 시간에 여쭤볼게요.');
+                    ? '$days 이 시간이 되면 자동으로 할게요. $kAutoRunOffWhere'
+                    : '$days 이 시간이 되면 먼저 물어볼게요.');
           });
           _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
             if (mounted) setState(() => _autoNotice = null);
@@ -2791,7 +2791,7 @@ class _KioskScreenState extends State<KioskScreen> {
           setState(() {
             _clearAutoNotice();
             _autoNotice =
-                allowFailed ?? '다음부터는 묻지 않고 할게요. 설정의 자동 실행에서 끌 수 있어요.';
+                allowFailed ?? '다음부터는 묻지 않고 자동으로 할게요. $kAutoRunOffWhere';
           });
           _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
             if (mounted) setState(() => _autoNotice = null);

@@ -87,7 +87,7 @@ void main() {
       final style = _styleOf(tester, evidence);
       expect(style.fontSize, greaterThanOrEqualTo(KioskType.body));
       expect(style.color, KioskColors.ink);
-      // 제목(전자레인지가 켜졌어요) 바로 아래, 할 일('원하는 대로 작동하는지 봐 주세요')보다 위.
+      // 제목(전자레인지가 켜졌어요) 바로 아래, 할 일('가전이 원하는 대로 움직이는지 봐 주세요')보다 위.
       final title = _plain('전자레인지가 켜졌어요');
       expect(title, findsOneWidget);
       final sub = find.byKey(const ValueKey('done-sub'));

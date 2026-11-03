@@ -281,7 +281,7 @@ class KioskHoldView extends StatelessWidget {
       if (stopFailed)
         (
           Icons.error_outline,
-          '정지 요청 결과를 확인하지 못했어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.',
+          '정지가 전달됐는지 확인하지 못했어요. 정지를 다시 누르거나 가전 전원을 손으로 꺼 주세요.',
           KioskColors.danger
         ),
     ];

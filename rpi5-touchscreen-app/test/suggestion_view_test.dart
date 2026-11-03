@@ -228,7 +228,7 @@ void main() {
                   targetId: 'air_purifier', route: 'thinq', summary: '공기청정기 풍량 강'),
             ],
           ));
-      final why = tester.widget<Text>(find.textContaining('이유:'));
+      final why = tester.widget<Text>(find.byKey(const ValueKey('suggestion-why')));
       expect(why.maxLines, 2);
       expect(why.overflow, TextOverflow.ellipsis);
       // 할 일(대상·동작)과 경로는 그대로 보인다.
@@ -278,7 +278,7 @@ void main() {
       testWidgets('시나리오 근거는 오른쪽 칸에 잘리지 않고 보인다(${size.width.toInt()}×${size.height.toInt()})',
           (tester) async {
         await _pump(tester, suggestion: longCard, size: size);
-        final why = find.textContaining('이유:');
+        final why = find.byKey(const ValueKey('suggestion-why'));
         expect(why, findsOneWidget);
         final rect = tester.getRect(why);
         expect(rect.left, greaterThan(size.width / 2), reason: '오른쪽 칸');
@@ -291,7 +291,7 @@ void main() {
     testWidgets('낭독은 잘리지 않은 전체 근거', (tester) async {
       final handle = tester.ensureSemantics();
       await _pump(tester, suggestion: longCard);
-      expect(find.bySemanticsLabel('이유: $longReason'), findsOneWidget);
+      expect(find.bySemanticsLabel(longReason), findsOneWidget);
       handle.dispose();
     });
 
@@ -300,13 +300,13 @@ void main() {
       final more = find.byKey(const ValueKey('suggestion-why-more'));
       expect(more, findsOneWidget);
       expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
-      expect(tester.widget<Text>(find.textContaining('이유:')).maxLines, 2);
+      expect(tester.widget<Text>(find.byKey(const ValueKey('suggestion-why'))).maxLines, 2);
       // 위 상태 띠가 생긴 뒤(2026-10-16) 800x480·시험 글꼴에서는 펼치기 단추가 왼쪽 칸 스크롤 아래에 있다 — 스크롤해 누른다.
       await tester.ensureVisible(more);
       await tester.pump();
       await tester.tap(more);
       await tester.pump();
-      expect(tester.widget<Text>(find.textContaining('이유:')).maxLines, isNull);
+      expect(tester.widget<Text>(find.byKey(const ValueKey('suggestion-why'))).maxLines, isNull);
       expect(tester.takeException(), isNull);
 
       await _pump(tester, target: kMicrowaveAppliance);
@@ -416,7 +416,7 @@ void main() {
         for (final f in [
           ..._chips.evaluate().map((e) => find.byWidget(e.widget)),
           find.text('공기청정기 전원 켜기'),
-          find.textContaining('이유:'),
+          find.byKey(const ValueKey('suggestion-why')),
         ]) {
           final rect = tester.getRect(f);
           final viewport = viewportOf(f);
@@ -505,7 +505,7 @@ void main() {
           find.byKey(const ValueKey('suggestion-question')),
           find.byKey(const ValueKey('suggestion-caveat')),
           find.text('공기청정기 바람 세기 강'),
-          find.textContaining('이유:'),
+          find.byKey(const ValueKey('suggestion-why')),
         ]) {
           expect(f, findsOneWidget);
           final rect = tester.getRect(f);
@@ -517,7 +517,7 @@ void main() {
           expect((state as dynamic).moreBelow, isFalse, reason: '넘치지 않으니 흐림도 없다');
         }
         // 제한 문장은 왼쪽 줄 한 번만 — 오른쪽 이유에서 되풀이하지 않는다.
-        final why = tester.widget<Text>(find.textContaining('이유:')).textSpan!.toPlainText();
+        final why = tester.widget<Text>(find.byKey(const ValueKey('suggestion-why'))).textSpan!.toPlainText();
         expect(why.contains('조리 완료가 아닐 수 있어요'), isFalse);
         expect(why.replaceAll(RegExp('[\u2060\u00A0]'), ' '), contains('멈춘 것 같아요'));
         // 시나리오 이름은 위 띠 오른쪽에 있다(본문 줄이 아니다).
@@ -541,7 +541,7 @@ void main() {
                   '지금까지 12번 허락받은 제안이에요.'),
           100);
       expect(tester.takeException(), isNull);
-      final why = find.textContaining('이유:');
+      final why = find.byKey(const ValueKey('suggestion-why'));
       final overflowing = tester.getRect(why).bottom > viewportOf(tester, why).bottom;
       final state = tester.state(find.ancestor(of: why, matching: find.byType(KioskScrollArea)).first);
       expect((state as dynamic).moreBelow, overflowing);

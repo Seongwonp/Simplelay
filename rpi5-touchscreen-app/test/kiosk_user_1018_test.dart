@@ -383,8 +383,8 @@ void main() {
       expect(
           KioskPastResult(at: DateTime(2026, 10, 18, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 확인하지 못했어요').text,
           '오후 3:12 즉석밥 데우기, 눌렸는지 확인하지 못했어요');
-      expect(KioskPastResult(at: DateTime(2026, 10, 18, 9, 5), label: '', headline: '어떻게 됐는지 확인하지 못했어요').text,
-          '오전 9:05, 어떻게 됐는지 확인하지 못했어요');
+      expect(KioskPastResult(at: DateTime(2026, 10, 18, 9, 5), label: '', headline: '가전이 바뀌었는지 확인하지 못했어요').text,
+          '오전 9:05, 가전이 바뀌었는지 확인하지 못했어요');
     });
 
     test('남기는 것은 실패·확인 못 함만 — 성공·연습·확인한 정지는 남기지 않는다', () {
@@ -410,8 +410,8 @@ void main() {
             target: target,
           );
       expect(v(reason: KioskFailureReason.execution).pastHeadline, '눌렸는지 확인하지 못했어요');
-      expect(v(reason: KioskFailureReason.serverLost).pastHeadline, '어떻게 됐는지 확인하지 못했어요');
-      expect(v(reason: KioskFailureReason.unconfirmed, route: 'thinq').pastHeadline, '보냈지만 바뀌었는지는 확인하지 못했어요');
+      expect(v(reason: KioskFailureReason.serverLost).pastHeadline, '가전이 바뀌었는지 확인하지 못했어요');
+      expect(v(reason: KioskFailureReason.unconfirmed, route: 'thinq').pastHeadline, '명령은 보냈지만 가전이 바뀌었는지는 확인하지 못했어요');
       expect(v(reason: KioskFailureReason.stopped, stopLevel: 'sent').pastHeadline, '누름 장치가 멈췄는지 확인하지 못했어요');
       expect(v(reason: KioskFailureReason.stopped, stopLevel: 'verified').pastHeadline, isNull);
       // 2차 독립 평가 C(10/18): 누름 보고만은 가전을 사람이 봐야 한다 — 답하지 않고 나가면 남긴다.

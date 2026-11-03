@@ -11,10 +11,10 @@ final _advice = KioskSuggestion.fromJson({
   'purpose': '창문을 열어 환기해 보세요',
   'occurrences': 0,
   'time_band': '조언',
-  'reason': '실내 습도가 74%로 꽤 습해요. 바깥은 18도로 선선하니 잠깐 창문을 열어 환기해 보시는 건 어떨까요?',
+  'reason': '실내 습도가 74%로 꽤 습해요. 바깥은 18도로 선선하니 잠깐 창문을 열어 환기해 보세요.',
   'appliance_id': null,
   'kind': 'advice',
-  'speech': '실내 습도가 74%로 꽤 습해요. 바깥은 18도로 선선하니 잠깐 창문을 열어 환기해 보시는 건 어떨까요?',
+  'speech': '실내 습도가 74%로 꽤 습해요. 바깥은 18도로 선선하니 잠깐 창문을 열어 환기해 보세요.',
   'signals': [
     {'label': '집에 계심', 'ok': true},
     {'label': '바깥 미세먼지 보통', 'ok': true},

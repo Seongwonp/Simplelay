@@ -290,7 +290,7 @@ class KioskDoneView extends StatelessWidget {
       return copy.tone == ThinqResultTone.attention ? copy.headline : null;
     }
     if (success) {
-      if (_thinqUnconfirmed) return '결과를 확인하지 못했어요'; // 이 화면의 LG 가전 성공 큰 글자와 같은 말
+      if (_thinqUnconfirmed) return '가전 설정이 바뀌었는지 확인하지 못했어요'; // 이 화면의 LG 가전 성공 큰 글자와 같은 말
       if (_pressUnknown) return '눌렸는지 확인하지 못했어요';
       // 버튼 누름 보고만 — 가전은 사람이 본다(2차 독립 평가 C, 10/18). 답하지 않고 나가면 처음 화면에 남긴다.
       if (personCheck != null) return kPressDonePastHeadline;
@@ -420,7 +420,7 @@ class KioskDoneView extends StatelessWidget {
                 : thinqVerified
                     // 띠가 '됐어요'라 제목은 본 사실로(같은 말 두 번 금지, 평가 3차 10/18).
                     ? '가전 설정을 확인했어요'
-                    : '결과를 확인하지 못했어요')
+                    : '가전 설정이 바뀌었는지 확인하지 못했어요')
             : mock
                 ? '연습을 마쳤어요'
                 : executionMode == 'real'
@@ -442,7 +442,7 @@ class KioskDoneView extends StatelessWidget {
     final String? successSub = thinq || mock || steps != null
         ? null
         : operationVerified
-                ? '원하는 대로 작동하는지 봐 주세요'
+                ? '가전이 원하는 대로 움직이는지 봐 주세요'
                 // 폰·서버와 같은 말(평가 14차 10/18 — 폰 '버튼은 다 눌렀어요, 움직이는지 봐 주세요'). 제목이 '버튼은 다 눌렀어요'.
                 : '가전이 움직이는지 봐 주세요';
     // 제목 바로 아래 근거 한 줄(결선 모의 평가 10/18) — 전력 실측으로 확인한 성공에만.
@@ -483,7 +483,7 @@ class KioskDoneView extends StatelessWidget {
         ? r.practiceWhy
         : motion != null
             // 큰 글자 줄은 마침표 없이(평가 8차 10/18).
-            ? '다시 누르지 않았어요\n가전과 누름 장치를 봐 주세요'
+            ? '버튼을 다시 누르지 않았어요\n가전과 누름 장치를 봐 주세요'
             : userStop
                 ? stopLevelNextStep(stopLevel)
                 : r.detail(label, canRetry: onRetry != null);
@@ -495,8 +495,8 @@ class KioskDoneView extends StatelessWidget {
         : mock
             ? '실제 가전은 바꾸지 않았어요'
             : thinqVerified
-                ? '가전에서 설정 변경을 확인했어요'
-                : '가전을 봐 주세요';
+                ? '가전 설정이 바뀐 것을 확인했어요'
+                : '가전 화면에서 설정을 직접 봐 주세요';
     // 위 상태 띠(평가 3차 10/18) — 결과 띠 말은 **두 가지뿐**: '됐어요'(초록, 실제로 확인한 성공)와
     // '확인해 주세요'(그 밖의 모름·주의·실패 전부). 예전에는 봐 주세요·확인하지 못했어요·주의·못 했어요·결과가 섞여 같은 뜻을
     // 다섯 말로 했다. 색은 뜻을 지킨다 — 실패·안전 정지는 빨강, 모름은 앰버, 연습은 청록(연습 칸은 늘 남는다).
@@ -680,7 +680,7 @@ class KioskDoneView extends StatelessWidget {
             const SizedBox(height: KioskSpace.xs),
             KioskText(
               stopAgain == 'failed'
-                  ? '정지 요청 결과를 확인하지 못했어요. 가전 전원을 직접 꺼 주세요'
+                  ? '정지가 전달됐는지 확인하지 못했어요. 가전 전원을 손으로 꺼 주세요'
                   : '정지를 한 번 더 보냈어요. 누름 장치를 봐 주세요',
               textKey: const ValueKey('done-stop-again-note'),
               textAlign: ta,
@@ -777,7 +777,7 @@ class KioskDoneView extends StatelessWidget {
         : KioskResultActions(
             onHome: onDismiss,
             homeCompact: showStopAgain,
-            homeLabel: continueFirst ? '홈 화면' : '처음 화면으로',
+            homeLabel: continueFirst ? '처음 화면' : '처음 화면으로',
             stacked: stacked,
             primary: retryFirst
                 ? KioskRetryPrimary(onTap: () => _confirmRetry(context, mock))
@@ -870,7 +870,7 @@ class KioskDoneView extends StatelessWidget {
                       width: KioskPanelPicture.width,
                       child: KioskPanelPicture(
                         appliance: target,
-                        caption: mock ? '연습으로 누른 자리예요' : '누름 장치가 누른 자리예요',
+                        caption: mock ? '연습으로 누른 자리예요' : '누름 장치로 누른 자리예요',
                         captionKey: const ValueKey('done-panel-caption'),
                         pressed: pressedMap,
                       ),
@@ -1054,12 +1054,12 @@ enum KioskFailureReason {
   /// 연습(모의) 실패의 이유 한 줄 — 실제로 누른 것이 아니라 연습 안에서 일어난 일이다.
   String get practiceWhy => switch (this) {
         // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 확인하지 못했어요'는 연습 띠와 부딪혔다(평가 4차 10/18).
-        KioskFailureReason.execution => '연습으로 누르다가 끝내지 못했어요',
-        KioskFailureReason.safetyStop => '연습에서 다시 누르지 않고 멈췄어요',
+        KioskFailureReason.execution => '연습을 끝까지 하지 못했어요',
+        KioskFailureReason.safetyStop => '연습 중에는 버튼을 다시 누르지 않고 멈췄어요',
         KioskFailureReason.serverLost => '연습 결과를 받지 못했어요',
         KioskFailureReason.stopped => kPracticeStopHeadline,
-        KioskFailureReason.unconfirmed => '연습 결과를 확인하지 못했어요',
-        KioskFailureReason.receiptUnknown => '연습 요청이 전달됐는지 확인하지 못했어요',
+        KioskFailureReason.unconfirmed => '연습에서 설정이 바뀌었는지 확인하지 못했어요',
+        KioskFailureReason.receiptUnknown => '연습하라는 말이 전달됐는지 확인하지 못했어요',
         KioskFailureReason.notExecuted => '연습을 하지 못했어요',
       };
 
@@ -1071,12 +1071,12 @@ enum KioskFailureReason {
   /// 가장 큰 글자(2026-10-15 문구 개선 §2-1) — 실패 화면의 주인공은 단추가 아니라 할 일이다.
   String get headline => switch (this) {
         KioskFailureReason.execution => '눌렸는지 확인하지 못했어요',
-        KioskFailureReason.serverLost => '어떻게 됐는지 확인하지 못했어요',
+        KioskFailureReason.serverLost => '가전이 바뀌었는지 확인하지 못했어요',
         KioskFailureReason.stopped => stopLevelHeadline(null),
-        KioskFailureReason.safetyStop => '버튼 눌림을 확인하지 못해 멈췄어요',
-        KioskFailureReason.unconfirmed => '보냈지만 바뀌었는지는 확인하지 못했어요',
+        KioskFailureReason.safetyStop => '버튼이 눌렸는지 확인하지 못해 더 누르지 않고 멈췄어요',
+        KioskFailureReason.unconfirmed => '명령은 보냈지만 가전이 바뀌었는지는 확인하지 못했어요',
         KioskFailureReason.receiptUnknown => '가전이 명령을 받았는지 확인하지 못했어요',
-        KioskFailureReason.notExecuted => '가전을 바꾸지 못했어요',
+        KioskFailureReason.notExecuted => '가전 설정을 바꾸지 못했어요',
       };
 
   /// 큰 글자 아래 할 일 한 줄(쉬운 말 10/17 — 결과 한 줄 + 할 일 한 줄). 이름은 화면이 따로 한 줄로 보인다.
@@ -1084,13 +1084,13 @@ enum KioskFailureReason {
   /// (열린 문제 R1). [label]·[canRetry]는 옛 호출을 위해 남긴다.
   /// 큰 글자 줄이라 끝에 마침표를 두지 않는다(평가 8차 10/18 — 한 화면 안에서 이 줄만 마침표였다). 두 문장이면 가운데만.
   String detail(String label, {bool canRetry = true}) => switch (this) {
-        KioskFailureReason.execution => '가전을 봐 주세요',
-        KioskFailureReason.serverLost => '본체와 연결이 끊겼어요. 가전을 봐 주세요',
+        KioskFailureReason.execution => '가전 화면이나 불빛이 바뀌었는지 봐 주세요',
+        KioskFailureReason.serverLost => '본체와 연결이 끊겼어요. 가전 화면이나 불빛을 직접 봐 주세요',
         KioskFailureReason.stopped => stopLevelNextStep(null),
-        KioskFailureReason.safetyStop => '가전을 봐 주세요',
-        KioskFailureReason.unconfirmed => '가전을 봐 주세요',
-        KioskFailureReason.receiptUnknown => '다시 보내기 전에 가전을 봐 주세요',
-        KioskFailureReason.notExecuted => '가전 연결을 봐 주세요',
+        KioskFailureReason.safetyStop => '가전 화면이나 불빛이 바뀌었는지 봐 주세요',
+        KioskFailureReason.unconfirmed => '가전 설정이 바뀌었는지 직접 봐 주세요',
+        KioskFailureReason.receiptUnknown => '다시 보내기 전에 가전 설정이 바뀌었는지 봐 주세요',
+        KioskFailureReason.notExecuted => '가전 연결을 보고 다시 해 주세요',
       };
 }
 
@@ -1253,7 +1253,7 @@ class _ThinqResult extends StatelessWidget {
                   : KioskResultActions(
                 onHome: onClose,
                 homeKey: const ValueKey('thinq-result-close'),
-                homeLabel: success && onContinue != null ? '홈 화면' : '처음 화면으로',
+                homeLabel: success && onContinue != null ? '처음 화면' : '처음 화면으로',
                 primary: success && onContinue != null
                     ? KioskContinuePrimary(name: continueName, onTap: onContinue!)
                     : null,
@@ -1349,7 +1349,7 @@ class KioskHomeButton extends StatelessWidget {
   const KioskHomeButton(
       {super.key, this.buttonKey = const ValueKey('done-home'), required this.onTap, this.compact = false, this.label = '처음 화면으로'});
 
-  /// 단추 글자 — 같은 가전으로 돌아가는 결과 화면은 '홈 화면'(사용자 결정 10/25, '확인'과 짝).
+  /// 단추 글자 — 같은 가전으로 돌아가는 결과 화면은 짧은 '처음 화면'('확인'과 짝).
   final String label;
 
   /// 단추 자체의 키(시험이 쓰는 'done-home'·'hold-home'·'thinq-result-close').
@@ -1630,7 +1630,7 @@ const kManualEntryLabel = '버튼 직접 고르기';
 const kThinqRecoverySteps = [
   '가전 앞에 가서 직접 봐 주세요',
   '가전 화면·불빛이 바뀌었나요?',
-  '모르겠으면 가족에게 물어보세요',
+  '잘 모르겠으면 가족에게 물어봐요',
 ];
 
 /// 정지 확인 보고를 기다리는 동안 제목 아래 한 줄(휴리스틱 평가 10/18).
@@ -1737,7 +1737,7 @@ class KioskContinuePrimary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final who = (name == null || name!.isEmpty) ? '이 가전' : name!;
-    // 결과 뒤 단추는 '확인'·'홈 화면' 둘(사용자 결정 10/25 — 세 단추가 어수선했다). '확인'은 쓰던 가전 화면으로 돌아간다(다시 보내지
+    // 결과 뒤 단추는 '확인'·'처음 화면' 둘(사용자 결정 10/25 — 세 단추가 어수선했다). '확인'은 쓰던 가전 화면으로 돌아간다(다시 보내지
     // 않는다). 읽을 때는 어디로 가는지까지.
     return Semantics(
       button: true,

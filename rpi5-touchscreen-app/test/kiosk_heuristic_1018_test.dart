@@ -496,8 +496,8 @@ void main() {
       // 음성 정지는 실물 확인 전이라 넣지 않는다(10/18 결정).
       expect(body(), allOf(contains('정지'), isNot(contains('말해도')), isNot(contains('멈춰'))));
       await next();
-      expect(title(), contains('결과를 확인하지 못했을 때'));
-      expect(body(), contains('가전 상태를 직접 확인해 주세요'));
+      expect(title(), contains('가전이 바뀌었는지 모를 때'));
+      expect(body(), contains('가전 화면이나 불빛을 직접 봐 주세요'));
       await next();
       expect(number(), '사용 방법 6장 중 6장');
       expect(title(), contains('가족'));

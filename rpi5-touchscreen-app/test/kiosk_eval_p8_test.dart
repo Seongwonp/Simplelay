@@ -87,7 +87,7 @@ void main() {
       onManual: _noop,
       onDismiss: _noop,
     ));
-    expect(_texts(tester).join('\n'), contains('연습 요청이 전달됐는지 확인하지 못했어요'));
+    expect(_texts(tester).join('\n'), contains('연습하라는 말이 전달됐는지 확인하지 못했어요'));
     expect(tester.takeException(), isNull);
   });
 

@@ -36,7 +36,7 @@ const kHelpPages = [
   KioskHelpPage(
     icon: Icons.wifi,
     title: 'LG 가전은 인터넷으로 조작해요',
-    body: "'LG 가전'이라고 적힌 가전은 인터넷으로 조작해요. 결과를 확인하지 못하면 가전을 직접 확인해 주세요.",
+    body: "'LG 가전'이라고 적힌 가전은 인터넷으로 조작해요. 설정이 바뀌었는지 확인하지 못하면 가전 화면을 직접 봐 주세요.",
   ),
   KioskHelpPage(
     icon: Icons.stop,
@@ -45,8 +45,8 @@ const kHelpPages = [
   ),
   KioskHelpPage(
     icon: Icons.help_outline,
-    title: '결과를 확인하지 못했을 때',
-    body: '가전이 켜졌는지, 멈췄는지 확인하지 못한 상태예요. 다시 누르기 전에 가전 상태를 직접 확인해 주세요.',
+    title: '가전이 바뀌었는지 모를 때',
+    body: '가전이 켜졌는지, 멈췄는지 확인하지 못한 상태예요. 다시 누르기 전에 가전 화면이나 불빛을 직접 봐 주세요.',
   ),
   KioskHelpPage(
     icon: Icons.call_outlined,

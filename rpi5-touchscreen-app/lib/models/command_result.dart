@@ -137,8 +137,8 @@ String? confirmationLabel({
 
 /// ThinQ 확인 못 함의 한 문장. 접수 불명이면 다시 보내기 전에 확인하라고 한다.
 String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
-    ? '가전이 명령을 받았는지 확인하지 못했어요. 다시 보내기 전에 가전을 봐 주세요.'
-    : '보냈지만 바뀌었는지는 확인하지 못했어요. 가전을 봐 주세요.';
+    ? '가전이 명령을 받았는지 확인하지 못했어요. 다시 보내기 전에 가전 설정이 바뀌었는지 봐 주세요.'
+    : '명령은 보냈지만 가전이 바뀌었는지는 확인하지 못했어요. 가전 설정을 직접 봐 주세요.';
 
 /// 정지 확인 단계(2026-10-13)의 제목. 서버가 올리는 단계는
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
@@ -163,7 +163,7 @@ const kPracticeStopHeadline = '연습을 멈췄어요';
 /// 정지 제목 아래 할 일 한 가지(원칙 0-3). 누름 장치가 멈춘 것을 확인했어도 가전은 이미 켜졌을 수 있다.
 String stopLevelNextStep(String? level) => stopLevelConfirmed(level)
     ? '가전이 켜져 있으면 가전 정지 버튼을 손으로 눌러 주세요'
-    : '가전을 봐 주세요';
+    : '가전이 아직 작동하고 있는지 봐 주세요';
 
 /// 누름 장치가 멈춘 것을 **확인한** 단계는 엔코더 확인(verified)뿐이다. 모션 보드가 받음(mcu_ack)은 확인이 아니다
 /// (2026-10-15 — 예전에는 mcu_ack에도 확인 표시를 달았다).
@@ -212,7 +212,7 @@ String finishedMessage({
       const head = '버튼을 모두 눌렀어요.';
       return operationVerified
           // 전력 변화(L3 실측)만 — 확인한 그대로 '전기를 쓰기 시작했어요'(폰과 같은 말, 10/18 §3-5).
-          ? '$head 가전이 전기를 쓰기 시작했어요. 원하는 대로 작동하는지 봐 주세요.'
+          ? '$head 가전이 전기를 쓰기 시작했어요. 가전이 원하는 대로 움직이는지 봐 주세요.'
           : '$head 가전이 움직이는지 봐 주세요.'; // 폰과 같은 말(평가 14차 10/18)
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
@@ -224,10 +224,10 @@ String finishedMessage({
     case ResultKind.safetyStop:
       // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
       final motion = motionAbortSentence(abortReason);
-      if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 누름 장치를 봐 주세요.';
-      return '버튼 눌림을 확인하지 못해 멈췄어요. 가전을 봐 주세요.';
+      if (motion != null) return '$motion. 버튼을 다시 누르지 않았어요. 가전과 누름 장치를 봐 주세요.';
+      return '버튼이 눌렸는지 확인하지 못해 더 누르지 않고 멈췄어요. 가전 화면이나 불빛이 바뀌었는지 봐 주세요.';
     case ResultKind.failed:
-      return thinq ? '가전을 바꾸지 못했어요. 연결을 보고 다시 해 주세요.' : '시작하지 못했어요. 연결을 보고 다시 해 주세요.';
+      return thinq ? '가전 설정을 바꾸지 못했어요. 가전 연결을 보고 다시 해 주세요.' : '시작하지 못했어요. 연결을 보고 다시 해 주세요.';
   }
 }
 

@@ -301,7 +301,7 @@ void main() {
       expect(api.rejectedIds, ['s1']);
       expect(api.mutedIds, ['s1']);
       expect(find.text(kSuggestionMutedNotice), findsOneWidget);
-      expect(kSuggestionMutedNotice, '이 제안은 다시 띄우지 않아요. 휴대폰 앱에서 다시 켤 수 있어요.');
+      expect(kSuggestionMutedNotice, '이 제안은 다시 묻지 않아요. 휴대폰 앱에서 다시 받을 수 있어요.');
       await tester.pumpWidget(const SizedBox.shrink());
     });
 

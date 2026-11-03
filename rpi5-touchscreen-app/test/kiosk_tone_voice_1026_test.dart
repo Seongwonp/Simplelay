@@ -133,7 +133,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('voice-proposal-yes')));
       await _settle(tester);
       expect(api.executeCalls, 0);
-      expect(find.text('휴대폰에서 이미 정했어요'), findsOneWidget);
+      expect(find.text('휴대폰에서 이미 답했어요'), findsOneWidget);
       expect(find.byType(KioskVoiceProposalView), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     });

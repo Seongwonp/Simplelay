@@ -115,7 +115,7 @@ void main() {
 
     test('음성·상태 문장: L3 실측만 전기를 쓰기 시작했다고, 아니면 버튼까지만', () {
       expect(finishedMessage(kind: ResultKind.success, executionMode: 'real', operationVerified: true),
-          '버튼을 모두 눌렀어요. 가전이 전기를 쓰기 시작했어요. 원하는 대로 작동하는지 봐 주세요.');
+          '버튼을 모두 눌렀어요. 가전이 전기를 쓰기 시작했어요. 가전이 원하는 대로 움직이는지 봐 주세요.');
       final pressOnly = finishedMessage(kind: ResultKind.success, executionMode: 'real', confirmation: 'reported');
       expect(pressOnly, '버튼을 모두 눌렀어요. 가전이 움직이는지 봐 주세요.');
       expect(pressOnly.contains('켜졌'), isFalse);
