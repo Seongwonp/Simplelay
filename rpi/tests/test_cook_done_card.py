@@ -55,6 +55,19 @@ def api(monkeypatch):
     _reset()
 
 
+def purifier_on():
+    """모의 공기청정기를 켜 둔다(보낸 명령 기록 없이). 꺼짐으로 읽히면 가열 종료 카드·자동 실행은 바람 세기 대신 켜기로
+    묻는다(test_cook_done_purifier_off.py) — 켜진 공기청정기의 바람 세기를 보는 시험이 쓴다."""
+    from rpi.api.thinq_wiring import get_thinq_client
+    from rpi.services.thinq import MOCK_PURIFIER_ID
+
+    client = get_thinq_client()
+    state = client.get_status(MOCK_PURIFIER_ID)
+    state.pop("airQualitySensor", None)
+    state["operation"]["airPurifierOperationMode"] = "POWER_ON"
+    client.set_state(MOCK_PURIFIER_ID, state)
+
+
 def _cards(client, scenario_id="cook_done_air"):
     return [s for s in client.get("/suggestions").json() if s.get("scenario_id") == scenario_id]
 
@@ -80,8 +93,9 @@ def test_default_catalog_is_the_v4_cook_done_scenario(api):
     # 2026-10-15: 공기청정기 센서 공기질 카드(air_quality_high, 꺼져 있을 때 air_quality_power_on)가 뒤에 함께 실린다
     # (test_air_quality_suggestion.py·test_air_quality_power_on.py).
     # 2026-10-26: 환경 제안 세 개(test_context_suggestions.py)가 그 뒤에 실린다.
-    assert [s["scenario_id"] for s in scenarios] == ["cook_done_air", "air_quality_high", "air_quality_power_on",
-                                                     "context_sleep_mode", "context_arrival_air", "context_dust_air"]
+    assert [s["scenario_id"] for s in scenarios] == ["cook_done_air", "cook_done_air_power_on", "air_quality_high",
+                                                     "air_quality_power_on", "context_sleep_mode", "context_arrival_air",
+                                                     "context_dust_air"]
     assert scenarios[0]["name"] == "전자레인지가 멈추면 공기청정기 세게"
     trigger = scenarios[0]["trigger"]
     assert (trigger["kind"], trigger["appliance_id"], trigger["event"]) == (
@@ -122,6 +136,7 @@ def test_first_event_with_no_history_states_no_habit(api):
 
 def test_habit_sentence_only_with_counted_history(api):
     """3차 평가 M4: 근거 문장은 실제 집계가 있을 때만 — 같은 제안을 승인한 횟수(제안 기록)를 센 그대로."""
+    purifier_on()  # 켜진 공기청정기 — 꺼짐으로 읽히면 다음 카드는 켜기 카드다
     _inject(api, inputs=("power",))
     first = _cards(api)[0]
     res = api.post(f"/suggestions/{first['id']}/approve")

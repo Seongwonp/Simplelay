@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from rpi.api import deps
 from rpi.services.quiet_hours import SKIP_REASON
 from rpi.tests.test_auto_rules import _after_allow, _controls, _frame, _runs, _wait_run
-from rpi.tests.test_cook_done_card import _cards, _env, _reset, _wait_done
+from rpi.tests.test_cook_done_card import _cards, _env, _reset, _wait_done, purifier_on
 
 
 def _clear():
@@ -31,7 +31,9 @@ def api(monkeypatch):
     _clear()
     from rpi.main import app
 
-    yield TestClient(app)
+    client = TestClient(app)
+    purifier_on()  # 켜진 공기청정기의 바람 세기 자동 실행을 본다
+    yield client
     _clear()
 
 

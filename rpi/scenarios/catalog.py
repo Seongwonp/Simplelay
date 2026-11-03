@@ -15,7 +15,8 @@ v4(2026-10-13, docs/본선-시연-계획-v4.md):
   이벤트 ``heat_complete``, 입력에 전력 ``power``)일 때만 "공기청정기 바람을 세게 할까요?"를 제안한다. 사용자의
   습관은 단정하지 않는다 — 같은 제안을 승인한 기록이 있을 때만 그 횟수를 근거로 붙인다(3차 평가 M4, 엔진). 버튼 누름
   완료(실행 성공)는 조리 완료가 아니라 트리거가 아니다. 이 카드만 '다음부터도 자동으로'(자동 실행 허용 규칙,
-  ``rpi/routines/auto_rules.py``)를 고를 수 있다(``auto_allowed``).
+  ``rpi/routines/auto_rules.py``)를 고를 수 있다(``auto_allowed``). 공기청정기가 꺼짐으로 읽혔으면 바람 세기 대신
+  ``cook_done_air_power_on``('공기청정기가 꺼져 있어요. 켤까요?', 전원 켜기만)이 대신 뜬다.
 
 v2 세 개:
 
@@ -63,6 +64,9 @@ class ScenarioTrigger:
     event: str | None = None
     #: 모의 실행 성공을 트리거로 받을지(시연 제안으로만 만든다).
     allow_mock_success: bool = False
+    #: 대상(첫 단계 가전)의 마지막 전원 판독으로 고른다 — None: 보지 않음, True: '꺼짐'으로 읽혔을 때만,
+    #: False: '꺼짐'으로 읽히지 않았을 때(켜짐·모름). 판독은 이미 한 상태 조회의 기억뿐(새 조회 없음, ``ThinqPowerCache``).
+    target_off: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,9 @@ class ScenarioDefinition:
     #: 예전 질문 문장(10/18 쉬운 말 3차). 질문 문장은 '다시 받지 않기' 목록·승인 횟수·다시 묻기 기한의 열쇠라, 문장을
     #: 바꿔도 옛 문장으로 남은 기록이 이 시나리오의 것으로 이어지게 한다(:func:`current_question`).
     former_questions: tuple[str, ...] = ()
+    #: 이 카드가 대신 서는 시나리오 ID — 대상이 꺼져 있을 때 그 카드 대신 뜬다. 자동 실행 규칙이 그 시나리오를 맡았으면
+    #: (``on_appliance_done``의 ``skip``) 이 카드도 띄우지 않는다.
+    stands_in_for: str | None = None
 
     def commands(self) -> tuple[Command, ...]:
         return tuple(step.command() for step in self.steps)
@@ -107,7 +114,9 @@ COOK_DONE_AIR = ScenarioDefinition(
     # 10/18 쉬운 말 3차: '풍량'을 쓰지 않는다 — 자동 실행 규칙 조각('공기청정기 바람을 세게 해요')과 같은 말.
     question="공기청정기 바람을 세게 할까요?",
     former_questions=("공기청정기 풍량을 강으로 바꿀까요?",),
-    trigger=ScenarioTrigger("appliance_done", appliance_id="microwave", event="heat_complete"),
+    # 꺼진 공기청정기는 전원 밖의 명령을 클라우드가 거절(2304)한다 — 꺼짐으로 읽혔으면 아래 켜기 카드가 대신 뜬다.
+    # 전원을 모르면(판독 없음·오래됨) 종전처럼 묻고, 거절되면 실행 결과의 실패 안내를 그대로 쓴다.
+    trigger=ScenarioTrigger("appliance_done", appliance_id="microwave", event="heat_complete", target_off=False),
     steps=(
         ScenarioStep("air_purifier", ControlRoute.THINQ, "set_wind_strength",
                      (("wind_strength", "HIGH"),)),
@@ -119,6 +128,23 @@ COOK_DONE_AIR = ScenarioDefinition(
     # (kAlwaysShownCaveats) 그 말은 글자 그대로 둔다.
     event_reason="전자레인지가 멈춘 것 같아요. 조리 완료가 아닐 수 있어요.",
     auto_allowed=True,
+)
+
+COOK_DONE_AIR_POWER_ON = ScenarioDefinition(
+    scenario_id="cook_done_air_power_on",
+    name="전자레인지가 멈추면 공기청정기 켜기",
+    # 공기질 켜기 카드('공기청정기를 켤까요?')·환경 제안('공기청정기를 켜 둘까요?')과 문장이 겹치지 않게 한다 —
+    # 질문 문장이 '다시 받지 않기'의 열쇠다.
+    question="공기청정기가 꺼져 있어요. 켤까요?",
+    # 위 카드와 같은 사건. 공기청정기가 꺼짐으로 읽혔을 때만 — 전원 켜기 **한 단계만**(공기질 켜기 카드와 같은 이유).
+    trigger=ScenarioTrigger("appliance_done", appliance_id="microwave", event="heat_complete", target_off=True),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_power", (("power", "POWER_ON"),)),
+    ),
+    event_reason="전자레인지가 멈춘 것 같아요. 조리 완료가 아닐 수 있어요.",
+    # 자동 실행 허용 규칙의 범위(바람 세기)는 넓히지 않는다 — 켜기는 늘 묻는다.
+    auto_allowed=False,
+    stands_in_for="cook_done_air",
 )
 
 AIR_QUALITY_HIGH = ScenarioDefinition(
@@ -220,8 +246,8 @@ V2_SCENARIOS = (COOK_THEN_AIR, EVENING_REST, WASH_THEN_DRY)
 #: 기본 카탈로그(v4): 가열 종료 감지 → 공기청정기, 그리고 공기청정기 센서 공기질 → 강풍(켜져 있을 때)·켜기(꺼져 있을 때)
 #: (2026-10-15). 그 밖의 카드는 사용자 루틴이 만든다. v2 구성(opt-in)에는 공기질 카드를 싣지 않는다.
 #: 2026-10-26: 환경 제안 세 개(불 끄면 수면 모드·돌아왔을 때 공기·황사 특보)를 더했다.
-DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR, AIR_QUALITY_HIGH, AIR_QUALITY_POWER_ON,
-                                                     *CONTEXT_SCENARIOS)
+DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR, COOK_DONE_AIR_POWER_ON, AIR_QUALITY_HIGH,
+                                                     AIR_QUALITY_POWER_ON, *CONTEXT_SCENARIOS)
 
 V2_SCENARIOS_ENV = "SIMPLELAY_V2_SCENARIOS"
 
@@ -293,6 +319,7 @@ __all__ = [
     "CONTEXT_SCENARIOS",
     "CONTEXT_SLEEP_MODE",
     "COOK_DONE_AIR",
+    "COOK_DONE_AIR_POWER_ON",
     "COOK_THEN_AIR",
     "DEFAULT_SCENARIOS",
     "EVENING_REST",

@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from rpi.commands import CommandStatus, Confirmation, ControlRoute
 from rpi.controller.models import ExecutionMode
@@ -33,10 +34,14 @@ class ScenarioUnavailableError(RuntimeError):
 
 
 class ScenarioEngine:
-    def __init__(self, catalog: ScenarioCatalog, suggestions, service) -> None:
+    def __init__(self, catalog: ScenarioCatalog, suggestions, service, *,
+                 target_power: Callable[[str], str | None] | None = None) -> None:
         self._catalog = catalog
         self._suggestions = suggestions
         self._service = service
+        #: 가전 ID → 마지막 전원 판독(``on``·``off``, 모르면 None). 이미 한 조회의 기억만 — 사건 읽기 루프에서 부르므로
+        #: 여기서 클라우드를 부르지 않는다.
+        self._target_power = target_power or (lambda _appliance_id: None)
         suggestions.set_scenario_resolver(catalog.current_commands)
 
     @property
@@ -86,8 +91,11 @@ class ScenarioEngine:
         for definition in self._catalog.list():
             trigger = definition.trigger
             if (trigger.kind != "appliance_done" or definition.scenario_id in skip
+                    or definition.stands_in_for in skip
                     or trigger.appliance_id != record.get("appliance_id")
                     or trigger.event != record.get("event")):
+                continue
+            if trigger.target_off is not None and self._target_off(definition) is not trigger.target_off:
                 continue
             # 가전 ID는 화면에 내지 않는다. 출처 표시는 괄호 대신 짧은 한 문장(10/17 쉬운 말).
             reason = definition.event_reason or "가전이 멈춘 것 같아요."
@@ -132,6 +140,16 @@ class ScenarioEngine:
         if definition is None or definition.trigger.kind != "context":
             return None
         return self._offer(definition, reason, is_demo, signals=signals)
+
+    def _target_off(self, definition: ScenarioDefinition) -> bool:
+        """첫 단계 가전이 '꺼짐'으로 읽혔는가. 모르면(판독 없음·오래됨·읽기 고장) False — 종전처럼 묻는다."""
+        if not definition.steps:
+            return False
+        try:
+            return self._target_power(definition.steps[0].target_id) == "off"
+        except Exception:  # noqa: BLE001 -- 전원 기억을 못 읽으면 모르는 것으로
+            log.exception("target power unreadable")
+            return False
 
     def _approval_count(self, definition: ScenarioDefinition) -> int:
         """같은 제안(질문 문장)을 승인한 횟수 — 제안 기록(``feedback_events``, 최근 200건)에서 센 그대로. 모르면 0."""

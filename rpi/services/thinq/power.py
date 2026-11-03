@@ -94,6 +94,16 @@ class ThinqPowerCache:
         age = now - read_at
         return age if age >= 0 else None
 
+    def power(self, appliance_id: str, max_age: float = POWER_STALE_SECONDS) -> str | None:
+        """그 가전의 오래되지 않은 전원 기억(``on``·``off``), 모르거나 오래됐으면 None. 입출력 없음."""
+        now = self._monotonic()
+        with self._lock:
+            entry = self._entries.get(appliance_id)
+        if entry is None:
+            return None
+        power, read_at = entry
+        return power if 0 <= now - read_at <= max_age else None
+
     def snapshot(self, max_age: float = POWER_STALE_SECONDS) -> list[dict]:
         """오래되지 않은 기억만 — ``[{"appliance_id", "power", "age_s"}]``(가전 ID 순)."""
         now = self._monotonic()

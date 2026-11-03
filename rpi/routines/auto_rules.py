@@ -652,6 +652,8 @@ def time_event_key(routine_id: str, scheduled: datetime) -> str:
 #: 신선도 근거가 없을 때(3차 평가 M1) — 보류가 기본이다.
 # 연결이 바뀌었거나 옛 RPi4라 끝 시각을 이 본체 시계로 옮길 수 없다.
 NO_FRESHNESS_REASON = "가열이 언제 끝났는지 알 수 없어 자동으로 하지 않았어요."
+#: 대상이 꺼짐으로 읽혔다 — 꺼진 공기청정기는 바람 세기 같은 명령을 받지 않는다(클라우드 거절). 켤지 카드로 묻는다.
+TARGET_OFF_REASON = "공기청정기가 꺼져 있어 자동으로 하지 않았어요. 켤지 먼저 물어볼게요."
 
 
 def event_age_s(record: Mapping, now_mono_s: float) -> float | None:
@@ -689,8 +691,11 @@ class AutoRuleEngine:
                  started: Callable[[], float] | None = None,
                  is_quiet: Callable[[], bool] | None = None,
                  routines: Callable[[], object] | None = None,
-                 quiet_settings: Callable[[], Mapping] | None = None) -> None:
+                 quiet_settings: Callable[[], Mapping] | None = None,
+                 target_power: Callable[[str], str | None] | None = None) -> None:
         self.store = store
+        #: 가전 ID → 마지막 전원 판독(``on``·``off``, 모르면 None). 이미 한 조회의 기억만(사건 읽기 루프 — 새 조회 없음).
+        self._target_power = target_power or (lambda _appliance_id: None)
         #: 시각 규칙의 루틴 저장소(2026-10-16). 없으면 시각 규칙을 만들지도 쓰지도 않는다.
         self._routines = routines or (lambda: None)
         #: 확인 화면 단서용 조용한 시간 설정(enabled·start·end). 없으면 단서에 넣지 않는다.
@@ -1130,7 +1135,18 @@ class AutoRuleEngine:
         if mode not in (ExecutionMode.REAL, ExecutionMode.MOCK):
             return self._record(rule, record, key, "blocked",
                                 "LG 가전 연결 상태를 알 수 없어 자동으로 하지 않았어요.")
+        # ⑦ 꺼진 대상 — 꺼진 공기청정기는 전원 밖의 명령을 클라우드가 거절(2304)한다. 꺼짐으로 읽혔으면 보내지 않고
+        # 켜기 카드로 묻는다(reoffer — 시나리오 엔진이 꺼짐을 보고 켜기 카드를 고른다). 모르면 종전처럼 보낸다.
+        if not timed and rule.action != "set_power" and self._target_is_off(rule):
+            return self._record(rule, record, key, "blocked", TARGET_OFF_REASON, reoffer=True)
         return self._submit(rule, record, key, generation)
+
+    def _target_is_off(self, rule: AutoRule) -> bool:
+        try:
+            return self._target_power(rule.target_appliance_id) == "off"
+        except Exception:  # noqa: BLE001 -- 전원 기억을 못 읽으면 모르는 것으로(종전처럼 보낸다)
+            log.exception("auto rule target power unreadable")
+            return False
 
     def _time_rule_issue(self, rule: AutoRule) -> str | None:
         """시각 규칙이 지금 루틴과 맞는가 — 루틴이 없거나 꺼졌거나, 시각·요일·단계(대상·동작·값)가 바뀌었으면 그 이유."""

@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from rpi.api import deps
 from rpi.controller.models import ExecutionMode
 from rpi.services.thinq import MOCK_PURIFIER_ID
-from rpi.tests.test_cook_done_card import _cards, _env, _inject, _reset, _wait_done
+from rpi.tests.test_cook_done_card import _cards, _env, _inject, _reset, _wait_done, purifier_on
 from rpi.verifier.done_fusion import rehearsal_done_event
 
 
@@ -28,7 +28,9 @@ def api(monkeypatch):
     _reset()
     from rpi.main import app
 
-    yield TestClient(app)
+    client = TestClient(app)
+    purifier_on()  # 켜진 공기청정기의 바람 세기 자동 실행을 본다(꺼짐은 test_cook_done_purifier_off.py)
+    yield client
     _reset()
 
 

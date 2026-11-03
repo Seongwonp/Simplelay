@@ -453,7 +453,9 @@ def wire_scenarios(suggestions, service):
     from rpi.scenarios import ScenarioCatalog, ScenarioEngine, scenarios_from_env  # noqa: PLC0415
 
     # 기본은 v3 빈 카탈로그 — v2 시나리오(공기청정기·선풍기·제습기)는 SIMPLELAY_V2_SCENARIOS로만.
-    engine = ScenarioEngine(ScenarioCatalog(scenarios_from_env()), suggestions, service)
+    # 대상 전원은 이미 한 조회(공기질 판독·확인 조회)의 기억만 본다 — 가열 종료 사건은 링크 읽기 루프에서 오므로 새로 부르지 않는다.
+    engine = ScenarioEngine(ScenarioCatalog(scenarios_from_env()), suggestions, service,
+                            target_power=lambda appliance_id: get_power_cache().power(appliance_id))
     client = get_thinq_client()
     subscribe = getattr(client, "subscribe", None)
     if subscribe is not None and not getattr(client, "_simplelay_dispatch", False):

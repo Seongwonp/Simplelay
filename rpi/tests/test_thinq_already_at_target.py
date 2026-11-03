@@ -271,14 +271,13 @@ def test_guard_and_send_right_come_first_and_already_is_not_marked_as_sending():
 
 thinq_sdk = pytest.importorskip("thinqconnect")
 
-from rpi.tests.test_auto_rule_e2e import _allow, _env, _set_low, _wait_run  # noqa: E402
+from rpi.tests.test_auto_rule_e2e import _allow, _env, _set_low, _wait_run, purifier_on_cloud  # noqa: E402
 from rpi.tests.test_cook_done_card import _cards, _inject, _reset, _wait_done  # noqa: E402
-from rpi.tools.fake_thinq_cloud import FakeThinqCloud  # noqa: E402
 
 
 @pytest.fixture()
 def cloud():
-    fake = FakeThinqCloud()
+    fake = purifier_on_cloud()  # 켜진 공기청정기 — 꺼짐으로 읽히면 바람 세기를 보내지 않는다
     fake.start()
     yield fake
     fake.stop()

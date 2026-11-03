@@ -130,7 +130,7 @@ def get_auto_rule_engine():
     """자동 실행 허용 규칙 엔진. 실행 서비스가 다시 만들어지면(시험) 새로 만든다. DB가 있으면 규칙·처리한 사건이 남는다."""
     global _auto_engine
     from rpi.api import deps  # noqa: PLC0415
-    from rpi.api.thinq_wiring import get_scenario_engine  # noqa: PLC0415
+    from rpi.api.thinq_wiring import get_power_cache, get_scenario_engine  # noqa: PLC0415
 
     from .auto_rules import AutoRuleEngine, AutoRuleStore, SeenEvents, max_event_age_from_env  # noqa: PLC0415
 
@@ -154,7 +154,8 @@ def get_auto_rule_engine():
                                 max_event_age_s=max_event_age_from_env(),
                                 is_quiet=lambda: deps.get_suggestion_service().is_auto_run_quiet(),  # 이어받은 옛 범위 잠시 쉬기는 막지 않음
                                 routines=get_routine_store,
-                                quiet_settings=lambda: deps.get_quiet_hours().settings())
+                                quiet_settings=lambda: deps.get_quiet_hours().settings(),
+                                target_power=lambda appliance_id: get_power_cache().power(appliance_id))
         _auto_engine = engine
     if not getattr(service, "_simplelay_auto_rule_listener", False):
         service.add_job_listener(lambda event: _auto_engine.on_job_finished(event)

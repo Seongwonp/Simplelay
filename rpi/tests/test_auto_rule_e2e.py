@@ -35,9 +35,17 @@ def _env(monkeypatch, tmp_path, cloud, mode="fake_cloud"):
     monkeypatch.setenv("SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER", cloud.device_id("air_purifier"))
 
 
+def purifier_on_cloud() -> FakeThinqCloud:
+    """공기청정기를 켜 둔 모의 클라우드 — 꺼짐으로 읽히면 가열 종료 카드·자동 실행은 바람 세기 대신 켜기로 묻는다
+    (test_cook_done_purifier_off.py). 켜진 공기청정기의 바람 세기를 보는 시험이 쓴다."""
+    fake = FakeThinqCloud()
+    fake._devices[fake.device_id("air_purifier")]["state"]["operation"]["airPurifierOperationMode"] = "POWER_ON"
+    return fake
+
+
 @pytest.fixture()
 def cloud():
-    fake = FakeThinqCloud()
+    fake = purifier_on_cloud()
     fake.start()
     yield fake
     fake.stop()
