@@ -116,7 +116,7 @@ class HistoryScreen extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, __) => _Message(
             icon: Icons.wifi_off,
-            text: '기록을 불러오지 못했어요.\n연결을 보고 아래로 당겨 새로 봐 주세요.',
+            text: '기록을 불러오지 못했어요.\n휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 아래로 당겨 새로 봐 주세요.',
           ),
           data: (entries) => entries.isEmpty
               ? _Message(

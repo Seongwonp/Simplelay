@@ -228,7 +228,7 @@ void main() {
     });
     expect(find.byIcon(Icons.check), findsOneWidget);
     // 셀 색만이 아니라 문장으로도 말한다. 확인 근거가 없으면(실행 환경·확인 수준 모름) 눌림을 확인했다고 하지 않는다(2026-10-15).
-    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 집에서 확인해야 해요"), findsOneWidget);
+    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요"), findsOneWidget);
 
     // 2초 뒤 결과 표시가 사라진다.
     await tester.pump(const Duration(seconds: 3));
@@ -289,7 +289,7 @@ void main() {
     finished = true;
     await tester.pump(const Duration(seconds: 3));
     await tester.pump();
-    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 집에서 확인해야 해요"), findsOneWidget);
+    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요"), findsOneWidget);
 
     // 결과를 안 뒤에는 묻지 않는다.
     await tester.pump(const Duration(seconds: 3)); // 셀 결과 표지가 걷힌다
@@ -344,7 +344,7 @@ void main() {
   for (final (mode, confirmation, sentence) in [
     ('real', 'press_confirmed', "'켜기' 눌린 것을 확인했어요"),
     ('mock', 'press_confirmed', "'켜기' 연습으로 눌렀어요. 실제 가전은 누르지 않았어요"),
-    ('real', 'reported', "'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 집에서 확인해야 해요"),
+    ('real', 'reported', "'켜기' 누름 장치가 눌렀다고 알려 왔어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요"),
   ]) {
     testWidgets('결과 한 줄은 확인한 만큼 — $mode · $confirmation', (tester) async {
       final client = MockClient((request) async {
@@ -379,10 +379,10 @@ void main() {
   }
   // 검토 10/19(12): 결과를 last_status만 보고 갈라, 사람이 멈춘 것·스스로 멈춘 것도 같은 빨간 '눌렸는지 확인하지 못했어요'였다.
   for (final (outcome, status, sentence) in [
-    ('stopped', 'safety_stopped', "'켜기' 멈추라고 해서 멈췄어요. 눌렸는지는 가전을 보고 확인해 주세요"),
-    ('safety_stop', 'safety_stopped', "'켜기' 눌렸는지 확인이 안 돼 스스로 멈췄어요. 가전을 보고 확인해 주세요"),
-    ('failed', 'failed', "'켜기' 하지 못했어요. 눌렸는지는 집에서 가전을 확인해야 해요"),
-    ('unconfirmed', 'unconfirmed', "'켜기' 보냈지만 눌렸는지 확인하지 못했어요. 집에서 가전을 확인해야 해요"),
+    ('stopped', 'safety_stopped', "'켜기' 멈추라고 해서 멈췄어요. 가전 화면이나 불빛이 바뀌었는지 봐 주세요"),
+    ('safety_stop', 'safety_stopped', "'켜기' 눌렸는지 확인이 안 돼 스스로 멈췄어요. 가전 화면이나 불빛이 바뀌었는지 봐 주세요"),
+    ('failed', 'failed', "'켜기' 하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요"),
+    ('unconfirmed', 'unconfirmed', "'켜기' 보냈지만 눌렸는지 확인하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요"),
   ]) {
     testWidgets('끝난 결과는 last_outcome으로 가른다 — $outcome', (tester) async {
       final client = MockClient((request) async {
@@ -498,7 +498,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     }
     expect(container.read(executionStatusProvider).phase, ExecutionPhase.completed);
-    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 가전은 집에서 확인해야 해요"), findsOneWidget);
+    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요"), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));
     await tester.tap(find.text('켜기'));

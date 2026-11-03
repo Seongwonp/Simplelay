@@ -474,7 +474,7 @@ class _AddApplianceWizardScreenState
     setState(() {
       _photo = kept == null ? photo : File(kept);
       _photoSize = size;
-      _error = kept == null ? '사진을 이 폰에 남기지 못했어요. 등록은 되지만 나중에 사진이 안 보일 수 있어요.' : null;
+      _error = kept == null ? '사진을 이 휴대폰에 남기지 못했어요. 등록은 되지만 나중에 사진이 안 보일 수 있어요.' : null;
       // 사진이 바뀌면 짚은 자리는 모두 무효다.
       _corners.clear();
       _areaTouched = false;
@@ -877,7 +877,7 @@ class _AddApplianceWizardScreenState
                 : kPassUnavailableMessage);
       }
     } catch (_) {
-      if (mounted) setState(() => _error = '자리 확인을 시작하지 못했어요. 연결을 봐 주세요.');
+      if (mounted) setState(() => _error = '자리 확인을 시작하지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1058,7 +1058,7 @@ class _AddApplianceWizardScreenState
         // 개인정보 안내는 작은 글씨 한 줄로(2026-10-14 UX).
         Padding(
           padding: const EdgeInsets.only(bottom: AppSpace.md),
-          child: Text('사진은 이 폰에만 남고 본체에는 고른 자리만 보내요.',
+          child: Text('사진은 이 휴대폰에만 남고 본체에는 고른 자리만 보내요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         ),
         // 끝까지 고른 뒤 저장에서야 연결이 없다는 것을 알았다(실화면 10/19) — 시작할 때 말한다.

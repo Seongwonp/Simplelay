@@ -68,7 +68,7 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
           children: [
             _RpiConnectionTile(),
             FilledButton.icon(onPressed: () => context.push('/pair'),
-              icon: const Icon(Icons.qr_code), label: const Text('QR로 폰 연결하기')),
+              icon: const Icon(Icons.qr_code), label: const Text('QR로 휴대폰 연결하기')),
             const SizedBox(height: AppSpace.xxl),
             _SectionHeader(title: '본체 위치'),
             const SizedBox(height: AppSpace.sm),
@@ -158,10 +158,10 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
             ref.invalidate(hubLocationProvider);
             _say('본체 위치를 저장했어요. 약 1km 단위로만 저장해요.');
           } on RpiApiException catch (e) {
-            _say(e.statusCode == 422 ? e.message : '저장하지 못했어요. 연결을 봐 주세요.',
+            _say(e.statusCode == 422 ? e.message : '저장하지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.',
                 warn: true);
           } catch (_) {
-            _say('저장하지 못했어요. 연결을 봐 주세요.', warn: true);
+            _say('저장하지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.', warn: true);
           }
         case LocationDenied():
           _say('위치 권한을 주지 않아서 정하지 않았어요. 다시 누르면 다시 물어봐요. '
@@ -187,7 +187,7 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
       loading: () => '알아보고 있어요',
       error: (_, __) => '본체와 연결되면 볼 수 있어요',
       data: (l) => switch (l?.source) {
-        'app' => '폰에서 정한 위치예요',
+        'app' => '휴대폰에서 정한 위치예요',
         'env' => '설치할 때 정한 위치예요',
         'none' => '아직 위치가 없어요. 날씨 안내를 하지 않아요',
         _ => '본체와 연결되면 볼 수 있어요',
@@ -199,7 +199,7 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
         Text(line, key: const Key('hub-location-line'),
             style: const TextStyle(fontSize: AppFont.caption)),
         const SizedBox(height: AppSpace.xs),
-        Text('날씨를 받을 동네를 정해요. 본체는 위치를 몰라 폰 위치를 빌려요.',
+        Text('날씨를 받을 동네를 정해요. 본체는 위치를 몰라 휴대폰 위치를 빌려요.',
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         const SizedBox(height: AppSpace.md),
         FilledButton.icon(

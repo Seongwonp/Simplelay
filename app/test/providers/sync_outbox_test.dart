@@ -544,7 +544,7 @@ void main() {
       }
     });
 
-    test('다른 폰이 등록한 가전은 지우지 않고 받아온다', () async {
+    test('다른 휴대폰이 등록한 가전은 지우지 않고 받아온다', () async {
       final server = _FakeServer(['fan', 'humidifier']);
       final container = await _phone(server, localCustoms: ['fan']);
 
@@ -592,7 +592,7 @@ void main() {
           return _json([
             {
               ..._FakeServer._def('fan'),
-              'name': '다른 폰이 바꾼 이름',
+              'name': '다른 휴대폰이 바꾼 이름',
               'revision': 5,
             },
           ]);
@@ -629,7 +629,7 @@ void main() {
       final fan = container
           .read(customAppliancesProvider)
           .firstWhere((a) => a.id == 'fan');
-      expect(fan.name, '다른 폰이 바꾼 이름');
+      expect(fan.name, '다른 휴대폰이 바꾼 이름');
       // 그리고 그 작업은 대기열에 계속 남아 재시도되지 않는다 — 다시 보내면
       // 같은 충돌이 반복된다.
       // 대기 상태로 남는다 — 조용히 버리면 사용자는 자기 변경이 사라진
@@ -676,10 +676,10 @@ void main() {
     });
   });
 
-  group('9. 본체에서 지운 가전은 폰에서도 빠진다', () {
+  group('9. 본체에서 지운 가전은 휴대폰에서도 빠진다', () {
     // 본체 API로 세탁기·인터폰을 지웠는데 폰에는 '가전 2대 설정이 남았어요'·'본체에 보낼 것 3건'이 영영 남았다(10/19).
     // 남은 고치기는 본체 판 0과 어긋나 409로 매번 거절됐다. 본체가 본 적 있는 가전(판 번호가 있다)은 본체가 진실원천이다.
-    test('본체가 본 적 있는 가전이 본체 목록에 없으면 폰에서 빼고 대기 작업도 버린다', () async {
+    test('본체가 본 적 있는 가전이 본체 목록에 없으면 휴대폰에서 빼고 대기 작업도 버린다', () async {
       // 본체는 없는 가전에 판을 밝힌 고치기를 409로 거절한다(판 0과 어긋남).
       final server = _FakeServer(['fan'])..refusePutWith409 = {'washer', 'intercom'};
       final container = await _phone(server, prefs: {
@@ -724,7 +724,7 @@ void main() {
       expect(result.allDone, isTrue);
     });
 
-    test('이 폰에서만 만들고 아직 못 보낸 가전(판 0)은 빼지 않고 보낸다', () async {
+    test('이 휴대폰에서만 만들고 아직 못 보낸 가전(판 0)은 빼지 않고 보낸다', () async {
       final server = _FakeServer(['fan']);
       final container = await _phone(server, prefs: {
         'custom_appliances': [
@@ -927,7 +927,7 @@ void _auditTests() {
       await container.read(applianceSyncProvider.notifier).sync();
       expect(container.read(customAppliancesProvider).single.revision, 3);
       expect(container.read(customAppliancesProvider).single.photoPath, '/phone/fan.jpg',
-          reason: '판 번호만 바꾸고 이 폰의 사진은 그대로');
+          reason: '판 번호만 바꾸고 이 휴대폰의 사진은 그대로');
 
       await container.read(applianceSyncProvider.notifier).deleteAppliance('fan');
       expect(server.customs.containsKey('fan'), isFalse, reason: '본체에서도 지워져야 한다');

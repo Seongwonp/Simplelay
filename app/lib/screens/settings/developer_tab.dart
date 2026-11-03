@@ -28,7 +28,7 @@ class DeveloperTabScreen extends ConsumerWidget {
                 Text(
                   devMode
                       ? '허브 개발자 모드가 켜져 있어요. 시연 날에는 끄고 제품 화면만 보여 주세요.'
-                      : '허브 개발자 모드는 꺼져 있고, 이 폰의 데모 모드가 켜져 있어서 보여요.',
+                      : '허브 개발자 모드는 꺼져 있고, 이 휴대폰의 데모 모드가 켜져 있어서 보여요.',
                   style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
                 const SizedBox(height: AppSpace.lg),

@@ -243,7 +243,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('숨기기'));
     await tester.pumpAndSettle();
-    expect(find.text('바꾸지 못했어요. 폰과 본체가 같은 와이파이인지 보고 다시 눌러 주세요.'), findsOneWidget);
+    expect(find.text('바꾸지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 눌러 주세요.'), findsOneWidget);
     expect(find.text('물어보는 중'), findsOneWidget);
   });
 

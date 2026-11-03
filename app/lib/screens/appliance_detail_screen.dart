@@ -232,7 +232,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
     final result = await ref.read(applianceSyncProvider.notifier).deleteAppliance(appliance.id);
     if (result.failed > 0) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('폰에서는 지웠어요. 본체에서는 다음에 연결될 때 다시 지울게요.')),
+        const SnackBar(content: Text('휴대폰에서는 지웠어요. 본체에서는 다음에 연결될 때 다시 지울게요.')),
       );
     }
     // 지운 가전의 상세에 머물지 않는다.
@@ -326,7 +326,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
         switch (e.statusCode) {
           409 => '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.',
           412 => e.message,
-          _ => '누르라고 보내지 못했어요. 연결을 봐 주세요.',
+          _ => '누르라고 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.',
         },
       );
     } catch (_) {

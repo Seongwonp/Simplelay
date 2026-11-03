@@ -85,10 +85,10 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
       }
     } on RpiApiException catch (e) {
       messenger.showSnackBar(SnackBar(
-          content: Text(e.message.isNotEmpty ? e.message : '설정을 본체에 보내지 못했어요. 연결을 봐 주세요.')));
+          content: Text(e.message.isNotEmpty ? e.message : '설정을 본체에 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.')));
     } catch (_) {
       messenger.showSnackBar(
-          const SnackBar(content: Text('설정을 본체에 보내지 못했어요. 연결을 봐 주세요.')));
+          const SnackBar(content: Text('설정을 본체에 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.')));
     } finally {
       if (mounted) setState(() => _busy = false);
       ref.invalidate(quietHoursProvider);
@@ -207,7 +207,7 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
         await ref.read(wellnessPauseProvider.notifier).pauseUntil(picked);
     if (!ok) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('설정을 본체에 보내지 못했어요. 연결을 봐 주세요.')),
+        const SnackBar(content: Text('설정을 본체에 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.')),
       );
     }
   }
@@ -216,7 +216,7 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
     final messenger = ScaffoldMessenger.of(context);
     if (!await ref.read(wellnessPauseProvider.notifier).clear()) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('설정을 본체에 보내지 못했어요. 연결을 봐 주세요.')),
+        const SnackBar(content: Text('설정을 본체에 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.')),
       );
     }
   }

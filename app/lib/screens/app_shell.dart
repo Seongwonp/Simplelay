@@ -181,7 +181,7 @@ Future<void> stopUntrackedRun(WidgetRef ref) async {
   final api = ref.read(rpiApiServiceProvider);
   final notice = ref.read(voiceStopNoticeProvider.notifier);
   if (api == null) {
-    notice.state = '멈추라고 보내지 못했어요. 본체 연결을 보고 정지를 다시 눌러 주세요.';
+    notice.state = '멈추라고 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 정지를 다시 눌러 주세요.';
     return;
   }
   try {

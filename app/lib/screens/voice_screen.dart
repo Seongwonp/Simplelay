@@ -294,7 +294,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         if (mounted) _notice('보냈어요.');
       }
     } catch (_) {
-      if (mounted) _notice('블루투스로 보내지 못했어요. 연결을 봐 주세요.');
+      if (mounted) _notice('블루투스로 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -361,7 +361,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           // 남았는지 말해주므로 일반 문구로 덮지 않는다 -- 덮으면
           // 사용자가 원인을 가전 고장 쪽에서 찾게 된다.
           412 => _readinessMessage(error),
-          _ => '본체에 보내지 못했어요. 연결을 봐 주세요.',
+          _ => '본체에 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.',
         });
       }
     } catch (_) {
@@ -369,7 +369,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       execution.beginSubmissionUnknown(
           api: rpiApi, label: text, requestId: requestId, byRequest: true);
       if (mounted) {
-        _notice('본체가 받았는지 확인하지 못했어요. 다시 보내기 전에 집에서 가전을 확인해야 해요.');
+        _notice('본체가 받았는지 확인하지 못했어요. 다시 보내기 전에 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.');
         context.push('/status');
       }
     } finally {
@@ -423,7 +423,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         }
         return true;
       } catch (_) {
-        if (current()) _notice('본체에 보내지 못했어요. 연결을 봐 주세요.');
+        if (current()) _notice('본체에 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
         return true;
       }
       if (!current()) return true;
@@ -822,7 +822,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                         listening
                             ? '듣고 있어요…'
                             : text.trim().isEmpty
-                                ? (micUsable ? '마이크를 눌러 말해보세요' : '아래에 적어 주세요')
+                                ? (micUsable ? '마이크를 눌러 말해 보세요' : '아래에 적어 주세요')
                                 : '이대로 할까요?',
                         style: AppText.title,
                         textAlign: TextAlign.center,
@@ -1061,7 +1061,7 @@ class _TargetLine extends StatelessWidget {
           const SizedBox(width: AppSpace.sm),
           Flexible(
             child: Text(
-              '${appliance.displayName}에게',
+              '${appliance.displayName}에',
               style:
                   TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
@@ -1101,7 +1101,7 @@ class _VoiceUnavailableNotice extends StatelessWidget {
               Icon(Icons.mic_off_outlined, size: 52, color: context.appMuted),
               const SizedBox(height: AppSpace.xl),
               Text(
-                '이 폰에서는 마이크를 쓸 수 없어요. 글자나 버튼으로 해 주세요',
+                '이 휴대폰에서는 마이크를 쓸 수 없어요. 글자나 버튼으로 해 주세요',
                 textAlign: TextAlign.center,
                 style: AppText.title,
               ),

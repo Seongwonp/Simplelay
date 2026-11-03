@@ -333,7 +333,7 @@ void main() {
       expect(AppIcons.pause, Icons.pause_circle_outline);
     });
 
-    test('폰 화면 코드는 달·일시정지·방해 금지 아이콘을 직접 쓰지 않는다(AppIcons만)', () {
+    test('휴대폰 화면 코드는 달·일시정지·방해 금지 아이콘을 직접 쓰지 않는다(AppIcons만)', () {
       final offenders = <String>[];
       for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
         if (!f.path.endsWith('.dart') || f.path.replaceAll('\\', '/').endsWith('theme/app_icons.dart')) continue;

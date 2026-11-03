@@ -247,7 +247,7 @@ class _AddCard extends StatelessWidget {
 String? _serverCatalogNote(ServerApplianceCatalog catalog) =>
     switch (catalog.status) {
       ServerCatalogStatus.loading => '본체에서 가전 목록을 불러오고 있어요.',
-      ServerCatalogStatus.failed => '본체의 가전 목록을 못 불러왔어요. 연결을 봐 주세요.',
+      ServerCatalogStatus.failed => '본체의 가전 목록을 못 불러왔어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.',
       ServerCatalogStatus.loaded || ServerCatalogStatus.unconfigured => null,
     };
 

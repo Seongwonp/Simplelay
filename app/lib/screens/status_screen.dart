@@ -81,6 +81,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
     // 음성 실행은 steps 미리보기가 비어 있다. 그래도 서버가 total_steps를
     // 주므로 진행을 보여줄 수 있다 -- steps.length에만 기대면 화면이 빈다.
     final totalSteps = status.totalSteps ?? status.steps.length;
+    final mockRun = status.isDemo || status.executionMode == 'mock';
 
     final now = _NowState.of(status);
 
@@ -149,7 +150,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     if (_finished(status.phase))
                       if (operationSentence(status) case final o?) o,
                     if (totalSteps > 1 && status.phase != ExecutionPhase.idle)
-                      '$totalSteps개 중 ${status.completedSteps}개 했어요',
+                      '${mockRun ? '연습 ' : ''}$totalSteps개 중 ${status.completedSteps}개 했어요',
                   ].fold<String>('', _joinSentence),
                   child: ExcludeSemantics(
                     child: Column(
@@ -200,6 +201,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     total: totalSteps,
                     completed: status.completedSteps,
                     phase: status.phase,
+                    practice: mockRun,
                   ),
                 ],
 
@@ -553,7 +555,7 @@ String? operationSentence(ExecutionStatus s) => switch (s.operationConfirmed) {
         '연습이라 실제 가전은 보지 않았어요',
       true when s.operationSource == 'real' => '가전이 전기를 쓰기 시작한 것도 확인했어요',
       true when s.operationSource == 'mock' => '가전 동작은 연습 값으로 봤어요. 실제로 확인한 건 아니에요',
-      true => '가전이 움직였는지 확인하지 못했어요. 집에서 가전을 확인해야 해요',
+      true => '가전이 움직였는지 확인하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요',
       false => '가전이 움직였는지 확인하지 못했어요',
       null => null,
     };
@@ -678,7 +680,7 @@ class _NowState {
     for (final t in sentences.skip(1)) {
       if (t.contains('다시')) {
         caveats.add(t);
-      } else if (bare(t) != action && bare(t) != '집에서 가전을 확인해야 해요') {
+      } else if (bare(t) != action && bare(t) != '집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요') {
         // 할 일 줄이 이미 말한 '집에서 가전을 확인'은 접힌 곳에 또 두지 않는다.
         more.add(t);
       }
@@ -786,7 +788,7 @@ class _NowState {
         );
       case ExecutionPhase.unknown:
         return _NowState(
-          headline: s.message ?? '지금 상태를 확인하지 못했어요. 집에서 가전을 확인해야 해요.',
+          headline: s.message ?? '지금 상태를 확인하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.',
           tone: _Tone.caution,
         );
       case ExecutionPhase.unconfirmed:
@@ -980,11 +982,15 @@ class _SegmentedProgress extends StatelessWidget {
     required this.total,
     required this.completed,
     required this.phase,
+    this.practice = false,
   });
 
   final int total;
   final int completed;
   final ExecutionPhase phase;
+
+  /// 연습 실행 — 실제로 누른 것으로 읽히지 않게 앞에 '연습'을 붙인다.
+  final bool practice;
 
   @override
   Widget build(BuildContext context) {
@@ -1005,7 +1011,7 @@ class _SegmentedProgress extends StatelessWidget {
         // 이 실행의 조작 진행(서버 total_steps — 버튼 하나 또는 명령 한 묶음). 루틴 목록의
         // "N단계"(루틴 단계 수)와 다른 축이라 다른 말로 부른다. 숫자와 단위는 붙어 다닌다
         // (단어 결합 문자 U+2060, 외부 평가 2026-10-13 L3).
-        Text('$total\u2060개 중 $completed\u2060개 했어요', style: AppText.title),
+        Text('${practice ? '연습 ' : ''}$total\u2060개 중 $completed\u2060개 했어요', style: AppText.title),
         if (drawSegments) ...[
           const SizedBox(height: AppSpace.md),
           Row(

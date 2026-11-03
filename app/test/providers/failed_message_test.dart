@@ -22,8 +22,8 @@ class _QuietTts extends AppTtsService {
   Future<void> speak(String text) async {}
 }
 
-const _notSent = '누름 장치에 보내지 못했어요. 연결을 보고 다시 해 주세요.';
-const _partial = '끝까지 하지 못했어요. 집에서 가전을 확인해야 해요.';
+const _notSent = '누름 장치에 보내지 못했어요. 본체와 누름 장치가 연결됐는지 보고 다시 해 주세요.';
+const _partial = '끝까지 하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -51,7 +51,7 @@ void main() {
       expect(
           finishedMessage(
               kind: ResultKind.failed, route: 'thinq', receipt: 'not_dispatched'),
-          '가전에 보내지 못했어요. 연결을 보고 다시 해 주세요.');
+          '가전에 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 해 주세요.');
       final accepted = finishedMessage(
           kind: ResultKind.failed, route: 'thinq', receipt: 'accepted');
       expect(accepted, '가전이 하지 않았어요. 가전 상세에서 지금 상태를 볼 수 있어요.');

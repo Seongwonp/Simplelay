@@ -39,7 +39,7 @@ Future<String?> runRoutineNow(
   } on RpiApiException catch (e) {
     return routineRunErrorText(e);
   } catch (_) {
-    return '물어보는 화면을 띄우지 못했어요. 본체 연결을 보고 다시 눌러 주세요.';
+    return '물어보는 화면을 띄우지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 눌러 주세요.';
   }
 }
 
@@ -76,6 +76,6 @@ String routineRunErrorText(RpiApiException e) {
   return switch (e.statusCode) {
     409 => '다른 일을 하고 있어요. 끝난 뒤 다시 눌러 주세요.',
     412 => '가전이 아직 준비되지 않았어요. 가전 화면에서 남은 설정을 봐 주세요.',
-    _ => '물어보는 화면을 띄우지 못했어요. 본체 연결을 보고 다시 눌러 주세요.',
+    _ => '물어보는 화면을 띄우지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 눌러 주세요.',
   };
 }

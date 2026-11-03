@@ -58,7 +58,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
       if (!mounted) return;
       setState(() {
         _busy = null;
-        _actionError = '바꾸지 못했어요. 폰과 본체가 같은 와이파이인지 보고 다시 눌러 주세요.';
+        _actionError = '바꾸지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 눌러 주세요.';
       });
     }
   }
@@ -164,7 +164,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                     }
                     if (snapshot.hasError || !snapshot.hasData) {
                       return const Text(
-                          '생활 습관을 불러오지 못했어요. 본체 연결을 봐 주세요.');
+                          '생활 습관을 불러오지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
                     }
                     final status = snapshot.requireData;
                     return Column(

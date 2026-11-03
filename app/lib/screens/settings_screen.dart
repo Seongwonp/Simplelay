@@ -422,7 +422,7 @@ class _ResidentNameTileState extends ConsumerState<_ResidentNameTile> {
       if (mounted) setState(() => _name = saved);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('이름을 저장하지 못했어요. 본체 연결을 봐 주세요.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('이름을 저장하지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.')));
       }
     }
   }

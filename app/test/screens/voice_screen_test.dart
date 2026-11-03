@@ -338,7 +338,7 @@ void main() {
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
 
-      expect(find.text('전자레인지에게'), findsOneWidget);
+      expect(find.text('전자레인지에'), findsOneWidget);
     });
 
     testWidgets('듣는 중에는 언제 멈추는지 미리 말한다', (tester) async {
@@ -370,7 +370,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.mic_rounded));
       await tester.pumpAndSettle();
 
-      expect(find.text('이 폰에서는 마이크를 쓸 수 없어요. 글자나 버튼으로 해 주세요'), findsOneWidget);
+      expect(find.text('이 휴대폰에서는 마이크를 쓸 수 없어요. 글자나 버튼으로 해 주세요'), findsOneWidget);
       expect(find.text('다시 말하기'), findsNothing);
       // 마이크를 그려 두고 눌러도 안 되게 하지 않는다.
       expect(find.byIcon(Icons.mic_rounded), findsNothing);
@@ -396,7 +396,7 @@ void main() {
 
       // 다시 초기화를 시도했고, 여전히 안 되면 같은 안내가 남는다.
       expect(voice.initializeCalls, 2);
-      expect(find.text('이 폰에서는 마이크를 쓸 수 없어요. 글자나 버튼으로 해 주세요'), findsOneWidget);
+      expect(find.text('이 휴대폰에서는 마이크를 쓸 수 없어요. 글자나 버튼으로 해 주세요'), findsOneWidget);
     });
   });
 

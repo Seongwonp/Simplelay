@@ -168,7 +168,7 @@ void main() {
 
   // 첫 사용 평가(10/24): 키오스크·자동 실행이 시작한 실행은 폰이 추적하지 않아 정지 줄이 뜨지 않았다 — 본체 상태
   // (`/status.running`)가 실행 중이면 폰이 시작하지 않은 실행에도 정지 줄을 띄우고, 같은 POST /stop을 보낸다.
-  testWidgets('폰이 시작하지 않은 실행도 본체가 실행 중이라 하면 정지 줄이 뜨고 정지를 보낸다', (tester) async {
+  testWidgets('휴대폰이 시작하지 않은 실행도 본체가 실행 중이라 하면 정지 줄이 뜨고 정지를 보낸다', (tester) async {
     final stops = <String>[];
     final api = RpiApiService(
       'http://rpi5.local:8000',
@@ -199,7 +199,7 @@ void main() {
       child: MaterialApp.router(routerConfig: _shellRouter()),
     ));
     await tester.pump();
-    expect(container.read(executionStatusProvider).phase, ExecutionPhase.idle, reason: '폰이 시작한 실행이 아니다');
+    expect(container.read(executionStatusProvider).phase, ExecutionPhase.idle, reason: '휴대폰이 시작한 실행이 아니다');
     expect(find.byKey(const Key('shell-stop')), findsOneWidget);
     // 용어 통일(2026-10-25, 사용자 승인): "다른 곳에서 시작한 동작 진행 중 · [정지]".
     expect(find.text('다른 곳에서 시작한 동작 진행 중'), findsOneWidget);

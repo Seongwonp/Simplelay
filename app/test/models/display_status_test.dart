@@ -375,7 +375,7 @@ void main() {
         'termination': 'retries_exhausted',
       }));
       expect(r.sentence, '한 번 더 눌렀지만 눌렸는지 확인하지 못했어요');
-      expect(r.next, '다시 누르기 전에 집에서 가전을 확인해야 해요');
+      expect(r.next, '다시 누르기 전에 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요');
     });
 
     test('ThinQ 미전송은 눌림 실패로 말하지 않는다', () {
@@ -401,7 +401,7 @@ void main() {
             'execution_mode': 'real',
           }),
           applianceName: '세탁기');
-      expect(r.next, '다시 보내기 전에 집에서 세탁기를 확인해야 해요');
+      expect(r.next, '다시 보내기 전에 집에서 세탁기 화면이나 불빛이 바뀌었는지 봐 주세요');
     });
 
     test('원인 불명 실패는 원인을 추정하지 않는다', () {

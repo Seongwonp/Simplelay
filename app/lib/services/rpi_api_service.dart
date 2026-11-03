@@ -1759,7 +1759,7 @@ class RpiApiService {
       return RpiThinqDiscovery.fromJson(
           jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
     } catch (_) {
-      return const RpiThinqDiscovery.failed('본체와 연결이 끊겼어요. 연결을 보고 다시 찾아 주세요.');
+      return const RpiThinqDiscovery.failed('본체와 연결이 끊겼어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 찾아 주세요.');
     }
   }
 
@@ -1789,7 +1789,7 @@ class RpiApiService {
         readAt: (now ?? DateTime.now)(),
       );
     } catch (_) {
-      return const RpiThinqStatus.failed('본체와 연결이 끊겼어요. 연결을 보고 새로 봐 주세요.');
+      return const RpiThinqStatus.failed('본체와 연결이 끊겼어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 새로 봐 주세요.');
     }
   }
 
@@ -2074,7 +2074,7 @@ class RpiApiService {
     } on TimeoutException {
       throw RpiApiException(0, '사진을 읽는 데 너무 오래 걸려요. 잠시 뒤 다시 해 주세요.');
     } catch (_) {
-      throw RpiApiException(0, '본체와 연결하지 못했어요. 연결을 봐 주세요.');
+      throw RpiApiException(0, '본체와 연결하지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     }
     if (res.statusCode == 404) {
       throw RpiApiException(404, '본체가 사진 읽기를 아직 못 해요. 설치하는 분께 본체 업데이트를 부탁해 주세요.');

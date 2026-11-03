@@ -24,7 +24,7 @@ void main() {
       expect(m, isNot(contains('실행을 멈췄어요')));
       expect(m, contains('멈추라고 보냈어요'));
       expect(m, contains('멈췄는지는 아직 확인하지 못했어요'));
-      expect(m, contains('가전은 집에서 확인해야 해요'));
+      expect(m, contains('집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요'));
     });
 
     test('모션 보드 받음(mcu_ack)은 멈췄다고 하지 않는다', () {
@@ -63,7 +63,7 @@ void main() {
 
     test('안전 정지는 가전을 먼저 보고, 이미 켜졌다면 다시 시도하지 말라고 한다', () {
       final m = finishedMessage(kind: ResultKind.safetyStop);
-      expect(m, contains('다시 하기 전에 집에서 가전을 확인해야 해요'));
+      expect(m, contains('다시 하기 전에 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요'));
       expect(m, contains('이미 움직이고 있으면 다시 누르지 마세요'));
       expect(m, isNot(contains('두 번 누르지 않')));
     });
@@ -118,7 +118,7 @@ void main() {
     expect(find.textContaining('쉬는 중'), findsNothing);
   });
 
-  test("사용자에게 보이는 폰 문자열에 '모의'가 없다(개발자 도구 제외)", () {
+  test("사용자에게 보이는 휴대폰 문자열에 '모의'가 없다(개발자 도구 제외)", () {
     // 개발자 도구·개발자 설정·내부 오류 문장·개발 빌드 전용 단추는 기술 용어로 둔다.
     const allowed = [
       'developer_console_screen.dart',

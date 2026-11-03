@@ -95,7 +95,7 @@ Future<void> _settle(WidgetTester tester) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('권한을 허용하면 폰 위치를 허브에 저장하고 저장된 위치를 다시 읽는다',
+  testWidgets('권한을 허용하면 휴대폰 위치를 허브에 저장하고 저장된 위치를 다시 읽는다',
       (tester) async {
     final server = _Server();
     final location = _FakeLocation(const LocationFix(37.5665, 126.9780));
@@ -110,7 +110,7 @@ void main() {
     expect(location.calls, 1);
     expect(server.putBody, {'lat': 37.5665, 'lon': 126.9780});
     expect(find.text('본체 위치를 저장했어요. 약 1km 단위로만 저장해요.'), findsOneWidget);
-    expect(find.text('폰에서 정한 위치예요'), findsOneWidget);
+    expect(find.text('휴대폰에서 정한 위치예요'), findsOneWidget);
   });
 
   testWidgets('권한을 거절하면 보내지 않고, 빠지는 것과 다시 하는 길을 말한다',
@@ -136,7 +136,7 @@ void main() {
     expect(find.text('휴대폰 설정 열기'), findsNothing);
   });
 
-  testWidgets('다시 묻지 않기로 거절했으면 폰 설정으로 가는 길을 준다', (tester) async {
+  testWidgets('다시 묻지 않기로 거절했으면 휴대폰 설정으로 가는 길을 준다', (tester) async {
     final server = _Server();
     final location = _FakeLocation(const LocationDeniedForever());
     _tall(tester);

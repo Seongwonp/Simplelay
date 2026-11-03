@@ -71,7 +71,7 @@ RpiApiService serverWithAppliances(List<Map<String, dynamic>> list) =>
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('서버의 가전 5대가 홈에 모두 보인다 -- 이 폰이 등록한 2대만이 아니다',
+  testWidgets('서버의 가전 5대가 홈에 모두 보인다 -- 이 휴대폰이 등록한 2대만이 아니다',
       (tester) async {
     tester.view.physicalSize = const Size(400, 3200);
     tester.view.devicePixelRatio = 1.0;

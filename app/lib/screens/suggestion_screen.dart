@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../models/auto_rule.dart';
 import '../models/command_result.dart';
-import '../models/display_status.dart' show applianceBlockedReason;
+import '../models/display_status.dart' show applianceBlockedReason, purposeActionName;
 import '../models/line_break.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
@@ -37,6 +37,17 @@ final _approvedHereProvider = StateProvider<Set<String>>((ref) => const {});
 /// 가전이 질문보다 먼저 오고, 버튼 순서는 장식 없이 라벨과 번호만 남긴다.
 /// 주 행동은 스크롤과 무관하게 아래에 고정한다 -- 6단계짜리 제안에서 실행
 /// 버튼이 화면 밖으로 밀리면, 확인한 뒤 다시 찾아 내려가야 한다.
+/// 할 일 이름을 만들지 못했을 때의 제목(홈 카드 머리 '지금 할 일'과 같은 말).
+const kSuggestionFallbackTitle = '지금 할 일';
+
+/// 제안 화면 제목 — 질문('…할까요?')은 본문 큰 글씨가 하므로 제목은 할 일 이름('즉석밥 데우기').
+/// 목적이 여러 문장이거나 길면(예: '세탁이 끝났어요. …켤까요?') 짧은 이름이 되지 않아 [kSuggestionFallbackTitle].
+String suggestionTitle(Suggestion suggestion) {
+  final name = purposeActionName(suggestion.label).trim();
+  if (name.isEmpty || name.length > 16 || RegExp(r'[.?!]').hasMatch(name)) return kSuggestionFallbackTitle;
+  return name;
+}
+
 class SuggestionScreen extends ConsumerWidget {
   const SuggestionScreen({required this.sequenceId, super.key});
 
@@ -89,7 +100,7 @@ class SuggestionScreen extends ConsumerWidget {
     final rpiApi = ref.read(rpiApiServiceProvider);
     var paused = false;
     if (snooze && rpiApi == null) {
-      _notifyError(context, "'30분 동안 묻지 않기'를 본체에 알리지 못했어요. 폰과 본체가 같은 와이파이인지 보고 다시 눌러 주세요.");
+      _notifyError(context, "'30분 동안 묻지 않기'를 본체에 알리지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 눌러 주세요.");
       return;
     }
     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
@@ -103,13 +114,13 @@ class SuggestionScreen extends ConsumerWidget {
       } on RpiApiException catch (error) {
         if (error.statusCode != 404) {
           if (context.mounted) {
-            _notifyError(context, '고른 것을 본체에 알리지 못했어요. 연결을 봐 주세요.');
+            _notifyError(context, '고른 것을 본체에 알리지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
           }
           return;
         }
       } catch (_) {
         if (context.mounted) {
-          _notifyError(context, '고른 것을 본체에 알리지 못했어요. 연결을 봐 주세요.');
+          _notifyError(context, '고른 것을 본체에 알리지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
         }
         return;
       }
@@ -235,7 +246,7 @@ class SuggestionScreen extends ConsumerWidget {
                       '설정에서 연결을 봐 주세요.',
               // 자동 실행으로 정할 수 없는 카드(물리 누름 등) — 서버 문장 그대로.
               422 when allow != null && error.message.isNotEmpty => error.message,
-              _ => '본체에 보내지 못했어요. 연결을 봐 주세요.',
+              _ => '본체에 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.',
             },
           );
         }
@@ -296,10 +307,10 @@ class SuggestionScreen extends ConsumerWidget {
       // 이 화면이 방금 맡겨서 목록에서 빠진 카드 — 상태 화면으로 넘어가는 사이(약 0.5초)에 '찾을 수 없어요'를
       // 잠깐 보이지 않는다(실물 폰 10/20). 빈 화면으로 두고 전환이 덮게 한다.
       if (ref.watch(_approvedHereProvider).contains(sequenceId)) {
-        return Scaffold(appBar: AppBar(title: const Text('할까요?')));
+        return Scaffold(appBar: AppBar(title: const Text(kSuggestionFallbackTitle)));
       }
       return Scaffold(
-        appBar: AppBar(title: const Text('할까요?')),
+        appBar: AppBar(title: const Text(kSuggestionFallbackTitle)),
         body: const Center(child: Text('이 물음을 찾을 수 없어요. 홈으로 돌아가 주세요.')),
       );
     }
@@ -398,7 +409,7 @@ class SuggestionScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('할까요?'),
+        title: Text(suggestionTitle(suggestion)),
         actions: [if (more.isNotEmpty) _MoreButton(actions: more)],
       ),
       body: ListView(
@@ -414,7 +425,7 @@ class SuggestionScreen extends ConsumerWidget {
           // 무엇을
           // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
           // 잘라내지 않는다. 긴 말은 줄바꿈해서 다 보여준다.
-          if (suggestion.isDemo) const Text('연습용으로 만든 물음이에요', style: AppText.body),
+          if (suggestion.isDemo) const Text('연습용 카드예요', style: AppText.body),
           // 낱말 중간에서 꺾이지 않게('할까|요' 방지, 평가 5차 10/18). 읽을 때는 원문.
           Text(keepWordsTogether('${suggestion.label}, 지금 할까요?'),
               semanticsLabel: '${suggestion.label}, 지금 할까요?', style: AppText.heading),
@@ -813,7 +824,7 @@ class _UnknownTargetScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('할까요?')),
+      appBar: AppBar(title: Text(suggestionTitle(suggestion))),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(AppSpace.xxl, AppSpace.xxxl, AppSpace.xxl, AppSpace.xxxl),
         child: Column(
@@ -829,7 +840,7 @@ class _UnknownTargetScreen extends StatelessWidget {
             const SizedBox(height: AppSpace.sm),
             Text(
               "'${suggestion.label}'의 가전을 찾지 못했어요. "
-              '지워졌거나 이 폰이 목록을 아직 못 받았을 수 있어요.',
+              '지워졌거나 이 휴대폰이 목록을 아직 못 받았을 수 있어요.',
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appMuted),
             ),
@@ -986,14 +997,14 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(userStarted ? '이대로 할까요?' : '할까요?'),
+        title: Text(userStarted ? '이대로 할까요?' : suggestionTitle(suggestion)),
         actions: [if (more.isNotEmpty) _MoreButton(actions: more)],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
         children: [
           if (suggestion.isDemo)
-            const Text('연습용으로 만든 물음이에요', style: AppText.body),
+            const Text('연습용 카드예요', style: AppText.body),
           if (name != null)
             Text(
               name,

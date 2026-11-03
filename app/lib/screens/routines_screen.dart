@@ -194,7 +194,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                   _Note(
                     e is RoutinesUnavailable
                         ? '본체와 연결하면 루틴을 볼 수 있어요.'
-                        : '루틴을 불러오지 못했어요. 연결을 보고 아래로 당겨 새로 봐 주세요.',
+                        : '루틴을 불러오지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 아래로 당겨 새로 봐 주세요.',
                   ),
                 ],
                 data: (routines) => routines.isEmpty
@@ -324,7 +324,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                     style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                 const SizedBox(height: AppSpace.md),
                 if (rule == null)
-                  const _Note('이 규칙을 찾지 못했어요. 아래로 당겨 새로 봐 주세요.')
+                  const _Note('이 자동 실행을 찾지 못했어요. 아래로 당겨 새로 봐 주세요.')
                 else
                   _AutoRuleRow(rule: rule, onChanged: _ruleChanged),
               ],
@@ -383,9 +383,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
         _say(context, on ? "'${r.name}' 자동 실행을 켰어요" : "'${r.name}' 자동 실행을 껐어요. 시간이 돼도 하지 않아요");
       }
     } on RpiApiException catch (e) {
-      if (context.mounted) _say(context, e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 봐 주세요.');
+      if (context.mounted) _say(context, e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     } catch (_) {
-      if (context.mounted) _say(context, '바꾸지 못했어요. 연결을 봐 주세요.');
+      if (context.mounted) _say(context, '바꾸지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     } finally {
       if (mounted) setState(() => _togglingId = null);
       _ruleChanged();
@@ -407,9 +407,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
         _say(context, on ? "'${r.name}' 루틴을 켰어요" : "'${r.name}' 루틴을 껐어요. 때가 되어도 하지 않아요");
       }
     } on RpiApiException catch (e) {
-      if (context.mounted) _say(context, e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 봐 주세요.');
+      if (context.mounted) _say(context, e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     } catch (_) {
-      if (context.mounted) _say(context, '바꾸지 못했어요. 연결을 봐 주세요.');
+      if (context.mounted) _say(context, '바꾸지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     } finally {
       if (mounted) setState(() => _togglingId = null);
       ref.invalidate(routinesProvider);

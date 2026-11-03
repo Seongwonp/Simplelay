@@ -19,7 +19,7 @@ import 'package:simplelay/services/rpi_api_service.dart';
 import '../helpers/test_helpers.dart';
 
 const _off = '본체에 LG 계정이 아직 연결되지 않았어요. 설치하는 분이 연결해요.';
-const _failed = 'LG 가전이 연결됐는지 확인하지 못했어요. 본체 연결을 봐 주세요.';
+const _failed = 'LG 가전이 연결됐는지 확인하지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.';
 const _loading = '연결을 알아보는 중이에요.';
 
 RpiApiService _api() => RpiApiService('http://rpi5.local:8000',

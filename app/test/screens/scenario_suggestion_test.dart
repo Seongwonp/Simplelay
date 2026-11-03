@@ -411,7 +411,7 @@ void main() {
     expect(find.text('공기청정기 전원 켜기'), findsOneWidget);
     expect(find.text('선풍기 전원 → 약풍'), findsOneWidget);
     expect(find.text('할 일'), findsOneWidget);
-    expect(find.text('연습용으로 만든 물음이에요'), findsOneWidget);
+    expect(find.text('연습용 카드예요'), findsOneWidget);
     expect(find.textContaining('LG 가전'), findsWidgets);
   });
 }

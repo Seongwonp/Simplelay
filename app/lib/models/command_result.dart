@@ -141,8 +141,8 @@ String? confirmationLabel({
 
 /// ThinQ 확인 못 함의 한 문장. 접수 불명이면 다시 보내기 전에 확인하라고 한다.
 String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
-    ? '보냈지만 가전이 받았는지 확인하지 못했어요. 다시 보내기 전에 집에서 가전을 확인해야 해요.'
-    : '보냈지만 설정이 바뀌었는지 확인하지 못했어요. 집에서 가전을 확인해야 해요.';
+    ? '보냈지만 가전이 받았는지 확인하지 못했어요. 다시 보내기 전에 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.'
+    : '보냈지만 설정이 바뀌었는지 확인하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.';
 
 /// 정지 확인 단계(2026-10-13)의 한 문장. 서버가 올리는 단계는
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
@@ -179,7 +179,7 @@ String? stopLevelSentence(String? level, {int? ackMs, bool detail = false}) {
 /// 정지 문장 뒤 할 일 한 가지(원칙 0-3). 누름 장치가 멈췄어도 가전은 이미 켜졌을 수 있다.
 String stopLevelNextStep(String? level) => switch (level) {
       'verified' => '가전이 이미 켜졌다면 집에서 가전의 정지 버튼을 눌러야 해요',
-      'mcu_ack' || 'sent' => '가전은 집에서 확인해야 해요',
+      'mcu_ack' || 'sent' => '집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요',
       _ => '누름 장치와 가전이 멈췄는지 집에서 봐 주세요',
     };
 
@@ -200,11 +200,11 @@ String manualPressSentence(String label,
     {required bool success, ResultKind? kind, String? confirmation, String executionMode = 'unknown'}) {
   if (!success) {
     return switch (kind) {
-      ResultKind.stopped => "'$label' 멈추라고 해서 멈췄어요. 눌렸는지는 가전을 보고 확인해 주세요",
-      ResultKind.safetyStop => "'$label' 눌렸는지 확인이 안 돼 스스로 멈췄어요. 가전을 보고 확인해 주세요",
-      ResultKind.unconfirmed => "'$label' 보냈지만 눌렸는지 확인하지 못했어요. 집에서 가전을 확인해야 해요",
-      ResultKind.failed => "'$label' 하지 못했어요. 눌렸는지는 집에서 가전을 확인해야 해요",
-      _ => "'$label' 눌렸는지 확인하지 못했어요. 집에서 가전을 확인해야 해요",
+      ResultKind.stopped => "'$label' 멈추라고 해서 멈췄어요. 가전 화면이나 불빛이 바뀌었는지 봐 주세요",
+      ResultKind.safetyStop => "'$label' 눌렸는지 확인이 안 돼 스스로 멈췄어요. 가전 화면이나 불빛이 바뀌었는지 봐 주세요",
+      ResultKind.unconfirmed => "'$label' 보냈지만 눌렸는지 확인하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요",
+      ResultKind.failed => "'$label' 하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요",
+      _ => "'$label' 눌렸는지 확인하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요",
     };
   }
   if (executionMode == 'mock') return "'$label' 연습으로 눌렀어요. 실제 가전은 누르지 않았어요";
@@ -212,7 +212,7 @@ String manualPressSentence(String label,
       (confirmation == 'press_confirmed' || confirmation == 'operation_confirmed')) {
     return "'$label' 눌린 것을 확인했어요";
   }
-  return "'$label' 누름 장치가 눌렀다고 알려 왔어요. 가전은 집에서 확인해야 해요";
+  return "'$label' 누름 장치가 눌렀다고 알려 왔어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요";
 }
 
 /// '확인'은 모션 보드가 받았을 때(mcu_ack)부터다. 보냄(sent)은 확인이 아니다.
@@ -272,7 +272,7 @@ String finishedMessage({
       // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
       final motion = motionAbortSentence(abortReason);
       if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 누름 장치를 집에서 봐 주세요.';
-      return '버튼 눌림을 확인하지 못해 멈췄어요. 다시 하기 전에 집에서 가전을 확인해야 해요. $kDontRetryIfOn.';
+      return '버튼 눌림을 확인하지 못해 멈췄어요. 다시 하기 전에 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요. $kDontRetryIfOn.';
     case ResultKind.failed:
       // 실패라는 것만으로는 시작하지 않았는지 모른다 — 접수된 뒤 일부 버튼을 누르고 실패했을 수 있다(외부 평가
       // 2026-10-13 M4). 미전송 근거(not_dispatched)가 있을 때만 보내지 못했다고 하고 다시 시도를 권한다.
@@ -280,12 +280,12 @@ String finishedMessage({
       // 되풀이하지 않게 다시 시도를 권하지 않는다.
       if (receipt == 'not_dispatched') {
         return thinq
-            ? '가전에 보내지 못했어요. 연결을 보고 다시 해 주세요.'
-            : '누름 장치에 보내지 못했어요. 연결을 보고 다시 해 주세요.';
+            ? '가전에 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 해 주세요.'
+            : '누름 장치에 보내지 못했어요. 본체와 누름 장치가 연결됐는지 보고 다시 해 주세요.';
       }
       return thinq
           ? '가전이 하지 않았어요. 가전 상세에서 지금 상태를 볼 수 있어요.'
-          : '끝까지 하지 못했어요. 집에서 가전을 확인해야 해요.';
+          : '끝까지 하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.';
   }
 }
 

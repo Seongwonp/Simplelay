@@ -883,8 +883,8 @@ class _ButtonCell extends StatelessWidget {
         _CellState.idle when unavailable => '${button.label} 버튼, 지금은 쓸 수 없어요',
         _CellState.idle => '${button.label} 버튼 누르기',
         _CellState.pending => '${button.label} 누르는 중',
-        _CellState.success => '${button.label} 끝났어요',
-        _CellState.failure => '${button.label} 못 했어요',
+        _CellState.success => '${button.label} 완료',
+        _CellState.failure => '${button.label} 실패',
       },
       child: Material(
         type: MaterialType.transparency,

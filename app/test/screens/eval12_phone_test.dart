@@ -240,7 +240,7 @@ void main() {
       expect(findPlainText('다시 보내기', contains: true), findsNothing);
     });
 
-    testWidgets("이 폰의 가전이 본체에 없으면 '본체에도 똑같이 맞추기'", (tester) async {
+    testWidgets("이 휴대폰의 가전이 본체에 없으면 '본체에도 똑같이 맞추기'", (tester) async {
       // 본체에 아직 닿지 못한 가전(판 0). 판이 있는데 본체에 없으면 본체에서 지운 것이라 폰에서도 빠진다(10/19).
       final local = ApplianceMap.fromJson({..._appliance('fan', '선풍기', 'other'), 'revision': 0});
       await _pump(tester, const SettingsScreen(), installed: [..._installed, local]);

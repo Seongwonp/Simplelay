@@ -61,11 +61,11 @@ void main() {
       expect(finishedMessage(kind: ResultKind.stopped),
           '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 집에서 봐 주세요.');
       expect(finishedMessage(kind: ResultKind.stopped, stopLevel: 'sent'),
-          '멈추라고 보냈어요. 멈췄는지는 아직 확인하지 못했어요. 가전은 집에서 확인해야 해요.');
+          '멈추라고 보냈어요. 멈췄는지는 아직 확인하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.');
       expect(
           finishedMessage(
               kind: ResultKind.stopped, stopLevel: 'mcu_ack', stopAckMs: 30),
-          '누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 확인하지 못했어요. 가전은 집에서 확인해야 해요.');
+          '누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 확인하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.');
       expect(finishedMessage(kind: ResultKind.stopped, stopLevel: 'verified'),
           '누름 장치가 멈췄어요. 가전이 이미 켜졌다면 집에서 가전의 정지 버튼을 눌러야 해요.');
     });

@@ -47,11 +47,11 @@ class _SkipNextControlState extends ConsumerState<SkipNextControl> {
       }
     } on RpiApiException catch (e) {
       failure = e.message.trim().isNotEmpty && e.statusCode < 500 ? e.message : null;
-      failure ??= undo ? '되돌리지 못했어요. 연결을 보고 다시 해 주세요.' : '건너뛰지 못했어요. 연결을 보고 다시 해 주세요.';
+      failure ??= undo ? '되돌리지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 해 주세요.' : '건너뛰지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 해 주세요.';
       // 409(지났거나 다음 회차가 바뀜)만 다시 받는다 — 다른 실패는 화면을 그대로 둔다.
       reload = e.statusCode == 409;
     } catch (_) {
-      failure = undo ? '되돌리지 못했어요. 연결을 보고 다시 해 주세요.' : '건너뛰지 못했어요. 연결을 보고 다시 해 주세요.';
+      failure = undo ? '되돌리지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 해 주세요.' : '건너뛰지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 해 주세요.';
       reload = false;
     }
     try {

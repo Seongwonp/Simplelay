@@ -426,7 +426,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '끝까지 하지 못했어요. 집에서 가전을 확인해야 해요.',
+    message: '끝까지 하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.',
   );
   const unknownState = ExecutionStatus(
     phase: ExecutionPhase.unknown,
@@ -435,7 +435,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '연결이 끊겨 어떻게 됐는지 확인하지 못했어요. 집에서 가전을 확인해야 해요.',
+    message: '연결이 끊겨 어떻게 됐는지 확인하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.',
   );
   for (final (name, st) in [
     ('status_retrying', retrying),

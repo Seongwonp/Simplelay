@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/routine.dart';
 
 void main() {
-  test('다음 실행 시각은 본체가 준 시각 그대로(폰 시간대로 바꾸지 않는다)', () {
+  test('다음 실행 시각은 본체가 준 시각 그대로(휴대폰 시간대로 바꾸지 않는다)', () {
     // 폰 시간대와 다를 오프셋을 일부러 쓴다 — 같은 시간대면 옛 코드도 맞게 보인다.
     for (final offset in ['-03:00', '+09:00', 'Z']) {
       final run = RoutineNextRun.fromJson({

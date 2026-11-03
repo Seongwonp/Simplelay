@@ -535,7 +535,7 @@ void main() {
     r.recognizer.sayFinal('멈춰');
     await _settle(tester);
     expect(hub.stopPosts, 1);
-    expect(r.exec.stops, 0, reason: '폰이 추적하지 않는 실행은 같은 POST /stop으로');
+    expect(r.exec.stops, 0, reason: '휴대폰이 추적하지 않는 실행은 같은 POST /stop으로');
 
     hub.status = {'running': false, 'last_status': 'safety_stopped', 'last_buttons': []};
     await r.container.read(estopProvider.notifier).refresh();
@@ -544,7 +544,7 @@ void main() {
   });
 
   // 검토 10/19: 폰이 추적하지 않는 실행을 '멈춰'로 멈추면 아무것도 보이지 않았다.
-  testWidgets('폰이 추적하지 않는 실행을 "멈춰"로 멈추면 정지 단계 문장을 잠시 보인다', (tester) async {
+  testWidgets('휴대폰이 추적하지 않는 실행을 "멈춰"로 멈추면 정지 단계 문장을 잠시 보인다', (tester) async {
     final hub = _Hub()
       ..status = {
         'running': true, 'job_id': 'kiosk-1', 'last_status': null, 'last_buttons': null,

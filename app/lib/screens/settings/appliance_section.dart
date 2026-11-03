@@ -85,9 +85,9 @@ class _ApplianceSection extends ConsumerWidget {
           : '가전 목록을 새로 받았어요. ${parts.join(', ')}.';
     }
     if (r.failed > 0) {
-      return '바꾼 것 ${r.failed}건을 보내지 못했어요. 연결을 보고 다시 해 주세요.';
+      return '바꾼 것 ${r.failed}건을 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 해 주세요.';
     }
-    return '본체 목록을 불러오지 못했어요. 연결을 보고 다시 해 주세요.';
+    return '본체 목록을 불러오지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 해 주세요.';
   }
 }
 

@@ -40,7 +40,7 @@ class _NewRoutineSheet extends ConsumerWidget {
                 child: Center(child: CircularProgressIndicator()),
               ),
             ],
-            error: (_, __) => const [_Note('예시 루틴을 불러오지 못했어요.')],
+            error: (_, __) => const [_Note('예시 루틴을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.')],
             data: (list) => list.isEmpty
                 ? const [_Note('지금 보여 드릴 예시 루틴이 없어요.')]
                 : [

@@ -159,7 +159,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
       _token = token;
       _requestId = requestId;
       _deadline = DateTime.now().add(Duration(seconds: expires.toInt()));
-      setState(() => _message = '본체 화면에서 이 폰 연결을 허락해 주세요.');
+      setState(() => _message = '본체 화면에서 이 휴대폰 연결을 허락해 주세요.');
       _timer = Timer.periodic(const Duration(seconds: 1), (_) => _poll());
     } on RpiApiException catch (e) {
       if (mounted) {
@@ -174,7 +174,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
           _busy = false;
           _manual = true;
           _hostLookupFailed = true;
-          _message = '본체와 연결되지 않아요. 같은 와이파이인지, 주소가 맞는지 봐 주세요.';
+          _message = '본체와 연결되지 않아요. 같은 네트워크에 연결됐는지, 주소가 맞는지 봐 주세요.';
         });
       }
     }
@@ -195,8 +195,8 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     setState(() {
       _manual = true;
       _message = result.problem == QrCameraProblem.permissionDenied
-          ? '카메라를 쓸 수 있게 허락되지 않았어요. 아래에 본체 화면의 여섯 자리 숫자를 적어 주세요.'
-          : '이 폰에서는 카메라를 쓸 수 없어요. 아래에 본체 화면의 여섯 자리 숫자를 적어 주세요.';
+          ? '카메라 사용을 허락하지 않으셨어요. 아래에 본체 화면의 여섯 자리 숫자를 적어 주세요.'
+          : '이 휴대폰에서는 카메라를 쓸 수 없어요. 아래에 본체 화면의 여섯 자리 숫자를 적어 주세요.';
     });
   }
 
@@ -252,7 +252,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
         } catch (_) {
           if (!mounted) return;
           if (!keySaved) {
-            _stopWaiting('연결 허락은 받았는데 이 폰에 저장하지 못했어요. 본체 화면에서 새 코드를 받아 다시 연결해 주세요.');
+            _stopWaiting('연결 허락은 받았는데 이 휴대폰에 저장하지 못했어요. 본체 화면에서 새 코드를 받아 다시 연결해 주세요.');
             return;
           }
         }
@@ -268,7 +268,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
           unawaited(ref.read(rpiApiServiceProvider)?.setResidentName(callName).catchError((Object _) => null));
         }
       } else if (result['state'] == 'denied') {
-        _stopWaiting('본체에서 연결을 닫았어요. 새 코드를 받아 다시 연결해 주세요.');
+        _stopWaiting('본체에서 연결을 끊었어요. 새 코드를 받아 다시 연결해 주세요.');
       }
     } on RpiApiException catch (e) {
       if ([404, 410, 429].contains(e.statusCode)) _stopWaiting(e.message);
@@ -287,7 +287,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     final scanStyle = ButtonStyle(
         minimumSize: WidgetStateProperty.all(const Size.fromHeight(56)));
     return Scaffold(
-        appBar: AppBar(title: const Text('폰 연결하기')),
+        appBar: AppBar(title: const Text('휴대폰 연결하기')),
         body: ListView(padding: const EdgeInsets.all(AppSpace.xl), children: [
           const Text("본체 화면에서 '설정'을 누르고 '휴대폰 연결하기'를 눌러 주세요."),
           const SizedBox(height: AppSpace.sm),
@@ -302,7 +302,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
               controller: _phone,
               enabled: !_busy && !_connected,
               maxLength: 40,
-              decoration: const InputDecoration(labelText: '본체 화면에 보일 폰 이름')),
+              decoration: const InputDecoration(labelText: '본체 화면에 보일 휴대폰 이름')),
           TextField(
               key: const Key('pair-call-name'),
               controller: _callName,

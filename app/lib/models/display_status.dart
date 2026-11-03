@@ -696,7 +696,7 @@ const kPressedAllSentence = '버튼은 다 눌렀어요. 움직였는지는 집�
 
 /// 폰을 보는 사람은 집 밖의 보호자일 수 있다(보호자 과업 평가 10/18) — 가전을 직접 '봐 주세요'라고 하지 않고, 집에서
 /// 확인해야 한다는 사실만 말한다('공기청정기를 집에서 확인해야 해요'). 집 안 사람용 말은 본체 화면(키오스크)이 한다.
-String homeCheckText(String target) => '집에서 $target${objectParticle(target)} 확인해야 해요';
+String homeCheckText(String target) => '집에서 $target 화면이나 불빛이 바뀌었는지 봐 주세요';
 
 /// 멈춰 달라는 요청(폰·본체 화면·말·비상 버튼)으로 멈춘 기록. 기록에는 어디서 멈췄는지 가를 필드가 없어 거기까지만 말한다.
 const kStoppedByRequestSentence = '멈춰 달라는 요청으로 멈췄어요';

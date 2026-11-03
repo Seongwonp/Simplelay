@@ -44,7 +44,7 @@ void main() {
     expect(action.style?.fontSize, AppFont.tabTitle);
     // 다시 하기에 걸린 주의는 접지 않는다.
     expect(findPlainText('$kDontRetryIfOn.'), findsOneWidget);
-    expect(findPlainText('다시 하기 전에 집에서 가전을 확인해야 해요.'), findsOneWidget);
+    expect(findPlainText('다시 하기 전에 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.'), findsOneWidget);
     // 결과 문장 전체를 한 덩어리로 늘어놓지 않는다.
     expect(findPlainText(safetyMessage), findsNothing);
   });
@@ -73,7 +73,7 @@ void main() {
     expect(findPlainText('끝까지 하지 못했어요.'), findsOneWidget);
     expect(_action(tester), kPressFirstCheck);
     // 할 일 줄이 이미 말한 '집에서 가전을 확인'은 또 두지 않는다.
-    expect(findPlainText('집에서 가전을 확인해야 해요.'), findsNothing);
+    expect(findPlainText('집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.'), findsNothing);
     expect(findPlainText('시작 버튼을 세 번 눌러 봤어요'), findsNothing);
     final more = find.byKey(const Key('status-more-checks'));
     expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
@@ -117,7 +117,7 @@ void main() {
     );
     expect(findPlainText('보냈지만 가전이 받았는지 확인하지 못했어요.'), findsOneWidget);
     expect(_action(tester), kThinqFirstCheck);
-    expect(findPlainText('다시 보내기 전에 집에서 가전을 확인해야 해요.'), findsOneWidget);
+    expect(findPlainText('다시 보내기 전에 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.'), findsOneWidget);
   });
 
   testWidgets('시작 못 함·보내지 못함·사용자 정지·연습은 종전대로 한 문장', (tester) async {

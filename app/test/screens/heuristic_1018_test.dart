@@ -554,7 +554,7 @@ void main() {
       await _settle(tester);
       expect(find.byKey(const Key('history-action-retry-fail-ex')), findsNothing);
       expect(findPlainText('버튼판에서 직접 누르기'), findsNothing);
-      expect(findPlainText('다시 누르기 전에 집에서 전자레인지를 확인해야 해요'), findsOneWidget);
+      expect(findPlainText('다시 누르기 전에 집에서 전자레인지 화면이나 불빛이 바뀌었는지 봐 주세요'), findsOneWidget);
     });
   });
 
@@ -777,7 +777,7 @@ void main() {
   });
 
   group('C. 멀리 있는 보호자에게 집 안을 보라고 하지 않는다', () {
-    test('폰 소스에 현장 확인 부탁 문장이 없다', () {
+    test('휴대폰 소스에 현장 확인 부탁 문장이 없다', () {
       final banned = [
         '움직이는지 봐 주세요',
         '가전을 봐 주세요',
@@ -878,7 +878,7 @@ void main() {
       expect(find.text('물어보고 하기'), findsNothing);
       expect(find.text('묻지 않고 하기'), findsOneWidget);
       final note = tester.widget<Text>(find.byKey(const Key('routine-mode-note')));
-      expect(note.semanticsLabel, contains('자동 실행 탭에서 끌 수 있어요'));
+      expect(note.semanticsLabel, contains("'자동 실행'에서 언제든 끌 수 있어요"));
     });
 
     testWidgets('자동 실행 허용이 아닌 루틴은 실행 방식 칸을 고를 수 있다', (tester) async {

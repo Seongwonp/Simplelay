@@ -168,7 +168,7 @@ void main() {
 
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
       // BLE 결과는 접수·전송 여부를 말하지 않는다 — 시작 못 함으로 단정하지 않는다(평가 M4).
-      expect(c.read(executionStatusProvider).message, '끝까지 하지 못했어요. 집에서 가전을 확인해야 해요.');
+      expect(c.read(executionStatusProvider).message, '끝까지 하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.');
     });
 
     test('result for different sequenceId is ignored', () async {
@@ -187,7 +187,7 @@ void main() {
 
     // 검토 10/19(10): 이 폰이 BLE 실행을 시작하지 않았는데 늦게 온(다른 실행·다른 단말의) 결과·센서 프레임이
     // 쉬는 화면을 '끝났어요'·'하는 중'으로 바꿨다.
-    test('이 폰이 시작하지 않은 BLE 결과·센서는 쉬는 화면을 바꾸지 않는다', () async {
+    test('이 휴대폰이 시작하지 않은 BLE 결과·센서는 쉬는 화면을 바꾸지 않는다', () async {
       final c = makeContainer();
       c.read(executionStatusProvider);
 

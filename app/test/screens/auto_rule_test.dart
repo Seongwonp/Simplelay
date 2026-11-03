@@ -296,7 +296,7 @@ void main() {
       // 짧아진 조건 문장의 한계(조리 완료가 아닐 수 있음)는 허용하는 이 시트에서 말한다(2026-10-14).
       expect(find.byKey(const Key('auto-rule-caveat')), findsOneWidget);
       expect(find.textContaining('요리가 다 된 건 아닐 수 있어요'), findsOneWidget);
-      expect(find.text('허락하고 이번에도 하기'), findsOneWidget);
+      expect(find.text('허락하고 지금 하기'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('auto-rule-cancel')));
       await _settle(tester);

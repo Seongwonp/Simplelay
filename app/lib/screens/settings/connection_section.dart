@@ -99,7 +99,7 @@ class _SavedDeviceSection extends ConsumerWidget {
               Icon(Icons.bluetooth_disabled, color: context.appMuted, size: 22),
           // 서버가 안 될 때 쓰는 두 번째 길. 이름부터 그렇게 부른다.
           title: const Text('블루투스 연결'),
-          subtitle: Text("저장된 기기가 없어요. 아래 '연결이 안 될 때만'에서 찾아요",
+          subtitle: Text("저장된 기기가 없어요. 아래 '설치하는 분용'에서 찾아요",
               style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
         ),
       );
@@ -322,7 +322,7 @@ class _BleSection extends ConsumerWidget {
               for (final item in items) item.device.remoteId: item,
             }.values;
             if (unique.isEmpty) {
-              return Text('찾은 기기가 없어요.',
+              return Text("찾은 기기가 없어요. 블루투스가 켜져 있는지 보고 '다시 찾기'를 눌러 주세요.",
                   style: TextStyle(color: context.appMuted, fontSize: AppFont.caption));
             }
             return Column(

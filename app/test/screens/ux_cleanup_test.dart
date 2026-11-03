@@ -145,7 +145,7 @@ void main() {
       ));
       await tester.pump();
 
-      expect(find.text('할까요?'), findsOneWidget);
+      expect(find.text(suggestionTitle(_routineCard(reason: ''))), findsOneWidget);
       expect(find.textContaining('이유:'), findsOneWidget);
       // 다시 받지 않기는 '더 보기' 안(2026-10-14 UI 정리).
       await tester.tap(find.byKey(const Key('suggestion-more')));

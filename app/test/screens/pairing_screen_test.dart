@@ -207,7 +207,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
-    expect(find.text('연결 허락은 받았는데 이 폰에 저장하지 못했어요. 본체 화면에서 새 코드를 받아 다시 연결해 주세요.'),
+    expect(find.text('연결 허락은 받았는데 이 휴대폰에 저장하지 못했어요. 본체 화면에서 새 코드를 받아 다시 연결해 주세요.'),
         findsOneWidget);
     final request = tester.widget<ButtonStyleButton>(
         find.ancestor(of: find.text('연결 요청하기'), matching: find.byWidgetPredicate((w) => w is ButtonStyleButton)));

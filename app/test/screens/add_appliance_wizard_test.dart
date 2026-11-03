@@ -684,7 +684,7 @@ void main() {
     expect(_title(tester), '5. 정지 버튼과 기다리는 자리', reason: '거절되면 다음 단계로 가지 않는다');
   });
 
-  testWidgets('사진은 찍자마자 이 폰 문서 폴더로 옮기고 그 경로로 등록한다 — 저장까지 캐시에 두지 않는다(실화면 10/19)',
+  testWidgets('사진은 찍자마자 이 휴대폰 문서 폴더로 옮기고 그 경로로 등록한다 — 저장까지 캐시에 두지 않는다(실화면 10/19)',
       (tester) async {
     final server = _Server();
     final photo = _FakePhoto();
@@ -716,7 +716,7 @@ void main() {
     expect(photo.persisted, hasLength(2), reason: '저장할 때 또 옮기지 않는다');
   });
 
-  testWidgets('사진을 이 폰에 남기지 못하면 그렇다고 말한다', (tester) async {
+  testWidgets('사진을 이 휴대폰에 남기지 못하면 그렇다고 말한다', (tester) async {
     final server = _Server();
     final photo = _FakePhoto()..failPersist = true;
     _tall(tester);
@@ -727,7 +727,7 @@ void main() {
     await _passKit(tester);
     await tester.tap(find.byKey(const Key('wizard-take-photo')));
     await _settle(tester);
-    expect(find.textContaining('사진을 이 폰에 남기지 못했어요'), findsOneWidget);
+    expect(find.textContaining('사진을 이 휴대폰에 남기지 못했어요'), findsOneWidget);
   });
 
   testWidgets('이름과 방이 모두 같은 가전이 이미 있으면 다음으로 가지 않고 이름 칸 아래에 말한다(실화면 10/19)',
@@ -1335,7 +1335,7 @@ void main() {
 
   // 검토 10/19(core6 6): 다시 맞추기의 답을 잃었을 때 판이 오르고 자리가 있기만 하면 다른 폰이 그사이 저장한 자리를 이 폰의
   // 저장으로 받아 '저장했어요'로 넘어갔다. 본체의 자리가 보낸 것과 같을 때만 저장된 것으로 본다.
-  testWidgets('다시 맞추기의 답을 잃고 본체에 다른 폰의 자리가 있으면 내 저장으로 받지 않는다', (tester) async {
+  testWidgets('다시 맞추기의 답을 잃고 본체에 다른 휴대폰의 자리가 있으면 내 저장으로 받지 않는다', (tester) async {
     const mapped = ApplianceMap(
       id: 'custom_washer',
       name: '세탁기',
@@ -1391,7 +1391,7 @@ void main() {
     expect(_title(tester), '5. 정지 버튼과 기다리는 자리', reason: '남의 저장을 내 저장으로 알리지 않는다');
     expect(find.text(kSaveOfflineMessage), findsOneWidget);
     final local = container!.read(customAppliancesProvider).where((a) => a.id == 'custom_washer');
-    expect(local.every((a) => a.revision == 7), isTrue, reason: '남의 정의를 이 폰에 받아 두지 않는다');
+    expect(local.every((a) => a.revision == 7), isTrue, reason: '남의 정의를 이 휴대폰에 받아 두지 않는다');
   });
 
   // 검토 10/19: 등록은 됐는데 버튼 자리 저장이 거절되면 자리 없는 가전이 본체에 남았다.

@@ -88,7 +88,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       _FeatureRow(
                         icon: Icons.wifi_rounded,
                         title: '본체 연결',
-                        body: '폰을 본체와 같은 와이파이에 연결해 주세요.',
+                        body: '휴대폰을 본체와 같은 와이파이에 연결해 주세요.',
                       ),
                       const SizedBox(height: AppSpace.xl),
                       _FeatureRow(

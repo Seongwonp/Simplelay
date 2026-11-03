@@ -312,13 +312,13 @@ class HomeScreen extends ConsumerWidget {
       } on RpiApiException catch (e) {
         if (e.statusCode != 404) {
           if (context.mounted) {
-            _snack(context, '고른 것을 본체에 알리지 못했어요. 연결을 봐 주세요.');
+            _snack(context, '고른 것을 본체에 알리지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
           }
           return;
         }
       } catch (_) {
         if (context.mounted) {
-          _snack(context, '고른 것을 본체에 알리지 못했어요. 연결을 봐 주세요.');
+          _snack(context, '고른 것을 본체에 알리지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
         }
         return;
       }

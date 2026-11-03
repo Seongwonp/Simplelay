@@ -95,7 +95,7 @@ void main() {
     });
     expect(s.phase, ExecutionPhase.failed);
     // 접수 여부를 모르는 실패는 시작 못 함으로 단정하지 않는다(평가 M4).
-    expect(s.message, '끝까지 하지 못했어요. 집에서 가전을 확인해야 해요.');
+    expect(s.message, '끝까지 하지 못했어요. 집에서 가전 화면이나 불빛이 바뀌었는지 봐 주세요.');
   });
 
   test('옛 서버(last_outcome 없음)의 safety_stopped는 종전 문구', () async {

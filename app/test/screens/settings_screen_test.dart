@@ -232,7 +232,7 @@ void main() {
       await tester.pump();
       // 스트림의 첫 데이터 이벤트가 반영되려면 pump 한 번 더 필요.
       await tester.pump();
-      expect(findPlainText('찾은 기기가 없어요.'), findsOneWidget);
+      expect(findPlainText("찾은 기기가 없어요. 블루투스가 켜져 있는지 보고 '다시 찾기'를 눌러 주세요."), findsOneWidget);
     });
   });
 

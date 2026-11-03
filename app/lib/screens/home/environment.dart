@@ -169,7 +169,7 @@ class _RpiStatusCard extends ConsumerWidget {
           context.appDanger,
           Icons.wifi_off,
           '본체와 연결이 끊겼어요',
-          '폰과 본체가 같은 와이파이인지 봐 주세요',
+          '휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요',
         ),
       RpiConnectionState.unconfigured => (
           context.appMuted,

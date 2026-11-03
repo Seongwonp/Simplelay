@@ -68,10 +68,10 @@ class _CandidateSheetState extends State<_CandidateSheet> {
     } on RpiApiException catch (e) {
       if (mounted) {
         setState(() => _error =
-            e.message.isNotEmpty ? e.message : '저장하지 못했어요. 연결을 봐 주세요.');
+            e.message.isNotEmpty ? e.message : '저장하지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
       }
     } catch (_) {
-      if (mounted) setState(() => _error = '저장하지 못했어요. 연결을 봐 주세요.');
+      if (mounted) setState(() => _error = '저장하지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

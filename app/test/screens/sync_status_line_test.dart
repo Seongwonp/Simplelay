@@ -79,7 +79,7 @@ void main() {
     expect(kResyncLabel, isNot(contains('동기화')));
   });
 
-  test('본체 내용으로 맞췄을 때는 다른 폰이 있다고 짐작하지 않는다(검토 10/19)', () {
+  test('본체 내용으로 맞췄을 때는 다른 휴대폰이 있다고 짐작하지 않는다(검토 10/19)', () {
     expect(kSyncConflictMessage, isNot(contains('다른 폰')));
     expect(kSyncConflictMessage, '본체에 저장된 내용과 달라서 본체 내용으로 맞췄어요.');
   });

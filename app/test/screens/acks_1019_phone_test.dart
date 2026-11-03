@@ -112,7 +112,7 @@ void main() {
     expect(_warning, findsNothing);
   });
 
-  testWidgets('다른 기기(키오스크)에서 확인한 실패는 폰에도 뜨지 않는다', (tester) async {
+  testWidgets('다른 기기(키오스크)에서 확인한 실패는 휴대폰에도 뜨지 않는다', (tester) async {
     final hub = _Hub()
       ..fail(1, '2026-10-19T08:30:00+09:00')
       ..acks = {

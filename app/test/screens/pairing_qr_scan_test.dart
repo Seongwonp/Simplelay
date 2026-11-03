@@ -106,7 +106,7 @@ void main() {
     expect(find.byKey(const Key('fake-camera')), findsNothing);
     expect(hub.hosts, ['192.0.2.10']);
     expect(hub.codes, ['012345']);
-    expect(find.text('본체 화면에서 이 폰 연결을 허락해 주세요.'), findsOneWidget);
+    expect(find.text('본체 화면에서 이 휴대폰 연결을 허락해 주세요.'), findsOneWidget);
     expect(find.textContaining('abcdef'), findsOneWidget, reason: '두 화면 대조는 그대로');
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('rpi_api_key'), isNull, reason: '본체가 허락하기 전에는 키가 없다');
@@ -141,8 +141,8 @@ void main() {
   }
 
   for (final (problem, expected) in [
-    (QrCameraProblem.permissionDenied, '카메라를 쓸 수 있게 허락되지 않았어요'),
-    (QrCameraProblem.unavailable, '이 폰에서는 카메라를 쓸 수 없어요'),
+    (QrCameraProblem.permissionDenied, '카메라 사용을 허락하지 않으셨어요'),
+    (QrCameraProblem.unavailable, '이 휴대폰에서는 카메라를 쓸 수 없어요'),
   ]) {
     testWidgets('카메라를 못 쓰면 코드로 이어 가요: $problem', (tester) async {
       final hub = _Hub();

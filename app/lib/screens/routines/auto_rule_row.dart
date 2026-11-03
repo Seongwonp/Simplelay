@@ -20,9 +20,9 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
     try {
       await action(api);
     } on RpiApiException catch (e) {
-      _say(e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 봐 주세요.');
+      _say(e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     } catch (_) {
-      _say('바꾸지 못했어요. 연결을 봐 주세요.');
+      _say('바꾸지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 봐 주세요.');
     } finally {
       if (mounted) setState(() => _busy = false);
       widget.onChanged();
@@ -111,7 +111,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                   ),
                   // 켜기/끄기 — 켤 때는 늘 확인 시트(서버가 준 조건·동작과 지문으로만 켠다), 끌 때는 바로.
                   Semantics(
-                    label: '${r.name} 자동',
+                    label: '${r.name} 자동 실행',
                     toggled: r.enabled,
                     excludeSemantics: true,
                     // 켜짐·꺼짐을 색만으로 말하지 않는다 — 스위치 바로 아래 글자(접근성 감사 10/18, 내 루틴 스위치와 같은 모양).

@@ -72,7 +72,7 @@ void main() {
     expect(body.containsKey('park_xy'), isFalse);
   }
 
-  test('동기화 PUT(registerAppliance)이 폰이 고치지 않는 서버 필드를 그대로 다시 싣는다', () async {
+  test('동기화 PUT(registerAppliance)이 휴대폰이 고치지 않는 서버 필드를 그대로 다시 싣는다', () async {
     expectKept(await sentBody((api, a) => api.registerAppliance(a)));
   });
 

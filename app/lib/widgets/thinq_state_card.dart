@@ -79,7 +79,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (rows.isEmpty)
-            Text('보여 줄 상태가 없어요',
+            Text("아직 불러온 상태가 없어요. '새로 보기'를 눌러 주세요",
                 style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
           else
             for (final (label, value) in rows)

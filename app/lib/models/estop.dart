@@ -74,7 +74,7 @@ class EstopAckResult {
         EstopAckOutcome.buttonPressed =>
           '비상정지 버튼이 아직 눌려 있어요. 버튼을 돌려 푼 뒤 다시 해 주세요.',
         EstopAckOutcome.outletUnreachable =>
-          '전기 플러그가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
+          '전기 플러그가 답하지 않아 풀지 못했어요. 본체와 전기 플러그가 연결됐는지 보고 다시 해 주세요.',
         EstopAckOutcome.retriggered =>
           '비상정지가 다시 걸렸어요. 주변을 보고 다시 풀어 주세요.',
         EstopAckOutcome.stillLatched =>
@@ -82,9 +82,9 @@ class EstopAckResult {
         EstopAckOutcome.notLatched =>
           '본체가 비상정지를 찾지 못해 풀지 않았어요. 새로 보고 다시 해 주세요.',
         EstopAckOutcome.noAnswer =>
-          '누름 장치가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
+          '누름 장치가 답하지 않아 풀지 못했어요. 본체와 누름 장치가 연결됐는지 보고 다시 해 주세요.',
         EstopAckOutcome.failed =>
-          '풀어 달라고 보내지 못했어요. 연결을 보고 다시 해 주세요.',
+          '풀어 달라고 보내지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 해 주세요.',
       };
 }
 

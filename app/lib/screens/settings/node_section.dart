@@ -180,7 +180,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
     } else {
       setState(() {
         _saving = false;
-        _error = '저장하지 못했어요. 본체 연결을 보고 다시 저장해 주세요.';
+        _error = '저장하지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 저장해 주세요.';
       });
     }
   }
@@ -197,7 +197,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
     } else {
       setState(() {
         _saving = false;
-        _error = '연결을 풀지 못했어요. 본체 연결을 보고 다시 눌러 주세요';
+        _error = '연결을 풀지 못했어요. 휴대폰과 본체가 같은 네트워크에 연결됐는지 보고 다시 눌러 주세요';
       });
     }
   }

@@ -196,7 +196,7 @@ void main() {
       expect(find.text('즉석밥'), findsOneWidget); // 누를 버튼(순서 목록)
       expect(find.text('누를 순서'), findsOneWidget);
       expect(find.text('연습'), findsOneWidget); // 모의(표본) 가전
-      expect(find.text('연습용으로 만든 물음이에요'), findsOneWidget);
+      expect(find.text('연습용 카드예요'), findsOneWidget);
       // 버튼 배치(지도)는 접혀 있다 — 제목만 보이고 지도는 없다.
       expect(findPlainText('전자레인지의 실제 버튼 배치'), findsOneWidget);
       expect(find.byType(ButtonMapGrid), findsNothing);
@@ -424,7 +424,7 @@ void main() {
       expect(find.text('어느 가전인지 확인하지 못했어요.'), findsOneWidget);
       // 다른 폰이 없어도 나오는 화면이다 — '다른 폰에서'라고 짐작하지 않는다(검토 10/19).
       expect(findPlainText('다른 폰', contains: true), findsNothing);
-      expect(findPlainText('지워졌거나 이 폰이 목록을 아직 못 받았을 수 있어요', contains: true), findsOneWidget);
+      expect(findPlainText('지워졌거나 이 휴대폰이 목록을 아직 못 받았을 수 있어요', contains: true), findsOneWidget);
       expect(find.text('지금 하기'), findsNothing);
       // 기본 선택 가전으로 바꿔 그리지 않는다
       expect(findPlainText('전자레인지의 실제 버튼 배치'), findsNothing);

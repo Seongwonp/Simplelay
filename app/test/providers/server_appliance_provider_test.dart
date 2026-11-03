@@ -167,7 +167,7 @@ void main() {
           ['microwave', 'fan']);
     });
 
-    test('서버에만 있는 사용자 가전도 고를 수 있다 -- 이 폰 저장분과 겹치면 하나만',
+    test('서버에만 있는 사용자 가전도 고를 수 있다 -- 이 휴대폰 저장분과 겹치면 하나만',
         () async {
       final mine = ApplianceMap.fromJson(_custom('custom_1'));
       final servers = _FakeServers()
