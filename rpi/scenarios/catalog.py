@@ -196,7 +196,7 @@ CONTEXT_SLEEP_MODE = ScenarioDefinition(
 
 CONTEXT_ARRIVAL_AIR = ScenarioDefinition(
     scenario_id="context_arrival_air",
-    name="돌아왔을 때 공기",
+    name="돌아오면 공기청정기",
     question="공기청정기를 켜 둘까요?",
     trigger=ScenarioTrigger("context", appliance_id="air_purifier", event="arrival"),
     steps=(

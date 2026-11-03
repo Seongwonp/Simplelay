@@ -159,14 +159,14 @@ def test_room_light_reports_lights_off_only_after_light():
 def test_arrival_rule_fires_with_normal_air_and_lists_signals():
     monitor, box = _monitor(_arrival_signals())
     assert "arrival:offered" in monitor.check_once()
-    assert box["offers"] == [(RULE_ARRIVAL, "다녀오셨어요. 실내 공기가 보통이에요. 공기청정기가 꺼져 있어요.")]
+    assert box["offers"] == [(RULE_ARRIVAL, "다녀오셨네요. 실내 공기가 보통이에요. 공기청정기가 꺼져 있어요.")]
     assert box["notes"] == 1  # 공기질 제안과 재알림 기억을 함께 쓴다
 
 
 def test_arrival_rule_mentions_dust_warning_even_with_good_air():
     monitor, box = _monitor(_arrival_signals(purifier=_purifier(power="POWER_OFF", grade="GOOD"), dust_warning=True))
     assert "arrival:offered" in monitor.check_once()
-    assert box["offers"] == [(RULE_ARRIVAL, "다녀오셨어요. 황사 특보가 있어요. 공기청정기가 꺼져 있어요.")]
+    assert box["offers"] == [(RULE_ARRIVAL, "다녀오셨네요. 황사 특보가 있어요. 공기청정기가 꺼져 있어요.")]
     assert "dust:" not in monitor.last_outcome  # 카드 하나를 만들면 그 판정은 끝
 
 
@@ -287,7 +287,7 @@ def test_air_monitor_shares_card_quiet_with_context_cards():
 
 
 def test_context_cards_are_plain_and_not_auto():
-    texts = [SLEEP_REASON, DUST_REASON, "다녀오셨어요. 실내 공기가 매우 나빠요. 황사 특보가 있어요. 공기청정기가 꺼져 있어요."]
+    texts = [SLEEP_REASON, DUST_REASON, "다녀오셨네요. 실내 공기가 매우 나빠요. 황사 특보가 있어요. 공기청정기가 꺼져 있어요."]
     texts += [d.question for d in CONTEXT_SCENARIOS] + [d.name for d in CONTEXT_SCENARIOS]
     for text in texts:
         assert "!" not in text and "—" not in text and "·" not in text and "(" not in text, text

@@ -72,7 +72,7 @@ ARRIVAL_AIR_LEVELS = ("NORMAL", "BAD", "VERY_BAD")
 
 # 근거·질문 문장(정해 둔 틀, 해요체·느낌표 없음 — docs/UX-문구-기준-2026-10-19.md)
 SLEEP_REASON = "불을 끄셨네요. 밤이고 공기청정기가 켜져 있어요."
-ARRIVAL_PREFIX = "다녀오셨어요."
+ARRIVAL_PREFIX = "다녀오셨네요."
 ARRIVAL_AIR_SENTENCES = {
     "NORMAL": "실내 공기가 보통이에요.",
     "BAD": "실내 공기가 나빠요.",
