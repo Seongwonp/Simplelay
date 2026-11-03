@@ -57,3 +57,6 @@ dev-docs/
 docs/archive/Claude-계획평가-2026-09-22.md
 docs/archive/데스크톱-Claude-인계-2026-09-22.md
 docs/devlog/devlog_2026-10-14-codex-fix.md
+
+# 발표 자료는 저장소 밖에서 관리한다
+presentation/
