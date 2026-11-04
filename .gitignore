@@ -61,3 +61,4 @@ docs/devlog/devlog_2026-10-14-codex-fix.md
 # 발표 자료는 저장소 밖에서 관리한다
 presentation/
 firmware-model-house/model_house/secrets.h
+firmware-model-house/model_house_led/secrets.h
