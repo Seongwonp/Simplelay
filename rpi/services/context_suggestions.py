@@ -50,6 +50,8 @@ from .air_quality import air_summary
 log = logging.getLogger(__name__)
 
 PRESENT = "present"  # rpi.services.room_presence.PRESENT 와 같은 값(가져오지 않고 값만 맞춘다)
+#: 불을 끄면 카메라가 어두워 사람을 놓친다. 불은 사람이 끄므로, 꺼지기 이 초 안에 사람이 보였으면 '집에 계심'으로 본다.
+LIGHTS_OFF_PRESENCE_GRACE_S = 60.0
 
 RULE_SLEEP = "context_sleep_mode"
 RULE_ARRIVAL = "context_arrival_air"
@@ -254,6 +256,7 @@ class ContextSuggestionMonitor:
         self._last_card: dict[str, float] = {}
         self._sleep_done_for: float | None = None  # 이미 다룬 불 끔(꺼진 순간)
         self._arrival_done_for: float | None = None  # 이미 다룬 돌아옴(돌아온 시각)
+        self._last_present: float | None = None  # 마지막으로 사람이 보인 때(단조 시계)
         self._dust_seen = False
         self._dust_pending = False
         self.last_outcome: str | None = None
@@ -264,6 +267,7 @@ class ContextSuggestionMonitor:
             self._last_card.clear()
             self._sleep_done_for = None
             self._arrival_done_for = None
+            self._last_present = None
             self._dust_seen = False
             self._dust_pending = False
             self._advice_days.clear()
@@ -278,6 +282,8 @@ class ContextSuggestionMonitor:
     # 판정
     def _check_locked(self) -> str:
         s = self._signals()
+        if s.presence == PRESENT:
+            self._last_present = self._monotonic()
         self._track_dust(s.dust_warning)
         reason = self._blocked()
         if reason:
@@ -318,6 +324,13 @@ class ContextSuggestionMonitor:
     def _mark(self, rule: str) -> None:
         self._last_card[rule] = self._monotonic()
 
+    def _present_before_lights_off(self, dark_for_s: float) -> bool:
+        """불이 꺼지기 직전(유예 안)에 사람이 보였나 — 꺼진 순간은 지금에서 어두운 시간을 뺀 때다."""
+        if self._last_present is None:
+            return False
+        lights_off_mono = self._monotonic() - dark_for_s
+        return self._last_present >= lights_off_mono - LIGHTS_OFF_PRESENCE_GRACE_S
+
     def _rule_sleep(self, s: ContextSignals) -> str:
         c = self.config
         if s.lights_off_at is None or s.dark_for_s is None:
@@ -328,7 +341,7 @@ class ContextSuggestionMonitor:
             return "holding"
         if s.dark_for_s > c.lights_off_fresh_s:
             return "stale"
-        if s.presence != PRESENT:
+        if s.presence != PRESENT and not self._present_before_lights_off(s.dark_for_s):
             return "absent"
         if not is_night(s.local_now, c.night_start_hour, c.night_end_hour):
             return "not_night"

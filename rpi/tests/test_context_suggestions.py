@@ -109,6 +109,26 @@ def test_sleep_rule_does_not_fire(change, outcome):
     assert box["offers"] == []
 
 
+def test_sleep_rule_counts_someone_seen_just_before_lights_off():
+    """불을 끄면 카메라가 사람을 놓친다 — 꺼지기 직전에 보였으면 집에 계신 것으로 본다."""
+    clock = _Clock()
+    monitor, box = _monitor(_sleep_signals(lights_off_at=None, dark_for_s=None), clock=clock)
+    assert monitor.check_once().startswith("sleep:no_lights_off")  # 불 켜진 채 사람이 보임
+    clock.t += 150
+    box["s"] = _sleep_signals(presence="away", dark_for_s=150.0)  # 그 직후 꺼지고, 어두워 못 봄
+    assert monitor.check_once().startswith("sleep:offered")
+
+
+def test_sleep_rule_ignores_someone_seen_long_before_lights_off():
+    clock = _Clock()
+    monitor, box = _monitor(_sleep_signals(lights_off_at=None, dark_for_s=None), clock=clock)
+    monitor.check_once()
+    clock.t += 700  # 사람이 보인 지 한참 뒤에 꺼짐(꺼진 지 150초)
+    box["s"] = _sleep_signals(presence="away", dark_for_s=150.0)
+    assert monitor.check_once().startswith("sleep:absent")
+    assert box["offers"] == []
+
+
 def test_sleep_rule_asks_once_per_lights_off_and_keeps_its_cooldown():
     clock = _Clock()
     monitor, box = _monitor(_sleep_signals(), clock=clock)
