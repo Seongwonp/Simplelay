@@ -216,7 +216,19 @@ CONTEXT_DUST_AIR = ScenarioDefinition(
     auto_allowed=False,
 )
 
-CONTEXT_SCENARIOS = (CONTEXT_SLEEP_MODE, CONTEXT_ARRIVAL_AIR, CONTEXT_DUST_AIR)
+#: 아침에 불을 켰는데 아직 수면 모드면 청정으로 — 수면 모드 카드의 거울.
+CONTEXT_WAKE_MODE = ScenarioDefinition(
+    scenario_id="context_wake_mode",
+    name="아침에 불을 켜면 청정 모드",
+    question="공기청정기를 청정 모드로 바꿀까요?",
+    trigger=ScenarioTrigger("context", appliance_id="air_purifier", event="lights_on"),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_job_mode", (("job_mode", "CLEAN"),)),
+    ),
+    auto_allowed=False,
+)
+
+CONTEXT_SCENARIOS = (CONTEXT_SLEEP_MODE, CONTEXT_ARRIVAL_AIR, CONTEXT_DUST_AIR, CONTEXT_WAKE_MODE)
 
 EVENING_REST = ScenarioDefinition(
     scenario_id="evening_rest",
@@ -318,6 +330,7 @@ __all__ = [
     "CONTEXT_DUST_AIR",
     "CONTEXT_SCENARIOS",
     "CONTEXT_SLEEP_MODE",
+    "CONTEXT_WAKE_MODE",
     "COOK_DONE_AIR",
     "COOK_DONE_AIR_POWER_ON",
     "COOK_THEN_AIR",

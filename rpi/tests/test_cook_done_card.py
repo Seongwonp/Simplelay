@@ -95,7 +95,7 @@ def test_default_catalog_is_the_v4_cook_done_scenario(api):
     # 2026-10-26: 환경 제안 세 개(test_context_suggestions.py)가 그 뒤에 실린다.
     assert [s["scenario_id"] for s in scenarios] == ["cook_done_air", "cook_done_air_power_on", "air_quality_high",
                                                      "air_quality_power_on", "context_sleep_mode", "context_arrival_air",
-                                                     "context_dust_air"]
+                                                     "context_dust_air", "context_wake_mode"]
     assert scenarios[0]["name"] == "전자레인지가 멈추면 공기청정기 세게"
     trigger = scenarios[0]["trigger"]
     assert (trigger["kind"], trigger["appliance_id"], trigger["event"]) == (

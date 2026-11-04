@@ -51,6 +51,18 @@ def _light_signals() -> tuple[float | None, float | None]:
     return since, max(0.0, light.now() - since)
 
 
+def _light_on_signals() -> tuple[float | None, float | None]:
+    from .room_presence_wiring import get_room_light  # noqa: PLC0415
+
+    light = get_room_light()
+    if light is None:
+        return None, None
+    since = light.light_since()
+    if since is None:
+        return None, None
+    return since, max(0.0, light.now() - since)
+
+
 def _dust_warning() -> bool:
     from rpi.services.context_suggestions import has_dust_warning  # noqa: PLC0415
 
@@ -104,6 +116,7 @@ def read_signals(purifier_max_age_s: float):
 
     presence, arrival_at = _presence_signals()
     lights_off_at, dark_for_s = _light_signals()
+    lights_on_at, light_for_s = _light_on_signals()
     local_now = datetime.now().astimezone()
     indoor_temp, indoor_humidity = _indoor()
     return ContextSignals(
@@ -116,6 +129,8 @@ def read_signals(purifier_max_age_s: float):
         wall_now=time.time(),
         lights_off_at=lights_off_at,
         dark_for_s=dark_for_s,
+        lights_on_at=lights_on_at,
+        light_for_s=light_for_s,
         purifier=get_air_monitor().recent_state(purifier_max_age_s),
         dust_warning=_dust_warning(),
     )

@@ -21,7 +21,9 @@ from rpi.services.context_suggestions import (
     RULE_ARRIVAL,
     RULE_DUST,
     RULE_SLEEP,
+    RULE_WAKE,
     SLEEP_REASON,
+    WAKE_REASON,
     ContextRuleConfig,
     ContextSignals,
     ContextSuggestionMonitor,
@@ -127,6 +129,71 @@ def test_sleep_rule_ignores_someone_seen_long_before_lights_off():
     box["s"] = _sleep_signals(presence="away", dark_for_s=150.0)
     assert monitor.check_once().startswith("sleep:absent")
     assert box["offers"] == []
+
+
+# ── A' 아침에 불 켜면 청정 모드 ────────────────────────────────────────────────
+
+MORNING = datetime(2026, 10, 27, 7, 30, tzinfo=KST)
+
+
+def _wake_signals(**kw):
+    base = dict(local_now=MORNING, presence="present", lights_on_at=500.0, light_for_s=60.0,
+                purifier=_purifier(mode="SLEEP"), wall_now=10_000.0)
+    base.update(kw)
+    return ContextSignals(**base)
+
+
+def test_wake_rule_fires_when_lights_on_in_the_morning_with_sleep_mode():
+    monitor, box = _monitor(_wake_signals())
+    assert "wake:offered" in monitor.check_once()
+    assert box["offers"] == [(RULE_WAKE, WAKE_REASON)]
+    scenario, = [s for s in CONTEXT_SCENARIOS if s.scenario_id == RULE_WAKE]
+    assert scenario.steps[0].action == "set_job_mode" and dict(scenario.steps[0].args) == {"job_mode": "CLEAN"}
+    assert scenario.auto_allowed is False
+
+
+@pytest.mark.parametrize("change, outcome", [
+    ({"presence": "away"}, "absent"),
+    ({"light_for_s": 10.0}, "holding"),
+    ({"light_for_s": 3600.0}, "stale"),
+    ({"local_now": NIGHT}, "not_morning"),
+    ({"local_now": datetime(2026, 10, 27, 13, 0, tzinfo=KST)}, "not_morning"),
+    ({"purifier": _purifier(mode="CLEAN")}, "not_sleep"),
+    ({"purifier": _purifier(power="POWER_OFF", mode="SLEEP")}, "purifier_not_on"),
+    ({"purifier": None}, "no_purifier_state"),
+    ({"lights_on_at": None, "light_for_s": None}, "no_lights_on"),
+])
+def test_wake_rule_does_not_fire(change, outcome):
+    monitor, box = _monitor(_wake_signals(**change))
+    assert f"wake:{outcome}" in monitor.check_once()
+    assert box["offers"] == []
+
+
+def test_wake_rule_asks_once_per_lights_on_and_keeps_its_cooldown():
+    clock = _Clock()
+    monitor, box = _monitor(_wake_signals(), clock=clock)
+    assert "wake:offered" in monitor.check_once()
+    assert "wake:done" in monitor.check_once()
+    box["s"] = _wake_signals(lights_on_at=900.0)
+    clock.t += 3600
+    assert "wake:cooldown" in monitor.check_once()
+    assert len(box["offers"]) == 1
+
+
+def test_room_light_reports_when_the_light_came_on():
+    clock = _Clock()
+    light = RoomLight(dark_below=80, light_above=100, now=clock)
+    light.observe(20)
+    assert light.light_since() is None  # 처음부터 어두움 — 켠 적 없음
+    for _ in range(20):
+        clock.t += 2
+        light.observe(200)
+    assert light.snapshot().state == LIGHT
+    since = light.light_since()
+    assert since is not None and since <= clock.t
+    assert light.dark_since() is None
+    clock.t += 60  # 표본이 끊기면 단정하지 않는다
+    assert light.light_since() is None
 
 
 def test_sleep_rule_asks_once_per_lights_off_and_keeps_its_cooldown():

@@ -75,7 +75,7 @@ def test_default_catalog_has_no_v2_scenarios(thinq_mock):
     # (air_quality_high, 꺼져 있을 때 air_quality_power_on)도. v2 셋은 여전히 없다.
     assert [s["scenario_id"] for s in thinq_mock.get("/scenarios").json()] == [
         "cook_done_air", "cook_done_air_power_on", "air_quality_high", "air_quality_power_on",
-        "context_sleep_mode", "context_arrival_air", "context_dust_air"]  # 2026-10-26 환경 제안
+        "context_sleep_mode", "context_arrival_air", "context_dust_air", "context_wake_mode"]  # 환경 제안
 
 
 def test_wash_complete_makes_the_routine_notice_and_no_dehumidifier_card(thinq_mock):

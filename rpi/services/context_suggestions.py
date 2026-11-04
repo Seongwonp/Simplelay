@@ -9,6 +9,10 @@
 - A ``lights_off`` 불 끄면 수면 모드: 사람이 있고, 방이 밝음 → 어두움으로 바뀐 지 ``lights_off_hold_s`` 넘게 그대로이고
   (``lights_off_fresh_s`` 안), 지역 시각이 ``night_start_hour``~``night_end_hour``이고, 공기청정기가 켜져 있고 수면 모드가
   아니면 → 수면 모드(``set_job_mode SLEEP``)를 묻는다. 불 끈 한 번에 한 번, 그리고 ``sleep_cooldown_s``.
+  불을 끄면 어두워 카메라가 사람을 놓치므로, 꺼지기 직전(``LIGHTS_OFF_PRESENCE_GRACE_S``)에 보였으면 있는 것으로 본다.
+- A' ``lights_on`` 아침에 불 켜면 청정 모드: A의 거울. 사람이 있고, 어두움 → 밝음으로 바뀐 지 ``lights_on_hold_s`` 넘게
+  그대로이고(``lights_on_fresh_s`` 안), 지역 시각이 ``morning_start_hour``~``morning_end_hour``이고, 공기청정기가 켜져 있고
+  아직 수면 모드면 → 청정 모드(``set_job_mode CLEAN``)를 묻는다. 불 켠 한 번에 한 번, 그리고 ``wake_cooldown_s``.
 - B ``arrival`` 돌아왔을 때 공기: 오래 비웠다 돌아온 때(사람 감지의 인사 조건 ``greet``와 같다) ``arrival_window_s`` 안에,
   공기청정기가 꺼져 있고 실내 공기질 등급이 보통 이하(``ARRIVAL_AIR_LEVELS`` — 가전이 매긴 등급, 공기질 제안과 같은 값)
   이거나 황사 특보가 있으면 → 켜기를 묻는다. 돌아온 한 번에 한 번, 그리고 ``arrival_cooldown_s``.
@@ -56,7 +60,8 @@ LIGHTS_OFF_PRESENCE_GRACE_S = 60.0
 RULE_SLEEP = "context_sleep_mode"
 RULE_ARRIVAL = "context_arrival_air"
 RULE_DUST = "context_dust_air"
-CONTEXT_SCENARIO_IDS = (RULE_SLEEP, RULE_ARRIVAL, RULE_DUST)
+RULE_WAKE = "context_wake_mode"
+CONTEXT_SCENARIO_IDS = (RULE_SLEEP, RULE_ARRIVAL, RULE_DUST, RULE_WAKE)
 #: 조언 카드(2026-10-26, 실행 없음) — D 환기 권유 · E 바깥 공기가 나쁠 때 창문 닫기.
 ADVICE_VENTILATE = "advice_ventilate"
 ADVICE_WINDOWS_CLOSED = "advice_windows_closed"
@@ -74,6 +79,7 @@ ARRIVAL_AIR_LEVELS = ("NORMAL", "BAD", "VERY_BAD")
 
 # 근거·질문 문장(정해 둔 틀, 해요체·느낌표 없음 — docs/UX-문구-기준-2026-10-19.md)
 SLEEP_REASON = "불을 끄셨네요. 밤이고 공기청정기가 켜져 있어요."
+WAKE_REASON = "좋은 아침이에요. 불을 켜셨는데 공기청정기가 아직 수면 모드예요."
 ARRIVAL_PREFIX = "다녀오셨네요."
 ARRIVAL_AIR_SENTENCES = {
     "NORMAL": "실내 공기가 보통이에요.",
@@ -99,6 +105,15 @@ class ContextRuleConfig:
     night_end_hour: int = 2
     #: 수면 모드 카드를 만든 뒤 다시 만들지 않는 시간(초). **추측** 하룻밤 한 번(8시간).
     sleep_cooldown_s: float = 8 * 3600.0
+    #: 아침에 불이 켜진 뒤 이만큼 그대로여야 묻는다(초) — 잠깐 켰다 끄는 불로 묻지 않게. **추측** 30초.
+    lights_on_hold_s: float = 30.0
+    #: 불 켠 지 이보다 오래면 묻지 않는다(초). **추측** 15분.
+    lights_on_fresh_s: float = 15 * 60.0
+    #: 아침 시간 창(지역 시각, 시작 포함·끝 제외). **추측** 05:00~11:00.
+    morning_start_hour: int = 5
+    morning_end_hour: int = 11
+    #: 수면 모드 끝내기 카드 뒤 쉬는 시간(초). **추측** 하루 아침 한 번(8시간).
+    wake_cooldown_s: float = 8 * 3600.0
     #: 돌아온 뒤 이 안에서만 묻는다(초) — 공기청정기 상태를 아직 못 읽었으면 이 안에서 다음 판독을 기다린다. **추측** 10분.
     arrival_window_s: float = 10 * 60.0
     #: 돌아왔을 때 카드 뒤 쉬는 시간(초). 인사 간격(3시간)과 같게 — **추측**.
@@ -179,6 +194,9 @@ class ContextSignals:
     #: 불이 꺼진 순간(밝음 → 어두움)과 그 뒤 지난 초 — 방 밝기 시계 기준. 아니면 None.
     lights_off_at: float | None = None
     dark_for_s: float | None = None
+    #: 불이 켜진 순간(어두움 → 밝음)과 그 뒤 지난 초 — 같은 방 밝기 시계. 아니면 None.
+    lights_on_at: float | None = None
+    light_for_s: float | None = None
     #: 공기청정기 ThinQ 상태(최근에 읽은 것), 없으면 None.
     purifier: Mapping | None = None
     #: 우리 지역에 황사 특보가 걸려 있나.
@@ -255,6 +273,7 @@ class ContextSuggestionMonitor:
         self._lock = threading.Lock()
         self._last_card: dict[str, float] = {}
         self._sleep_done_for: float | None = None  # 이미 다룬 불 끔(꺼진 순간)
+        self._wake_done_for: float | None = None  # 이미 다룬 불 켬(켜진 순간)
         self._arrival_done_for: float | None = None  # 이미 다룬 돌아옴(돌아온 시각)
         self._last_present: float | None = None  # 마지막으로 사람이 보인 때(단조 시계)
         self._dust_seen = False
@@ -266,6 +285,7 @@ class ContextSuggestionMonitor:
         with self._lock:
             self._last_card.clear()
             self._sleep_done_for = None
+            self._wake_done_for = None
             self._arrival_done_for = None
             self._last_present = None
             self._dust_seen = False
@@ -289,7 +309,8 @@ class ContextSuggestionMonitor:
         if reason:
             return f"blocked:{reason}"
         outcomes = []
-        for name, rule in (("sleep", self._rule_sleep), ("arrival", self._rule_arrival), ("dust", self._rule_dust),
+        for name, rule in (("sleep", self._rule_sleep), ("wake", self._rule_wake), ("arrival", self._rule_arrival),
+                           ("dust", self._rule_dust),
                            ("ventilate", self._rule_ventilate), ("windows", self._rule_windows_closed)):
             result = rule(s)
             outcomes.append(f"{name}:{result}")
@@ -363,6 +384,38 @@ class ContextSuggestionMonitor:
             return "not_offered"
         self._sleep_done_for = s.lights_off_at
         self._mark(RULE_SLEEP)
+        return "offered"
+
+    def _rule_wake(self, s: ContextSignals) -> str:
+        c = self.config
+        if s.lights_on_at is None or s.light_for_s is None:
+            return "no_lights_on"
+        if s.lights_on_at == self._wake_done_for:
+            return "done"
+        if s.light_for_s < c.lights_on_hold_s:
+            return "holding"
+        if s.light_for_s > c.lights_on_fresh_s:
+            return "stale"
+        if s.presence != PRESENT:
+            return "absent"
+        if not is_night(s.local_now, c.morning_start_hour, c.morning_end_hour):
+            return "not_morning"
+        if s.purifier is None:
+            return "no_purifier_state"
+        if _purifier_power(s.purifier) != "POWER_ON":
+            return "purifier_not_on"
+        mode = _purifier_job_mode(s.purifier)
+        if mode is None:
+            return "mode_unknown"
+        if mode != "SLEEP":
+            self._wake_done_for = s.lights_on_at
+            return "not_sleep"
+        if self._cooling(RULE_WAKE, c.wake_cooldown_s):
+            return "cooldown"
+        if self._ask(RULE_WAKE, WAKE_REASON, ("집에 계심", "불을 켜심", "아침", "수면 모드")) is None:
+            return "not_offered"
+        self._wake_done_for = s.lights_on_at
+        self._mark(RULE_WAKE)
         return "offered"
 
     def _rule_arrival(self, s: ContextSignals) -> str:

@@ -271,7 +271,7 @@ def test_arrival_reason_mentions_bad_outdoor_air():
     from rpi.tests.test_context_suggestions import _arrival_signals, _monitor
 
     monitor, box = _monitor(_arrival_signals(outdoor_air="나쁨"))
-    assert monitor.check_once().startswith("sleep:no_lights_off,arrival:offered")
+    assert monitor.check_once().startswith("sleep:no_lights_off,wake:no_lights_on,arrival:offered")
     _, reason, *_ = box["offers"][0]
     assert "바깥 미세먼지도 나빠요." in reason
     monitor2, box2 = _monitor(_arrival_signals(purifier={"operation": {"airPurifierOperationMode": "POWER_OFF"},

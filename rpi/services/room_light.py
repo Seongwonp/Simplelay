@@ -105,6 +105,19 @@ class RoomLight:
             return None
         return self._since
 
+    def light_since(self) -> float | None:
+        """불이 켜진 순간(어두움 → 밝음으로 바뀐 때, :meth:`now` 기준). :meth:`dark_since`의 거울 — 지금 밝지 않거나,
+        밝아지기 전이 어두움이 아니었거나, 표본이 오래됐으면 None."""
+        if self._state != LIGHT or self._previous != DARK:
+            return None
+        try:
+            last = self._samples[-1][0]
+        except IndexError:
+            return None
+        if self._now() - last > self.stale_s:
+            return None
+        return self._since
+
     def _mean(self) -> int | None:
         t = self._now()
         if not self._samples or t - self._samples[-1][0] > self.stale_s:
