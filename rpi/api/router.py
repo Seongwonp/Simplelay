@@ -1627,6 +1627,18 @@ def unmute_suppression(
     return OkResponse()
 
 
+@router.post("/demo/greet", response_model=OkResponse)
+def demo_greet() -> OkResponse:
+    # 시연용 — 본체 화면에 '돌아왔을 때 인사'를 바로 띄운다. 가전은 움직이지 않는다.
+    from rpi.api.room_presence_wiring import get_room_presence  # noqa: PLC0415
+
+    room = get_room_presence()
+    if room is None:
+        raise HTTPException(status_code=409, detail="사람 감지가 꺼져 있어요")
+    room.demo_greet()
+    return OkResponse()
+
+
 @router.post("/demo/suggest", response_model=SuggestionResponse)
 def demo_suggest(
     body: DemoSuggestRequest,

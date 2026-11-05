@@ -25,6 +25,17 @@ class _Feed:
         return self.room.observe({"ts": self.clock.t, "persons": persons, "frames": self.n})
 
 
+def test_demo_greet_marks_a_fresh_arrival_with_greeting_without_touching_the_gap():
+    clock = _Clock()
+    room = _room(clock)
+    room.demo_greet()
+    snap = room.snapshot()
+    assert snap.state == PRESENT and snap.greet is True and snap.arrived_at == clock.t
+    clock.t += 30
+    room.demo_greet()  # 시연을 다시 해도 또 인사한다
+    assert room.snapshot().greet is True and room.snapshot().arrived_at == clock.t
+
+
 def test_starts_empty_and_needs_consecutive_frames_to_arrive():
     clock = _Clock()
     room = _room(clock)

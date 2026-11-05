@@ -133,6 +133,20 @@ class RoomPresence:
             self._state = state
             self._changed = now
 
+    def demo_greet(self) -> None:
+        """시연용 — 오래 비웠다 지금 돌아온 것처럼 인사 상태를 만든다(카메라 판단을 기다리지 않는다).
+
+        인사 간격 기억(_last_greet)은 바꾸지 않아 실제 사용의 '몇 시간에 한 번'에는 영향이 없다.
+        """
+        now = self._now()
+        with self._lock:
+            self._arrived = now
+            self._arrived_from = AWAY
+            self._last_seen = now
+            self._greet = True
+            self._streak = self.arrive_frames
+            self._set(PRESENT, now)
+
     def snapshot(self) -> RoomSnapshot:
         with self._lock:
             return RoomSnapshot(self._state, self._persons, self._last_seen, self._arrived, self._changed,
