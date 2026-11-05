@@ -61,6 +61,8 @@ class RoomPresence:
         self.greet_after_s = greet_after_s
         self._greet = False
         self._last_greet: float | None = None
+        #: 시연 인사의 아래 한 줄(없으면 날씨). 실제 돌아옴이 생기면 지운다.
+        self.demo_note: str | None = None
         self._lock = threading.Lock()
         self._state = UNKNOWN
         self._persons = 0
@@ -99,6 +101,7 @@ class RoomPresence:
                     gone = None if self._last_seen is None else now - self._last_seen  # 마지막으로 본 뒤 얼마나
                     self._last_seen = now
                     if self._state in (IDLE, AWAY):
+                        self.demo_note = None
                         self._arrived = now
                         self._arrived_from = self._state
                         # 잠깐 자리 비움에서 돌아오면 화면만 켜고 말하지 않는다(10/25 사용자 — 찍힐 때마다 인사는 이상하다).
@@ -133,13 +136,15 @@ class RoomPresence:
             self._state = state
             self._changed = now
 
-    def demo_greet(self) -> None:
+    def demo_greet(self, note: str | None = None) -> None:
         """시연용 — 오래 비웠다 지금 돌아온 것처럼 인사 상태를 만든다(카메라 판단을 기다리지 않는다).
 
         인사 간격 기억(_last_greet)은 바꾸지 않아 실제 사용의 '몇 시간에 한 번'에는 영향이 없다.
+        ``note``는 인사 아래 한 줄(날씨 자리)을 이 돌아옴 동안 바꾼다.
         """
         now = self._now()
         with self._lock:
+            self.demo_note = note
             self._arrived = now
             self._arrived_from = AWAY
             self._last_seen = now

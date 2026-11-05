@@ -30,6 +30,7 @@ from dataclasses import replace
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 from rpi.controller import ExecutionResult, outcome_of
 from rpi.intent.rules import UnknownIntentError, UnrecognizedPurposeError
@@ -1627,15 +1628,20 @@ def unmute_suppression(
     return OkResponse()
 
 
+class DemoGreetRequest(BaseModel):
+    #: 인사 아래 한 줄(날씨 자리). 없으면 날씨.
+    note: str | None = Field(default=None, max_length=80)
+
+
 @router.post("/demo/greet", response_model=OkResponse)
-def demo_greet() -> OkResponse:
+def demo_greet(body: DemoGreetRequest | None = None) -> OkResponse:
     # 시연용 — 본체 화면에 '돌아왔을 때 인사'를 바로 띄운다. 가전은 움직이지 않는다.
     from rpi.api.room_presence_wiring import get_room_presence  # noqa: PLC0415
 
     room = get_room_presence()
     if room is None:
         raise HTTPException(status_code=409, detail="사람 감지가 꺼져 있어요")
-    room.demo_greet()
+    room.demo_greet(body.note if body else None)
     return OkResponse()
 
 
@@ -1780,7 +1786,7 @@ def room_presence() -> RoomPresenceResponse:
         arrived_at=at(snap.arrived_at),
         # 오래 비웠다 돌아온 때만(몇 시간에 한 번) 인사 — 잠깐 자리 비움은 화면만 켠다.
         greeting=greeting_for(datetime.fromtimestamp(snap.arrived_at).astimezone(), resident_name()) if greet else None,
-        greeting_weather=_greeting_weather_line() if greet else None,
+        greeting_weather=(room.demo_note or _greeting_weather_line()) if greet else None,
         changed_at=at(snap.changed_at),
         dim_after_s=room.dim_after_s,
         away_after_s=room.away_after_s,

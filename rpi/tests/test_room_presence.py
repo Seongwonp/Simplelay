@@ -32,8 +32,9 @@ def test_demo_greet_marks_a_fresh_arrival_with_greeting_without_touching_the_gap
     snap = room.snapshot()
     assert snap.state == PRESENT and snap.greet is True and snap.arrived_at == clock.t
     clock.t += 30
-    room.demo_greet()  # 시연을 다시 해도 또 인사한다
+    room.demo_greet("조명과 공기청정기를 켰어요")  # 시연을 다시 해도 또 인사한다
     assert room.snapshot().greet is True and room.snapshot().arrived_at == clock.t
+    assert room.demo_note == "조명과 공기청정기를 켰어요"
 
 
 def test_starts_empty_and_needs_consecutive_frames_to_arrive():
