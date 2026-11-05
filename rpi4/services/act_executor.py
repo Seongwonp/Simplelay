@@ -1401,6 +1401,15 @@ class ActExecutor:
                 await self._send({**base, "ok": False, "reason": "dev_unsupported",
                                   "detail": "개발자 조작을 받지 않는 RPi4예요", "moved": False})
                 return
+            session = self.hold_session
+            if not self._dev_running() and session is not None and session.active:
+                # RPi5 /stop은 abort와 함께 개발자 정지를 보낸다. 정지 버튼 위 대기 중에는 abort가 가전 정지 버튼을
+                # 누르는데, 여기서 MCU 정지를 보내면 그 누름이 끊겨 가전이 멈추지 않는다. 멈출 개발자 조작도 없다.
+                log.warning("dev stop (%s) while holding with no developer op — leaving the stop press to the hold",
+                            msg.reason or "dev_stop")
+                await self._send({**base, "ok": True, "stop_level": None, "ack_ms": None,
+                                  "stop_detail": "정지 버튼 위 대기 중이라 가전 정지 누름으로 처리해요"})
+                return
             before = self._dev_motion.last_stop_id
             sent = self._dev_motion.stop(msg.reason or "dev_stop")
             reply = {**base, "ok": bool(sent)}

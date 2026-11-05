@@ -399,6 +399,21 @@ def test_dev_stop_without_mcu_reply_says_only_sent(rig) -> None:
     run(_t())
 
 
+def test_dev_stop_while_holding_leaves_the_stop_press_alone(rig) -> None:
+    """정지 버튼 위 대기 중 /stop의 개발자 정지가 MCU 정지로 가전 정지 누름을 끊지 않는다."""
+    class _Holding:
+        active = True
+
+    async def _t():
+        r = rig(homed=True)
+        r.executor.hold_session = _Holding()
+        reply = await r.op("stop", reason="emergency_stop")
+        assert reply["ok"] is True
+        assert [d for d in r.mcu.received if d.get("cmd") == "stop"] == []
+
+    run(_t())
+
+
 def test_dev_stop_during_a_jog_reports_the_mcu_ack(rig) -> None:
     async def _t():
         r = rig(homed=True)
