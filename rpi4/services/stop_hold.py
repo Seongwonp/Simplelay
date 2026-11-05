@@ -165,6 +165,14 @@ class GrblHoldMotion:
         if callable(stop):
             stop()
 
+    def reset_stop(self) -> None:
+        # 확인 주행은 시작할 때 지난 정지 표시를 지운다 — 어댑터까지 전하지 않으면 개발자 조작 종료 때 보낸
+        # 정지가 남아 첫 이동이 '전송 전에 중단 요청'으로 거절된다.
+        for client in {id(self._move): self._move, id(self._press): self._press}.values():
+            reset = getattr(client, "reset_stop", None)
+            if callable(reset):
+                reset()
+
 
 class ApplianceRunProbe(Protocol):
     #: "mock" | "real" | "none"
