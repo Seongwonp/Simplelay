@@ -118,6 +118,8 @@ class ContextRuleConfig:
     arrival_window_s: float = 10 * 60.0
     #: 돌아왔을 때 카드 뒤 쉬는 시간(초). 인사 간격(3시간)과 같게 — **추측**.
     arrival_cooldown_s: float = 3 * 3600.0
+    #: 1이면 공기가 괜찮아도 돌아왔을 때 꺼진 공기청정기 켜기를 묻는다 — 공기를 고를 수 없는 시연장 전용, 평소는 0.
+    arrival_air_always: int = 0
     #: 황사 특보 카드 뒤 쉬는 시간(초). 사용자 지시 6시간.
     dust_cooldown_s: float = 6 * 3600.0
     #: 공기청정기 상태를 믿는 나이(초) — 공기질 판독 주기 기본 120초의 두 번 + 여유. **추측**.
@@ -436,7 +438,7 @@ class ContextSuggestionMonitor:
         grade = summary["grade"] if summary is not None else None
         air_sentence = ARRIVAL_AIR_SENTENCES.get(grade) if grade in ARRIVAL_AIR_LEVELS else None
         outdoor_bad = s.outdoor_air in OUTDOOR_BAD_GRADES
-        if air_sentence is None and not s.dust_warning and not outdoor_bad:
+        if air_sentence is None and not s.dust_warning and not outdoor_bad and not c.arrival_air_always:
             return "air_ok"
         if self._cooling(RULE_ARRIVAL, c.arrival_cooldown_s):
             return "cooldown"

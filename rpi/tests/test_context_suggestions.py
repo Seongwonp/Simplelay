@@ -271,6 +271,17 @@ def test_arrival_rule_does_not_fire(change, outcome):
     assert box["offers"] == []
 
 
+def test_arrival_air_always_asks_even_when_air_is_good():
+    from rpi.services.context_suggestions import ContextRuleConfig
+
+    monitor, box = _monitor(_arrival_signals(purifier=_purifier(power="POWER_OFF", grade="GOOD")))
+    monitor.config = ContextRuleConfig(arrival_air_always=1)
+    assert "arrival:offered" in monitor.check_once()
+    reason = box["offers"][0][1]
+    assert reason.startswith("다녀오셨네요.") and "공기청정기가 꺼져 있어요." in reason
+    assert ContextRuleConfig.from_env({"SIMPLELAY_CONTEXT_ARRIVAL_AIR_ALWAYS": "1"}).arrival_air_always == 1
+
+
 def test_arrival_rule_waits_for_the_air_card_quiet_time():
     monitor, box = _monitor(_arrival_signals(), air_recent=True)
     assert "arrival:air_card_quiet" in monitor.check_once()
