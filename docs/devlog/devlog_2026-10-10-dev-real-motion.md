@@ -125,6 +125,6 @@ SIMPLELAY_DEV_REAL_MAX_STEP_MM=1            # 선택, 기본 1, 상한 5
 5. 위치 기준은 MCU 엔코더(모터 축) — 벨트 미끄럼은 보이지 않는다(firmware devlog §9-4).
 6. 개발자 조작 중 RPi5 프로세스가 죽으면 진행 중 이동은 상한 안에서 끝나고, RPi4·MCU 쪽 정지는 RPi4 이동 기한·펌웨어 워치독에 맡긴다
    (RPi5 heartbeat 감시자도 함께 죽기 때문).
-7. `CLAUDE.md` 아키텍처 줄의 "/dev mock 전용" 문구는 이 세션에서 고치지 않았다(설정 파일 수정은 사용자 확인 뒤) — 바꿀 문장:
+7. 팀 작업 규칙 아키텍처 줄의 "/dev mock 전용" 문구는 이 세션에서 고치지 않았다(설정 파일 수정은 사용자 확인 뒤) — 바꿀 문장:
    "개발자 API(`/dev/*`): `SIMPLELAY_DEV_MODE` + `SIMPLELAY_DEV_TOKEN`(일반 API 키와 별개), **기본 모의, 실물은 env 두 개
    (`SIMPLELAY_DEV_MODE`·`SIMPLELAY_DEV_REAL_MOTION`) + RPi4 실물 링크(`act_info.motion=serial`·`dev_motion_protocol`)일 때만**".

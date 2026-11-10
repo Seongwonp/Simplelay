@@ -21,7 +21,7 @@
 | `10ac349` | `SdkThinqClient`(SDK 실제 호출), `fake_cloud`·`real` 모드와 기동 거절, PAT·클라이언트 ID 보관 규칙, 우리 쪽 호출 상한, 모의 클라우드 `rpi/tools/fake_thinq_cloud.py`, 실물 미구현 자리(`RealThinqClient`) 제거 |
 | `51f1a3d` | 프로필 판정으로 실행 전 거절, 세탁기 시작·일시정지(원격 시작 조건), `/thinq/devices`의 `profile_allowed`, 끝-끝 시험 |
 | `5cf85ed` | 공기청정기 연결 끊김·제어 거절 끝-끝 시험(모의 클라우드에 제어 거절 장애, 닫을 때 열린 연결까지 끊기) |
-| (이 커밋) | `scripts/thinq_probe.py`, 실물 확인 절차, 이 기록, CLAUDE.md 한 줄 |
+| (이 커밋) | `scripts/thinq_probe.py`, 실물 확인 절차, 이 기록, 팀 작업 규칙 한 줄 |
 
 ## 2. SDK 소스에서 확인한 것 (설치본 `thinqconnect` 1.0.14)
 

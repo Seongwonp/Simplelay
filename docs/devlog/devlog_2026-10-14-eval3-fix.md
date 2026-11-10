@@ -22,7 +22,7 @@
 | `b3fba33` | L1 | 정책 하나로(아래 §3), 코드 주석·v4·실측 기록표 §6 C1/C2·README 검증 표(날짜·빌드별)·인계 §6/§8 구분 |
 | `750c243` | L2 | ThinQ 실물 확인 절차 — `unconfirmed`는 receipt·confirmation 함께 기록, accepted/none '접수 확인, 결과 미확인' · unknown/none '접수 여부 미확인' |
 | `e693e26` | L3 | 시험명 두 개를 검사 범위로, `/status` `last_job_id`·`last_auto_run` 규약(마지막 1건·첫 조회 제외·비영속)을 [protocol](../protocol.md)에, 10/14 devlog 도입부 '수정 전 실패' 문장을 상세표 기준으로 |
-| (이 커밋) | 문서 | 이 기록, 인계 §8, CLAUDE.md 한 줄, README 링크 |
+| (이 커밋) | 문서 | 이 기록, 인계 §8, 팀 작업 규칙 한 줄, README 링크 |
 
 ## 2. 항목별 — 재현·수정 전 실패·고친 것
 

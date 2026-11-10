@@ -13,7 +13,7 @@
 | `3c5efd0` | 서버: 발견·지원 판정·추가·제거·영속(`rpi/services/thinq/discovery.py`, `thinq_wiring`, `thinq_router`), SDK DEBUG 로그 차단, 시험 17 |
 | `6fd1b57` | 앱: 'LG ThinQ 연결' 화면 안 'ThinQ에서 찾은 가전' 구획과 추가·빼기, 위젯 시험 6 |
 | `6f0ac97` | 시험: 추가한 가전의 `GET /appliances` 항목이 환경 변수 가전과 같은 모양(키오스크 무변경 확인) |
-| (이 커밋) | 이 기록, 실물 확인 절차 §4-3 '발견 → 추가', CLAUDE.md 한 줄 |
+| (이 커밋) | 이 기록, 실물 확인 절차 §4-3 '발견 → 추가', 팀 작업 규칙 한 줄 |
 
 ## 2. 서버 API
 

@@ -15,7 +15,7 @@
 | `805e4d6` | v4 기본 시나리오 `cook_done_air`(조리 완료 → 공기청정기 강풍 카드). 트리거는 RPi4 `appliance_done`(전자레인지 `heat_complete`, 입력에 CT 전력 `power`)뿐 — 버튼 누름 완료·종료음만은 카드 없음. 완료 기록에 RPi4 시각(`at_s`·`t_monotonic_ns`) 보존, RPi5 모의 주입도 보낸 시각을 싣는다. `cycle_end.py` 전자레인지 기준값 주석을 실측 기록표 §6에 연결 |
 | `a5badc0` | 서버 규칙: `rpi/routines/auto_rules.py`(모델·저장·엔진), `POST /suggestions/{id}/approve-and-allow`, `GET/PUT/DELETE /routines/auto-rules[/{id}]`, `POST /routines/auto-rules/{id}/enable`, `GET /routines/auto-rules/runs`, `/suggestions`의 `auto_rule_offer`, `/stop`·게이트웨이 비상정지 연결. 서버 시험 23 + 모의 클라우드 끝-끝 2 |
 | `9d15b25` | 폰: 카드 세 갈래와 조건·동작 확인 시트, 루틴 목록의 자동 실행 줄. 위젯 시험 9 |
-| (이 커밋) | 이 기록, v4 문서 상태, CLAUDE.md 한 줄 |
+| (이 커밋) | 이 기록, v4 문서 상태, 팀 작업 규칙 한 줄 |
 
 키오스크는 바꾸지 않았다(자동 실행 job은 키오스크가 시작한 job이 아니라 남의 실행으로 보이고, 결과 문구는 기존 ThinQ 표시 그대로). 키오스크 시험 278 통과로 깨지지 않음만 확인.
 
