@@ -7,13 +7,13 @@
 <table>
 <tr>
 <td align="center"><b>누름 장치 (버튼식 전자레인지)</b></td>
-<td align="center"><b>본체 키오스크 (15.8형 터치 패널)</b></td>
+<td align="center"><b>본체 키오스크 — 먼저 묻는 제안</b></td>
 <td align="center"><b>폰 앱</b></td>
 </tr>
 <tr>
 <td><img src="docs/submission/img/press-device-on-microwave-2026-11-04.jpg" alt="전자레인지 조작부 위에 붙인 CoreXY 누름 장치" width="260"></td>
-<td><img src="docs/submission/img/kiosk-idle-real-panel-2026-10-24.png" alt="15.8형 터치 패널에 뜬 SimpleLay 키오스크 처음 화면" width="420"></td>
-<td><img src="docs/submission/img/phone-home-2026-10-24.png" alt="SimpleLay 폰 앱 홈 화면" width="200"></td>
+<td><img src="docs/submission/img/kiosk-suggestion-real-2026-11-03.png" alt="본체 키오스크에 뜬 제안 카드: 공기청정기를 켜 둘까요?, 이유와 네·아니요 버튼" width="420"></td>
+<td><img src="docs/submission/img/phone-home-real-2026-11-06.png" alt="SimpleLay 폰 앱 홈 화면 (실기기)" width="200"></td>
 </tr>
 </table>
 
