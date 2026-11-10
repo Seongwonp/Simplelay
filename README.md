@@ -7,12 +7,12 @@
 <table>
 <tr>
 <td align="center"><b>누름 장치 (버튼식 전자레인지)</b></td>
-<td align="center"><b>본체 키오스크 — 먼저 묻는 제안</b></td>
+<td align="center"><b>본체 키오스크 (15.8형 터치 패널)</b></td>
 <td align="center"><b>폰 앱</b></td>
 </tr>
 <tr>
 <td><img src="docs/submission/img/press-device-on-microwave-2026-11-04.jpg" alt="전자레인지 조작부 위에 붙인 CoreXY 누름 장치" width="260"></td>
-<td><img src="docs/submission/img/kiosk-suggestion-real-2026-11-03.png" alt="본체 키오스크에 뜬 제안 카드: 공기청정기를 켜 둘까요?, 이유와 네·아니요 버튼" width="420"></td>
+<td><img src="docs/submission/img/kiosk-home-real-2026-10-28.png" alt="15.8형 터치 패널에 뜬 SimpleLay 키오스크 홈 화면" width="420"></td>
 <td><img src="docs/submission/img/phone-home-real-2026-11-06.png" alt="SimpleLay 폰 앱 홈 화면 (실기기)" width="200"></td>
 </tr>
 </table>
@@ -33,6 +33,8 @@ LG ThinQ 가전은 공식 API로 연결하고, 버튼만 있는 옛 가전은 �
 - **맡겨 주신 일만 알아서 합니다** — '네'를 자주 눌러도 저절로 자동으로 바뀌지 않습니다. 언제, 무엇을 하는지 확인하고 직접 맡겨 주셔야 하며, 언제든 다시 끌 수 있습니다.
 - **열이 나는 가전은 매번 확인합니다** — 전자레인지와 인덕션은 맡길 수 없고, 실행할 때마다 '네'를 받습니다. 폰과 키오스크에서 언제든 멈출 수 있습니다.
 - **판단은 집 안 본체에서 합니다** — 말 알아듣기와 사람 감지는 본체 안에서 처리합니다. 카메라는 사람이 있는지 없는지만 보며, 사진은 저장하거나 보내지 않습니다.
+
+<p align="center"><img src="docs/submission/img/kiosk-suggestion-real-2026-11-03.png" alt="본체 키오스크에 뜬 제안 카드: 공기청정기를 켜 둘까요?, 이유와 네·아니요 버튼" width="560"><br/><sub>실제로 뜬 제안 카드 — 이유를 함께 보여 주고, '네'를 누르기 전에는 아무것도 하지 않습니다 (11/3)</sub></p>
 
 ## 🏗 시스템 아키텍처 (System Architecture)
 
