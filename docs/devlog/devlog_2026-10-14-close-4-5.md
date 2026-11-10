@@ -41,7 +41,7 @@
 
 ## 4. 배포 인계
 
-[인계](../인계-2026-10-13-데스크톱.md) §8에 11번을 더했다 — 4종 실제 배포 SHA 표(확인 방법 포함), RPi4 변경 여부, 호환 기준.
+[인계](../archive/인계-2026-10-13-데스크톱.md) §8에 11번을 더했다 — 4종 실제 배포 SHA 표(확인 방법 포함), RPi4 변경 여부, 호환 기준.
 
 - **RPi4는 마지막 배포(`568f995` 이미지 + `ce37b81` `run_act.sh`) 뒤 동작이 바뀌지 않았다.** `git diff 568f995 HEAD`에서 `rpi4/`·`deploy/`·`pyproject.toml` 차이는 `ce37b81`뿐(이미 RPi4에 올림). RPi4 실행기(`rpi4.act_main`)가 불러오는 저장소 모듈 69개 중 바뀐 것은 공용 모델 4개(`rpi/commands/models.py` — 클라우드 경로 전용 확인 값, `rpi/intent/models.py`·`patterns.py`·`suggestions.py` — 백엔드 제안·조용한 시간)뿐이고 누름·정지·링크·시계 경로는 그대로다(가져오기 목록과 변경 파일을 맞춰 봄).
 - 호환 기준: `act_info`의 `execute_protocol` 2 · `stop_report_protocol` 1 · `clock_protocol` 1 · `dev_motion_protocol` 2(RPi5는 1 이상 요구) · 같은 `SIMPLELAY_LINK_KEY`.
